@@ -322,16 +322,32 @@ describe("the fold stamps an account remembers", function()
     assert.same({ now - 3 * 3600, now }, store.foldAts)
   end)
 
-  it("adds nothing when a partial read merges into the saved fold and keeps its stamp", function()
+  it("adds nothing when a cut read merges into the saved fold and keeps its stamp", function()
     scan(500)
     local first = store.fold.at
     store.requestedAt = nil
     now = now + 500
-    -- the browse pass never ends, so this read is partial, and inside the merge window it tops the
-    -- saved fold up instead of replacing it
-    scan(500)
+    -- A dump of a page multiple is cut, and inside the merge window what its browse pass saw tops
+    -- the saved fold up instead of replacing it. (A dump read to the end replaces it, however
+    -- its browse pass ends: review, 2026-11-06.)
+    local s = GC.ForeverScan.New(driver())
+    rows = {}
+    for i = 1, GC.ForeverScan.C.SUSPECT_CAP do rows[i] = { 1000 + (i % 50), 1, 100 + (i % 7), true } end
+    s:OnAuctionHouseShow()
+    while #timers > 0 and s:State() ~= "browsing" do table.remove(timers, 1).fn() end
+    s:OnBrowsePassAbandoned({ [3000] = { floor = 250, qty = 4 } })
+    assert.truthy(store.fold.items[3000])
     assert.equal(first, store.fold.at)
     assert.same({ first }, store.foldAts)
+  end)
+
+  it("adds the stamp of a whole dump whose browse pass never ended, inside the merge window", function()
+    scan(500)
+    local first = store.fold.at
+    store.requestedAt = nil
+    now = now + 500
+    scan(500)
+    assert.same({ first, now }, store.foldAts)
   end)
 
   it("keeps the last eight, oldest out", function()

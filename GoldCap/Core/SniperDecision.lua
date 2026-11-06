@@ -964,9 +964,62 @@ local function ceilingProfit(kind, exitUnit, quantity, entryTotal, deposit)
   return gross - safeCeilDiv(gross * 5, 100) - entryTotal - deposit
 end
 
+-- The unit a buy of `quantity` resells at. A "vendor" row sells to the NPC, at a price no book can
+-- move. A "market" row sells back into this auction house, so the board's AH value (`exitUnit`,
+-- from a scan that may be a quarter of an hour old or more) holds only while nobody asks less:
+-- the units the plan leaves on the book have to sell first, so the exit is one copper under the
+-- cheapest of them, as on retail (GC.DealMath.SellUnit, the Sell tab's rule). Review 2026-11-06,
+-- a row on the owner's own save: the scan saw 55 units at 133c, an AH value of 199c, a ceiling
+-- of 139c; since then 300 units were listed at 135c. The Check said SAFE for 200 units, 26,890c,
+-- +10,920c, against the 155 left at 135c: resold at 134c, that buy loses about 1,430c. The book
+-- arrives without the player's own units (driver.commodityBook), so their own listings never
+-- hold the exit down; a plan that empties the book leaves nothing to undercut, and the AH value
+-- stands. `levels` is ascending (EvaluateCeiling), so Book.Fill's units are the plan's own.
+local function ceilingExit(input, levels, quantity)
+  if input.kind ~= "market" then return input.exitUnit end
+  local left = GC.Book.Fill(levels, quantity)
+  return (GC.DealMath.SellUnit(input.exitUnit, left and left.competing))
+end
+
 -- One answer at one set of per-buy limits: EvaluateCeiling's own, and each one its needs-gold
 -- search below asks of itself.
-local function decideCeiling(input, cap, levels, limits)
+local decideCeiling
+
+local function passes(answer)
+  return answer.status == "SAFE" or answer.computedStatus == "SAFE"
+end
+
+-- A market row's resale is held to the asks its buy leaves (ceilingExit), so more units do not
+-- always pay more: a buy that takes part of a level resells under that level's own price, and
+-- every unit it took there loses. The largest buy the limits allow (DecideCommodity's) is also
+-- tried cut at each whole level inside it, and the one that pays most is the answer (review
+-- 2026-11-06: a book of 10 at 50c, 100 at 135c, 50 at 190c under a 139c ceiling refused the
+-- 200-unit buy at -1,430c while its first 10 units made +773c, and the needs-gold search then
+-- asked a 55,000c wallet for 2,000c, over and over).
+local function bestCut(input, cap, levels, limits, whole)
+  local planned = whole.quantity
+  if input.kind ~= "market" or input.fixedQuantity ~= nil or input.quotedTotal ~= nil
+      or not isInteger(planned) then
+    return whole
+  end
+  local best, taken = whole, 0
+  for i = 1, #levels do
+    local level = levels[i]
+    if level.unitPrice > cap.c then break end
+    taken = taken + level.quantity
+    if taken >= planned then break end
+    local cut = {}
+    for k, v in pairs(input) do cut[k] = v end
+    cut.fixedQuantity = taken
+    local answer = decideCeiling(cut, cap, levels, limits)
+    if passes(answer) and (not passes(best) or answer.stressProfit > best.stressProfit) then
+      best = answer
+    end
+  end
+  return best
+end
+
+decideCeiling = function(input, cap, levels, limits)
   local plan = GC.Caps.DecideCommodity(cap, levels, limits, input.fixedQuantity)
   if not plan then
     if input.fixedQuantity ~= nil then return refusal("book_exhausted") end
@@ -982,21 +1035,26 @@ local function decideCeiling(input, cap, levels, limits)
     deposit = type(input.depositForQuantity) == "function" and input.depositForQuantity(plan.quantity) or nil
     if not isInteger(deposit) then return refusal("deposit_missing") end
   end
+  -- `exitUnit` is the resale this buy is priced at, which the dialog shows; `refUnit` the board's
+  -- own figure, the AH value or vendor price its words name (GC.Sniper._ForeverNote).
+  local exitUnit = ceilingExit(input, levels, plan.quantity)
   local figures = {
     quantity = plan.quantity, entryTotal = entryTotal,
     entryUnitDisplay = math.floor(entryTotal / plan.quantity), unit = plan.unit,
-    ceiling = input.ceilingUnit, forever = input.kind, exitUnit = input.exitUnit, deposit = deposit,
-    stressProfit = ceilingProfit(input.kind, input.exitUnit, plan.quantity, entryTotal, deposit),
+    ceiling = input.ceilingUnit, forever = input.kind, exitUnit = exitUnit, refUnit = input.exitUnit,
+    deposit = deposit, stressProfit = ceilingProfit(input.kind, exitUnit, plan.quantity, entryTotal, deposit),
     requiredProfit = input.minimumProfit,
   }
-  if figures.stressProfit < input.minimumProfit then return refusal("profit_below_minimum", figures) end
+  if figures.stressProfit < input.minimumProfit then
+    return bestCut(input, cap, levels, limits, refusal("profit_below_minimum", figures))
+  end
   local out = { version = GC.SniperDecision.VERSION, status = "SAFE", buyable = true, reasons = {} }
   for k, v in pairs(figures) do out[k] = v end
   -- The same one-word rollback Evaluate's own SAFE answers obey (SAFE_PURCHASES_ENABLED).
   if not GC.SniperDecision.SAFE_PURCHASES_ENABLED then
     out.computedStatus, out.status, out.buyable, out.reasons = "SAFE", "WATCH", false, { "shadow_validation" }
   end
-  return out
+  return bestCut(input, cap, levels, limits, out)
 end
 
 local function usableLimits(limits)
@@ -1018,6 +1076,10 @@ function GC.SniperDecision.EvaluateCeiling(input)
     local level = input.levels[i]
     if positiveEntry(level, "unitPrice", "quantity") then levels[#levels + 1] = level end
   end
+  -- Cheapest first, on this copy: Book.Fill walks the book in the order it is given, and the
+  -- units it takes for a market resale (ceilingExit) must be the ones DecideCommodity buys, which
+  -- sorts its own copy for the same reason (Core/Caps.lua, final review M3).
+  table.sort(levels, function(a, b) return a.unitPrice < b.unitPrice end)
   local out = decideCeiling(input, cap, levels, input.limits)
 
   -- A buy the wallet limit ALONE refuses is a deal that needs gold, not a bad one: Evaluate's
@@ -1050,6 +1112,10 @@ function GC.SniperDecision.EvaluateCeiling(input)
     local answer = at(mid)
     if answer and answer.buyable then wallet, plan = mid, answer else short = mid end
   end
+  -- Never the gold the character already holds: "you have enough gold for this now. Check again"
+  -- over a buy no wallet makes pay (review 2026-11-06). That refusal is the buy's own.
+  local held = input.limitsFor(wallet)
+  if usableLimits(held) and held.budget <= input.limits.budget then return out end
   out = refusal("capital_limit")
   for k, v in pairs(plan) do
     if out[k] == nil then out[k] = v end

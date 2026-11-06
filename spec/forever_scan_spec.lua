@@ -142,7 +142,8 @@ describe("ForeverScan", function()
     assert.is_nil(store.fold)
   end)
 
-  it("keeps a whole dump when the auction house closes during the browse pass", function()
+  -- A dump read to the end is the whole auction house, however the browse pass after it ended.
+  it("keeps a whole dump, not partial, when the auction house closes during the browse pass", function()
     d.browseAnswer = "started"
     local s = GC.ForeverScan.New(driver())
     s:OnAuctionHouseShow()
@@ -151,23 +152,56 @@ describe("ForeverScan", function()
     assert.equal("browsing", s:State())
     s:OnAuctionHouseClosed()
     assert.equal(67, GC.ForeverFold.Decode(store.fold.items[2589]).min)
-    assert.is_true(store.fold.partial)
+    assert.is_nil(store.fold.partial)
+    assert.equal(now, store.fold.at)
   end)
 
-  -- A partial read of a whole dump (the browse watchdog firing, the auction house closed during
-  -- the browse pass) must merge into a fuller saved fold exactly as a browse-only top-up
-  -- does -- not replace it wholesale and lose every item the saved fold priced that this thin
-  -- read never reached.
-  it("merges a partial replicate read into a fuller saved fold instead of replacing it", function()
+  -- Review, 2026-11-06: a whole, fresh dump whose browse pass ended early (a Deals row opened,
+  -- which aborts the pass; the player's own search; the auction house closed; the watchdog) was
+  -- merged UNDER the saved fold: the saved entry won for every item both held, and `at` kept the
+  -- old stamp. It replaces the saved fold now, stamped now.
+  for _, ending in ipairs({ "a Deals row opened", "the auction house closed", "the watchdog" }) do
+    it("replaces a fresher-than-2-h saved fold with a whole dump when " .. ending .. " ends its browse pass", function()
+      store.fold = { source = "replicate+browse", region = 90, realm = "Forever", faction = "Horde",
+        at = now - 1800, rows = 9000, itemCount = 2, rev = 4,
+        items = { [1000] = "999,40,4,;0x40", [9999] = "70,40,4,;5x10 5x30" } }
+      d.browseAnswer = ending == "the watchdog" and "running" or "started"
+      local s = GC.ForeverScan.New(driver())
+      s:OnAuctionHouseShow()
+      rows = dump(500, 1000)                     -- the whole book: item 1000 at 100-106c
+      runRead(s)
+      assert.equal("browsing", s:State())
+      if ending == "a Deals row opened" then s:OnBrowsePassAbandoned({})
+      elseif ending == "the auction house closed" then s:OnAuctionHouseClosed()
+      else runAll() end
+      local fold = store.fold
+      assert.equal(100, GC.ForeverFold.Decode(fold.items[1000]).min) -- the fresh price, not 999c
+      assert.is_nil(fold.items[9999])            -- not on sale in the whole book
+      assert.equal(now, fold.at)
+      assert.is_nil(fold.partial)
+      assert.equal(1, fold.itemCount)
+      assert.equal(5, fold.rev)
+      assert.equal(now, store.foldAts[#store.foldAts])
+    end)
+  end
+
+  -- A cut read (here: the dump emptied under the read) still merges into a fuller saved fold,
+  -- exactly as a browse-only top-up does, rather than replace it and lose every item the saved
+  -- fold priced that this thin read never reached.
+  it("merges a cut replicate read into a fuller saved fold instead of replacing it", function()
     store.fold = { source = "replicate", region = 90, realm = "Forever", faction = "Horde",
       ruleset = nil, at = now - 500, rows = 9000, items = { [9999] = "70,40,4,;5x10 5x30" } }
-    d.browseAnswer = "running"                   -- the browse pass never ends: the watchdog commits
+    d.browseAnswer = "started"
     local s = GC.ForeverScan.New(driver())
     s:OnAuctionHouseShow()
-    rows = dump(500)                             -- a whole dump, read whole
-    assert.has_no.errors(runAll)
+    rows = dump(5000)
+    s:OnReplicateUpdate()                        -- first batch (2000 rows) now
+    rows = {}                                    -- gone under the read
+    runRead(s)
+    assert.equal("wide", d.browse)
+    s:OnBrowsePassAbandoned({ [3000] = { floor = 500, qty = 2 } })
     assert.equal("70,40,4,;5x10 5x30", store.fold.items[9999]) -- the saved fold's own item, kept
-    assert.truthy(store.fold.items[1000])                      -- this read's item, added
+    assert.equal(500, GC.ForeverFold.Decode(store.fold.items[3000]).min) -- this read's item, added
     assert.is_true(store.fold.partial)
     assert.equal(now - 500, store.fold.at)
   end)
@@ -188,17 +222,20 @@ describe("ForeverScan", function()
 
   -- Both reads are incomplete; an item both the saved fold and this attempt priced takes this
   -- attempt's entry, since it is the newer of the two.
-  it("takes the new partial replicate's entry over an already-partial saved fold's", function()
+  it("takes the new cut replicate's entry over an already-partial saved fold's", function()
     store.fold = { source = "replicate", region = 90, realm = "Forever", faction = "Horde",
       ruleset = nil, at = now - 500, rows = 9000, partial = true,
       items = { [1000] = "999,1,1,;", [9999] = "70,40,4,;5x10 5x30" } }
-    d.browseAnswer = "running"                   -- the browse pass never ends: the watchdog commits
+    d.browseAnswer = "started"
     local s = GC.ForeverScan.New(driver())
     s:OnAuctionHouseShow()
-    rows = dump(500)                             -- a whole dump that lists item 1000
-    assert.has_no.errors(runAll)
-    assert.not_equal("999,1,1,;", store.fold.items[1000])      -- replaced: this read saw it too
-    assert.equal("70,40,4,;5x10 5x30", store.fold.items[9999]) -- kept: this read never saw it
+    rows = dump(5000)
+    s:OnReplicateUpdate()
+    rows = {}                                    -- cut: only the browse pass prices item 1000
+    runRead(s)
+    s:OnBrowsePassDone({ [1000] = { floor = 80, qty = 30 } })
+    assert.equal(80, GC.ForeverFold.Decode(store.fold.items[1000]).min) -- replaced: this read saw it too
+    assert.equal("70,40,4,;5x10 5x30", store.fold.items[9999])        -- kept: this read never saw it
   end)
 
   -- A partial-replicate merge must not keep an old fold's prices alive forever: if the saved
@@ -317,13 +354,13 @@ describe("ForeverScan", function()
     assert.is_nil(fold.items[4000])
   end)
 
-  it("saves what it has when the browse pass never finishes", function()
+  it("saves a whole dump whole when the browse pass never finishes", function()
     d.browseAnswer = "running"
     local s = GC.ForeverScan.New(driver())
     s:OnAuctionHouseShow()
     rows = { { 2589, 20, 1340, true } }
     runAll()
-    assert.is_true(store.fold.partial)
+    assert.is_nil(store.fold.partial)            -- the dump was read to the end
     assert.equal("replicate", store.fold.source)
     assert.is_true(noted("done")[2].givenUp)
   end)
@@ -476,6 +513,24 @@ describe("ForeverScan", function()
     local added = GC.ForeverFold.Decode(fold.items[3000])
     assert.equal(250, added.min)
     assert.is_true(added.browse)
+  end)
+
+  -- Review, 2026-11-06: a merge keeps `at`, and may keep `itemCount` while it overwrote entries;
+  -- the Deals board (Core/ForeverDeals.lua) tells one write from the next by `rev`.
+  it("bumps the fold's revision on every write, a merge that adds nothing included", function()
+    local s = GC.ForeverScan.New(driver())
+    rows = { { 2589, 20, 1340, true } }
+    s:OnAuctionHouseShow()
+    runAll()
+    assert.equal(1, store.fold.rev)
+    local at, count = store.fold.at, store.fold.itemCount
+    now = now + 60
+    d.browseAnswer = "started"
+    assert.equal("cooldown", s:Request("button"))
+    s:OnBrowsePassDone({ [2589] = { floor = 1, qty = 500 } })   -- an item the fold already has
+    assert.equal(2, store.fold.rev)
+    assert.equal(at, store.fold.at)
+    assert.equal(count, store.fold.itemCount)
   end)
 
   -- Parked N1 (plan 3b, final review): a cooldown SCAN's browse-only result must not merge into

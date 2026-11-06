@@ -1588,11 +1588,12 @@ describe("Deals background verification", function()
       assert.is_true(line.shown)
     end)
 
-    it("holds an Under market row to the per-buy share, as its buy is", function()
+    -- A quarter of the wallet while the share is at its default (owner, 2026-11-06): 325c of 13s.
+    it("holds an Under market row to a quarter of the wallet, as its buy is", function()
       local api, line = foreverLoad(1300, "commodities")
-      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 100, "market", true) })
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 400, "market", true) })
       assert.is_true(line.shown)
-      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 60, "market", true) })
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 300, "market", true) })
       assert.is_false(line.shown)
     end)
 
@@ -1602,6 +1603,15 @@ describe("Deals background verification", function()
       assert.is_false(line.shown)
       api.GC.Sniper._PaintGoldLine({ foreverRow(7, 700, "vendor", false) }) -- 7s: in the bags, over the share
       assert.is_true(line.shown)
+    end)
+
+    -- Review 2026-11-06: an Items row's capTotal is every lot it found, but its buy is one lot.
+    it("holds a Forever Items row to its cheapest lot, not to every lot it found", function()
+      local api, line = foreverLoad(1300, "items")
+      local row = foreverRow(7, 600, "vendor", false)
+      row.qty, row.capTotal = 53, 600 * 53
+      api.GC.Sniper._PaintGoldLine({ row })
+      assert.is_false(line.shown)
     end)
   end)
 

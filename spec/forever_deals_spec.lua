@@ -40,14 +40,16 @@ describe("ForeverDeals", function()
       assert.equal(2, math.floor(r.discount * 100 + 0.5))
     end)
 
-    it("a 44% discount is a market row: 165 at 10c, measured at 18c (half-way under its AH value), +7c each", function()
+    -- Resold as the Check resells (review 2026-11-06): one copper under the 15c level the buy
+    -- leaves, 14c, not the AH value's 18c.
+    it("a 44% discount is a market row: 165 at 10c, measured at 18c (half-way under its AH value), +3c each", function()
       vendor[765], commodity[765] = 1, true               -- Silverleaf; a vendor pays under the AH
       local rows = D.Build(fold({ [765] = "10,4062,200,;0x165 5x100 8x3797|0,8,15" }),
         ctx({ depositFor = function() return 0 end }))
       assert.equal(1, #rows)
       local r = rows[1]
       assert.equal("market", r.forever)
-      assert.equal(165, r.qty); assert.equal(1650, r.capTotal); assert.equal(1155, r.profit)
+      assert.equal(165, r.qty); assert.equal(1650, r.capTotal); assert.equal(544, r.profit) -- 14c x165 - 5% - 1650
       assert.equal(44, math.floor(r.discount * 100 + 0.5))
     end)
   end)
@@ -109,6 +111,59 @@ describe("ForeverDeals", function()
       assert.equal("items", board[12])   -- the fold's gear flag
     end)
 
+    -- Review, 2026-11-06: an Items-board buy is one lot (PlaceBid), so the minimum profit per buy
+    -- is met by one lot or not at all. 53 Training Swords at 6c profit each summed to 318c.
+    describe("the minimum profit per buy on the Items board", function()
+      local SWORDS = "94,53,53,g;0x53"                    -- 53 lots of one, 94c each
+
+      it("refuses gear whose every lot makes less than the minimum, however many lots there are", function()
+        vendor[2495] = 100
+        assert.equal(0, #D.Build(fold({ [2495] = SWORDS }), ctx()))
+      end)
+
+      it("lists it once one lot clears the minimum, with the row's totals as they were", function()
+        vendor[2495] = 100
+        local rows = D.Build(fold({ [2495] = SWORDS }), ctx({ minimumProfit = 6 }))
+        assert.equal(1, #rows)
+        assert.equal("items", rows[1].board)
+        assert.equal(53, rows[1].qty)
+        assert.equal(318, rows[1].profit)
+        assert.equal(318, rows[1].estProfit)
+      end)
+
+      it("measures the cheapest lot: one lot clearing the minimum lists the whole row", function()
+        vendor[2495] = 100
+        local rows = D.Build(fold({ [2495] = "70,11,11,g;0x1 24x10" }), ctx()) -- 30c, then 10 at 6c
+        assert.equal(1, #rows)
+        assert.equal(90, rows[1].profit)
+      end)
+
+      it("holds a known non-commodity that is not gear to one lot too", function()
+        vendor[6000], commodity[6000] = 100, false
+        assert.equal(0, #D.Build(fold({ [6000] = "94,53,53,;0x53" }), ctx()))
+      end)
+
+      it("keeps the summed rule for a commodity, whose one buy takes many units", function()
+        vendor[6000], commodity[6000] = 100, true
+        local rows = D.Build(fold({ [6000] = "99,30,3,;0x30" }), ctx())  -- 30 units at 1c profit each
+        assert.equal(1, #rows)
+        assert.equal("commodities", rows[1].board)
+      end)
+
+      it("keeps the summed rule for an item the client has not named yet, rather than wait", function()
+        vendor[6000] = 100
+        local rows, _, unsure = D.Build(fold({ [6000] = "94,53,53,;0x53" }), ctx())
+        assert.equal(1, #rows)
+        assert.equal("commodities", rows[1].board)
+        assert.same({ 6000 }, unsure)
+      end)
+
+      it("still lists a pinned item, as BoardAdmits does everywhere", function()
+        vendor[2495] = 100
+        assert.equal(1, #D.Build(fold({ [2495] = SWORDS }), ctx({ watchPins = { 2495 } })))
+      end)
+    end)
+
     it("skips browse-only entries (no ladder) and garbage", function()
       vendor[1], vendor[2] = 999, 999
       assert.equal(0, #D.Build(fold({ [1] = "500,2,,b;", [2] = "junk" }), ctx()))
@@ -149,7 +204,7 @@ describe("ForeverDeals", function()
       assert.equal(100, r.refUnit)            -- the AH value, not the half-way 1s10c
       assert.equal(6, r.qty)
       assert.equal(210, r.capTotal)
-      assert.equal(348, r.profit)             -- (95-30-2)*3 + (95-40-2)*3
+      assert.equal(342, r.profit)             -- under the 1s level left: 99c x6 = 594, -30 cut, -210, -12 deposit
       assert.equal(2, r.depositUnit)
       assert.is_true(math.abs(r.discount - 0.7) < 1e-9)
     end)
@@ -174,7 +229,7 @@ describe("ForeverDeals", function()
       local r = rows[1]
       assert.equal("market", r.forever)
       assert.equal(100, r.refUnit); assert.equal(70, r.ceiling)
-      assert.equal(30, r.qty); assert.equal(690, r.profit)   -- (95-70-2)*30
+      assert.equal(30, r.qty); assert.equal(661, r.profit)   -- 99c x30 = 2970, -149 cut, -2100, -60 deposit
     end)
 
     it("prefers a vendor deal when both hold", function()
@@ -205,8 +260,30 @@ describe("ForeverDeals", function()
         [2] = "30,100,2,;0x5 70x95|70,70,2",                  -- 2 levels
         [3] = WOOL,                                           -- commodity unknown
       })
-      assert.equal(0, #D.Build(f, marketCtx()))
+      local rows, _, unsure = D.Build(f, marketCtx())
+      assert.equal(0, #rows)
+      assert.same({ 3 }, unsure)                              -- waiting on the client's answer
       assert.equal(0, #D.Build(fold({ [4] = WOOL }), marketCtx({ depositFor = function() return nil end })))
+    end)
+
+    -- The client answers "is this a commodity" by item key, and an uncached key is a server
+    -- request (UI/SniperFrame.lua, getKeyInfo). A fold holds a couple of thousand items; the
+    -- question goes only to an item with a row to place or lots under its market, never to
+    -- gear (never a commodity), and once per item.
+    it("asks whether an item is a commodity only where a row hangs on the answer", function()
+      local asked = {}
+      local function counting(id) asked[id] = (asked[id] or 0) + 1; return commodity[id] end
+      commodity[1], commodity[2], commodity[3] = true, true, true
+      vendor[4] = 500
+      local rows, _, unsure = D.Build(fold({
+        [1] = WOOL,                                           -- lots under its market: asked
+        [2] = "100,100,3,;0x40 10x30 10x30|10,10,3",          -- nothing under 70c of 1s: not asked
+        [3] = "30,100,5,g;0x3 10x3 60x24 10x30 10x40|70,80,5", -- gear: not asked
+        [4] = "100,1,1,;0x1",                                 -- a vendor row to place: asked, unknown
+      }), marketCtx({ isCommodity = counting }))
+      assert.same({ [1] = 1, [4] = 1 }, asked)
+      assert.equal(2, #rows)
+      assert.same({ 4 }, unsure)
     end)
 
     it("makes no market row from a version-1 fold", function()
@@ -241,7 +318,7 @@ describe("ForeverDeals", function()
       local rows = D.Build(f, marketCtx({ depositFor = function() return 0 end }))
       assert.equal(25, rows[1].ceiling)
       assert.equal(8, rows[1].qty)           -- the 10c and 25c levels
-      assert.equal(140, rows[1].profit)      -- (35-10)*4 + (35-25)*4
+      assert.equal(133, rows[1].profit)      -- under the 37c level left: 36c x8 = 288, -15 cut, -140
     end)
 
     it("floors the 0.95 x value - deposit - 1 share (AH value 101, that branch binding)", function()
@@ -261,7 +338,7 @@ describe("ForeverDeals", function()
       local rows = D.Build(f, marketCtx({ depositFor = function() return 0 end }))
       assert.equal(100, rows[1].ceiling)
       assert.equal(8, rows[1].qty)           -- the 50c and 100c levels
-      assert.equal(480, rows[1].profit)      -- (135-50)*4 + (135-100)*4
+      assert.equal(479, rows[1].profit)      -- under the 143c level left: 142c x8 = 1136, -57 cut, -600
     end)
   end)
 
@@ -358,6 +435,85 @@ describe("ForeverDeals", function()
       assert.is_true(D.Due(clock + 1))
     end)
 
+    -- Review, 2026-11-06: a merge that only overwrote entries keeps both `at` and `itemCount`;
+    -- the fold's `rev` (Core/ForeverScan.lua, bumped on every write) still moves.
+    it("rebuilds on a fold whose rev moved while `at` and itemCount did not", function()
+      vendor[2589] = 13
+      saved = { at = 5000, itemCount = 1, rev = 3, items = saved.items }
+      assert.equal(8, D.Rows(clock)[1].unitPrice)
+      assert.is_false(D.Due(clock + 1))
+      saved = { at = 5000, itemCount = 1, rev = 4, items = { [2589] = "9,350,4,;0x10 3x40 1x100 2x200" } }
+      assert.is_true(D.Due(clock + 1))
+      assert.equal(9, D.Rows(clock + 1)[1].unitPrice)
+    end)
+
+    it("brings a dropped row back when a write under the same `at` gives its item a newer entry", function()
+      vendor[2589] = 13
+      saved = { at = 5000, itemCount = 1, rev = 1, items = saved.items }
+      D.Rows(clock)
+      D.Drop(2589)
+      saved = { at = 5000, itemCount = 1, rev = 2, items = { [2589] = "9,350,4,;0x10 3x40 1x100 2x200" } }
+      assert.equal(1, #D.Rows(clock + 1))
+    end)
+
+    -- A browse-only top-up keeps the saved entry of every item it shares with the fold: the lead
+    -- the player just bought is still that entry, and must not come straight back.
+    it("keeps a dropped row off through a write that kept its item's entry", function()
+      vendor[2589], vendor[3000] = 13, 50
+      saved = { at = 5000, itemCount = 1, rev = 1, items = saved.items }
+      D.Rows(clock)
+      D.Drop(2589)
+      saved = { at = 5000, itemCount = 2, rev = 2,
+        items = { [2589] = saved.items[2589], [3000] = "40,2,1,;0x2" } }
+      local rows = D.Rows(clock + 1)
+      assert.equal(1, #rows)
+      assert.equal(3000, rows[1].itemID)
+    end)
+
+    -- The reviewer's case end to end (review, 2026-11-06): each scan's dump is read whole, and
+    -- the player opens a Deals row while its browse pass runs, which aborts the pass.
+    it("shows each fresh whole scan's prices when a Deals row aborted its browse pass", function()
+      helper.loadModule("Core/Game.lua", GC)
+      helper.loadModule("Core/ForeverGear.lua", GC)
+      helper.loadModule("Core/ForeverScan.lua", GC)
+      local store, timers, dumpRows, t = {}, {}, {}, 100000
+      GC.ForeverScan.Enabled = function() return true end
+      GC.ForeverScan.Fold = function() return store.fold end
+      GC.ForeverValue.CommodityDepositUnit = function() return 0 end
+      GC.db.commodityByItem[5471] = true
+      local drv = {
+        now = function() return t end,
+        after = function(sec, fn) timers[#timers + 1] = { s = sec, fn = fn } end,
+        replicate = function() return true end,
+        numRows = function() return #dumpRows end,
+        rowInfo = function(i) local r = dumpRows[i + 1]; if not r then return nil end; return r[1], r[2], r[3], r[4] end,
+        isGear = function() return false end,
+        startBrowse = function() return "started" end,
+        store = function() return store end,
+        passport = function() return { interface = 16001, region = 3, realm = "R", faction = "Horde" } end,
+        notify = function() end,
+      }
+      local function scan(cheap, abort)
+        store.requestedAt = nil
+        dumpRows = {}
+        for _ = 1, 10 do dumpRows[#dumpRows + 1] = { 5471, 1, cheap, true } end
+        for i = 1, 200 do dumpRows[#dumpRows + 1] = { 5471, 1, 199 + (i % 5), true } end
+        local s = GC.ForeverScan.New(drv)
+        s:OnAuctionHouseShow()
+        while #timers > 0 and (s:State() == "reading" or s:State() == "waiting") do table.remove(timers, 1).fn() end
+        if abort then s:OnBrowsePassAbandoned({}) else s:OnBrowsePassDone({}) end
+        timers = {}
+      end
+      scan(133, false)
+      assert.equal(133, D.Rows(t)[1].unitPrice)
+      t = t + 1200
+      scan(120, true)                            -- 20 minutes on, 120c lots; a row opened
+      assert.equal(120, D.Rows(t)[1].unitPrice)
+      t = t + 1200
+      scan(110, true)
+      assert.equal(110, D.Rows(t)[1].unitPrice)
+    end)
+
     it("names the ceiling a live Check is held to, and drops a row until the next fold", function()
       vendor[2589] = 13
       D.Rows(clock)
@@ -370,31 +526,155 @@ describe("ForeverDeals", function()
       assert.equal(1, #D.Rows(clock + 2))
     end)
 
+    -- The client, shaped as it is (AuctionHouseDocumentation, live and forever alike):
+    -- GetItemCommodityStatus takes an ItemLocation, a bag slot, and refuses an item ID;
+    -- GetItemKeyInfo answers an item key, and nothing until the client has cached it.
+    local function clientAH(isCommodity, cached)
+      return {
+        GetItemCommodityStatus = function(location)
+          if type(location) ~= "table" then
+            error("bad argument #1 to 'GetItemCommodityStatus' (ItemLocation expected)")
+          end
+          return 0
+        end,
+        MakeItemKey = function(itemID)
+          return { itemID = itemID, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }
+        end,
+        GetItemKeyInfo = function(key)
+          if not cached[key.itemID] then return nil end
+          return { itemID = key.itemID, isCommodity = isCommodity[key.itemID] == true }
+        end,
+        CalculateCommodityDeposit = function() return 2 end,
+      }
+    end
+
+    -- The real deposit path (Flips -> CalculateCommodityDeposit) under a client-shaped AH; a vendor
+    -- pays 1c, so no item waits on a vendor price and no vendor row competes.
+    local function withClient(isCommodity, cached)
+      helper.loadModule("Core/Flips.lua", GC)
+      helper.loadModule("Core/ForeverValue.lua", GC)
+      GC.ForeverValue.VendorUnit = function() return 1 end
+      _G.C_AuctionHouse = clientAH(isCommodity, cached)
+      return _G.C_AuctionHouse
+    end
+
     -- Final review I2 (plan 3c): the deposit of a commodity is the client's to quote from the
     -- item alone (C_AuctionHouse.CalculateCommodityDeposit), so an Under market row needs no
     -- stack of it ever seen in the bags by the Sell tab -- only the client's word that it is
-    -- a commodity.
-    it("builds a market row for a commodity the client names, never held in the bags", function()
-      helper.loadModule("Core/Flips.lua", GC)
-      helper.loadModule("Core/ForeverValue.lua", GC)
-      _G.Enum = { ItemCommodityStatus = { Unknown = 0, Item = 1, Commodity = 2 } }
+    -- a commodity. Its word comes by item key, as the Sell tab asks for it (Services/Sell/
+    -- Bags.lua): asked with an item ID, GetItemCommodityStatus refused every item the Sell tab
+    -- had never seen, and WoW: Forever's board showed no Under market row at all (2026-11-06).
+    it("builds a market row for a commodity the client names by its item key, never held in the bags", function()
+      local ah = withClient({ [2592] = true }, { [2592] = true })
       local asked
-      _G.C_AuctionHouse = {
-        GetItemCommodityStatus = function(id) return id == 2592 and 2 or 1 end,
-        CalculateCommodityDeposit = function(id, _, qty) asked = { id, qty }; return 2 end,
-      }
+      ah.CalculateCommodityDeposit = function(id, _, qty) asked = { id, qty }; return 2 end
       saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
       assert.is_nil(GC.db.commodityByItem[2592])
       D.Rows(clock)
       assert.same({ 2592, 1 }, asked)
       assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
         D.CeilingFor(2592))
+      assert.is_true(GC.db.commodityByItem[2592])   -- remembered, as the Sell tab remembers it
       -- No deposit quoted, no row: still fail-closed.
       _G.C_AuctionHouse.CalculateCommodityDeposit = function() return nil end
       saved = { at = 6000, items = saved.items }
       D.Rows(clock + 1)
       assert.is_nil(D.CeilingFor(2592))
-      _G.Enum, _G.C_AuctionHouse = nil, nil
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("waits for an item key the client has not cached, then builds the row", function()
+      local cached = {}
+      withClient({ [2592] = true }, cached)
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      assert.equal(0, #D.Rows(clock))
+      assert.is_nil(GC.db.commodityByItem[2592])
+      assert.is_false(D.Due(clock + 1))
+      cached[2592] = true                           -- ITEM_KEY_ITEM_INFO_RECEIVED
+      assert.is_true(D.Refresh(clock + 5))
+      assert.equal("market", D.CeilingFor(2592).kind)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("stops waiting for an item key that never comes", function()
+      withClient({}, {})
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      D.Rows(clock)
+      assert.is_true(D.Refresh(clock + 5))
+      assert.is_false(D.Due(clock + 40))
+      _G.C_AuctionHouse = nil
+    end)
+
+    -- Review, 2026-11-06: GetItemKeyInfo sends the server its question only at the auction
+    -- house. A client whose answer comes only for a key asked there, a few ms later.
+    local function askedOnlyAtTheAH(isCommodity)
+      local ah = withClient(isCommodity, {})
+      local state = { open = false, cached = {}, pending = {} }
+      ah.GetItemKeyInfo = function(key)
+        if state.cached[key.itemID] then return { itemID = key.itemID, isCommodity = isCommodity[key.itemID] == true } end
+        if state.open then state.pending[key.itemID] = true end
+        return nil
+      end
+      function state.answer() for id in pairs(state.pending) do state.cached[id] = true end end
+      return state
+    end
+
+    it("asks again at the auction house for an item key a build away from it left unsure", function()
+      local client = askedOnlyAtTheAH({ [2592] = true })
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      assert.equal(0, #D.Rows(clock))              -- the window opened from the minimap
+      assert.is_false(D.Due(clock + 40))           -- its wait ran out; nobody was asked
+      client.open = true                           -- 20 minutes later, the auction house
+      D.OnAuctionHouseShow()
+      assert.is_true(D.Due(clock + 1200))
+      assert.is_true(D.Refresh(clock + 1200))      -- the board clock asks, now for real
+      assert.is_nil(D.CeilingFor(2592))
+      client.answer()                              -- ITEM_KEY_ITEM_INFO_RECEIVED
+      assert.is_true(D.Refresh(clock + 1205))      -- inside the new wait
+      assert.equal("market", D.CeilingFor(2592).kind)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("gives a new fold's unsure items a wait of their own, whatever an earlier fold asked", function()
+      local client = askedOnlyAtTheAH({ [2592] = true })
+      local items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" }
+      saved = { at = 5000, items = items }
+      D.Rows(clock)                                -- asked away from the auction house
+      client.open = true
+      saved = { at = 6200, items = items }         -- the scan on opening lands a new fold
+      assert.equal(0, #D.Rows(clock + 1200))       -- asked; the answer is not in yet
+      client.answer()
+      assert.is_true(D.Due(clock + 1205))
+      assert.is_true(D.Refresh(clock + 1205))
+      assert.equal("market", D.CeilingFor(2592).kind)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("leaves the board alone at the auction house when its last build left nothing unsure", function()
+      vendor[2589] = 13
+      assert.equal(1, #D.Rows(clock))
+      D.OnAuctionHouseShow()
+      assert.is_false(D.Due(clock + 60))
+      assert.is_false(D.Refresh(clock + 60))
+    end)
+
+    it("does nothing at the auction house on retail", function()
+      withClient({ [2592] = true }, {})
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      D.Rows(clock)
+      GC.ForeverScan.Enabled = function() return false end
+      D.OnAuctionHouseShow()
+      assert.is_false(D.Refresh(clock + 60))
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("takes a known non-commodity from the Sell tab's memory without asking", function()
+      withClient({}, {}).GetItemKeyInfo = function() error("asked") end
+      GC.db.commodityByItem[2592] = false
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      assert.equal(0, #D.Rows(clock))
+      assert.is_false(D.Due(clock + 5))
+      _G.C_AuctionHouse = nil
     end)
 
     it("hands out a market ceiling with its deposit", function()
@@ -422,14 +702,38 @@ describe("ForeverDeals", function()
       assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, limits)
     end)
 
-    it("leaves a vendor row's budget alone once the player changed the share", function()
-      local limits = D.BuyLimits(config(0.10), 10000, "vendor")
-      assert.same({ maxQuantity = 200, budget = 1000, share = 0.10 }, limits)
+    -- Review, 2026-11-06: only the shipped 5% itself used to qualify, so raising the share to
+    -- 10% gave a vendor row 10% of the wallet where the default gave it half.
+    it("gives a vendor row half the wallet when the player raised the share", function()
+      assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, D.BuyLimits(config(0.10), 10000, "vendor"))
+      assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, D.BuyLimits(config(0.20), 10000, "vendor"))
+      -- Above the 20% the settings allow, the share is clamped first, as everywhere else.
+      assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, D.BuyLimits(config(0.90), 10000, "vendor"))
     end)
 
-    it("never widens a market row's share", function()
+    it("leaves a vendor row the share a player lowered", function()
+      assert.same({ maxQuantity = 200, budget = 300, share = 0.03 }, D.BuyLimits(config(0.03), 10000, "vendor"))
+    end)
+
+    -- Owner, WoW: Forever 2026-11-06: at 5% nearly every Under market row read "needs 2g" -- a
+    -- new character's whole wallet buys nothing. A quarter while the shipped share stands; a
+    -- resale is a bet, so less than a vendor row's half.
+    it("gives a market row a quarter of the wallet when the player kept the shipped 5% share", function()
       local limits = D.BuyLimits(config(0.05), 10000, "market")
-      assert.same({ maxQuantity = 200, budget = 500, share = 0.05 }, limits)
+      assert.same({ maxQuantity = 200, budget = 2500, share = 0.25 }, limits)
+    end)
+
+    it("gives a market row a quarter of the wallet when the player raised the share", function()
+      assert.same({ maxQuantity = 200, budget = 2500, share = 0.25 }, D.BuyLimits(config(0.10), 10000, "market"))
+      assert.same({ maxQuantity = 200, budget = 2500, share = 0.25 }, D.BuyLimits(config(0.20), 10000, "market"))
+    end)
+
+    it("leaves a market row the share a player lowered", function()
+      assert.same({ maxQuantity = 200, budget = 300, share = 0.03 }, D.BuyLimits(config(0.03), 10000, "market"))
+    end)
+
+    it("leaves a row of no Forever kind the player's own share, as SniperDecision.BuyLimits gives it", function()
+      assert.same({ maxQuantity = 200, budget = 1000, share = 0.10 }, D.BuyLimits(config(0.10), 10000, nil))
     end)
 
     it("answers nothing when the wallet is bad, exactly like SniperDecision.BuyLimits", function()

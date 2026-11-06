@@ -16,8 +16,42 @@ GC.Locales.ukUA = {
   [" · identity unresolved"] = " · позиція не впізнана",
   [" · stale %ds"] = " · застаріло %dс",
   [". Check again"] = ". Перевірте ще раз",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · команди: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (або коротко /gc)",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · команди (можна й /goldcap):",
+  ["open or close the GoldCap window"] =
+    "відкрити або закрити вікно GoldCap",
+  ["scan the auction house now"] =
+    "сканувати аукціон зараз",
+  ["find gear upgrades on the auction house"] =
+    "знайти покращення спорядження на аукціоні",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "ваги характеристик для покращень, наприклад /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "скільки дадуть за сумки торговець і аукціон",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "золото на транспорт: задати ціну, наприклад /gc mount 100g, або clear, share",
+  ["count what you loot: on, off or clear"] =
+    "рахувати здобич: on, off або clear",
+  ["disenchant your gear one press at a time"] =
+    "розпилювати спорядження по одному натисканню",
+  ["what to put in and take out of the Warband Bank"] =
+    "що покласти в банк загону і що забрати з нього",
+  ["your recent auction house sales"] =
+    "ваші останні продажі на аукціоні",
+  ["sales and buys over the last 24 hours"] =
+    "продажі й покупки за останні 24 години",
+  ["keep prices fresh with GoldCap Companion"] =
+    "свіжі ціни через GoldCap Companion",
+  ["paste prices copied from goldcap.gg"] =
+    "вставити ціни, скопійовані з goldcap.gg",
+  ["which prices GoldCap has and how old they are"] =
+    "які ціни має GoldCap і наскільки вони давні",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "що вміє GoldCap і наскільки свіжі ваші ціни",
+  ["show or hide the GoldCap button by the minimap"] =
+    "показати або сховати кнопку GoldCap біля мінікарти",
+  ["move the window back to the middle of the screen"] =
+    "повернути вікно в середину екрана",
   ["%d (whole lot)"] = "%d (увесь лот)",
   ["%d ahead of you"] = "%d попереду вас",
   ["%d at %s"] = "%d по %s",
@@ -316,7 +350,8 @@ GC.Locales.ukUA = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Покращень спорядження на аукціоні: %d. Введіть /gc upgrades, щоб їх побачити.",
   ["Use the default cap"] = "Стеля за замовчуванням",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Поки це значення лишається стандартними 5%, лот за ціною торговця може використати до половини вашого золота.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "При 5% і вище лот нижче ціни торговця може використати до половини вашого золота, а лот нижче ринку до чверті, або до цієї частки, якщо вона більша.",
   ["Min return per buy %"] = "Мін. дохідність купівлі %",
   ["Missing cost"] = "Немає собівартості",
   ["NO LIVE PRICE YET"] = "ПОКИ НЕМАЄ ЖИВОЇ ЦІНИ",
@@ -493,6 +528,10 @@ GC.Locales.ukUA = {
   ["Spike-trend threshold %"] = "Поріг стрибка ціни %",
   ["Start scanning as soon as the auction house opens."] =
     "Починати сканування одразу після відкриття аукціонного дому.",
+  ["Open GoldCap with the auction house"] = "Відкривати GoldCap разом з аукціоном",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Показувати вікно GoldCap одразу після відкриття аукціонного дому.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Якщо вимкнено, відкрийте вікно вкладкою GoldCap унизу аукціону або командою /gc sniper.",
+  ["Game language"] = "Мова гри",
   ["Status"] = "Статус",
   ["Stop and open the buy window on your price"] = "Зупинити й відкрити вікно купівлі за вашою ціною",
   ["Stress exit unit"] = "Ціна стрес-виходу",
@@ -967,10 +1006,6 @@ GC.Locales.ukUA = {
     "Нижче НПС",
   ["Under market"] =
     "Під ринком",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · купити за %s або менше, торговець платить %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · купити за %s або менше, оцінка на аукціоні %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Купити за %s або менше: торговець платить %s за штуку. Ця покупка приносить %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
@@ -1133,6 +1168,7 @@ GC.Locales.ukUA = {
   ["done"] = "готово",
   ["everything bought"] = "усе куплено",
   ["from %s"] = "від %s",
+  ["deals %s · items %s"] = "угоди %s · предмети %s",
   ["in bags %d · in bank %d"] = "у сумках %d · у банку %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "у сумках %d · у банку %d · у поштовій скриньці %d",
   ["in bags and bank · purchases arrive by mail"] = "у сумках і банку · покупки надходять поштою",
@@ -1836,8 +1872,6 @@ GC.Locales.ukUA = {
   ["Click for GoldCap. Drag to move it."] = "Натисніть, щоб відкрити GoldCap. Перетягніть, щоб пересунути.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "Кнопку GoldCap біля мінікарти сховано. Щоб повернути її, введіть /gc minimap.",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap показує або ховає кнопку GoldCap біля мінікарти.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Зараз нічого вигідно розпилювати: за все нижче торговець платить більше.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

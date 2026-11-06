@@ -18,8 +18,42 @@ GC.Locales.zhTW = {
   [" · identity unresolved"] = " · 歸屬未確定",
   [" · stale %ds"] = " · 已過 %d 秒",
   [". Check again"] = "。請重新檢查",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · 指令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger、/goldcap reset（可簡寫 /gc）",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · 指令（也可以用 /goldcap）：",
+  ["open or close the GoldCap window"] =
+    "開啟或關閉 GoldCap 視窗",
+  ["scan the auction house now"] =
+    "立即掃描拍賣場",
+  ["find gear upgrades on the auction house"] =
+    "在拍賣場尋找裝備提升",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "用於裝備提升的屬性權重，例如 /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "背包物品賣給商人和在拍賣場各值多少",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "存坐騎的金幣：設定價格，例如 /gc mount 100g，或 clear、share",
+  ["count what you loot: on, off or clear"] =
+    "統計掉落：on、off 或 clear",
+  ["disenchant your gear one press at a time"] =
+    "一鍵一件地分解裝備",
+  ["what to put in and take out of the Warband Bank"] =
+    "該放進和取出戰隊銀行的物品",
+  ["your recent auction house sales"] =
+    "你最近在拍賣場的售出紀錄",
+  ["sales and buys over the last 24 hours"] =
+    "最近 24 小時的售出和購買",
+  ["keep prices fresh with GoldCap Companion"] =
+    "用 GoldCap Companion 保持價格最新",
+  ["paste prices copied from goldcap.gg"] =
+    "貼上從 goldcap.gg 複製的價格",
+  ["which prices GoldCap has and how old they are"] =
+    "GoldCap 有哪些價格，以及它們有多舊",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "GoldCap 能做什麼，以及你的價格有多新",
+  ["show or hide the GoldCap button by the minimap"] =
+    "顯示或隱藏小地圖旁的 GoldCap 按鈕",
+  ["move the window back to the middle of the screen"] =
+    "把視窗移回螢幕中央",
   ["%d (whole lot)"] = "%d（整批）",
   ["%d ahead of you"] = "你前面有 %d 件",
   ["%d at %s"] = "%d 個 %s",
@@ -309,7 +343,8 @@ GC.Locales.zhTW = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "拍賣場上的裝備升級：%d 件。輸入 /gc upgrades 查看。",
   ["Use the default cap"] = "使用預設上限",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "只要該值保持預設的 5%，按商人價格計算的線索最多可使用你錢包的一半。",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "在 5% 及以上時，低於商人價格的線索最多可使用你錢包的一半，低於市價的線索最多四分之一；如果此比例更大，則最多使用此比例。",
   ["Min return per buy %"] = "單次購買最低回報率 %",
   ["Missing cost"] = "缺少成本",
   ["NO LIVE PRICE YET"] = "尚無即時價格",
@@ -464,6 +499,10 @@ GC.Locales.zhTW = {
   ["Source age"] = "資料年齡",
   ["Spike-trend threshold %"] = "暴漲門檻 %",
   ["Start scanning as soon as the auction house opens."] = "一進入拍賣場就立即開始掃描。",
+  ["Open GoldCap with the auction house"] = "開啟拍賣場時開啟 GoldCap",
+  ["Show the GoldCap window as soon as the auction house opens."] = "一進入拍賣場就顯示 GoldCap 視窗。",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "關閉後，可點選拍賣場底部的 GoldCap 標籤或輸入 /gc sniper 開啟視窗。",
+  ["Game language"] = "遊戲語言",
   ["Status"] = "狀態",
   ["Stop and open the buy window on your price"] = "達到你的價格時停止並開啟購買視窗",
   ["Stress exit unit"] = "壓力出場單價",
@@ -588,6 +627,7 @@ GC.Locales.zhTW = {
   ["deals %s · items %s · filtered %s"] = "交易 %s · 物品 %s · 已濾除 %s",
   ["done"] = "完成",
   ["from %s"] = "來自 %s",
+  ["deals %s · items %s"] = "交易 %s · 物品 %s",
   ["in bags %d · in bank %d"] = "背包 %d · 銀行 %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "背包 %d · 銀行 %d · 信箱 %d",
   ["includes %d for crafting %s"] = "其中 %d 個用於製作 %s",
@@ -906,10 +946,6 @@ GC.Locales.zhTW = {
     "低於商人價",
   ["Under market"] =
     "低於市場價",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · %s 或更低購買，商人收購價 %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · %s 或更低購買，拍賣場估價 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "以 %s 或更低購買：商人每件收購價 %s。這次購買可賺 %s。",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
@@ -1662,8 +1698,6 @@ GC.Locales.zhTW = {
   ["Click for GoldCap. Drag to move it."] = "點擊開啟 GoldCap。拖曳可移動它。",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "小地圖旁的 GoldCap 按鈕已隱藏。輸入 /gc minimap 可重新顯示。",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap：顯示或隱藏小地圖旁的 GoldCap 按鈕。",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] = "現在沒有值得分解的：下面的都是賣給商人更值錢。",
   ["Nothing worth disenchanting now: everything below sells for more."] = "現在沒有值得分解的：下面的都是賣掉更值錢。",
   ["This character does not know Disenchant."] = "這個角色不會分解。",

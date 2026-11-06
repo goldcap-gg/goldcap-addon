@@ -125,7 +125,7 @@ describe("WoW: Forever", function()
       scroll = { SetVerticalScroll = function(_, value) api.scrolledTo = value end },
       emptyText = { SetText = function(_, text) api.emptyText = text end,
         Show = function() end, Hide = function() api.emptyText = nil end },
-      status = { SetText = function(_, text) api.status = text end },
+      status = { SetText = function(_, text) api.status = text end, GetText = function() return api.status end },
     })
     api.setScanDeals = function(list) set(show, "scanDeals", list) end
     return api
@@ -209,18 +209,88 @@ describe("WoW: Forever", function()
     assert.is_nil(api.emptyText)
   end)
 
-  it("names the kind on the chip and says what to do after the name", function()
+  -- Owner, WoW: Forever 2026-11-06: the readout said "deals 0 · items 615 · filtered 615" over a
+  -- board full of rows. It counts the board's own rows there, and the items the scan saw.
+  it("reads the board's own rows and the scan's items on Forever, and nothing on retail", function()
+    local api = loadSniper()
+    local rows = { deal(1), deal(2) }
+    api.GC.ForeverDeals = { Rows = function() return rows end }
+    api.GC.ForeverScan = { Enabled = function() return true end,
+      Fold = function() return { itemCount = 2249, items = {} } end }
+    local readout = api.GC.Sniper._ForeverReadout()
+    assert.is_truthy(readout:find("deals |cfff7cf5a2|r · items 2249", 1, true))
+    assert.is_nil(readout:find("filtered", 1, true))
+    rows = {}
+    assert.equal("deals 0 · items 2249", api.GC.Sniper._ForeverReadout())
+    api.GC.ForeverScan.Enabled = function() return false end
+    assert.is_nil(api.GC.Sniper._ForeverReadout())
+  end)
+
+  -- Owner, WoW: Forever 2026-11-06: the scan on opening ran under the last scan's figures with
+  -- nothing on the line saying a scan was on.
+  it("says a Forever scan is on in front of the last figures, from its start to its end", function()
+    local api = loadSniper()
+    local busy = false
+    api.GC.ForeverDeals = { Rows = function() return { deal(1) } end }
+    api.GC.ForeverScan = { Enabled = function() return true end, IsBusy = function() return busy end,
+      Fold = function() return { itemCount = 2346, items = {} } end }
+    api.GC.Sniper.OnForeverFold()
+    assert.equal("deals |cfff7cf5a1|r · items 2346", api.status)
+    busy = true
+    api.GC.Sniper.RepaintScanState()
+    assert.equal("scanning auction house... · deals |cfff7cf5a1|r · items 2346", api.status)
+    api.status = "reading the auction house: 1,024 of 59,000 lots"
+    api.GC.Sniper.RepaintScanState() -- still busy: the progress line stays
+    assert.equal("reading the auction house: 1,024 of 59,000 lots", api.status)
+    busy = false
+    api.GC.Sniper.RepaintScanState()
+    assert.equal("deals |cfff7cf5a1|r · items 2346", api.status)
+  end)
+
+  -- Review 2026-11-06: the board clock rebuilds every 5 s after a fold (GC.ForeverDeals.Refresh)
+  -- and called OnForeverFold, which wrote the readout over whatever the line said: the Check's
+  -- "checking live price...", a quote, a buy's note. The clock moves the figures only while the
+  -- line still shows the readout; the scan's own landing writes it as before.
+  it("lets the board clock move the readout's figures but never write over another message", function()
+    local api = loadSniper()
+    local rows = { deal(1) }
+    api.GC.ForeverDeals = { Rows = function() return rows end }
+    api.GC.ForeverScan = { Enabled = function() return true end, IsBusy = function() return false end,
+      Fold = function() return { itemCount = 2346, items = {} } end }
+    api.GC.Sniper.OnForeverFold()
+    assert.equal("deals |cfff7cf5a1|r · items 2346", api.status)
+    rows = { deal(1), deal(2) }
+    api.GC.Sniper.OnForeverFold(true)
+    assert.equal("deals |cfff7cf5a2|r · items 2346", api.status)
+    api.status = "checking live price..."
+    rows = { deal(1), deal(2), deal(3) }
+    api.GC.Sniper.OnForeverFold(true)
+    assert.equal("checking live price...", api.status)
+    api.GC.Sniper.OnForeverFold()
+    assert.equal("deals |cfff7cf5a3|r · items 2346", api.status)
+  end)
+
+  it("leaves retail's readout as it is", function()
+    local api = loadSniper()
+    api.GC.Sniper._readout = "deals 0 · items 5 · filtered 5"
+    assert.equal("deals 0 · items 5 · filtered 5", api.GC.Sniper._ReadoutLine())
+  end)
+
+  -- Owner, WoW: Forever 2026-11-06: "buy at 16s09c or less, AH value 22s99c" after every name
+  -- made each row four lines tall. The row names its kind on the chip and nothing after the
+  -- name; the price to buy at and the reference stay in the row's tooltip (GC.Sniper._ForeverNote).
+  it("names the kind on the chip and adds nothing after the name", function()
     local api = loadSniper()
     local setRowDeal = upvalue(api.refreshRows, "setRowDeal")
     local row = fakeRow()
     setRowDeal(row, foreverRow(2589, "commodities"))
     assert.equal("Below vendor", row.tierChip.label)
-    assert.is_truthy(row._nameParts[2]:find("buy at 12c or less, vendor pays 13c", 1, true))
+    assert.equal("", row._nameParts[2])
     local market = foreverRow(2592, "commodities", "market")
     market.refUnit = 100
     setRowDeal(row, market)
     assert.equal("Under market", row.tierChip.label)
-    assert.is_truthy(row._nameParts[2]:find("AH value 100c", 1, true))
+    assert.equal("", row._nameParts[2])
   end)
 
   it("keeps the kind on the chip once a live Check says SAFE; a refusal still speaks", function()

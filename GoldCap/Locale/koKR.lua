@@ -16,8 +16,42 @@ GC.Locales.koKR = {
   [" · identity unresolved"] = " · 대상 미확정",
   [" · stale %ds"] = " · %d초 지남",
   [". Check again"] = ". 다시 확인하세요",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (짧게 /gc)",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · 명령어 (/goldcap도 됩니다):",
+  ["open or close the GoldCap window"] =
+    "GoldCap 창 열기 또는 닫기",
+  ["scan the auction house now"] =
+    "지금 경매장 검색",
+  ["find gear upgrades on the auction house"] =
+    "경매장에서 장비 업그레이드 찾기",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "업그레이드용 능력치 가중치, 예: /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "가방 물건을 상인과 경매장에서 팔면 얼마인지",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "탈것 비용 모으기: 가격 설정, 예: /gc mount 100g, 또는 clear, share",
+  ["count what you loot: on, off or clear"] =
+    "전리품 집계: on, off 또는 clear",
+  ["disenchant your gear one press at a time"] =
+    "장비를 한 번에 하나씩 마력 추출",
+  ["what to put in and take out of the Warband Bank"] =
+    "전투부대 은행에 넣을 것과 꺼낼 것",
+  ["your recent auction house sales"] =
+    "최근 경매장 판매 내역",
+  ["sales and buys over the last 24 hours"] =
+    "최근 24시간 판매와 구매",
+  ["keep prices fresh with GoldCap Companion"] =
+    "GoldCap Companion으로 가격을 최신으로 유지",
+  ["paste prices copied from goldcap.gg"] =
+    "goldcap.gg에서 복사한 가격 붙여넣기",
+  ["which prices GoldCap has and how old they are"] =
+    "GoldCap에 있는 가격과 얼마나 오래됐는지",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "GoldCap 소개와 가격이 얼마나 최신인지",
+  ["show or hide the GoldCap button by the minimap"] =
+    "미니맵 옆 GoldCap 버튼 표시 또는 숨기기",
+  ["move the window back to the middle of the screen"] =
+    "창을 화면 가운데로 되돌리기",
   ["%d (whole lot)"] = "%d (전체 물량)",
   ["%d ahead of you"] = "내 앞에 %d개",
   ["%d at %s"] = "%d개 %s",
@@ -312,7 +346,8 @@ GC.Locales.koKR = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "경매장의 장비 업그레이드: %d개. /gc upgrades를 입력해 확인하세요.",
   ["Use the default cap"] = "기본 상한 사용",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "이 값이 기본값 5%로 유지되는 동안, 상인 가격 기반 매물은 지갑의 최대 절반까지 사용할 수 있습니다.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "5% 이상일 때 상인 가격보다 싼 매물은 지갑의 최대 절반, 시세보다 싼 매물은 최대 4분의 1까지 사용할 수 있으며, 이 비율이 더 크면 이 비율까지 사용합니다.",
   ["Min return per buy %"] = "1회 구매 최소 수익률 %",
   ["Missing cost"] = "매입가 없음",
   ["NO LIVE PRICE YET"] = "아직 실시간 가격 없음",
@@ -471,6 +506,10 @@ GC.Locales.koKR = {
   ["Source age"] = "자료 경과 시간",
   ["Spike-trend threshold %"] = "급등 추세 기준 %",
   ["Start scanning as soon as the auction house opens."] = "경매장을 열자마자 바로 검색을 시작합니다.",
+  ["Open GoldCap with the auction house"] = "경매장을 열 때 GoldCap 열기",
+  ["Show the GoldCap window as soon as the auction house opens."] = "경매장을 열자마자 GoldCap 창을 표시합니다.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "끄면 경매장 아래쪽의 GoldCap 탭이나 /gc sniper로 여세요.",
+  ["Game language"] = "게임 언어",
   ["Status"] = "상태",
   ["Stop and open the buy window on your price"] = "내 가격에 도달하면 중지 후 구매 창 열기",
   ["Stress exit unit"] = "스트레스 청산 단가",
@@ -599,6 +638,7 @@ GC.Locales.koKR = {
   ["craft it · %s each"] = "제작 · 개당 %s",
   ["craft it: %s = %s each"] = "제작: %s = 개당 %s",
   ["deals %s · items %s · filtered %s"] = "거래 %s · 아이템 %s · 제외 %s",
+  ["deals %s · items %s"] = "거래 %s · 아이템 %s",
   ["done"] = "완료",
   ["from %s"] = "%s의 목록",
   ["in bags %d · in bank %d"] = "가방 %d · 은행 %d",
@@ -930,10 +970,6 @@ GC.Locales.koKR = {
     "상인가 이하",
   ["Under market"] =
     "시세 이하",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · %s 이하에 구매, 상인가 %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · %s 이하에 구매, 경매장 시세 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "%s 이하로 구매: 상인이 개당 %s를 쳐줍니다. 이 구매로 %s의 이익이 납니다.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
@@ -1694,8 +1730,6 @@ GC.Locales.koKR = {
   ["Click for GoldCap. Drag to move it."] = "클릭하면 GoldCap이 열립니다. 끌어서 옮길 수 있습니다.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "미니맵 옆 GoldCap 버튼을 숨겼습니다. 다시 표시하려면 /gc minimap을 입력하세요.",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap: 미니맵 옆 GoldCap 버튼을 표시하거나 숨깁니다.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "지금은 마력 추출할 만한 것이 없습니다: 아래는 모두 상점이 더 이득입니다.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

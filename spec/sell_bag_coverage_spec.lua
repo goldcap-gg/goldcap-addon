@@ -738,4 +738,45 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.is_true(#displayErrors > 0)
     for _, displayError in ipairs(displayErrors) do assert.is_false(displayError) end
   end)
+
+  -- GC.db.commodityByItem is capped (Services/Sell/Bags.lua, 2000 answers): past it a bag scan
+  -- keeps what is on hand or on sale -- and, in WoW: Forever, what the current scan's fold holds.
+  describe("the remembered commodity answers past their cap", function()
+    local function overfull()
+      local known = {}
+      for id = 50001, 52100 do known[id] = true end -- 2100 answers for items nobody carries
+      return known
+    end
+
+    local function count(t)
+      local n = 0
+      for _ in pairs(t) do n = n + 1 end
+      return n
+    end
+
+    it("keeps only what is on hand or on sale where no Forever fold is (retail)", function()
+      GC.db = { commodityByItem = overfull() }
+      kinds[42] = false
+      stack(1, 42, 1, PLAIN)
+      compose()
+      assert.equal(1, count(GC.db.commodityByItem))
+      assert.is_false(GC.db.commodityByItem[42])
+    end)
+
+    -- Review, 2026-11-06: the Forever Deals board remembers its answers here too (hundreds per
+    -- fold), and every bag scan past the cap wiped them, so each session asked the server again.
+    it("keeps every answer the current Forever fold holds, and no other", function()
+      GC.db = { commodityByItem = overfull() }
+      GC.ForeverScan = { Fold = function()
+        return { at = 1, items = { [50001] = "1,1,1,;0x1", [50002] = "2,1,1,;0x1" } }
+      end }
+      kinds[42] = false
+      stack(1, 42, 1, PLAIN)
+      compose()
+      assert.equal(3, count(GC.db.commodityByItem))
+      assert.is_true(GC.db.commodityByItem[50001])
+      assert.is_true(GC.db.commodityByItem[50002])
+      assert.is_false(GC.db.commodityByItem[42])
+    end)
+  end)
 end)

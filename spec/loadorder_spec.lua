@@ -326,18 +326,37 @@ describe("TOC load order", function()
       GC.Sniper.Toggle = realToggle
       assert.equal(2, toggleCalls)
     end
-    -- A word GoldCap does not know prints the help line; in retail a second line names /goldcap
-    -- minimap (UI/MinimapButton.lua, retail only: the Forever TOC does not load it), the only other
-    -- place a player learns how to bring a hidden minimap button back.
+    -- A word GoldCap does not know prints the help: the version, then one line per command this
+    -- game has, each with what it does (owner 2026-11-06: one line of names broke mid-command and
+    -- named seven). A command whose file this TOC does not load has no line: disenchant, route and
+    -- minimap are retail's. Every line names a command that answers; diagnostics stay off it.
     do
-      local said = {}
-      local realPrint = GC.Print
-      GC.Print = function(msg) said[#said + 1] = msg end
+      local headers, lines = {}, {}
+      local realPrint, realGlobalPrint = GC.Print, _G.print
+      GC.Print = function(msg) headers[#headers + 1] = msg end
+      _G.print = function(msg) lines[#lines + 1] = msg end
       GC.OnSlash("nonsense")
-      GC.Print = realPrint
+      GC.Print, _G.print = realPrint, realGlobalPrint
+      assert.equal(1, #headers)
+      assert.falsy(headers[1]:find("@", 1, true))
+      local shown = {}
+      for _, line in ipairs(lines) do
+        local command, what = line:match("/gc (%a+)|r: (.+)$")
+        assert.truthy(command, line)
+        assert.is_function(GC.slashHandlers[command], command)
+        assert.truthy(#what > 0)
+        shown[command] = true
+      end
       local retail = tocPath == "GoldCap/GoldCap.toc"
-      assert.equal(retail and 2 or 1, #said)
-      if retail then assert.truthy(said[2]:find("/goldcap minimap", 1, true)) end
+      for _, command in ipairs({ "sniper", "sales", "ledger", "companion", "import", "status", "welcome", "reset" }) do
+        assert.truthy(shown[command], command)
+      end
+      assert.equal(retail, shown.disenchant == true)
+      assert.equal(retail, shown.minimap == true)
+      assert.equal(retail, shown.route == true)
+      for _, diagnostic in ipairs({ "forever", "sell", "board", "purchase", "taint", "buy", "buywait", "craft", "sellstate" }) do
+        assert.falsy(shown[diagnostic], diagnostic)
+      end
     end
     assert.is_function(GC.SettingsUI.Toggle)
     -- `/goldcap reset` is the way back to a window that has ended up somewhere unreachable --

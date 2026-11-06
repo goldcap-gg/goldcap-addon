@@ -30,7 +30,8 @@ local KEYS = {
   -- what it says once hidden and its line under the /gc help line.
   "Deals board", "Disenchant (%d)", "Hide this button", "Click for GoldCap. Drag to move it.",
   "The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back.",
-  "/goldcap minimap shows or hides the GoldCap button by the minimap.",
+  "show or hide the GoldCap button by the minimap",
+  "disenchant your gear one press at a time",
   "Nothing worth disenchanting now: a vendor pays more for everything below.",
   "Nothing worth disenchanting now: everything below sells for more.", "This character does not know Disenchant.",
   -- The item tooltip's one line beside "Disenchant": what its kind gives and where it stands.

@@ -12,8 +12,42 @@ GC.Locales.ruRU = {
   [" · identity unresolved"] = " · позиция не опознана",
   [" · stale %ds"] = " · устарело %dс",
   [". Check again"] = ". Проверьте ещё раз",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · команды: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (или коротко /gc)",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · команды (можно и /goldcap):",
+  ["open or close the GoldCap window"] =
+    "открыть или закрыть окно GoldCap",
+  ["scan the auction house now"] =
+    "сканировать аукцион сейчас",
+  ["find gear upgrades on the auction house"] =
+    "найти улучшения снаряжения на аукционе",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "веса характеристик для улучшений, например /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "сколько дадут за сумки торговец и аукцион",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "золото на ездовое животное: задать цену, например /gc mount 100g, или clear, share",
+  ["count what you loot: on, off or clear"] =
+    "считать добычу: on, off или clear",
+  ["disenchant your gear one press at a time"] =
+    "распылять снаряжение по одному нажатию",
+  ["what to put in and take out of the Warband Bank"] =
+    "что положить в банк отряда и что забрать из него",
+  ["your recent auction house sales"] =
+    "ваши последние продажи на аукционе",
+  ["sales and buys over the last 24 hours"] =
+    "продажи и покупки за последние 24 часа",
+  ["keep prices fresh with GoldCap Companion"] =
+    "свежие цены через GoldCap Companion",
+  ["paste prices copied from goldcap.gg"] =
+    "вставить цены, скопированные с goldcap.gg",
+  ["which prices GoldCap has and how old they are"] =
+    "какие цены есть у GoldCap и какой они давности",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "что умеет GoldCap и насколько свежи ваши цены",
+  ["show or hide the GoldCap button by the minimap"] =
+    "показать или скрыть кнопку GoldCap у миникарты",
+  ["move the window back to the middle of the screen"] =
+    "вернуть окно в середину экрана",
   ["%d (whole lot)"] = "%d (весь лот)",
   ["%d ahead of you"] = "%d впереди вас",
   ["%d at %s"] = "%d по %s",
@@ -310,7 +344,8 @@ GC.Locales.ruRU = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Улучшений экипировки на аукционе: %d. Введите /gc upgrades, чтобы их увидеть.",
   ["Use the default cap"] = "Потолок по умолчанию",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Пока это значение остаётся на стандартных 5%, лот по цене торговца может использовать до половины вашего золота.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "При 5% и выше лот ниже цены торговца может использовать до половины вашего золота, а лот ниже рынка до четверти, или до этой доли, если она больше.",
   ["Min return per buy %"] = "Мин. доходность покупки %",
   ["Missing cost"] = "Нет себестоимости",
   ["NO LIVE PRICE YET"] = "ПОКА НЕТ ЖИВОЙ ЦЕНЫ",
@@ -484,6 +519,10 @@ GC.Locales.ruRU = {
   ["Spike-trend threshold %"] = "Порог всплеска цены %",
   ["Start scanning as soon as the auction house opens."] =
     "Начинать сканирование сразу при открытии аукционного дома.",
+  ["Open GoldCap with the auction house"] = "Открывать GoldCap вместе с аукционом",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Показывать окно GoldCap сразу при открытии аукционного дома.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Если выключено, откройте окно вкладкой GoldCap внизу аукциона или командой /gc sniper.",
+  ["Game language"] = "Язык игры",
   ["Status"] = "Статус",
   ["Stop and open the buy window on your price"] = "Остановить и открыть окно покупки по вашей цене",
   ["Stress exit unit"] = "Цена стресс-выхода",
@@ -953,10 +992,6 @@ GC.Locales.ruRU = {
     "Ниже НПС",
   ["Under market"] =
     "Ниже рынка",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · купить за %s или меньше, торговец платит %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · купить за %s или меньше, оценка на аукционе %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Купить за %s или меньше: торговец платит %s за штуку. Эта покупка приносит %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
@@ -1129,6 +1164,7 @@ GC.Locales.ruRU = {
   ["done"] = "готово",
   ["everything bought"] = "всё куплено",
   ["from %s"] = "от %s",
+  ["deals %s · items %s"] = "сделки %s · предметы %s",
   ["in bags %d · in bank %d"] = "в сумках %d · в банке %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "в сумках %d · в банке %d · в почтовом ящике %d",
   ["in bags and bank · purchases arrive by mail"] = "в сумках и банке · покупки приходят почтой",
@@ -1834,8 +1870,6 @@ GC.Locales.ruRU = {
   ["Click for GoldCap. Drag to move it."] = "Нажмите, чтобы открыть GoldCap. Перетащите, чтобы передвинуть.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "Кнопка GoldCap у миникарты скрыта. Чтобы вернуть её, введите /gc minimap.",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap показывает или скрывает кнопку GoldCap у миникарты.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Сейчас нечего выгодно распылять: за всё ниже торговец платит больше.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

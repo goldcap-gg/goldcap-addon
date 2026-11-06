@@ -40,10 +40,10 @@ local C = {
   -- its chat block this long for a fuller read to replace it, so one SCAN prints the block once.
   SAY_GRACE_SECONDS = 20,
   BROWSE_WAIT_SECONDS = 180,       -- a wide pass on a busy auction house, behind the arbiter
-  -- A partial replicate read merges into the saved fold (below) only while the saved fold is no
+  -- A cut replicate read merges into the saved fold (below) only while the saved fold is no
   -- older than this: otherwise every item they share would keep the OLD fold's price forever, as
-  -- long as every later read happens to come back partial too. Past this, a partial read replaces
-  -- the stale fold wholesale, same as a non-partial one already does.
+  -- long as every later read happens to come back cut too. Past this, a cut read replaces the
+  -- stale fold wholesale, same as a whole one always does.
   MERGE_MAX_AGE_SECONDS = 2 * 3600,
   -- How many of this account's own fold stamps are remembered (rememberAt below).
   KEEP_FOLD_ATS = 8,
@@ -83,16 +83,17 @@ function GC.ForeverScan.New(driver)
   end
 
   -- The rule (final review I3, widened for the partial-replicate case): neither a browse-only
-  -- result nor a ReplicateItems read that came back partial itself (the dump capped at
-  -- SUSPECT_CAP, emptied under the read, or the browse watchdog firing) may REPLACE a stored fold
-  -- that came from a real dump -- either would otherwise throw away every ladder/lot-count the
-  -- fuller fold priced for a thinner read's single floor. So: merge. Every item the stored fold
-  -- already has keeps its saved entry, UNLESS the saved fold was itself partial and this read is
-  -- a real dump -- both reads are then incomplete, and this read's entry, the newer one, wins. An
-  -- item the stored fold lacks entirely is added -- the same "only what the dump didn't cover"
-  -- rule AddBrowse already applies inside one scan, now applied across two.
+  -- result nor a ReplicateItems read that was cut (the dump capped at SUSPECT_CAP, emptied under
+  -- the read, the auction house closed mid-read) may REPLACE a stored fold that came from a real
+  -- dump -- either would otherwise throw away every ladder/lot-count the fuller fold priced for a
+  -- thinner read's single floor. So: merge. A dump read to the end is not such a read, however its
+  -- browse pass ended (see commit's `whole`). Every item the stored fold already has keeps its
+  -- saved entry, UNLESS the saved fold was itself partial and this read is a real dump -- both
+  -- reads are then incomplete, and this read's entry, the newer one, wins. An item the stored
+  -- fold lacks entirely is added -- the same "only what the dump didn't cover" rule AddBrowse
+  -- already applies inside one scan, now applied across two.
   --
-  -- Age-gated for the partial-replicate case only (C.MERGE_MAX_AGE_SECONDS): a browse-only top-up
+  -- Age-gated for the cut-replicate case only (C.MERGE_MAX_AGE_SECONDS): a browse-only top-up
   -- always merges, as it always has, but a saved fold already older than the window is replaced
   -- rather than topped up again -- otherwise a player whose dumps keep coming back capped would
   -- keep every shared item at whatever price the very first dump saw, forever.
@@ -132,12 +133,27 @@ function GC.ForeverScan.New(driver)
     local items, count = GC.ForeverFold.Freeze(a, driver.isGear)
     local p = driver.passport() or {}
     local source = a.replicated and (a.browsed and "replicate+browse" or "replicate") or "browse"
+    -- A dump read to the end is the whole auction house: commodities and all (the owner's save of
+    -- 2026-11-06: 2349 items from a 155345-row dump, one of them from the browse pass after it).
+    -- The browse pass that follows ending early -- a Deals row opened (it aborts the pass), the
+    -- player's own search, the auction house closed, the watchdog -- takes nothing from it. It
+    -- used to make the read partial, and so merged UNDER a saved fold up to 2 h old: the saved
+    -- entry won for every item both held, the fresh prices were thrown away, and `at` kept the
+    -- old stamp (review, 2026-11-06). Now it replaces the saved fold, stamped now, not partial.
+    local whole = a.replicated == true and not a.cut
+    local partial = a.partial == true and not whole
     local s = driver.store()
     if s then
       local existing = s.fold
       local mergeableAge = type(existing) == "table" and type(existing.at) == "number"
         and (driver.now() - existing.at) <= C.MERGE_MAX_AGE_SECONDS
-      if (source == "browse" or (a.partial and mergeableAge)) and isFullFold(existing) and sameHouse(existing, p) then
+      -- Bumped on every write, merges included: a merge keeps `at` (below) and may keep
+      -- `itemCount` too while every entry it overwrote changed, so the Deals board
+      -- (Core/ForeverDeals.lua's foldChanged) tells one write from the next by this. The
+      -- Companion reads the fold's fields by name and the site's schema drops a key it does not
+      -- know, so the upload is unchanged.
+      local rev = (type(existing) == "table" and type(existing.rev) == "number" and existing.rev or 0) + 1
+      if (source == "browse" or (partial and mergeableAge)) and isFullFold(existing) and sameHouse(existing, p) then
         -- Both reads incomplete: this attempt's entry is the newer one, so it wins over the
         -- saved fold's for any item they both priced.
         local overwrite = existing.partial == true and a.replicated == true
@@ -168,14 +184,14 @@ function GC.ForeverScan.New(driver)
         s.fold = { v = GC.ForeverFold.VERSION, interface = p.interface, build = p.build, region = p.region,
           realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = existing.at,
           source = existing.source, rows = existing.rows, itemCount = mergedCount, partial = true,
-          items = merged }
+          rev = rev, items = merged }
         -- Plan 3e: the gear lots came from the very dump the merged fold keeps; they follow its stamp.
         if type(s.gear) == "table" then s.gear.at = s.fold.at end
       else
         s.fold = { v = GC.ForeverFold.VERSION, interface = p.interface, build = p.build, region = p.region,
           realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
-          rows = a.replicated and a.rows or nil, itemCount = count, partial = a.partial or nil,
-          items = items }
+          rows = a.replicated and a.rows or nil, itemCount = count, partial = partial or nil,
+          rev = rev, items = items }
         -- A new stamp: the one the Companion will answer for. The merge above keeps the old `at`,
         -- which is already remembered.
         rememberAt(s, s.fold.at)

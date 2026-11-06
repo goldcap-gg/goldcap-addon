@@ -17,8 +17,42 @@ GC.Locales.enUS = {
   [" · stale %ds"] = " · stale %ds",
   [" · watching"] = " · watching",
   [". Check again"] = ". Check again",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · commands (/goldcap works too):",
+  ["open or close the GoldCap window"] =
+    "open or close the GoldCap window",
+  ["scan the auction house now"] =
+    "scan the auction house now",
+  ["find gear upgrades on the auction house"] =
+    "find gear upgrades on the auction house",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "your stat weights for upgrades, like /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "what your bags fetch at a vendor and on the auction house",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "gold for your mount: set the cost, like /gc mount 100g, or clear, share",
+  ["count what you loot: on, off or clear"] =
+    "count what you loot: on, off or clear",
+  ["disenchant your gear one press at a time"] =
+    "disenchant your gear one press at a time",
+  ["what to put in and take out of the Warband Bank"] =
+    "what to put in and take out of the Warband Bank",
+  ["your recent auction house sales"] =
+    "your recent auction house sales",
+  ["sales and buys over the last 24 hours"] =
+    "sales and buys over the last 24 hours",
+  ["keep prices fresh with GoldCap Companion"] =
+    "keep prices fresh with GoldCap Companion",
+  ["paste prices copied from goldcap.gg"] =
+    "paste prices copied from goldcap.gg",
+  ["which prices GoldCap has and how old they are"] =
+    "which prices GoldCap has and how old they are",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "what GoldCap does, and how fresh your prices are",
+  ["show or hide the GoldCap button by the minimap"] =
+    "show or hide the GoldCap button by the minimap",
+  ["move the window back to the middle of the screen"] =
+    "move the window back to the middle of the screen",
   ["%d (whole lot)"] = "%d (whole lot)",
   ["%d ahead of you"] = "%d ahead of you",
   ["%d at %s"] = "%d at %s",
@@ -442,7 +476,8 @@ GC.Locales.enUS = {
   ["Max wallet per buy %"] = "Max wallet per buy %",
   ["Min profit per buy (gold)"] = "Min profit per buy (gold)",
   ["Min profit per buy (copper)"] = "Min profit per buy (copper)",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger.",
   ["Min return per buy %"] = "Min return per buy %",
   ["Missing cost"] = "Missing cost",
   ["NO COST"] = "NO COST",
@@ -590,6 +625,10 @@ GC.Locales.enUS = {
   ["Split into reagents (craft %d×)"] = "Split into reagents (craft %d×)",
   ["Start scanning as soon as the auction house opens."] =
     "Start scanning as soon as the auction house opens.",
+  ["Open GoldCap with the auction house"] = "Open GoldCap with the auction house",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Show the GoldCap window as soon as the auction house opens.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper.",
+  ["Game language"] = "Game language",
   ["Status"] = "Status",
   ["Stop and open the buy window on your price"] = "Stop and open the buy window on your price",
   ["Stress exit unit"] = "Stress exit unit",
@@ -750,6 +789,7 @@ GC.Locales.enUS = {
   ["fair"] = "fair",
   ["finish the pending buy first"] = "finish the pending buy first",
   ["from %s"] = "from %s",
+  ["deals %s · items %s"] = "deals %s · items %s",
   ["full scan already in progress"] = "full scan already in progress",
   ["full scan interrupted. Confirm your purchase"] = "full scan interrupted. Confirm your purchase",
   ["full scan stalled. Press Full Scan to retry"] = "full scan stalled. Press Full Scan to retry",
@@ -985,8 +1025,6 @@ GC.Locales.enUS = {
   -- two empty states. No "≤": the bundled monospace font has no glyph for it.
   ["Below vendor"] = "Below vendor",
   ["Under market"] = "Under market",
-  [" · buy at %s or less, vendor pays %s"] = " · buy at %s or less, vendor pays %s",
-  [" · buy at %s or less, AH value %s"] = " · buy at %s or less, AH value %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Buy at or under %s: a vendor pays %s each. This buy makes %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
@@ -1751,8 +1789,6 @@ GC.Locales.enUS = {
   ["Click for GoldCap. Drag to move it."] = "Click for GoldCap. Drag to move it.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back.",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap shows or hides the GoldCap button by the minimap.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Nothing worth disenchanting now: a vendor pays more for everything below.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

@@ -16,8 +16,42 @@ GC.Locales.esMX = {
   [" · identity unresolved"] = " · identidad sin resolver",
   [" · stale %ds"] = " · %ds de antigüedad",
   [". Check again"] = ". Verifica de nuevo",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (o /gc para abreviar)",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · comandos (/goldcap también vale):",
+  ["open or close the GoldCap window"] =
+    "abrir o cerrar la ventana de GoldCap",
+  ["scan the auction house now"] =
+    "escanear la casa de subastas ahora",
+  ["find gear upgrades on the auction house"] =
+    "buscar mejoras de equipo en la casa de subastas",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "tus pesos de estadísticas para mejoras, p. ej. /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "lo que dan tus bolsas en un vendedor y en la casa de subastas",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "oro para tu montura: fija el precio, p. ej. /gc mount 100g, o clear, share",
+  ["count what you loot: on, off or clear"] =
+    "contar tu botín: on, off o clear",
+  ["disenchant your gear one press at a time"] =
+    "desencantar tu equipo, una pulsación por objeto",
+  ["what to put in and take out of the Warband Bank"] =
+    "qué meter en el banco de banda guerrera y qué sacar",
+  ["your recent auction house sales"] =
+    "tus ventas recientes en la casa de subastas",
+  ["sales and buys over the last 24 hours"] =
+    "ventas y compras de las últimas 24 horas",
+  ["keep prices fresh with GoldCap Companion"] =
+    "precios al día con GoldCap Companion",
+  ["paste prices copied from goldcap.gg"] =
+    "pegar precios copiados de goldcap.gg",
+  ["which prices GoldCap has and how old they are"] =
+    "qué precios tiene GoldCap y su antigüedad",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "qué hace GoldCap y lo recientes que son tus precios",
+  ["show or hide the GoldCap button by the minimap"] =
+    "mostrar u ocultar el botón de GoldCap junto al minimapa",
+  ["move the window back to the middle of the screen"] =
+    "devolver la ventana al centro de la pantalla",
   ["%d (whole lot)"] = "%d (lote completo)",
   ["%d ahead of you"] = "%d por delante de ti",
   ["%d at %s"] = "%d a %s",
@@ -327,7 +361,8 @@ GC.Locales.esMX = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Mejoras para tu equipo en la casa de subastas: %d. Escribe /gc upgrades para verlas.",
   ["Use the default cap"] = "Usar el tope predeterminado",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Mientras esto se mantenga en el 5% predeterminado, una pista con precio de vendedor puede usar hasta la mitad de tu oro.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "Desde el 5%, una pista bajo el precio de vendedor puede usar hasta la mitad de tu oro, y una bajo el precio de mercado hasta una cuarta parte, o hasta esta parte si es mayor.",
   ["Min return per buy %"] = "Retorno mín. por compra %",
   ["Missing cost"] = "Falta el costo",
   ["NO LIVE PRICE YET"] = "AÚN SIN PRECIO EN VIVO",
@@ -501,6 +536,10 @@ GC.Locales.esMX = {
   ["Spike-trend threshold %"] = "Umbral de subida repentina %",
   ["Start scanning as soon as the auction house opens."] =
     "Empezar a escanear en cuanto se abra la Casa de Subastas.",
+  ["Open GoldCap with the auction house"] = "Abrir GoldCap con la Casa de Subastas",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Mostrar la ventana de GoldCap en cuanto se abra la Casa de Subastas.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Desactivado: ábrela con la pestaña GoldCap en la parte inferior de la Casa de Subastas o con /gc sniper.",
+  ["Game language"] = "Idioma del juego",
   ["Status"] = "Estado",
   ["Stop and open the buy window on your price"] = "Detener y abrir la ventana de compra a tu precio",
   ["Stress exit unit"] = "Precio de salida bajo presión",
@@ -639,6 +678,7 @@ GC.Locales.esMX = {
   ["deals %s · items %s · filtered %s"] = "oportunidades %s · objetos %s · descartadas %s",
   ["done"] = "hecho",
   ["from %s"] = "de %s",
+  ["deals %s · items %s"] = "oportunidades %s · objetos %s",
   ["in bags %d · in bank %d"] = "en bolsas %d · en banco %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "en bolsas %d · en banco %d · en el buzón %d",
   ["includes %d for crafting %s"] = "incluye %d para fabricar %s",
@@ -989,10 +1029,6 @@ GC.Locales.esMX = {
     "Bajo NPC",
   ["Under market"] =
     "Bajo mercado",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · compra a %s o menos, el vendedor paga %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · compra a %s o menos, valor de subasta %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Compra a %s o menos: un vendedor paga %s por unidad. Esta compra genera %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
@@ -1771,8 +1807,6 @@ GC.Locales.esMX = {
   ["Click for GoldCap. Drag to move it."] = "Haz clic para abrir GoldCap. Arrastra para moverlo.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "El botón de GoldCap junto al minimapa está oculto. Escribe /gc minimap para recuperarlo.",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap muestra u oculta el botón de GoldCap junto al minimapa.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Por ahora no conviene desencantar nada: un vendedor paga más por todo lo de abajo.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

@@ -371,8 +371,13 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- all back into the book" caption a gold hero carries.
     -- `refused`: the panel shows a refusal's figure without that caption (final review m6) --
     -- "sure profit" under a red REFUSED read as an endorsement.
+    -- `liveExit`: a market buy priced under an ask the live book still holds, not at the AH value
+    -- (EvaluateCeiling's `exitUnit` under its `refUnit`, review 2026-11-06). The market caption
+    -- would call that price the AH value, so the panel leaves it out, as for a refusal; the
+    -- figure and what comes back are the live book's.
     hero = { kind = "forever", forever = forever, copper = decision.stressProfit, ref = decision.exitUnit,
-      refused = tone == "refuse" or nil, refSource = context.refSource }
+      refused = tone == "refuse" or nil, refSource = context.refSource,
+      liveExit = positive(decision.refUnit) and decision.exitUnit < decision.refUnit or nil }
   elseif tone == "adjust" then
     hero = positive(decision.quantity) and { kind = "units", quantity = decision.quantity }
       or { kind = "unpriceable" }

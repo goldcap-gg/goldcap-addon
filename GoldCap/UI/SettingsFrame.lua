@@ -617,6 +617,8 @@ local function build(sniperFrame)
       resetBtn:SetSize(56, 14)
       resetBtn:SetPoint("TOPRIGHT", -Theme.pad.s, -7)
       resetBtn:SetLabel(GC.L["DEFAULTS"])
+      -- As wide as its word: "ПО УМОЛЧАНИЮ" in a fixed 56px read "ПО УМОЛЧ..." (2026-11-06).
+      if resetBtn.FitLabels then resetBtn:FitLabels({ GC.L["DEFAULTS"] }, 56) end
       resetBtn:SetScript("OnClick", function()
         local cfgTable = cfg()
         local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
@@ -764,7 +766,7 @@ local function build(sniperFrame)
   -- Task S (V2: two rows fewer in Forever, not one -- Post above the cheapest joined
   -- capStopAndOpen, both built below only on retail) -- DISPLAY is anchored off AUTOMATION's own
   -- BOTTOMRIGHT, so a shorter card here reflows it up with no gap.
-  local automation = card(content, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 2 or 4)
+  local automation = card(content, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 4 or 6)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
   automation:SetPoint("LEFT", content, "CENTER", 7, 0)
   columns.right[#columns.right + 1] = automation
@@ -866,17 +868,17 @@ local function build(sniperFrame)
   fieldRow(whatCounts, isForeverClient() and 2 or 3, GC.L["Max wallet per buy %"], "maxCapitalShare", WALLET_PCT,
     GC.L["Never spend more than this share of your gold on one purchase."])
   if isForeverClient() then
-    -- Core/ForeverDeals.lua's BuyLimits: a "Below vendor" lead is capped by the vendor's own
-    -- price, so retail's 5% share left nothing to buy at low level -- while this field stays at
-    -- that shipped 5%, a vendor row gets half the wallet instead. A player who has already
-    -- changed it gets exactly what they typed, unclamped by this carve-out.
+    -- Core/ForeverDeals.lua's BuyLimits: retail's 5% share left nothing to buy at low level --
+    -- at that shipped 5% or above, a vendor row gets half the wallet and a market row a quarter
+    -- (the player's own share where that is larger). A player who lowered it gets exactly what
+    -- they typed, unclamped by this carve-out.
     -- A row of its own: it runs to three lines across the card, and the row under it moves down
     -- for them rather than being drawn over.
     local note = Theme.Num(whatCounts, 9)
     note:SetPoint("TOPLEFT", Theme.pad.m, whatCounts.rowY(3))
     note:SetJustifyH("LEFT")
     note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-    note:SetText(GC.L["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
+    note:SetText(GC.L["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."])
     addRow(whatCounts, note)
   end
   -- The engine's own bounds (SniperDecision.MAX_QUANTITY_CEILING), for the same reason as the
@@ -1046,6 +1048,20 @@ local function build(sniperFrame)
   -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
   toggleRow(automation, 2, GC.L["Auto-scan on next AH visit"], "auto",
     GC.L["Start scanning as soon as the auction house opens."])
+  -- settings.sniper.autoOpen (Core/Init.lua, on by default), read when the auction house opens
+  -- (UI/SniperFrame.lua's OnAuctionHouseShow). It had no switch: a player who did not want the
+  -- window over the auction house could not say so (owner, 2026-11-06). The line under it says
+  -- where the window is when it does not open by itself, in plain sight rather than on hover.
+  toggleRow(automation, 3, GC.L["Open GoldCap with the auction house"], "autoOpen",
+    GC.L["Show the GoldCap window as soon as the auction house opens."])
+  do
+    local note = Theme.Num(automation, 9)
+    note:SetPoint("TOPLEFT", Theme.pad.m, automation.rowY(4))
+    note:SetJustifyH("LEFT")
+    note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    note:SetText(GC.L["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."])
+    addRow(automation, note)
+  end
 
   -- Sell tab overcut (Core/Flips.lua, RecommendPost): the highest occupied rung the item's
   -- floor still reaches within a day. Off = post at the cheapest ask.
@@ -1058,7 +1074,7 @@ local function build(sniperFrame)
   -- Settings shows only what applies -- one row fewer in AUTOMATION & ALERTS above reflows
   -- DISPLAY up with no gap, same as the other three hidden rows.
   if not isForeverClient() then
-    toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut",
+    toggleRow(automation, 5, GC.L["Post above the cheapest"], "overcut",
       GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
   end
 
@@ -1073,7 +1089,7 @@ local function build(sniperFrame)
   -- `decision.cap` set. GC.ForeverDeals never touches GC.Caps. No Forever code path can ever
   -- act on this key -- one row fewer in AUTOMATION & ALERTS above reflows DISPLAY up with no gap.
   if not isForeverClient() then
-    toggleRow(automation, 4, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
+    toggleRow(automation, 6, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
   end
 
@@ -1153,8 +1169,15 @@ local function build(sniperFrame)
     return (GC.db and GC.db.settings and GC.db.settings.locale) or "auto"
   end
 
+  -- "Follow the game" is the one choice said in the language in use ("Game language" stood in
+  -- English on a Russian screen, 2026-11-06); every language keeps its own name.
+  local function choiceLabel(code)
+    if code == "auto" then return GC.L["Game language"] end
+    return GC.LocaleChoiceLabel(code)
+  end
+
   local function displayLanguage()
-    langBtn:SetLabel(GC.LocaleChoiceLabel(localeSetting()))
+    langBtn:SetLabel(choiceLabel(localeSetting()))
     -- This label is the ONE piece of text in the addon rewritten in the newly picked language
     -- on the spot -- every other widget still says what it said in the old one until the
     -- /reload below. So this is the one widget whose FACE has to move with it, and the whole
@@ -1169,7 +1192,7 @@ local function build(sniperFrame)
     if not menu or not menu.CreateRadioContextMenu then return end
     local entries = {}
     for _, choice in ipairs(GC.LOCALE_CHOICES) do
-      entries[#entries + 1] = { GC.Util.ClientText(choice.label), choice.code }
+      entries[#entries + 1] = { GC.Util.ClientText(choiceLabel(choice.code)), choice.code }
     end
     menu.CreateRadioContextMenu(self,
       function(code) return localeSetting() == code end,

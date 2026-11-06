@@ -931,22 +931,50 @@ describe("Clean click ordering, driven end to end", function()
       assert.is_nil(d.verdictLabel.text:find("Below vendor", 1, true))
     end)
 
+    -- An Under market row's book: the Below vendor one with its wall above the 20c AH value. A
+    -- market resale is held one copper under what the buy leaves on the live book (review
+    -- 2026-11-06), and FOREVER_BOOK's 100 units at 13c would hold it to 12c.
+    local MARKET_BOOK = { { unitPrice = 8, quantity = 5 }, { unitPrice = 9, quantity = 10 },
+      { unitPrice = 12, quantity = 40 }, { unitPrice = 21, quantity = 100 } }
+
     it("the check panel says an Under market commodity is a resale at the scan's AH value, speed unknown", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 12, 20, "market")
-      local live = capLive(GC, 42, FOREVER_BOOK)
+      local live = capLive(GC, 42, MARKET_BOOK)
       assert.equal("SAFE", live.decision.status)
       local deal = foreverDeal(42, true)
       deal.forever, deal.refUnit = "market", 20
       local row = { deal = deal, purchaseToken = 1 }
       local d = panelDialog(row, deal)
       setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
-      armReadyFn(GC)(row, deal, live.decision, FOREVER_BOOK)
+      armReadyFn(GC)(row, deal, live.decision, MARKET_BOOK)
       assert.equal("Under market", d.verdictLabel.text)
       -- 55 units resold at 20c: 1,100c, less the 55c cut, the 0c deposit and the 610c paid.
       assert.equal("+" .. GC.Util.FormatMoney(435), d.verdictAmount.text)
       assert.equal(("resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown")
         :format(GC.Util.FormatMoney(20)), d.verdictAmountNote.text)
+      assertNoRetailWords(d)
+    end)
+
+    it("the check panel prices an Under market buy the live book undercuts at that book, and still names the AH value", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 20, "market")
+      local book = { { unitPrice = 8, quantity = 5 }, { unitPrice = 9, quantity = 10 },
+        { unitPrice = 12, quantity = 40 }, { unitPrice = 16, quantity = 100 } }
+      local live = capLive(GC, 42, book)
+      assert.equal("SAFE", live.decision.status)
+      local deal = foreverDeal(42, true)
+      deal.forever, deal.refUnit = "market", 20
+      local row = { deal = deal, purchaseToken = 1 }
+      local d = panelDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      armReadyFn(GC)(row, deal, live.decision, book)
+      -- 55 units resold at 15c, under the 100 left at 16c: 825c, less the 42c cut and the 610c paid.
+      assert.equal("+" .. GC.Util.FormatMoney(173), d.verdictAmount.text)
+      assert.equal(GC.Util.FormatMoney(15), d.exitUnitText.text)
+      -- No caption calls 15c the AH value; the reason line names the real one, 20c.
+      assert.equal("", d.verdictAmountNote.text)
+      assert.equal(GC.Sniper._ForeverNote("market", 12, 20, 173), d.reasonText.text)
       assertNoRetailWords(d)
     end)
 
@@ -994,6 +1022,26 @@ describe("Clean click ordering, driven end to end", function()
       GC.Sniper.OnCommodityPurchaseSucceeded()
       assertForeverRecord(GC, 55, 610, 105)
       assert.equal(42, GC._dropped) -- and the lead leaves the board
+    end)
+
+    -- Review 2026-11-06: a buy that took less than the row found (the wallet's share stopped it,
+    -- or an Items row's one lot) dropped the whole row until the next scan, hiding the rest. It
+    -- stays with what is left; its next click Checks the live book again.
+    it("keeps a Forever row on the board with what is left when the buy took less than it found", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      local deal = foreverDeal(42, true)
+      deal.qty = 100
+      local row = { deal = deal, purchaseToken = 1 }
+      armOnDialog(GC, row, deal, live.decision, FOREVER_BOOK)
+      local click = clickHandler(GC)
+      click() -- Start
+      GC.Sniper.OnCommodityPriceUpdated(11, 610)
+      click() -- Confirm
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+      assert.is_nil(GC._dropped)
+      assert.equal(45, deal.qty)
     end)
 
     it("records a Forever lot at its buyout, with what the vendor pays over it", function()
@@ -1172,11 +1220,23 @@ describe("Clean click ordering, driven end to end", function()
       assert.equal(49, live.decision.stressProfit)
     end)
 
-    it("plans a Below vendor Check inside the player's own share once they changed it", function()
+    -- Review, 2026-11-06: a raised share used to give the row its 10%, less than the default's half.
+    it("plans a Below vendor Check inside half the wallet when the player raised the share", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 12, 13)
       GC.db.settings.sniper.maxCapitalShare = 0.10
-      money = 1000 -- 10%: 100c, not half the wallet (which would buy all 55)
+      money = 200 -- half: 100c, not the 10% (20c buys two at 8c, 10c profit, under the 20c minimum)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      assert.equal("SAFE", live.decision.status)
+      assert.equal(11, live.decision.quantity)
+      assert.equal(94, live.decision.entryTotal)
+    end)
+
+    it("plans a Below vendor Check inside the player's own share once they lowered it", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      GC.db.settings.sniper.maxCapitalShare = 0.03
+      money = 3334 -- 3%: 100c, not half the wallet (which would buy all 55)
       local live = capLive(GC, 42, FOREVER_BOOK)
       assert.equal("SAFE", live.decision.status)
       assert.equal(11, live.decision.quantity)
