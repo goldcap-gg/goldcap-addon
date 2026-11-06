@@ -21,6 +21,10 @@ GC.ForeverUpgrades = GC.ForeverUpgrades or {}
 local C = {
   LEVEL_AHEAD = 2,         -- "for later": a required level up to this many above the character's
   MIN_GAIN_SHARE = 0.05,   -- an upgrade beats the worn piece by at least 5% of its score
+  -- ...and by at least this many points of the character's top primary stat (its largest weight
+  -- among STR/AGI/STA/INT/SPI): +1 agility for a rogue, +2 strength, +100 armour. A white piece
+  -- worn has almost no score, so 5% of it let "+3 armour" for 6s through (owner's save, 2026-11-06).
+  MIN_GAIN_POINTS = 1,
   NEAR_BEST = 0.9,         -- a cheaper piece with at least 90% of the best one's gain is taken instead
   TOOLTIP_CHECKS = 5,      -- tooltip reads per slot and per pass, strongest first
   REQUEST_PER_BUILD = 100, -- item-data requests per build
@@ -234,6 +238,12 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
   local level = tonumber(driver.level()) or 1
   local class = driver.classFile()
   local Score, loading = GC.ForeverUpgrades.Score, {}
+  local topPrimary = 0
+  for _, token in ipairs({ "STR", "AGI", "STA", "INT", "SPI" }) do
+    local w = weights[token]
+    if type(w) == "number" and w > topPrimary then topPrimary = w end
+  end
+  local minGain = C.MIN_GAIN_POINTS * topPrimary
 
   -- What the character wears, per slot. false: worn, but its stats not answered yet -- the group is
   -- skipped rather than compared against a guess.
@@ -329,7 +339,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
               local score, parts = Score(stats, weights)
               local b = base(group, equipLoc)
               local gain = b and score - b.score or 0
-              if b and score > 0 and gain > 0 and gain >= C.MIN_GAIN_SHARE * b.score then
+              if b and score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then
                 local into = (money and lot.unit > money) and dearer or byGroup
                 into[group] = into[group] or {}
                 table.insert(into[group], { group = group, itemID = itemID, itemString = str,

@@ -7,8 +7,9 @@
   on. It takes GoldCap Companion 1.21.0 or later to send them.
 - WoW: Forever, /gc upgrades: each slot shows the piece that adds the most for the gold you carry,
   or a cheaper one that is nearly as good. It used to show the cheapest piece that was better at
-  all, often just a little more armour, while far better pieces cost a silver or two more. The
-  window says how many slots only have upgrades that cost more than you carry.
+  all, often just a little more armour, while far better pieces cost a silver or two more. A piece
+  now has to add at least as much as one point of your main stat. The window says how many slots
+  only have upgrades that cost more than you carry.
 - WoW: Forever, /gc upgrades: long item names and stat lists wrap onto a second line instead of
   being cut off, and the window updates when you put on a piece or your gold changes.
 

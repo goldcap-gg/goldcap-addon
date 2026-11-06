@@ -51,6 +51,25 @@ describe("ForeverUpgrades", function()
     assert.is_nil(row.later); assert.is_nil(row.known); assert.is_nil(row.usable)
   end)
 
+  -- Owner's save, 2026-11-06, rogue weights: "+3 armour" for 6s on the feet and "+2 strength, -2
+  -- stamina" for 5s on the chest cleared 5% of a white piece's near-zero score.
+  it("wants at least MIN_GAIN_POINTS of the top primary stat, however weak the worn piece", function()
+    local R = { AGI = 1, STR = 0.5, STA = 0.4, ARMOR = 0.01 }
+    for _, id in ipairs({ 141, 142 }) do items[id] = { loc = "INVTYPE_FEET", class = 4, sub = 2 } end
+    items[143] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+    worn[8], worn[5] = "item:940", "item:941"
+    statsOf = {
+      ["item:940"] = { RESISTANCE0_NAME = 10 },
+      ["item:141"] = { RESISTANCE0_NAME = 13 },                                  -- +0.03
+      ["item:142"] = { RESISTANCE0_NAME = 10, ITEM_MOD_AGILITY_SHORT = 1 },      -- +1
+      ["item:941"] = { RESISTANCE0_NAME = 20, ITEM_MOD_STAMINA_SHORT = 2 },
+      ["item:143"] = { RESISTANCE0_NAME = 20, ITEM_MOD_STRENGTH_SHORT = 2 },     -- +0.2
+    }
+    local r = U.Build(gear({ [141] = "600:0:0", [142] = "900:0:0", [143] = "500:0:0" }), drv(), R)
+    assert.equal(1, #r.rows)
+    assert.equal(142, r.rows[1].itemID)
+  end)
+
   it("takes a cheaper piece instead when it gives at least NEAR_BEST of the best one's gain", function()
     for _, id in ipairs({ 111, 112, 113 }) do items[id] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 } end
     statsOf = { ["item:111"] = STR(20), ["item:112"] = STR(18), ["item:113"] = STR(19) }
