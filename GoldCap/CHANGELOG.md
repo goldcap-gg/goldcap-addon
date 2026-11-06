@@ -14,9 +14,10 @@
   character, or the share per buy you set in Settings if it is larger. At 5% nearly every one
   asked for more gold than a new character has. Raising that share no longer gives a deal less
   than the default did.
-- WoW: Forever: before you buy a deal under the market price, its check looks at what is listed
-  right now. If others ask less than the price you would resell at, the profit is counted at their
-  price, and a buy that no longer pays is turned down.
+- WoW: Forever: a deal under the market price is counted at the price you could resell at: just
+  under the cheapest listing your buy leaves. Its check looks at what is listed right now, buys
+  only as much as still pays, and turns the buy down when nothing does. The board counts its
+  profit the same way, so a deal no longer shows more than its check finds.
 - WoW: Forever: a deal stays on the board after a buy that took only part of it, such as one piece
   of gear out of many, so you can buy the rest.
 - WoW: Forever: gear under the vendor price is listed only when one piece earns your minimum
@@ -27,6 +28,9 @@
   GoldCap somewhere else.
 - WoW: Forever: the ITEMS chip counts the deals on the Items board, and "Not enough gold" is
   measured against one piece, the way you buy it.
+- WoW: Forever: opening a deal while a scan is finishing no longer leaves its window waiting on the
+  check.
+- The gold a deal needs is shown to the silver, such as 2g 24s, not rounded up to 3g.
 - WoW: Forever: the check panel says how old the scan behind a deal is.
 - WoW: Forever: while a scan runs, the line next to AUTO says so, in front of the last scan's
   figures.
