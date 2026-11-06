@@ -18,6 +18,18 @@
   auction house keeps the prices it already read instead of reading them all again.
 - Sell, MY LOTS: the group buttons work here too. Pick a group to see only its lots, and CANCEL
   cancels only that group's lots.
+- WoW: Forever: an item, not a commodity like ore or cloth, is priced on whole silver, the only
+  price the auction house takes for it. A post with copper in its price failed without a word. At
+  1s, the lowest price, Sell matches the cheapest listing instead of undercutting it.
+- WoW: Forever: Sell cancels a lot to beat a cheaper listing only when what it wins back is more
+  than the deposit the cancel loses. A 1c undercut used to cost a deposit many times that.
+- WoW: Forever: gear, bags, scrolls and recipes get their auction house value and a price floor on
+  Sell, so one cheap listing no longer sets the price of yours.
+- WoW: Forever: your lot is no longer called far below the market when it shares a row of the
+  auction house with other sellers' lots at the same price.
+- WoW: Forever: POST shows the deposit a post puts up, and holds back a post whose gain over a
+  vendor would not cover it.
+- A sold auction no longer shows in MY LOTS as a lot still listed, priced at the whole sale.
 
 ## 0.23.2 (2026-11-06)
 
