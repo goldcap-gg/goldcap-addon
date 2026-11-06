@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.23.2 (unreleased)
+## 0.23.2 (2026-11-06)
 
 - WoW: Forever: DEALS now finds items listed well under their market price, not only items listed
   under what a vendor pays for them. Until now it looked for these only among items you had carried
