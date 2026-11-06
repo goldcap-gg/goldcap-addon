@@ -132,13 +132,24 @@ local function keyedItem(positionKey)
   return tonumber(level) > 0 or tonumber(suffix) > 0 or tonumber(pet) > 0
 end
 
+-- Enum.AuctionStatus.Sold, both games (AuctionHouseDocumentation.lua; Core/CraftQueue.lua's
+-- SOLD). A sold auction stays in the owned list until its gold is collected, and it is no
+-- longer a listing: Blizzard's own list greys it and allows no cancel. Read as one, 31 linen
+-- sold at 24c came back as one lot at 7s44c (the sale's total) with 112 seconds left, on MY
+-- LOTS as UNDERCUT and in the cancel queue, and that price went into GoldCapDB.ownedLots for
+-- the companion to upload and into the price a later invoice is matched by (owner's save,
+-- WoW: Forever, 2026-11-06). Left out, it is gone from the roster, which is what the site
+-- already reads as "no longer listed"; nothing reads a sold row.
+local AUCTION_SOLD = 1
+
 function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
   local lots = {}
   for _, auction in ipairs(auctionInfos or {}) do
     local positionKey, itemID, isCommodity = keyForLot(auction)
     local quantity = positive(auction.quantity) and auction.quantity or 1
     local unitPrice = lotUnit(auction)
-    if positionKey and positive(unitPrice) and positive(auction.auctionID) and exact(seenAt or 0) then
+    if positionKey and positive(unitPrice) and positive(auction.auctionID) and exact(seenAt or 0)
+        and auction.status ~= AUCTION_SOLD then
       -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): carried here,
       -- not computed later, because this is the one place that already has both the auction
       -- and the seenAt it was read at. Only a genuine, positive, whole-second countdown counts

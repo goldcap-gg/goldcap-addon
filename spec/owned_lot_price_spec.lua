@@ -43,6 +43,23 @@ describe("Owned lot unit price", function()
     assert.equal(921200, lots[1].unitPrice)
   end)
 
+  -- The owner's save, WoW: Forever (2026-11-06): 31 linen posted at 24c sold, and the sold
+  -- auction, still in the owned list until its gold is collected, read as a lot at 7s44c (the
+  -- sale's total) with 112 seconds left: UNDERCUT on MY LOTS and open to a cancel.
+  it("leaves out an auction that has sold", function()
+    local lots = GC.SellPositions.NormalizeOwnedLots({
+      { itemKey = { itemID = 2589 }, itemID = 2589, isCommodity = true, status = 1,
+        quantity = 31, buyoutAmount = 744, auctionID = 3349444, timeLeftSeconds = 112 },
+      { itemKey = { itemID = 2589 }, itemID = 2589, isCommodity = true, status = 0,
+        quantity = 20, buyoutAmount = 24, auctionID = 3349445, timeLeftSeconds = 40000 },
+      { itemKey = { itemID = 2589 }, itemID = 2589, isCommodity = true,
+        quantity = 5, buyoutAmount = 25, auctionID = 3349446 },
+    }, 10)
+    assert.equal(2, #lots)
+    assert.equal(3349445, lots[1].auctionID)
+    assert.equal(3349446, lots[2].auctionID)
+  end)
+
   it("reports the real profit on the position that read as a 52g loss", function()
     GC.Acquisitions.Record({ source = "goldcap", itemID = 12363,
       positionKey = "commodity:12363", itemName = "Arcane Crystal", quantity = 10,

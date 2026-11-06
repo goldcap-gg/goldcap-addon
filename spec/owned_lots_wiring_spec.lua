@@ -103,6 +103,21 @@ describe("Owned lots event wiring", function()
     assert.is_nil(row.cancelledAt)
   end)
 
+  -- A sold auction stays in the owned list until its gold is collected. It is no listing, and
+  -- its buyoutAmount is the sale's total: 744 for 31 linen posted at 24c (owner's save, WoW:
+  -- Forever, 2026-11-06). The roster the companion uploads, and the Sell tab's, leave it out.
+  it("keeps a sold auction out of the recorded roster", function()
+    _G.C_AuctionHouse.GetOwnedAuctions = function()
+      return { OWNED[1], { auctionID = 3349444, itemKey = { itemID = 2589 }, isCommodity = true, status = 1,
+        quantity = 31, buyoutAmount = 744, timeLeftSeconds = 112 } }
+    end
+    onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+    assert.equal(1, #_G.GoldCapDB.ownedLots)
+    assert.equal(555, _G.GoldCapDB.ownedLots[1].auctionID)
+    assert.equal(1, #GC.SellState.ownedLots)
+    assert.equal(555, GC.SellState.ownedLots[1].auctionID)
+  end)
+
   it("stamps cancelledAt when AUCTION_CANCELED carries the auctionID", function()
     onEvent(nil, "OWNED_AUCTIONS_UPDATED")
     onEvent(nil, "AUCTION_CANCELED", 555)
