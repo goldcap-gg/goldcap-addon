@@ -125,7 +125,7 @@ describe("WoW: Forever", function()
       scroll = { SetVerticalScroll = function(_, value) api.scrolledTo = value end },
       emptyText = { SetText = function(_, text) api.emptyText = text end,
         Show = function() end, Hide = function() api.emptyText = nil end },
-      status = { SetText = function(_, text) api.status = text end },
+      status = { SetText = function(_, text) api.status = text end, GetText = function() return api.status end },
     })
     api.setScanDeals = function(list) set(show, "scanDeals", list) end
     return api
@@ -245,6 +245,29 @@ describe("WoW: Forever", function()
     busy = false
     api.GC.Sniper.RepaintScanState()
     assert.equal("deals |cfff7cf5a1|r · items 2346", api.status)
+  end)
+
+  -- Review 2026-11-06: the board clock rebuilds every 5 s after a fold (GC.ForeverDeals.Refresh)
+  -- and called OnForeverFold, which wrote the readout over whatever the line said: the Check's
+  -- "checking live price...", a quote, a buy's note. The clock moves the figures only while the
+  -- line still shows the readout; the scan's own landing writes it as before.
+  it("lets the board clock move the readout's figures but never write over another message", function()
+    local api = loadSniper()
+    local rows = { deal(1) }
+    api.GC.ForeverDeals = { Rows = function() return rows end }
+    api.GC.ForeverScan = { Enabled = function() return true end, IsBusy = function() return false end,
+      Fold = function() return { itemCount = 2346, items = {} } end }
+    api.GC.Sniper.OnForeverFold()
+    assert.equal("deals |cfff7cf5a1|r · items 2346", api.status)
+    rows = { deal(1), deal(2) }
+    api.GC.Sniper.OnForeverFold(true)
+    assert.equal("deals |cfff7cf5a2|r · items 2346", api.status)
+    api.status = "checking live price..."
+    rows = { deal(1), deal(2), deal(3) }
+    api.GC.Sniper.OnForeverFold(true)
+    assert.equal("checking live price...", api.status)
+    api.GC.Sniper.OnForeverFold()
+    assert.equal("deals |cfff7cf5a3|r · items 2346", api.status)
   end)
 
   it("leaves retail's readout as it is", function()

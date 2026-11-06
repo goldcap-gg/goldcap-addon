@@ -553,6 +553,52 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
     assert.equal("ITEMS", frame.boardChips.items.label)
   end)
 
+  -- Review 2026-11-06: the session total, right-aligned with only its right edge pinned, grew
+  -- left over the chips once room ran short, and left the gold line beside it a few pixels. Both
+  -- now take the room between the ITEMS chip and the toggle (or the edge) and wrap there; while
+  -- the gold line is up the session total steps aside, since the row has room for two lines only.
+  it("bounds the session total and the gold line between the chips and the toggle", function()
+    local _, GC = buildFrame()
+    local function text(shown)
+      local w = { shown = shown, points = {}, alpha = 1 }
+      function w:ClearAllPoints() self.points = {} end
+      function w:SetPoint(point, rel, relPoint) self.points[point] = { rel, relPoint } end
+      function w:IsShown() return self.shown end
+      function w:SetAlpha(a) self.alpha = a end
+      return w
+    end
+    local items = text(true)
+    local owner = { boardChips = { items = items }, boardY = -60, boardRowH = 24,
+      lackToggle = text(true), sessionText = text(true), goldLine = text(false) }
+    GC.Sniper._LayoutBoardRow(owner)
+    assert.equal(items, owner.sessionText.points.LEFT[1])
+    assert.equal(owner.lackToggle, owner.sessionText.points.RIGHT[1])
+    assert.equal(1, owner.sessionText.alpha)
+    owner.goldLine.shown = true
+    GC.Sniper._LayoutBoardRow(owner)
+    assert.equal(items, owner.goldLine.points.LEFT[1])
+    assert.equal(owner.lackToggle, owner.goldLine.points.RIGHT[1])
+    assert.equal(0, owner.sessionText.alpha)
+    owner.goldLine.shown, owner.lackToggle.shown = false, false
+    GC.Sniper._LayoutBoardRow(owner)
+    assert.equal(owner, owner.sessionText.points.RIGHT[1])
+    assert.equal(1, owner.sessionText.alpha)
+  end)
+
+  -- Review 2026-11-06: WoW: Forever's Items board is its own scan's non-commodity rows
+  -- (GC.ForeverDeals.Rows, board "items"), which the chip never counted.
+  it("counts WoW: Forever's own Items rows on the chip", function()
+    local frame, GC = buildFrame()
+    local saved = { scan = GC.ForeverScan, deals = GC.ForeverDeals }
+    GC.ForeverScan = { Enabled = function() return true end }
+    GC.ForeverDeals = { Rows = function()
+      return { { itemID = 1, board = "items" }, { itemID = 2, board = "commodities" }, { itemID = 3, board = "items" } }
+    end }
+    GC.Sniper._PaintBoardChips()
+    GC.ForeverScan, GC.ForeverDeals = saved.scan, saved.deals
+    assert.equal("ITEMS 2", frame.boardChips.items.label)
+  end)
+
   it("switches the board on a chip click and paints the one that is up", function()
     local frame, GC = buildFrame()
     GC.db = GC.db or { settings = { sniper = {} } }

@@ -996,6 +996,26 @@ describe("Clean click ordering, driven end to end", function()
       assert.equal(42, GC._dropped) -- and the lead leaves the board
     end)
 
+    -- Review 2026-11-06: a buy that took less than the row found (the wallet's share stopped it,
+    -- or an Items row's one lot) dropped the whole row until the next scan, hiding the rest. It
+    -- stays with what is left; its next click Checks the live book again.
+    it("keeps a Forever row on the board with what is left when the buy took less than it found", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      local deal = foreverDeal(42, true)
+      deal.qty = 100
+      local row = { deal = deal, purchaseToken = 1 }
+      armOnDialog(GC, row, deal, live.decision, FOREVER_BOOK)
+      local click = clickHandler(GC)
+      click() -- Start
+      GC.Sniper.OnCommodityPriceUpdated(11, 610)
+      click() -- Confirm
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+      assert.is_nil(GC._dropped)
+      assert.equal(45, deal.qty)
+    end)
+
     it("records a Forever lot at its buyout, with what the vendor pays over it", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 99, 100)

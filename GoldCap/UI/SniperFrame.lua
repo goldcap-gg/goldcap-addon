@@ -1974,16 +1974,30 @@ local function refreshRows()
 end
 
 -- WoW: Forever: a fold landed (Core/ForeverScan.lua), or the vendor prices a row was waiting on
--- have loaded (GC.ForeverDeals.Refresh, on the board clock in OnAuctionHouseShow): the board
--- reads GC.ForeverDeals.Rows, so it repaints.
-function GC.Sniper.OnForeverFold()
+-- have loaded (GC.ForeverDeals.Refresh, on the board clock in OnAuctionHouseShow, `fromClock`):
+-- the board reads GC.ForeverDeals.Rows, so it repaints. The clock rebuilds every 5 s for half a
+-- minute after a fold, just as the player starts acting on its rows, so it moves the readout's
+-- figures only while the line still shows the readout: never over "checking live price...", a
+-- quote or a buy's note (review 2026-11-06; the file's rule above refreshPassStatus).
+function GC.Sniper.OnForeverFold(fromClock)
   if not frame then return end
   refreshRows()
   local readout = GC.Sniper._ForeverReadout()
   if readout then
+    local showing = frame.status and frame.status.GetText and frame.status:GetText()
+    local stillReadout = showing ~= nil and showing == GC.Sniper._readoutShown
     GC.Sniper._readout = readout
-    setStatus(GC.Sniper._ReadoutLine())
+    if not fromClock or stillReadout then GC.Sniper._ShowReadout() end
   end
+end
+
+-- Writes the readout line (GC.Sniper._ReadoutLine, or `fallback` before the first pass) and
+-- remembers it, so OnForeverFold's clock can tell the line still shows it.
+function GC.Sniper._ShowReadout(fallback)
+  local line = GC.Sniper._ReadoutLine() or fallback
+  if line == nil then return end
+  setStatus(line)
+  GC.Sniper._readoutShown = line
 end
 
 -- The pass readout as the status line shows it. WoW: Forever: while a scan runs
@@ -2130,8 +2144,16 @@ function GC.Sniper._PaintBoardChips(target)
   local owner = target or frame
   local chips = owner and owner.boardChips
   if not chips then return end
-  -- The Items board holds its Rare finds rows too.
+  -- The Items board holds its Rare finds rows too. WoW: Forever's Items board is the player's own
+  -- scan's non-commodity rows alone (sortedDeals), which this never counted: "ITEMS" with no
+  -- number sat over 18 rows while the readout said "deals 33" (review 2026-11-06).
   local count = GC.Sniper._RealmCount() + #GC.Sniper._RareRows()
+  if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() and GC.ForeverDeals then
+    count = 0
+    for _, deal in ipairs(GC.ForeverDeals.Rows()) do
+      if deal.board == "items" then count = count + 1 end
+    end
+  end
   -- Two keys, not one with a conditional count: "ITEMS 0" is a promise of a number that is
   -- not there, and a chip reading "ITEMS" says the same thing without pretending to count.
   local labels = {
@@ -2166,29 +2188,31 @@ function GC.Sniper._LayoutBoardRow(target)
   if not (chips and owner.boardY and owner.boardRowH) then return end
   local lack, session, line = owner.lackToggle, owner.sessionText, owner.goldLine
   local lackShown = lack ~= nil and lack:IsShown() and true or false
-  local sessionShown = session ~= nil and session:IsShown() and true or false
-  local key = (lackShown and "l" or "-") .. (sessionShown and "s" or "-")
+  local lineShown = line ~= nil and line:IsShown() and true or false
+  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-")
   if owner._boardRowLayout == key then return end
   owner._boardRowLayout = key
   local rowY = owner.boardY - owner.boardRowH / 2
-  local function edge(widget)
-    widget:SetPoint("RIGHT", owner, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, rowY)
-  end
-  if session then
-    session:ClearAllPoints()
-    if lackShown then session:SetPoint("RIGHT", lack, "LEFT", -Theme.pad.m, 0) else edge(session) end
-  end
-  if line then
-    line:ClearAllPoints()
-    line:SetPoint("LEFT", chips.items, "RIGHT", Theme.pad.m, 0)
-    if sessionShown then
-      line:SetPoint("RIGHT", session, "LEFT", -Theme.pad.m, 0)
-    elseif lackShown then
-      line:SetPoint("RIGHT", lack, "LEFT", -Theme.pad.m, 0)
+  -- Both texts take the whole room between the ITEMS chip and the toggle (or the window's edge)
+  -- and wrap in it. The session total right-aligned there used to grow left over the chips once
+  -- the room ran short (a narrow window, a larger font, retail's toggle up), and the gold line
+  -- beside it was left a few pixels (review 2026-11-06). The row has room for two lines and no
+  -- more (the column headers sit right under it), so the gold line, the one that says why no
+  -- buy can go, has the room to itself while it is up and the session total waits.
+  local function between(widget)
+    widget:ClearAllPoints()
+    widget:SetPoint("LEFT", chips.items, "RIGHT", Theme.pad.m, 0)
+    if lackShown then
+      widget:SetPoint("RIGHT", lack, "LEFT", -Theme.pad.m, 0)
     else
-      edge(line)
+      widget:SetPoint("RIGHT", owner, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, rowY)
     end
   end
+  if session then
+    between(session)
+    session:SetAlpha(lineShown and 0 or 1)
+  end
+  if line then between(line) end
 end
 
 -- The "Only what I lack" toggle: the setting is a preference, kept like the board choice.
@@ -2477,7 +2501,7 @@ function GC.Sniper._PaintGoldLine(list)
   -- A client global, read defensively for the same reason every cross-module call in this file
   -- is guarded: the specs that build this window stub only what their own paths call.
   local wallet = type(GetMoney) == "function" and GetMoney() or nil
-  if not wallet then line:Hide() return end
+  if not wallet then line:Hide() GC.Sniper._LayoutBoardRow() return end
   -- An empty wallet goes through the same walk: nothing fits in it, so the line is up exactly
   -- when there is something on the board -- never over an empty one (review 2026-09-27).
   local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
@@ -2495,7 +2519,10 @@ function GC.Sniper._PaintGoldLine(list)
       end
       local fits
       if items then
-        local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
+        -- A WoW: Forever row's capTotal is every lot it found, but its buy is one lot, the
+        -- cheapest: held to that, the line no longer said "not enough gold" over a lot the
+        -- wallet could pay for (review 2026-11-06).
+        local total = deal.forever and deal.unitPrice or deal.capTotal or deal.unitPrice * (deal.qty or 1)
         fits = total <= wallet and (not (deal.cap or deal.forever)
           or (rowLimits ~= nil and total <= rowLimits.budget))
       else
@@ -2510,6 +2537,8 @@ function GC.Sniper._PaintGoldLine(list)
   else
     line:Hide()
   end
+  -- While it is up the session total beside it steps aside (GC.Sniper._LayoutBoardRow).
+  GC.Sniper._LayoutBoardRow()
 end
 
 -- The board's empty state. An empty list used to be exactly that -- rows silently absent,
@@ -3454,7 +3483,7 @@ local function applyFullScanResults(rowsList, groupCount, kind)
       readout = readout .. (GC.L[" · %d keys"]):format(GC.Sniper._keysLastCycle)
     end
     GC.Sniper._readout = readout
-    setStatus(GC.Sniper._ReadoutLine())
+    GC.Sniper._ShowReadout()
   end
   refreshRows()
   -- Sniper v3 §3 ping (fix round 1, I2): the completion reconcile needs its own ping pass
@@ -3753,7 +3782,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
     GC.Sniper._browseOutAt = time()
     -- The last pass's readout stays up while this one runs; only the very first pass has nothing
     -- to show yet. Written again rather than left: it replaces whatever one-shot came since.
-    setStatus(GC.Sniper._ReadoutLine() or GC.L["scanning auction house..."])
+    GC.Sniper._ShowReadout(GC.L["scanning auction house..."])
     armScanWatchdog(fullScanToken)
   end,
   requestMoreBrowseResults = function()
@@ -4664,7 +4693,7 @@ function GC.Sniper.RepaintScanState()
   local busy = GC.ForeverScan and GC.ForeverScan.IsBusy and GC.ForeverScan.IsBusy() and true or false
   if frame and busy ~= (GC.Sniper._scanBusyShown or false) then
     GC.Sniper._scanBusyShown = busy
-    setStatus(GC.Sniper._ReadoutLine() or "")
+    GC.Sniper._ShowReadout("")
   end
 end
 
@@ -5581,7 +5610,7 @@ function GC.Sniper.HasStrandedConfirmed()
   return false
 end
 
-local function consumePurchasedDeal(deal)
+local function consumePurchasedDeal(deal, boughtQty)
   -- `deal` may be the purchase's own copy of the board entry (the realm path copies it at the
   -- click, so a bid that never lands cannot rewrite the price the board is showing), which is
   -- why identity alone is no longer proof of which entry was bought.
@@ -5596,8 +5625,18 @@ local function consumePurchasedDeal(deal)
   for i = #scanDeals, 1, -1 do
     if scanDeals[i].itemID == deal.itemID then table.remove(scanDeals, i) end
   end
-  -- WoW: Forever: the bought lead leaves the board until the next scan (GC.ForeverDeals.Drop).
-  if GC.ForeverDeals and GC.ForeverDeals.Drop then GC.ForeverDeals.Drop(deal.itemID) end
+  -- WoW: Forever: the bought lead leaves the board until the next scan (GC.ForeverDeals.Drop),
+  -- unless the buy took less than the row found: an Items row's buy is one lot (PlaceBid) and a
+  -- commodity buy stops at the wallet's share, and dropping the row hid the rest until the next
+  -- scan (review 2026-11-06: 18 Items rows held 159 lots, the first buys 18 of them). It stays
+  -- with what is left; it is `stale`, so its next click Checks the live book, and a book with
+  -- nothing left under the ceiling takes it off ("listing gone").
+  if GC.ForeverDeals and GC.ForeverDeals.Drop then
+    local board = deal.boardDeal or deal
+    local left = board.forever and type(board.qty) == "number" and type(boughtQty) == "number"
+      and board.qty - boughtQty or 0
+    if left > 0 then board.qty = left else GC.ForeverDeals.Drop(deal.itemID) end
+  end
 end
 
 local function recordPurchaseFacts(deal, purchase)
@@ -5616,7 +5655,7 @@ local function recordPurchaseFacts(deal, purchase)
   -- Delivered by mail: BUY and the craft queue count it as held from now on (retail only).
   if GC.MailStock then GC.MailStock.Bought(context and context.char, deal.itemID, purchase.quantity) end
   updateSellTabLabel()
-  consumePurchasedDeal(deal)
+  consumePurchasedDeal(deal, purchase.quantity)
 end
 
 -- A success with no purchase facts (no price anyone can record) still sent `quantity` units of
@@ -5758,8 +5797,8 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
         -- above; only a lot whose facts could not be built lands here -- no candidate with a
         -- buyout, or a realm verdict with no reference to anchor a cost basis to -- and nothing
         -- trustworthy is left to record it from. What it must still do is stop the board
-        -- advertising a listing that is now gone.
-        consumePurchasedDeal(deal)
+        -- advertising a listing that is now gone. One lot of the row: a realm lot's own copy.
+        consumePurchasedDeal(deal, deal.boardDeal and deal.qty or nil)
       end
     end
   end
@@ -12131,6 +12170,9 @@ local function createFrame()
   -- ~90px after the first buy, and "3 hidden: the live check refused them" read "3 hidden: t..."
   -- (owner, WoW: Forever 2026-11-06).
   f.sessionText = Theme.Num(f, 11, true)
+  f.sessionText:SetJustifyH("RIGHT")
+  f.sessionText:SetWordWrap(true)
+  f.sessionText:SetMaxLines(2)
   f.sessionText:Hide()
 
   -- Re-derives the toggle's label and look from `refusedCount`, which renderList recomputes on
@@ -12772,7 +12814,7 @@ function GC.Sniper.OnAuctionHouseShow()
   -- repaints from the scan itself (Core/ForeverScan.lua). Nothing on retail: no fold.
   if isForever() and GC.ForeverDeals and GC.ForeverDeals.Refresh then
     GC.Sniper._boardTicker = GC.Sniper._boardTicker or C_Timer.NewTicker(0.25, function()
-      if GC.ForeverDeals.Refresh(time()) then GC.Sniper.OnForeverFold() end
+      if GC.ForeverDeals.Refresh(time()) then GC.Sniper.OnForeverFold(true) end
     end)
   end
   feedAuto("ahOpened")

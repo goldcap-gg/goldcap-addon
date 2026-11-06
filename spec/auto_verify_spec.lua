@@ -1604,6 +1604,15 @@ describe("Deals background verification", function()
       api.GC.Sniper._PaintGoldLine({ foreverRow(7, 700, "vendor", false) }) -- 7s: in the bags, over the share
       assert.is_true(line.shown)
     end)
+
+    -- Review 2026-11-06: an Items row's capTotal is every lot it found, but its buy is one lot.
+    it("holds a Forever Items row to its cheapest lot, not to every lot it found", function()
+      local api, line = foreverLoad(1300, "items")
+      local row = foreverRow(7, 600, "vendor", false)
+      row.qty, row.capTotal = 53, 600 * 53
+      api.GC.Sniper._PaintGoldLine({ row })
+      assert.is_false(line.shown)
+    end)
   end)
 
   it("buys nothing: the verify path holds no purchase call and no click handler", function()
