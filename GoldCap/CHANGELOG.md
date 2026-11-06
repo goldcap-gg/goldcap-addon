@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.23.3 (unreleased)
+## 0.23.3 (2026-11-06)
 
 - Sell: the auction house's listings are read from the top of the list down, so what POST is about
   to post, such as what you just bought on DEALS, gets its place in line and its price book first.
