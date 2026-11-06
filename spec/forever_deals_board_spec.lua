@@ -226,6 +226,33 @@ describe("WoW: Forever", function()
     assert.is_nil(api.GC.Sniper._ForeverReadout())
   end)
 
+  -- Owner, WoW: Forever 2026-11-06: the scan on opening ran under the last scan's figures with
+  -- nothing on the line saying a scan was on.
+  it("says a Forever scan is on in front of the last figures, from its start to its end", function()
+    local api = loadSniper()
+    local busy = false
+    api.GC.ForeverDeals = { Rows = function() return { deal(1) } end }
+    api.GC.ForeverScan = { Enabled = function() return true end, IsBusy = function() return busy end,
+      Fold = function() return { itemCount = 2346, items = {} } end }
+    api.GC.Sniper.OnForeverFold()
+    assert.equal("deals |cfff7cf5a1|r · items 2346", api.status)
+    busy = true
+    api.GC.Sniper.RepaintScanState()
+    assert.equal("scanning auction house... · deals |cfff7cf5a1|r · items 2346", api.status)
+    api.status = "reading the auction house: 1,024 of 59,000 lots"
+    api.GC.Sniper.RepaintScanState() -- still busy: the progress line stays
+    assert.equal("reading the auction house: 1,024 of 59,000 lots", api.status)
+    busy = false
+    api.GC.Sniper.RepaintScanState()
+    assert.equal("deals |cfff7cf5a1|r · items 2346", api.status)
+  end)
+
+  it("leaves retail's readout as it is", function()
+    local api = loadSniper()
+    api.GC.Sniper._readout = "deals 0 · items 5 · filtered 5"
+    assert.equal("deals 0 · items 5 · filtered 5", api.GC.Sniper._ReadoutLine())
+  end)
+
   -- Owner, WoW: Forever 2026-11-06: "buy at 16s09c or less, AH value 22s99c" after every name
   -- made each row four lines tall. The row names its kind on the chip and nothing after the
   -- name; the price to buy at and the reference stay in the row's tooltip (GC.Sniper._ForeverNote).

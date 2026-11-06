@@ -14,6 +14,8 @@
   character, unless you changed the share per buy in Settings. At 5% nearly every one asked for
   more gold than a new character has.
 - WoW: Forever: the check panel says how old the scan behind a deal is.
+- WoW: Forever: while a scan runs, the line next to AUTO says so, in front of the last scan's
+  figures.
 - The line next to AUTO no longer cuts a message short after your first buy. Your session total
   moved to the end of the COMMODITIES and ITEMS row, and a long message takes a second line.
 

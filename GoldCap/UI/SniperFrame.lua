@@ -1982,8 +1982,22 @@ function GC.Sniper.OnForeverFold()
   local readout = GC.Sniper._ForeverReadout()
   if readout then
     GC.Sniper._readout = readout
-    setStatus(readout)
+    setStatus(GC.Sniper._ReadoutLine())
   end
+end
+
+-- The pass readout as the status line shows it. WoW: Forever: while a scan runs
+-- (GC.ForeverScan.IsBusy) "scanning auction house..." goes in front of the last scan's figures,
+-- which the board still shows; the scan on opening ran under them with nothing saying it was on
+-- (owner, 2026-11-06). Retail's readout is shown as it is: its passes run back to back, and the line
+-- would never say anything else (owner, 2026-10-09). nil before the first pass.
+function GC.Sniper._ReadoutLine()
+  local text = GC.Sniper._readout
+  if GC.ForeverScan and GC.ForeverScan.IsBusy and GC.ForeverScan.IsBusy() then
+    local onLine = GC.L["scanning auction house..."]
+    return text and (onLine .. " · " .. text) or onLine
+  end
+  return text
 end
 
 -- WoW: Forever's pass readout: the board's own rows (Core/ForeverDeals.lua, both boards) and the
@@ -3440,7 +3454,7 @@ local function applyFullScanResults(rowsList, groupCount, kind)
       readout = readout .. (GC.L[" · %d keys"]):format(GC.Sniper._keysLastCycle)
     end
     GC.Sniper._readout = readout
-    setStatus(readout)
+    setStatus(GC.Sniper._ReadoutLine())
   end
   refreshRows()
   -- Sniper v3 §3 ping (fix round 1, I2): the completion reconcile needs its own ping pass
@@ -3739,7 +3753,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
     GC.Sniper._browseOutAt = time()
     -- The last pass's readout stays up while this one runs; only the very first pass has nothing
     -- to show yet. Written again rather than left: it replaces whatever one-shot came since.
-    setStatus(GC.Sniper._readout or GC.L["scanning auction house..."])
+    setStatus(GC.Sniper._ReadoutLine() or GC.L["scanning auction house..."])
     armScanWatchdog(fullScanToken)
   end,
   requestMoreBrowseResults = function()
@@ -4644,6 +4658,14 @@ end
 function GC.Sniper.RepaintScanState()
   if refreshAutoButton then refreshAutoButton() end
   if refreshScanButton then refreshScanButton() end
+  -- WoW: Forever: the status line says a scan is on from the edge it starts on to the edge it ends
+  -- on (GC.Sniper._ReadoutLine). Written on those two edges only: the scan's own progress lines
+  -- ("reading the auction house: ...") come in between and are not overwritten.
+  local busy = GC.ForeverScan and GC.ForeverScan.IsBusy and GC.ForeverScan.IsBusy() and true or false
+  if frame and busy ~= (GC.Sniper._scanBusyShown or false) then
+    GC.Sniper._scanBusyShown = busy
+    setStatus(GC.Sniper._ReadoutLine() or "")
+  end
 end
 
 -- Re-derives the toolbar's session readout from GC.Sniper.session (buys/spent/estProfit).
