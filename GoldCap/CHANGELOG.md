@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.24.0 (unreleased)
+## 0.24.0 (2026-11-06)
 
 - WoW: Forever: your sales, purchases and gold readings now remember which faction the character
   is. The ledger on goldcap.gg uses it to value what you still hold on the auction house you trade
