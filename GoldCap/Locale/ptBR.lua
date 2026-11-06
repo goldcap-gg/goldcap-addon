@@ -680,6 +680,8 @@ GC.Locales.ptBR = {
   ["done"] = "feito",
   ["from %s"] = "de %s",
   ["deals %s · items %s"] = "oportunidades %s · itens %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "o servidor cortou o escaneamento completo: ofertas só pelos preços mais baixos",
   ["in bags %d · in bank %d"] = "nas bolsas %d · no banco %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "nas bolsas %d · no banco %d · na caixa de correio %d",
   ["includes %d for crafting %s"] = "inclui %d para fabricar %s",

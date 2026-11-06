@@ -54,6 +54,70 @@ describe("ForeverDeals", function()
     end)
   end)
 
+  -- Owner's evening of 2026-11-06: every full dump came back cut at 1023 rows, the browse pass
+  -- priced 1525 items by their lowest price alone, and the board said "deals 0".
+  describe("Build, floor-only entries (the server cut the full dump short)", function()
+    it("makes a one-unit vendor row from an item's lowest price, and counts the floor-only entries", function()
+      vendor[1], commodity[1] = 999, true
+      local rows, _, _, floorOnly = D.Build(fold({ [1] = "500,2,,b;", [3] = "8,355,5,;0x5 1x10" }), ctx())
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.equal("vendor", r.forever)
+      assert.equal(1, r.qty); assert.equal(2, r.avail)          -- one unit proven, two listed
+      assert.equal(500, r.unitPrice); assert.equal(499, r.profit)
+      assert.equal(1, floorOnly)
+    end)
+
+    it("tells the readout when at least half the scan's items had only their lowest price", function()
+      GC.ForeverScan = { Enabled = function() return true end,
+        Fold = function() return GC._fold end }
+      GC.ForeverValue = { VendorUnit = function() return nil end, CommodityDepositUnit = function() return nil end }
+      GC.db = { settings = { sniper = {} }, commodityByItem = {} }
+      GC._fold = { at = 5000, rev = 1, itemCount = 3,
+        items = { [1] = "500,2,,b;", [2] = "600,2,,b;", [3] = "8,355,5,;0x5 1x10" } }
+      D.Rows(6000)
+      assert.is_true(D.MostlyFloors())
+      GC._fold = { at = 7000, rev = 2, itemCount = 3,
+        items = { [1] = "500,2,,b;", [2] = "8,355,5,;0x5", [3] = "8,355,5,;0x5 1x10" } }
+      D.Rows(8000)
+      assert.is_false(D.MostlyFloors())
+    end)
+
+    it("wants the minimum profit from that one unit", function()
+      vendor[1], commodity[1] = 510, true
+      assert.equal(0, #D.Build(fold({ [1] = "500,2000,,b;" }), ctx()))   -- +10c, not 20c
+    end)
+
+    local function crowd(value, at)
+      return function() return { value = value, source = "crowd", at = at, scanners = 3 } end
+    end
+
+    it("measures a commodity's lowest price against the crowd's AH value: one unit", function()
+      commodity[2] = true
+      local rows = D.Build(fold({ [2] = "300,40,,b;" }),
+        ctx({ depositFor = function() return 10 end, referenceFor = crowd(1000, 4000) }))
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.equal("market", r.forever)
+      assert.equal(1, r.qty); assert.equal("crowd", r.refSource)
+      assert.equal(1000 - 50 - 300 - 10, r.profit)                     -- resold at 1000, 5% cut, deposit
+    end)
+
+    it("never measures it against its own figure, a crowd much older than the scan, or a thin book", function()
+      commodity[2] = true
+      local deposit = function() return 0 end
+      local entry = { [2] = "300,40,,b;" }
+      assert.equal(0, #D.Build(fold(entry), ctx({ depositFor = deposit,
+        referenceFor = function() return { value = 1000, source = "own" } end })))
+      assert.equal(0, #D.Build(fold(entry), ctx({ depositFor = deposit,
+        referenceFor = crowd(1000, 5000 - D.C.FLOOR_CROWD_MAX_AGE_SECONDS - 1) })))
+      assert.equal(1, #D.Build(fold(entry), ctx({ depositFor = deposit,
+        referenceFor = crowd(1000, 5000 - D.C.FLOOR_CROWD_MAX_AGE_SECONDS) })))
+      assert.equal(0, #D.Build(fold({ [2] = "300,19,,b;" }), ctx({ depositFor = deposit,
+        referenceFor = crowd(1000, 4000) })))                              -- under 20 units listed
+    end)
+  end)
+
   describe("Build, kind vendor", function()
     -- Linen-shaped: 8c x5, 9c x10, 12c x40, 13c x100, 15c x200; a vendor pays 13c.
     local LINEN = "8,355,5,;0x5 1x10 3x40 1x100 2x200"
@@ -164,9 +228,9 @@ describe("ForeverDeals", function()
       end)
     end)
 
-    it("skips browse-only entries (no ladder) and garbage", function()
-      vendor[1], vendor[2] = 999, 999
-      assert.equal(0, #D.Build(fold({ [1] = "500,2,,b;", [2] = "junk" }), ctx()))
+    it("skips garbage", function()
+      vendor[2] = 999
+      assert.equal(0, #D.Build(fold({ [2] = "junk" }), ctx()))
     end)
 
     it("keeps the hundred best per board", function()

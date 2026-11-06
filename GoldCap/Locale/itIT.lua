@@ -680,6 +680,8 @@ GC.Locales.itIT = {
   ["done"] = "fatto",
   ["from %s"] = "di %s",
   ["deals %s · items %s"] = "occasioni %s · oggetti %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "il server ha troncato la scansione completa: affari solo dai prezzi più bassi",
   ["in bags %d · in bank %d"] = "nelle borse %d · in banca %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "nelle borse %d · in banca %d · nella cassetta postale %d",
   ["includes %d for crafting %s"] = "di cui %d per creare %s",

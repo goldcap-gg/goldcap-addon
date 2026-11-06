@@ -1,5 +1,13 @@
 # GoldCap
 
+## 0.24.1 (2026-11-06)
+
+- WoW: Forever: when the server cuts the full auction house scan short, DEALS still finds what is
+  listed below the price a vendor pays, and what sits far under the auction house value on
+  goldcap.gg, from each item's lowest price. Such a deal shows one unit, the only one that price
+  proves; opening it checks the live prices and buys whatever more there is under its limit. The
+  line next to AUTO says the scan was cut, instead of a bare "deals 0".
+
 ## 0.24.0 (2026-11-06)
 
 - WoW: Forever: your sales, purchases and gold readings now remember which faction the character

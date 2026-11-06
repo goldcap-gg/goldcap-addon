@@ -795,6 +795,8 @@ GC.Locales.enUS = {
   ["finish the pending buy first"] = "finish the pending buy first",
   ["from %s"] = "from %s",
   ["deals %s · items %s"] = "deals %s · items %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "the server cut the full scan short: deals from lowest prices only",
   ["full scan already in progress"] = "full scan already in progress",
   ["full scan interrupted. Confirm your purchase"] = "full scan interrupted. Confirm your purchase",
   ["full scan stalled. Press Full Scan to retry"] = "full scan stalled. Press Full Scan to retry",

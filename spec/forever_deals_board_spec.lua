@@ -222,6 +222,11 @@ describe("WoW: Forever", function()
     assert.is_nil(readout:find("filtered", 1, true))
     rows = {}
     assert.equal("deals 0 · items 2249", api.GC.Sniper._ForeverReadout())
+    -- The server cut the full dump short and the board priced most items by their floor alone
+    -- (owner's evening, 2026-11-06): the line says so instead of a bare "deals 0".
+    api.GC.ForeverDeals.MostlyFloors = function() return true end
+    assert.equal("deals 0 · items 2249 · the server cut the full scan short: deals from lowest prices only",
+      api.GC.Sniper._ForeverReadout())
     api.GC.ForeverScan.Enabled = function() return false end
     assert.is_nil(api.GC.Sniper._ForeverReadout())
   end)

@@ -683,6 +683,8 @@ GC.Locales.deDE = {
   ["done"] = "erledigt",
   ["from %s"] = "von %s",
   ["deals %s · items %s"] = "Angebote %s · Gegenstände %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "der Server hat den vollen Scan gekürzt: Deals nur nach den niedrigsten Preisen",
   ["in bags %d · in bank %d"] = "in Taschen %d · in der Bank %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "in Taschen %d · in der Bank %d · im Briefkasten %d",
   ["includes %d for crafting %s"] = "davon %d zum Herstellen von %s",
