@@ -322,7 +322,7 @@ GC.Locales.deDE = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Upgrades für deine Ausrüstung im Auktionshaus: %d. Tippe /gc upgrades, um sie zu sehen.",
   ["Use the default cap"] = "Standarddeckel verwenden",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Solange dieser Wert beim Standard von 5 % bleibt, darf ein Fund mit Händlerpreis bis zur Hälfte deines Geldes verwenden.",
+  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Solange dieser Wert beim Standard von 5 % bleibt, darf ein Fund unter Händlerpreis bis zur Hälfte deines Geldes verwenden, ein Fund unter Marktpreis bis zu einem Viertel.",
   ["Min return per buy %"] = "Min. Rendite pro Kauf %",
   ["Missing cost"] = "Kosten fehlen",
   ["NO LIVE PRICE YET"] = "NOCH KEIN LIVE-PREIS",
@@ -498,6 +498,10 @@ GC.Locales.deDE = {
   ["Spike-trend threshold %"] = "Schwelle für Kursspitze %",
   ["Start scanning as soon as the auction house opens."] =
     "Sofort mit dem Scannen beginnen, sobald das Auktionshaus öffnet.",
+  ["Open GoldCap with the auction house"] = "GoldCap mit dem Auktionshaus öffnen",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Das GoldCap-Fenster zeigen, sobald das Auktionshaus öffnet.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Aus: Öffne es über den Reiter GoldCap unten im Auktionshaus oder mit /gc sniper.",
+  ["Game language"] = "Spielsprache",
   ["Status"] = "Status",
   ["Stop and open the buy window on your price"] = "Bei deinem Preis stoppen und Kauffenster öffnen",
   ["Stress exit unit"] = "Stress-Ausstiegspreis",

@@ -310,7 +310,7 @@ GC.Locales.ruRU = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Улучшений экипировки на аукционе: %d. Введите /gc upgrades, чтобы их увидеть.",
   ["Use the default cap"] = "Потолок по умолчанию",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Пока это значение остаётся на стандартных 5%, лот по цене торговца может использовать до половины вашего золота.",
+  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Пока это значение остаётся на стандартных 5%, лот ниже цены торговца может использовать до половины вашего золота, а лот ниже рынка до четверти.",
   ["Min return per buy %"] = "Мин. доходность покупки %",
   ["Missing cost"] = "Нет себестоимости",
   ["NO LIVE PRICE YET"] = "ПОКА НЕТ ЖИВОЙ ЦЕНЫ",
@@ -484,6 +484,10 @@ GC.Locales.ruRU = {
   ["Spike-trend threshold %"] = "Порог всплеска цены %",
   ["Start scanning as soon as the auction house opens."] =
     "Начинать сканирование сразу при открытии аукционного дома.",
+  ["Open GoldCap with the auction house"] = "Открывать GoldCap вместе с аукционом",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Показывать окно GoldCap сразу при открытии аукционного дома.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Если выключено, откройте окно вкладкой GoldCap внизу аукциона или командой /gc sniper.",
+  ["Game language"] = "Язык игры",
   ["Status"] = "Статус",
   ["Stop and open the buy window on your price"] = "Остановить и открыть окно покупки по вашей цене",
   ["Stress exit unit"] = "Цена стресс-выхода",

@@ -480,7 +480,7 @@ describe("Settings controls", function()
       walk(_G.GoldCapSniperFrame, function(node)
         if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
       end)
-      assert.is_true(labels["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
+      assert.is_true(labels["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."])
     end)
 
     describe("the Forever min-profit field", function()
@@ -626,7 +626,7 @@ describe("Settings controls", function()
       if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
     end)
     assert.is_nil(labels["Min profit per buy (copper)"])
-    assert.is_nil(labels["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
+    assert.is_nil(labels["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."])
   end)
 
   -- Followed groups (plan 2026-10-22, task 12): "cancel only when undercut by more than N%",
@@ -934,13 +934,15 @@ describe("Settings controls", function()
       GC.SettingsUI.Toggle()
       local panel = settingsPanel()
       -- 256 is a card at the 640 minimum. "Stop and open the buy window on your price" needs two
-      -- lines in the 188 a toggle leaves; the rest of AUTOMATION & ALERTS one.
+      -- lines in the 188 a toggle leaves, and so does "Open GoldCap with the auction house" (34);
+      -- the line under that one takes three across the card (48); the rest of AUTOMATION & ALERTS
+      -- one line each.
       local automation = cardByTitle(panel, "AUTOMATION & ALERTS")
       layOut(automation, 256)
       local stop = labelIn(automation, "Stop and open the buy window on your price")
       assert.equal(256 - 12 - 36 - 8 - 12, stop.width)
-      assert.equal(-(24 + 3 * 26), top(stop))
-      assert.equal(24 + 3 * 26 + 34 + 6, automation.height)
+      assert.equal(-(24 + 3 * 26 + 34 + 48), top(stop))
+      assert.equal(24 + 3 * 26 + 34 + 48 + 34 + 6, automation.height)
 
       -- DISPLAY: "Font scale" in the 58 the slider leaves and "Window position & size" in the 104
       -- the reset button leaves take two lines; the button and the language row move down.
@@ -980,8 +982,20 @@ describe("Settings controls", function()
       automation.width = 256
       for _, fn in ipairs(hooks) do fn(1.3) end
       assert.equal(188, labelIn(automation, "Stop and open the buy window on your price").width)
-      assert.equal(24 + 3 * 26 + 34 + 6, automation.height)
+      assert.equal(24 + 3 * 26 + 34 + 48 + 34 + 6, automation.height)
     end)
+  end)
+
+  -- Owner, 2026-11-06: whether the window opens with the auction house had no switch, and where to
+  -- find the window then was said nowhere.
+  it("writes the Open GoldCap with the auction house toggle to settings.sniper.autoOpen", function()
+    GC.db.settings.sniper.autoOpen = true
+    GC.SettingsUI.Toggle()
+    local card = cardByTitle(_G.GoldCapSniperFrame, "AUTOMATION & ALERTS")
+    local toggle = toggleOf(card, "Open GoldCap with the auction house")
+    toggle.checkButton.scripts.OnClick(toggle.checkButton)
+    assert.is_false(GC.db.settings.sniper.autoOpen)
+    assert.is_true(cardTitles(card)["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."])
   end)
 
   it("writes the Better at vendor toggle to settings.sniper", function()

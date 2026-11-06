@@ -316,7 +316,7 @@ GC.Locales.ukUA = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Покращень спорядження на аукціоні: %d. Введіть /gc upgrades, щоб їх побачити.",
   ["Use the default cap"] = "Стеля за замовчуванням",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Поки це значення лишається стандартними 5%, лот за ціною торговця може використати до половини вашого золота.",
+  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Поки це значення лишається стандартними 5%, лот нижче ціни торговця може використати до половини вашого золота, а лот нижче ринку до чверті.",
   ["Min return per buy %"] = "Мін. дохідність купівлі %",
   ["Missing cost"] = "Немає собівартості",
   ["NO LIVE PRICE YET"] = "ПОКИ НЕМАЄ ЖИВОЇ ЦІНИ",
@@ -493,6 +493,10 @@ GC.Locales.ukUA = {
   ["Spike-trend threshold %"] = "Поріг стрибка ціни %",
   ["Start scanning as soon as the auction house opens."] =
     "Починати сканування одразу після відкриття аукціонного дому.",
+  ["Open GoldCap with the auction house"] = "Відкривати GoldCap разом з аукціоном",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Показувати вікно GoldCap одразу після відкриття аукціонного дому.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Якщо вимкнено, відкрийте вікно вкладкою GoldCap унизу аукціону або командою /gc sniper.",
+  ["Game language"] = "Мова гри",
   ["Status"] = "Статус",
   ["Stop and open the buy window on your price"] = "Зупинити й відкрити вікно купівлі за вашою ціною",
   ["Stress exit unit"] = "Ціна стрес-виходу",

@@ -323,7 +323,7 @@ GC.Locales.itIT = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Miglioramenti per il tuo equipaggiamento alla casa d'aste: %d. Scrivi /gc upgrades per vederli.",
   ["Use the default cap"] = "Usa il tetto predefinito",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Finché resta al valore predefinito del 5%, un'occasione al prezzo del venditore può usare fino a metà del tuo oro.",
+  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Finché resta al valore predefinito del 5%, un'occasione sotto il prezzo del venditore può usare fino a metà del tuo oro, e una sotto il prezzo di mercato fino a un quarto.",
   ["Min return per buy %"] = "Rendimento min. per acquisto %",
   ["Missing cost"] = "Costo mancante",
   ["NO LIVE PRICE YET"] = "ANCORA NESSUN PREZZO DAL VIVO",
@@ -498,6 +498,10 @@ GC.Locales.itIT = {
   ["Spike-trend threshold %"] = "Soglia di impennata %",
   ["Start scanning as soon as the auction house opens."] =
     "Inizia la scansione non appena si apre la casa d'aste.",
+  ["Open GoldCap with the auction house"] = "Apri GoldCap con la casa d'aste",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Mostra la finestra di GoldCap non appena si apre la casa d'aste.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Disattivato: aprila dalla scheda GoldCap in basso nella casa d'aste o con /gc sniper.",
+  ["Game language"] = "Lingua del gioco",
   ["Status"] = "Stato",
   ["Stop and open the buy window on your price"] = "Ferma e apri la finestra d'acquisto al tuo prezzo",
   ["Stress exit unit"] = "Prezzo d'uscita sotto stress",

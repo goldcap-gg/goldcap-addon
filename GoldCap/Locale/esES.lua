@@ -325,7 +325,7 @@ GC.Locales.esES = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Mejoras para tu equipo en la casa de subastas: %d. Escribe /gc upgrades para verlas.",
   ["Use the default cap"] = "Usar el tope predeterminado",
-  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Mientras esto se mantenga en el 5% por defecto, una pista con precio de vendedor puede usar hasta la mitad de tu oro.",
+  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Mientras esto se mantenga en el 5% por defecto, una pista bajo el precio de vendedor puede usar hasta la mitad de tu oro, y una bajo el precio de mercado hasta una cuarta parte.",
   ["Min return per buy %"] = "Retorno mín. por compra %",
   ["Missing cost"] = "Falta el coste",
   ["NO LIVE PRICE YET"] = "AÚN SIN PRECIO EN VIVO",
@@ -499,6 +499,10 @@ GC.Locales.esES = {
   ["Spike-trend threshold %"] = "Umbral de subida repentina %",
   ["Start scanning as soon as the auction house opens."] =
     "Empezar a escanear en cuanto se abra la Casa de Subastas.",
+  ["Open GoldCap with the auction house"] = "Abrir GoldCap con la Casa de Subastas",
+  ["Show the GoldCap window as soon as the auction house opens."] = "Mostrar la ventana de GoldCap en cuanto se abra la Casa de Subastas.",
+  ["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."] = "Desactivado: ábrela con la pestaña GoldCap en la parte inferior de la Casa de Subastas o con /gc sniper.",
+  ["Game language"] = "Idioma del juego",
   ["Status"] = "Estado",
   ["Stop and open the buy window on your price"] = "Detener y abrir la ventana de compra a tu precio",
   ["Stress exit unit"] = "Precio de salida bajo presión",
