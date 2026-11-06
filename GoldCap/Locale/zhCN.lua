@@ -342,7 +342,8 @@ GC.Locales.zhCN = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "拍卖行上的装备升级：%d 件。输入 /gc upgrades 查看。",
   ["Use the default cap"] = "使用默认上限",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "只要该值保持默认的 5%，低于商人价格的线索最多可使用你钱包的一半，低于市价的线索最多四分之一。",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "在 5% 及以上时，低于商人价格的线索最多可使用你钱包的一半，低于市价的线索最多四分之一；如果此比例更大，则最多使用此比例。",
   ["Min return per buy %"] = "单次购买最低回报率 %",
   ["Missing cost"] = "缺少成本",
   ["NO LIVE PRICE YET"] = "尚无实时价格",

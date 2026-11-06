@@ -215,7 +215,7 @@ describe("locale layer", function()
       "Checked against the live auction house a moment ago.",
       -- Task S: the settings panel's own Forever min-profit row and its vendor-wallet note.
       "Min profit per buy (copper)",
-      "While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter.",
+      "At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger.",
     }
     for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
         "ukUA", "zhCN", "zhTW" }) do

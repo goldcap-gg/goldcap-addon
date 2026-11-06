@@ -878,7 +878,7 @@ local function build(sniperFrame)
     note:SetPoint("TOPLEFT", Theme.pad.m, whatCounts.rowY(3))
     note:SetJustifyH("LEFT")
     note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-    note:SetText(GC.L["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."])
+    note:SetText(GC.L["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."])
     addRow(whatCounts, note)
   end
   -- The engine's own bounds (SniperDecision.MAX_QUANTITY_CEILING), for the same reason as the

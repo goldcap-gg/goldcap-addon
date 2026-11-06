@@ -361,7 +361,8 @@ GC.Locales.esMX = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Mejoras para tu equipo en la casa de subastas: %d. Escribe /gc upgrades para verlas.",
   ["Use the default cap"] = "Usar el tope predeterminado",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Mientras esto se mantenga en el 5% predeterminado, una pista bajo el precio de vendedor puede usar hasta la mitad de tu oro, y una bajo el precio de mercado hasta una cuarta parte.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "Desde el 5%, una pista bajo el precio de vendedor puede usar hasta la mitad de tu oro, y una bajo el precio de mercado hasta una cuarta parte, o hasta esta parte si es mayor.",
   ["Min return per buy %"] = "Retorno mín. por compra %",
   ["Missing cost"] = "Falta el costo",
   ["NO LIVE PRICE YET"] = "AÚN SIN PRECIO EN VIVO",

@@ -357,7 +357,8 @@ GC.Locales.itIT = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Miglioramenti per il tuo equipaggiamento alla casa d'aste: %d. Scrivi /gc upgrades per vederli.",
   ["Use the default cap"] = "Usa il tetto predefinito",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Finché resta al valore predefinito del 5%, un'occasione sotto il prezzo del venditore può usare fino a metà del tuo oro, e una sotto il prezzo di mercato fino a un quarto.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "Dal 5% in su, un'occasione sotto il prezzo del venditore può usare fino a metà del tuo oro, e una sotto il prezzo di mercato fino a un quarto, o fino a questa quota se è maggiore.",
   ["Min return per buy %"] = "Rendimento min. per acquisto %",
   ["Missing cost"] = "Costo mancante",
   ["NO LIVE PRICE YET"] = "ANCORA NESSUN PREZZO DAL VIVO",

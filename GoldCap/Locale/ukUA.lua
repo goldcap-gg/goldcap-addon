@@ -350,7 +350,8 @@ GC.Locales.ukUA = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Покращень спорядження на аукціоні: %d. Введіть /gc upgrades, щоб їх побачити.",
   ["Use the default cap"] = "Стеля за замовчуванням",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Поки це значення лишається стандартними 5%, лот нижче ціни торговця може використати до половини вашого золота, а лот нижче ринку до чверті.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "При 5% і вище лот нижче ціни торговця може використати до половини вашого золота, а лот нижче ринку до чверті, або до цієї частки, якщо вона більша.",
   ["Min return per buy %"] = "Мін. дохідність купівлі %",
   ["Missing cost"] = "Немає собівартості",
   ["NO LIVE PRICE YET"] = "ПОКИ НЕМАЄ ЖИВОЇ ЦІНИ",

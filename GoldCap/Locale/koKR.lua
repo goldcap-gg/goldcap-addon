@@ -346,7 +346,8 @@ GC.Locales.koKR = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "경매장의 장비 업그레이드: %d개. /gc upgrades를 입력해 확인하세요.",
   ["Use the default cap"] = "기본 상한 사용",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "이 값이 기본값 5%로 유지되는 동안, 상인 가격보다 싼 매물은 지갑의 최대 절반, 시세보다 싼 매물은 최대 4분의 1까지 사용할 수 있습니다.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "5% 이상일 때 상인 가격보다 싼 매물은 지갑의 최대 절반, 시세보다 싼 매물은 최대 4분의 1까지 사용할 수 있으며, 이 비율이 더 크면 이 비율까지 사용합니다.",
   ["Min return per buy %"] = "1회 구매 최소 수익률 %",
   ["Missing cost"] = "매입가 없음",
   ["NO LIVE PRICE YET"] = "아직 실시간 가격 없음",

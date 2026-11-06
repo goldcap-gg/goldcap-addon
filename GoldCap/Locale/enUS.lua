@@ -476,7 +476,8 @@ GC.Locales.enUS = {
   ["Max wallet per buy %"] = "Max wallet per buy %",
   ["Min profit per buy (gold)"] = "Min profit per buy (gold)",
   ["Min profit per buy (copper)"] = "Min profit per buy (copper)",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger.",
   ["Min return per buy %"] = "Min return per buy %",
   ["Missing cost"] = "Missing cost",
   ["NO COST"] = "NO COST",

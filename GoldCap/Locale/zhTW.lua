@@ -343,7 +343,8 @@ GC.Locales.zhTW = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "拍賣場上的裝備升級：%d 件。輸入 /gc upgrades 查看。",
   ["Use the default cap"] = "使用預設上限",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "只要該值保持預設的 5%，低於商人價格的線索最多可使用你錢包的一半，低於市價的線索最多四分之一。",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "在 5% 及以上時，低於商人價格的線索最多可使用你錢包的一半，低於市價的線索最多四分之一；如果此比例更大，則最多使用此比例。",
   ["Min return per buy %"] = "單次購買最低回報率 %",
   ["Missing cost"] = "缺少成本",
   ["NO LIVE PRICE YET"] = "尚無即時價格",

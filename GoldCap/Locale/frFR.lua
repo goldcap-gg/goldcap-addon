@@ -357,7 +357,8 @@ GC.Locales.frFR = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Améliorations pour votre équipement à l'hôtel des ventes : %d. Tapez /gc upgrades pour les voir.",
   ["Use the default cap"] = "Plafond par défaut",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Tant que ceci reste à 5 % par défaut, une piste sous le prix du marchand peut utiliser jusqu'à la moitié de ta bourse, et une piste sous le prix du marché jusqu'au quart.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "À partir de 5 %, une piste sous le prix du marchand peut utiliser jusqu'à la moitié de ta bourse, et une piste sous le prix du marché jusqu'au quart, ou jusqu'à cette part si elle est plus grande.",
   ["Min return per buy %"] = "Rendement min. par achat %",
   ["Missing cost"] = "Coût manquant",
   ["NO LIVE PRICE YET"] = "PAS ENCORE DE PRIX EN DIRECT",

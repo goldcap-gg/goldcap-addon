@@ -357,7 +357,8 @@ GC.Locales.ptBR = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Melhorias para seu equipamento na casa de leilões: %d. Digite /gc upgrades para vê-las.",
   ["Use the default cap"] = "Usar o teto padrão",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Enquanto isso ficar no padrão de 5%, uma oportunidade abaixo do preço de vendedor pode usar até metade da sua carteira, e uma abaixo do preço de mercado até um quarto.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "A partir de 5%, uma oportunidade abaixo do preço de vendedor pode usar até metade da sua carteira, e uma abaixo do preço de mercado até um quarto, ou até esta parte se for maior.",
   ["Min return per buy %"] = "Retorno mín. por compra %",
   ["Missing cost"] = "Custo faltando",
   ["NO LIVE PRICE YET"] = "AINDA SEM PREÇO AO VIVO",

@@ -356,7 +356,8 @@ GC.Locales.deDE = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Upgrades für deine Ausrüstung im Auktionshaus: %d. Tippe /gc upgrades, um sie zu sehen.",
   ["Use the default cap"] = "Standarddeckel verwenden",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Solange dieser Wert beim Standard von 5 % bleibt, darf ein Fund unter Händlerpreis bis zur Hälfte deines Geldes verwenden, ein Fund unter Marktpreis bis zu einem Viertel.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "Ab 5 % darf ein Fund unter Händlerpreis bis zur Hälfte deines Geldes verwenden, ein Fund unter Marktpreis bis zu einem Viertel, oder bis zu diesem Anteil, wenn er größer ist.",
   ["Min return per buy %"] = "Min. Rendite pro Kauf %",
   ["Missing cost"] = "Kosten fehlen",
   ["NO LIVE PRICE YET"] = "NOCH KEIN LIVE-PREIS",

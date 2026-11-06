@@ -461,7 +461,7 @@ describe("Settings controls", function()
       for _, child in ipairs(card.children) do
         if child.kind == "FontString" and child.textValue == "Max wallet per buy %" then wallet = child end
         if child.kind == "FontString" and child.textValue
-            and child.textValue:find("While this stays at the default 5%", 1, true) then note = child end
+            and child.textValue:find("At 5% or more", 1, true) then note = child end
         if child.kind == "FontString" and child.textValue == "Max units per buy" then units = child end
       end
       assert.equal(256 - 2 * 12, note.width)
@@ -480,7 +480,7 @@ describe("Settings controls", function()
       walk(_G.GoldCapSniperFrame, function(node)
         if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
       end)
-      assert.is_true(labels["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."])
+      assert.is_true(labels["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."])
     end)
 
     describe("the Forever min-profit field", function()
@@ -626,7 +626,7 @@ describe("Settings controls", function()
       if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
     end)
     assert.is_nil(labels["Min profit per buy (copper)"])
-    assert.is_nil(labels["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."])
+    assert.is_nil(labels["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."])
   end)
 
   -- Followed groups (plan 2026-10-22, task 12): "cancel only when undercut by more than N%",

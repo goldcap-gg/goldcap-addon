@@ -344,7 +344,8 @@ GC.Locales.ruRU = {
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Улучшений экипировки на аукционе: %d. Введите /gc upgrades, чтобы их увидеть.",
   ["Use the default cap"] = "Потолок по умолчанию",
-  ["While this stays at the default 5%, a lead under the vendor price may spend up to half your wallet, and a lead under the market price up to a quarter."] = "Пока это значение остаётся на стандартных 5%, лот ниже цены торговца может использовать до половины вашего золота, а лот ниже рынка до четверти.",
+  ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
+    "При 5% и выше лот ниже цены торговца может использовать до половины вашего золота, а лот ниже рынка до четверти, или до этой доли, если она больше.",
   ["Min return per buy %"] = "Мин. доходность покупки %",
   ["Missing cost"] = "Нет себестоимости",
   ["NO LIVE PRICE YET"] = "ПОКА НЕТ ЖИВОЙ ЦЕНЫ",
