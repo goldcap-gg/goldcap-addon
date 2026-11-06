@@ -109,6 +109,59 @@ describe("ForeverDeals", function()
       assert.equal("items", board[12])   -- the fold's gear flag
     end)
 
+    -- Review, 2026-11-06: an Items-board buy is one lot (PlaceBid), so the minimum profit per buy
+    -- is met by one lot or not at all. 53 Training Swords at 6c profit each summed to 318c.
+    describe("the minimum profit per buy on the Items board", function()
+      local SWORDS = "94,53,53,g;0x53"                    -- 53 lots of one, 94c each
+
+      it("refuses gear whose every lot makes less than the minimum, however many lots there are", function()
+        vendor[2495] = 100
+        assert.equal(0, #D.Build(fold({ [2495] = SWORDS }), ctx()))
+      end)
+
+      it("lists it once one lot clears the minimum, with the row's totals as they were", function()
+        vendor[2495] = 100
+        local rows = D.Build(fold({ [2495] = SWORDS }), ctx({ minimumProfit = 6 }))
+        assert.equal(1, #rows)
+        assert.equal("items", rows[1].board)
+        assert.equal(53, rows[1].qty)
+        assert.equal(318, rows[1].profit)
+        assert.equal(318, rows[1].estProfit)
+      end)
+
+      it("measures the cheapest lot: one lot clearing the minimum lists the whole row", function()
+        vendor[2495] = 100
+        local rows = D.Build(fold({ [2495] = "70,11,11,g;0x1 24x10" }), ctx()) -- 30c, then 10 at 6c
+        assert.equal(1, #rows)
+        assert.equal(90, rows[1].profit)
+      end)
+
+      it("holds a known non-commodity that is not gear to one lot too", function()
+        vendor[6000], commodity[6000] = 100, false
+        assert.equal(0, #D.Build(fold({ [6000] = "94,53,53,;0x53" }), ctx()))
+      end)
+
+      it("keeps the summed rule for a commodity, whose one buy takes many units", function()
+        vendor[6000], commodity[6000] = 100, true
+        local rows = D.Build(fold({ [6000] = "99,30,3,;0x30" }), ctx())  -- 30 units at 1c profit each
+        assert.equal(1, #rows)
+        assert.equal("commodities", rows[1].board)
+      end)
+
+      it("keeps the summed rule for an item the client has not named yet, rather than wait", function()
+        vendor[6000] = 100
+        local rows, _, unsure = D.Build(fold({ [6000] = "94,53,53,;0x53" }), ctx())
+        assert.equal(1, #rows)
+        assert.equal("commodities", rows[1].board)
+        assert.same({ 6000 }, unsure)
+      end)
+
+      it("still lists a pinned item, as BoardAdmits does everywhere", function()
+        vendor[2495] = 100
+        assert.equal(1, #D.Build(fold({ [2495] = SWORDS }), ctx({ watchPins = { 2495 } })))
+      end)
+    end)
+
     it("skips browse-only entries (no ladder) and garbage", function()
       vendor[1], vendor[2] = 999, 999
       assert.equal(0, #D.Build(fold({ [1] = "500,2,,b;", [2] = "junk" }), ctx()))

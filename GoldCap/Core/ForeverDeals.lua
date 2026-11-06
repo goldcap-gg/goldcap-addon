@@ -11,7 +11,8 @@ local _, GC = ...
 -- (GC.ForeverValue.VendorUnit, C_Item.GetItemInfo's sellPrice). Buying pays no cut and a vendor
 -- charges no fee, so the profit is exact: vendor - price, per unit. Ceiling: vendor - 1.
 -- Only the fold's five cheapest levels are seen, so qty can be short of what the live book
--- holds; the Check reads the book itself.
+-- holds; the Check reads the book itself. On the Items board a buy is one lot, so a row there
+-- must clear the minimum profit in its cheapest lot alone (oneBuyAdmits).
 --
 -- Kind "market" ("Under market"), commodities only: levels at or under 70% of the AH value -- the
 -- price the cheapest tenth of the listed units reach (GC.ForeverFold.Value, the figure the tooltip
@@ -138,6 +139,18 @@ local function underMarket(itemID, e, ctx, isCommodity)
   return row
 end
 
+-- The minimum profit is per BUY. A commodity buy takes many units at once, so a row's sum over its
+-- levels is what one buy can make. An Items-board buy is one lot (PlaceBid), and every Forever
+-- non-commodity lot holds one unit (the owner's save, 2026-11-06), so the row's best buy is its
+-- cheapest lot, one unit of it: 53 Training Swords at 6c profit each made a 318c row whose every
+-- click earned 6c and took a bag slot (review, 2026-11-06). Asked only of a row the summed rule
+-- already admits, which Build asks the commodity question of anyway; an item the client has not
+-- answered for yet keeps the summed rule rather than wait. The row's totals stay as they are.
+local function oneBuyAdmits(row, isCommodity, admit)
+  if isCommodity() ~= false then return true end
+  return GC.DealMath.BoardAdmits({ itemID = row.itemID, estProfit = row.refUnit - row.unitPrice }, admit)
+end
+
 -- rows, missing (no vendor price yet), unsure (a row or a market candidate waits on the client's
 -- word that the item is a commodity).
 function GC.ForeverDeals.Build(fold, ctx)
@@ -172,7 +185,7 @@ function GC.ForeverDeals.Build(fold, ctx)
       end
       local marketRow = underMarket(itemID, e, ctx, isCommodity)
       local row
-      if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) then
+      if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) and oneBuyAdmits(vendorRow, isCommodity, admit) then
         row = vendorRow
       elseif marketRow and GC.DealMath.BoardAdmits(marketRow, admit) then
         row = marketRow
