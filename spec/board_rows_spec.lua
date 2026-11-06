@@ -370,7 +370,11 @@ describe("GC.Util.FormatGoldCeil", function()
   it("rounds up to whole gold, never down", function()
     assert.equal("5323g", GC.Util.FormatGoldCeil(53224680)) -- 5,322g 46s 80c
     assert.equal("1330g", GC.Util.FormatGoldCeil(13300000))
-    assert.equal("2g", GC.Util.FormatGoldCeil(10001))
+    assert.equal("1g 1s", GC.Util.FormatGoldCeil(10001))
+    assert.equal("2g 24s", GC.Util.FormatGoldCeil(22400)) -- Gold Ore on WoW: Forever read "3g"
+    assert.equal("2g 25s", GC.Util.FormatGoldCeil(22401))
+    assert.equal("99g 99s", GC.Util.FormatGoldCeil(999900))
+    assert.equal("100g", GC.Util.FormatGoldCeil(999901))
     assert.equal("1g", GC.Util.FormatGoldCeil(10000))
     assert.equal("1g", GC.Util.FormatGoldCeil(9901)) -- 99s 1c
   end)

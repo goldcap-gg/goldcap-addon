@@ -190,11 +190,18 @@ end
 -- the same rounded-up gold in thousands, rounded up again, the way players write gold.
 -- Under 1g, rounded up to the silver, then to the copper, as FormatGoldFloor steps down: WoW:
 -- Forever's economy is copper, and "needs 1g" sent a character off for many times the few
--- silver a buy needed.
+-- silver a buy needed. Under 100g, gold and silver, rounded up to the silver: a Gold Ore buy that
+-- needed 2g 24s read "needs 3g" (owner, WoW: Forever 2026-11-06), a third more than it takes.
 function GC.Util.FormatGoldCeil(copper, short)
   if copper <= 9900 then
     if copper >= 100 then return ("%ds"):format(math.ceil(copper / 100)) end
     return ("%dc"):format(math.max(1, math.ceil(copper)))
+  end
+  if copper < 1000000 then
+    local silver = math.ceil(copper / 100)
+    local gold, rest = math.floor(silver / 100), silver % 100
+    if rest == 0 then return ("%dg"):format(gold) end
+    return ("%dg %ds"):format(gold, rest)
   end
   local gold = math.max(1, math.ceil(copper / 10000))
   if short and gold >= 10000 then return GC.Util.IntText(math.ceil(gold / 1000)) .. "k" end
