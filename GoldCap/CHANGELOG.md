@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.23.2 (unreleased)
+
+- WoW: Forever: DEALS now finds items listed well under their market price, not only items listed
+  under what a vendor pays for them. Until now it looked for these only among items you had carried
+  in your bags.
+
 ## 0.23.1 (2026-10-30)
 
 - The download no longer carries two developer scripts that the game never loads.

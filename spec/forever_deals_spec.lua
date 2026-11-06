@@ -205,8 +205,30 @@ describe("ForeverDeals", function()
         [2] = "30,100,2,;0x5 70x95|70,70,2",                  -- 2 levels
         [3] = WOOL,                                           -- commodity unknown
       })
-      assert.equal(0, #D.Build(f, marketCtx()))
+      local rows, _, unsure = D.Build(f, marketCtx())
+      assert.equal(0, #rows)
+      assert.same({ 3 }, unsure)                              -- waiting on the client's answer
       assert.equal(0, #D.Build(fold({ [4] = WOOL }), marketCtx({ depositFor = function() return nil end })))
+    end)
+
+    -- The client answers "is this a commodity" by item key, and an uncached key is a server
+    -- request (UI/SniperFrame.lua, getKeyInfo). A fold holds a couple of thousand items; the
+    -- question goes only to an item with a row to place or lots under its market, never to
+    -- gear (never a commodity), and once per item.
+    it("asks whether an item is a commodity only where a row hangs on the answer", function()
+      local asked = {}
+      local function counting(id) asked[id] = (asked[id] or 0) + 1; return commodity[id] end
+      commodity[1], commodity[2], commodity[3] = true, true, true
+      vendor[4] = 500
+      local rows, _, unsure = D.Build(fold({
+        [1] = WOOL,                                           -- lots under its market: asked
+        [2] = "100,100,3,;0x40 10x30 10x30|10,10,3",          -- nothing under 70c of 1s: not asked
+        [3] = "30,100,5,g;0x3 10x3 60x24 10x30 10x40|70,80,5", -- gear: not asked
+        [4] = "100,1,1,;0x1",                                 -- a vendor row to place: asked, unknown
+      }), marketCtx({ isCommodity = counting }))
+      assert.same({ [1] = 1, [4] = 1 }, asked)
+      assert.equal(2, #rows)
+      assert.same({ 4 }, unsure)
     end)
 
     it("makes no market row from a version-1 fold", function()
@@ -370,31 +392,92 @@ describe("ForeverDeals", function()
       assert.equal(1, #D.Rows(clock + 2))
     end)
 
+    -- The client, shaped as it is (AuctionHouseDocumentation, live and forever alike):
+    -- GetItemCommodityStatus takes an ItemLocation, a bag slot, and refuses an item ID;
+    -- GetItemKeyInfo answers an item key, and nothing until the client has cached it.
+    local function clientAH(isCommodity, cached)
+      return {
+        GetItemCommodityStatus = function(location)
+          if type(location) ~= "table" then
+            error("bad argument #1 to 'GetItemCommodityStatus' (ItemLocation expected)")
+          end
+          return 0
+        end,
+        MakeItemKey = function(itemID)
+          return { itemID = itemID, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }
+        end,
+        GetItemKeyInfo = function(key)
+          if not cached[key.itemID] then return nil end
+          return { itemID = key.itemID, isCommodity = isCommodity[key.itemID] == true }
+        end,
+        CalculateCommodityDeposit = function() return 2 end,
+      }
+    end
+
+    -- The real deposit path (Flips -> CalculateCommodityDeposit) under a client-shaped AH; a vendor
+    -- pays 1c, so no item waits on a vendor price and no vendor row competes.
+    local function withClient(isCommodity, cached)
+      helper.loadModule("Core/Flips.lua", GC)
+      helper.loadModule("Core/ForeverValue.lua", GC)
+      GC.ForeverValue.VendorUnit = function() return 1 end
+      _G.C_AuctionHouse = clientAH(isCommodity, cached)
+      return _G.C_AuctionHouse
+    end
+
     -- Final review I2 (plan 3c): the deposit of a commodity is the client's to quote from the
     -- item alone (C_AuctionHouse.CalculateCommodityDeposit), so an Under market row needs no
     -- stack of it ever seen in the bags by the Sell tab -- only the client's word that it is
-    -- a commodity.
-    it("builds a market row for a commodity the client names, never held in the bags", function()
-      helper.loadModule("Core/Flips.lua", GC)
-      helper.loadModule("Core/ForeverValue.lua", GC)
-      _G.Enum = { ItemCommodityStatus = { Unknown = 0, Item = 1, Commodity = 2 } }
+    -- a commodity. Its word comes by item key, as the Sell tab asks for it (Services/Sell/
+    -- Bags.lua): asked with an item ID, GetItemCommodityStatus refused every item the Sell tab
+    -- had never seen, and WoW: Forever's board showed no Under market row at all (2026-11-06).
+    it("builds a market row for a commodity the client names by its item key, never held in the bags", function()
+      local ah = withClient({ [2592] = true }, { [2592] = true })
       local asked
-      _G.C_AuctionHouse = {
-        GetItemCommodityStatus = function(id) return id == 2592 and 2 or 1 end,
-        CalculateCommodityDeposit = function(id, _, qty) asked = { id, qty }; return 2 end,
-      }
+      ah.CalculateCommodityDeposit = function(id, _, qty) asked = { id, qty }; return 2 end
       saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
       assert.is_nil(GC.db.commodityByItem[2592])
       D.Rows(clock)
       assert.same({ 2592, 1 }, asked)
       assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
         D.CeilingFor(2592))
+      assert.is_true(GC.db.commodityByItem[2592])   -- remembered, as the Sell tab remembers it
       -- No deposit quoted, no row: still fail-closed.
       _G.C_AuctionHouse.CalculateCommodityDeposit = function() return nil end
       saved = { at = 6000, items = saved.items }
       D.Rows(clock + 1)
       assert.is_nil(D.CeilingFor(2592))
-      _G.Enum, _G.C_AuctionHouse = nil, nil
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("waits for an item key the client has not cached, then builds the row", function()
+      local cached = {}
+      withClient({ [2592] = true }, cached)
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      assert.equal(0, #D.Rows(clock))
+      assert.is_nil(GC.db.commodityByItem[2592])
+      assert.is_false(D.Due(clock + 1))
+      cached[2592] = true                           -- ITEM_KEY_ITEM_INFO_RECEIVED
+      assert.is_true(D.Refresh(clock + 5))
+      assert.equal("market", D.CeilingFor(2592).kind)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("stops waiting for an item key that never comes", function()
+      withClient({}, {})
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      D.Rows(clock)
+      assert.is_true(D.Refresh(clock + 5))
+      assert.is_false(D.Due(clock + 40))
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("takes a known non-commodity from the Sell tab's memory without asking", function()
+      withClient({}, {}).GetItemKeyInfo = function() error("asked") end
+      GC.db.commodityByItem[2592] = false
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      assert.equal(0, #D.Rows(clock))
+      assert.is_false(D.Due(clock + 5))
+      _G.C_AuctionHouse = nil
     end)
 
     it("hands out a market ceiling with its deposit", function()

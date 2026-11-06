@@ -103,17 +103,21 @@ local function referenceUnit(ref)
   return unit
 end
 
+-- `isCommodity` is a function: for an item key the client has not cached, its answer is a server
+-- request, so it is asked only once the cheapest lot sits under the ceiling a zero deposit would
+-- allow. Nothing under that, no row, whatever the item is.
 local function underMarket(itemID, e, ctx, isCommodity)
   if not (e.levels and e.qty) then return nil end
   if e.qty < C.MARKET_MIN_UNITS or e.levels < C.MARKET_MIN_LEVELS then return nil end
-  if isCommodity ~= true then return nil end
   local ref = ctx.referenceFor and ctx.referenceFor(itemID, e)
     or { value = e.value, p50 = e.p50, source = "own" }
   local refUnit = referenceUnit(ref)
   if not refUnit then return nil end
+  local net = math.floor(refUnit * KEEP)
+  if e.ladder[1][1] > math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1) then return nil end
+  if isCommodity() ~= true then return nil end
   local deposit = ctx.depositFor(itemID)
   if type(deposit) ~= "number" or deposit < 0 then return nil end
-  local net = math.floor(refUnit * KEEP)
   local ceiling = math.min(math.floor(refUnit * C.MARKET_SHARE), net - deposit - 1)
   if ceiling < 1 then return nil end
   local units, cost, profit = 0, 0, 0
@@ -131,10 +135,12 @@ local function underMarket(itemID, e, ctx, isCommodity)
   return row
 end
 
+-- rows, missing (no vendor price yet), unsure (a row or a market candidate waits on the client's
+-- word that the item is a commodity).
 function GC.ForeverDeals.Build(fold, ctx)
-  local rows, missing = {}, {}
+  local rows, missing, unsure = {}, {}, {}
   if type(fold) ~= "table" or type(fold.items) ~= "table" or type(ctx) ~= "table" then
-    return rows, missing
+    return rows, missing, unsure
   end
   local boards = { commodities = {}, items = {} }
   local admit = { minimumProfitCopper = ctx.minimumProfit, watchPins = ctx.watchPins }
@@ -148,12 +154,20 @@ function GC.ForeverDeals.Build(fold, ctx)
       else
         missing[#missing + 1] = itemID
       end
-      -- One isCommodity call per item, shared by the market candidate and the board placement
-      -- below. Both candidates are built before either is judged: a vendor row too small for the
-      -- Forever minimum (or otherwise refused) must not block a market row that would otherwise
-      -- qualify. The vendor row wins only when it is itself admitted; never both for one item.
-      local commodity = ctx.isCommodity(itemID, e)
-      local marketRow = underMarket(itemID, e, ctx, commodity)
+      -- At most one isCommodity call per item, shared by the market candidate and the board
+      -- placement below, and only when one of them needs it. Gear is never a commodity, and is
+      -- not asked. Both candidates are built before either is judged: a vendor row too small for
+      -- the Forever minimum (or otherwise refused) must not block a market row that would
+      -- otherwise qualify. The vendor row wins only when it is itself admitted; never both.
+      local askedCommodity, commodity = false, nil
+      local function isCommodity()
+        if not askedCommodity then
+          askedCommodity = true
+          if e.gear then commodity = false else commodity = ctx.isCommodity(itemID, e) end
+        end
+        return commodity
+      end
+      local marketRow = underMarket(itemID, e, ctx, isCommodity)
       local row
       if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) then
         row = vendorRow
@@ -161,35 +175,44 @@ function GC.ForeverDeals.Build(fold, ctx)
         row = marketRow
       end
       if row then
-        if commodity == nil and e.gear then commodity = false end
+        isCommodity()
         row.isCommodity = commodity == true
         row.board = commodity == false and "items" or "commodities"
         boards[row.board][itemID] = row
       end
+      if askedCommodity and commodity == nil then unsure[#unsure + 1] = itemID end
     end
   end
   for _, board in ipairs({ "commodities", "items" }) do
     for _, row in ipairs(GC.FullScan.CapDeals(boards[board], C.ROW_CAP)) do rows[#rows + 1] = row end
   end
   table.sort(missing)
-  return rows, missing
+  table.sort(unsure)
+  return rows, missing, unsure
 end
 
--- The client, for Rows. Guarded: a missing API answers "unknown", never an error.
+-- The client, for Rows. Guarded: a missing API answers "unknown", never an error. Asked the way
+-- the Sell tab asks it (Services/Sell/Bags.lua's classifyBagItem) and Blizzard's own auction house
+-- decides it: the remembered answer, else GetItemKeyInfo of the item's key, remembered once it
+-- comes. Not GetItemCommodityStatus: it takes an ItemLocation, a bag slot, and refuses an item ID
+-- -- asked with one, every item the Sell tab had never seen stayed unknown, and WoW: Forever's
+-- board had no Under market row at all (2026-11-06). nil while the client has not cached the key.
 local function realIsCommodity(itemID)
-  if GC.db and GC.db.commodityByItem and GC.db.commodityByItem[itemID] == true then return true end
+  local known = GC.db and GC.db.commodityByItem and GC.db.commodityByItem[itemID]
+  if known ~= nil then return known == true end
   local ah = _G.C_AuctionHouse
-  local status = _G.Enum and _G.Enum.ItemCommodityStatus
-  if ah and type(ah.GetItemCommodityStatus) == "function" and status then
-    local ok, answer = pcall(ah.GetItemCommodityStatus, itemID)
-    if ok and answer == status.Commodity then return true end
-    if ok and answer == status.Item then return false end
+  if not (ah and type(ah.GetItemKeyInfo) == "function" and type(ah.MakeItemKey) == "function") then
+    return nil
   end
-  return nil
+  local ok, info = pcall(function() return ah.GetItemKeyInfo(ah.MakeItemKey(itemID)) end)
+  if not (ok and type(info) == "table" and info.isCommodity ~= nil) then return nil end
+  local answer = info.isCommodity == true
+  if GC.db and type(GC.db.commodityByItem) == "table" then GC.db.commodityByItem[itemID] = answer end
+  return answer
 end
 
 local cache = { at = nil, itemCount = nil, builtAt = 0, waitUntil = 0, rows = {}, byItem = {} }
-local requested, dropped = {}, {}
+local requested, dropped, keyAsked = {}, {}, {}
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
@@ -201,7 +224,7 @@ end
 
 local function rebuild(fold, now)
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
-  local rows, missing = GC.ForeverDeals.Build(fold, {
+  local rows, missing, unsure = GC.ForeverDeals.Build(fold, {
     vendorFor = GC.ForeverValue.VendorUnit,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
@@ -237,6 +260,13 @@ local function rebuild(fold, now)
       pcall(item.RequestLoadItemDataByID, itemID)
     end
     waitUntil = math.max(waitUntil, (requested[itemID] or now) + C.REQUEST_WAIT_SECONDS)
+  end
+  -- An item key the client had not cached: asking was the request (GetItemKeyInfo), and its
+  -- answer (ITEM_KEY_ITEM_INFO_RECEIVED) is read by a rebuild inside the same wait. Past it, the
+  -- item has no row until the next fold asks again.
+  for _, itemID in ipairs(unsure) do
+    keyAsked[itemID] = keyAsked[itemID] or now
+    waitUntil = math.max(waitUntil, keyAsked[itemID] + C.REQUEST_WAIT_SECONDS)
   end
   cache.at, cache.itemCount, cache.builtAt, cache.waitUntil, cache.rows, cache.byItem =
     fold.at, fold.itemCount, now, waitUntil, kept, byItem
