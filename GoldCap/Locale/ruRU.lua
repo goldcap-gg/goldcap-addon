@@ -1902,4 +1902,7 @@ GC.Locales.ruRU = {
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "залог %s",
   ["not worth the deposit"] = "не окупает залог",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "Этот предмет выставляется только по целому серебру. Укажите цену без меди",
 }

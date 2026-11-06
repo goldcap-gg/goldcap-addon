@@ -27,6 +27,10 @@ local function postDuration()
   if value == 1 or value == 2 or value == 3 then return value end
   return 2
 end
+-- One silver, in copper: the grid an item's (non-commodity) price is on, on every client
+-- (GC.Flips.PriceStep). A local, like postDuration above, because PreparePost reads it inside
+-- the Post click, ahead of the protected call.
+local ITEM_PRICE_STEP = 100
 local POST_TIMEOUT_SECONDS = 8
 -- Removing a manual cost has no deposit at stake, so it skips REPOST_ARM_SECONDS' forced delay
 -- (Services/Sell/Cancel.lua)
@@ -354,6 +358,17 @@ function Post.PreparePost(row)
   end
   local buyout = not info.isCommodity and safeMultiply(plan.unitPrice, plan.quantity) or nil
   if not info.isCommodity and not buyout then View.status(GC.L["Cannot post this position"]); return end
+  -- Never hand PostItem a price with copper in it. WoW: Forever, 2026-11-06 (owner):
+  -- SupportsCopperValues() is true there and Blizzard's own item sell frame shows a copper box,
+  -- but a green belt posted at 1s 10c never went up -- not in the Auctions tab, its 1s deposit
+  -- not taken -- and no error came back; every item lot in a scan sits on whole silver. The plan
+  -- is priced on that grid already (BuildPostPlan, by the position's kind); this is the net for a
+  -- position the client calls an item while its key said commodity. Refused here, before any
+  -- protected call, with a plain modulo on the plan's own number.
+  if not info.isCommodity and plan.unitPrice % ITEM_PRICE_STEP ~= 0 then
+    View.status(GC.L["This item posts at whole silver only. Set a price without copper"])
+    return
+  end
   local commodityTotal = info.isCommodity and safeMultiply(plan.unitPrice, plan.quantity) or nil
   if info.isCommodity and (not commodityTotal or not exact(bagState.exactQty) or bagState.exactQty < plan.quantity) then
     View.status(GC.L["No exact bag stack"])

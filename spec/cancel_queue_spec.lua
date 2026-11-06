@@ -404,5 +404,35 @@ describe("CancelQueue", function()
       assert.equal(1, #entries)
       assert.is_true(entries[1].urgent)
     end)
+
+    -- An item relists at whole silver only, on Forever too (a green posted at 1s 10c never went
+    -- up, owner, 2026-11-06), so the undercut a cancel is weighed on is the one a relist on that
+    -- grid makes. A Small Blue Pouch listed at 4s over one troll lot at 1s, worth 3s: the floor
+    -- is 2s 25c and the relist is 3s, so the cancel wins back 1s, not the 1s 75c a 2s 25c relist
+    -- would have claimed.
+    local POUCH = "item:828:5:0:0"
+    local function pouch(forfeit)
+      return build({
+        acquisitions = { batch("acq:p", 1, 50, 828, POUCH) },
+        ownedLots = { { itemID = 828, positionKey = POUCH, quantity = 1, unitPrice = 400, auctionID = 901,
+          firstSeenAt = 1 } },
+        quotes = { [828] = { unit = 100, at = 9, levels = { { unitPrice = 100, quantity = 1 } } } },
+        statsByItemID = { [828] = { mv = 300, source = "scan" } },
+        cancelForfeit = forfeit,
+      })[1]
+    end
+
+    it("weighs an item's cancel against a relist on whole silver", function()
+      local held = pouch(function() return 150 end)
+      assert.equal(225, held.postFloor) -- fixture honesty check
+      assert.equal(300, held.recommendation.rec.unit)
+      assert.same({ action = "hold", reason = "deposit" },
+        { action = held.recommendation.action, reason = held.recommendation.reason })
+      assert.is_false(held.ownedLots[1].cancelWorth)
+      -- (400 - 300) x 1 = 1s is still more than a 99c forfeit.
+      local worth = pouch(function() return 99 end)
+      assert.equal("repost", worth.recommendation.action)
+      assert.is_true(worth.ownedLots[1].cancelWorth)
+    end)
   end)
 end)

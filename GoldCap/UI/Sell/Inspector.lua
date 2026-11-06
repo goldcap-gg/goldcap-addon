@@ -353,21 +353,23 @@ function INSP.paintHead(row, p, d)
     end
     row.priceNote:Show()
     -- UNDERCUT is a rung BELOW the cheapest competing ask, one step of the auction house's own
-    -- grid (GC.Flips.PriceStep() -- 1 copper where the client takes copper, a silver
-    -- otherwise), and a step under an ask of a step or less is zero or negative. Zero is
-    -- truthy in Lua, so the chip enabled itself, stored a price of 0 as the seller's choice,
-    -- and effectivePostUnit then refused it -- which emptied the box the player had just
-    -- filled. Nothing here may offer a price that is not a price.
+    -- grid for this lot's kind (GC.Flips.PriceStep -- 1 copper for a commodity where the client
+    -- takes copper, a silver otherwise: an item on WoW: Forever too, where a green posted at
+    -- 1s 10c never went up, 2026-11-06), and a step under an ask of a step or less is zero or
+    -- negative. Zero is truthy in Lua, so the chip enabled itself, stored a price of 0 as the
+    -- seller's choice, and effectivePostUnit then refused it -- which emptied the box the player
+    -- had just filled. Nothing here may offer a price that is not a price.
     -- The seller's default price fills from the same three (GC.SellPositions.FillUnit), so the
     -- chip it lights names the price the item opened at.
     local competing = book and book.cheapestCompeting or nil
+    local commodity = GC.SellPositions.IsCommodity(p)
     local sources = {
-      match = GC.SellPositions.FillUnit("match", competing, p.marketValue),
-      under = GC.SellPositions.FillUnit("under", competing, p.marketValue),
-      market = GC.SellPositions.FillUnit("market", competing, p.marketValue),
-      -- What it cost plus the auction house's 5%, on the silver the auction house takes: the
+      match = GC.SellPositions.FillUnit("match", competing, p.marketValue, commodity),
+      under = GC.SellPositions.FillUnit("under", competing, p.marketValue, commodity),
+      market = GC.SellPositions.FillUnit("market", competing, p.marketValue, commodity),
+      -- What it cost plus the auction house's 5%, on the grid the auction house takes: the
       -- least that gets the gold back. What it cost alone lost the cut and lit the box red.
-      cost = risk.breakeven and GC.Flips.SilverUp(risk.breakeven) or nil,
+      cost = risk.breakeven and GC.Flips.SilverUp(risk.breakeven, commodity) or nil,
       -- With a default price on, GOLDCAP is a fill like the others: GoldCap's own price for the
       -- item, kept beside the default (goldcapUnit).
       goldcap = rec and rec.goldcapUnit or nil,

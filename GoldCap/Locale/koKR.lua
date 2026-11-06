@@ -1762,4 +1762,7 @@ GC.Locales.koKR = {
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "등록비 %s",
   ["not worth the deposit"] = "등록비만큼의 가치 없음",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "이 아이템은 은 단위로만 등록됩니다. 동 없이 가격을 정하세요",
 }

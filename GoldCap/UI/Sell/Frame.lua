@@ -297,16 +297,22 @@ end
 -- purchase cost is always gold-denominated regardless of what the auction house can post.
 --
 -- Exact copper -> plain coin text ("90c", "1g22s90c", never "1g" with a silent 90c dropped),
--- for the one client where a price can actually carry a copper remainder
--- (GC.Flips.PriceStep() == 1 -- see that function's own comment). The owner's own bug report:
--- the gold-decimal box above showed "0.009" for 90c -- correct arithmetic, unreadable, and
--- easy to mistype back wrong. No coin ICONS (GC.Util.CoinText): this is an EditBox the seller
--- retypes, not a read-only label, and `|T...|t` escapes are not something a person can edit.
--- Falls back to the gold-decimal text unconditionally on any other client -- retail's box is
--- byte-identical to before this existed.
+-- for the one client where a price can actually carry a copper remainder: where a commodity's
+-- step is a copper (GC.Flips.PriceStep(true) == 1 -- see that function's own comment). The
+-- owner's own bug report: the gold-decimal box above showed "0.009" for 90c -- correct
+-- arithmetic, unreadable, and easy to mistype back wrong. No coin ICONS (GC.Util.CoinText): this
+-- is an EditBox the seller retypes, not a read-only label, and `|T...|t` escapes are not
+-- something a person can edit. Falls back to the gold-decimal text unconditionally on any other
+-- client -- retail's box is byte-identical to before this existed.
+--
+-- An item's price on that client reads in the same coin text and never shows copper: what the
+-- box holds is effectivePostUnit's (Services/Sell/State.lua), on the item's whole-silver grid
+-- (a green posted at 1s 10c on WoW: Forever never went up, owner, 2026-11-06), so it is "3s" and
+-- a copper the seller types for an item comes back as the next whole silver, as a typed copper
+-- does on retail's own box.
 local function copperToPriceText(copper)
   if not exact(copper) then return "" end
-  if GC.Flips.PriceStep() ~= 1 then return copperToGoldText(copper) end
+  if GC.Flips.PriceStep(true) ~= 1 then return copperToGoldText(copper) end
   if copper == 0 then return "0c" end
   local gold = math.floor(copper / COPPER_PER_GOLD)
   local silver = math.floor((copper % COPPER_PER_GOLD) / 100)
@@ -325,10 +331,12 @@ end
 -- and the Set-Cost dialog (UI/Sell/CostDialog.lua) (B2: a bare number used to mean copper here and gold
 -- everywhere else on this same tab -- a typed "5" was 5g in the cost box and 5c one control
 -- down). An explicit g/s/c suffix is still the one way to reach sub-gold precision on Forever.
--- Falls back to dialogGoldPositive unconditionally off the copper grid, so retail typing is
--- exactly what it always was.
+-- Falls back to dialogGoldPositive unconditionally on a client with no copper grid at all, so
+-- retail typing is exactly what it always was. The copper read here is not what an item posts
+-- at: effectivePostUnit and BuildPostPlan round it up onto the item's whole silver (see
+-- copperToPriceText above).
 local function priceBoxCopper(box)
-  if GC.Flips.PriceStep() ~= 1 then return dialogGoldPositive(box) end
+  if GC.Flips.PriceStep(true) ~= 1 then return dialogGoldPositive(box) end
   local text = (box:GetText() or ""):gsub("%s+", ""):lower()
   if text == "" then return nil end
   if not text:find("[gsc]") then

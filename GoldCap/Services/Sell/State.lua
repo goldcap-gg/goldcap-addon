@@ -202,15 +202,19 @@ local function overrideKey(position)
 end
 
 -- What Post would list this position at right now: the seller's own number when they have
--- given one, otherwise whatever GoldCap worked out. Both go through the SAME silver-grid
--- rounding BuildPostPlan applies, so the figure in the box is the figure that gets sent.
+-- given one, otherwise whatever GoldCap worked out. Both go through the SAME grid rounding
+-- BuildPostPlan applies, for the lot's kind, so the figure in the box is the figure that gets
+-- sent: on WoW: Forever a copper price typed for an item rounds up to the next whole silver
+-- there, as any typed copper does on retail (a green at 1s 10c never went up, owner, 2026-11-06).
 local function effectivePostUnit(position)
   local key = overrideKey(position)
   local chosen = key and GC.SellState.priceOverrides[key] or nil
   local rec = type(position.postRecommendation) == "table" and position.postRecommendation.unit or nil
   local unit = chosen or rec
   if not exact(unit) or unit <= 0 then return nil, chosen ~= nil end
-  return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit)) or unit, chosen ~= nil
+  local isCommodity = GC.SellPositions and GC.SellPositions.IsCommodity
+  local commodity = isCommodity and isCommodity(position) or false
+  return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit, commodity)) or unit, chosen ~= nil
 end
 
 -- How many units Post would list for this position right now, the most it could, and whether

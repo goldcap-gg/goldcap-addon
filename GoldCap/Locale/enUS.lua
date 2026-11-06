@@ -1821,4 +1821,7 @@ GC.Locales.enUS = {
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "deposit %s",
   ["not worth the deposit"] = "not worth the deposit",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "This item posts at whole silver only. Set a price without copper",
 }

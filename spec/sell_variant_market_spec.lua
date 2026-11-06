@@ -177,8 +177,14 @@ describe("Sell tab, a variant's market is its own", function()
       assert.is_nil(p.variantKind)
       assert.equal(300, p.marketValue)
       assert.equal(225, p.postFloor)
-      assert.equal(225, p.postRecommendation.unit)
+      -- The floor is 2s 25c and the pouch is an item: an item posts at whole silver only, on
+      -- WoW: Forever too (a green posted at 1s 10c never went up, owner, 2026-11-06), so it holds
+      -- at 3s, the next whole silver up, and so does the price Post sends.
+      assert.equal(300, p.postRecommendation.unit)
       assert.equal("floor", p.postRecommendation.mode)
+      local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 828, exactQty = 1, positionKey = POUCH },
+        { unit = 100, fresh = true })
+      assert.equal(300, plan.unitPrice)
       -- Still searched by the stack's own key, the one the client answers for.
       assert.equal(POUCH, p.quoteKey)
       assert.is_nil((GC.SellViewModel.Expansion(p).factsText or ""):find("no market figure", 1, true))

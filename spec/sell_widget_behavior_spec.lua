@@ -655,9 +655,10 @@ describe("Sell widget geometry and manual cost", function()
   -- the panel of the item they clicked, with that item in the dock.
   describe("the price control in an expanded row", function()
     local function priceRow(GC, over)
-      GC.SellUI.expanded = { ["commodity:42"] = true }
+      local key = over and over.positionKey or "commodity:42"
+      GC.SellUI.expanded = { [key] = true }
       -- A click on the row puts the item in the dock as it opens the panel (UI/Sell/Row.lua).
-      GC.SellState.dockKey = "commodity:42"
+      GC.SellState.dockKey = key
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations",
           book = { rows = {}, levels = 3, totalUnits = 300, widest = 100,
@@ -875,6 +876,24 @@ describe("Sell widget geometry and manual cost", function()
       _G.C_AuctionHouse = nil
     end)
 
+    -- An item (non-commodity) on WoW: Forever posts at whole silver only: the client takes
+    -- copper, but a green posted at 1s 10c never went up and its deposit was not taken (owner,
+    -- 2026-11-06). Its box reads the same coin text and never shows copper: a floor of 2s 25c
+    -- reads 3s, and a copper the seller types comes back as the next whole silver, the price Post
+    -- sends, as a typed copper does in retail's box.
+    it("keeps an item's price on whole silver on WoW: Forever, typed or not", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      local item = { positionKey = "item:42:0:0:0", postRecommendation = { unit = 225 }, knownCost = 0 }
+      local row = priceRow(GC, item)
+      assert.equal("3s", dock(GC).priceBox.text)
+      assert.is_nil(row.priceFigure.text:find("Copper", 1, true))
+      typePrice(GC, "1s10c")
+      priceRow(GC, item)
+      assert.equal("2s", dock(GC).priceBox.text)
+      _G.C_AuctionHouse = nil
+    end)
+
     -- B2: a bare number used to mean copper here and gold one control up (Set-Cost) and on
     -- retail's own version of this same box -- the one place on the tab where a typed number
     -- meant a different unit than everywhere else. It now means gold everywhere, the same
@@ -1062,18 +1081,19 @@ describe("Sell widget geometry and manual cost", function()
     -- it through the same step SilverUp/SilverDown already use (Core/Flips.lua), so every price
     -- this drawer can hand back agrees.
     it("undercuts by the auction house's own price step, not a hardcoded silver", function()
-      local function underSource(competing)
+      local function underSource(competing, key)
+        key = key or "commodity:42"
         local GC = load(700, { calls = {} })
         GC.SellViewModel.Expansion = function()
           return { batches = {}, ownedLots = {}, note = "FIFO allocations",
             book = { rows = {}, levels = 1, totalUnits = 10, widest = 10,
               cheapestCompeting = competing, yourUnit = nil, yourRow = nil } }
         end
-        local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        local p = { itemID = 42, itemName = "Ore", positionKey = key, coverage = "COMPLETE",
           exposureQty = 5, knownQty = 5, knownCost = 2000000, listedValue = 0,
           bagQty = 5, listedQty = 0, sources = {}, marketValue = 500000,
           postRecommendation = { unit = 430000 } }
-        GC.SellUI.expanded = { ["commodity:42"] = true }
+        GC.SellUI.expanded = { [key] = true }
         local rows = topRows(GC, { p })
         for _, row in ipairs(rows) do
           if row.kind == "drawer" then return row.priceChips[3].priceSource end
@@ -1092,6 +1112,14 @@ describe("Sell widget geometry and manual cost", function()
       -- A competing ask at or below one step still yields no UNDERCUT price, on either grid.
       _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
       assert.is_nil(underSource(1))
+
+      -- An item steps a whole silver on WoW: Forever too (a green posted at 1s 10c never went
+      -- up, owner, 2026-11-06): 99c under an item's 1s ask is a post that silently fails, and
+      -- there is no whole silver under it, so UNDERCUT has no price there, as on retail.
+      assert.is_nil(underSource(100, "item:42:0:0:0"))
+      assert.equal(200, underSource(300, "item:42:0:0:0"))
+      assert.equal(99, underSource(100))
+      _G.C_AuctionHouse = nil
     end)
 
     -- The first chip is the way back: it carries no price, it clears the seller's own, and it

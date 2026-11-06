@@ -379,6 +379,64 @@ describe("Sell protected action state", function()
     assert.equal(600, calls[1][5])
   end)
 
+  -- WoW: Forever, 2026-11-06 (owner): the client takes copper (SupportsCopperValues), but a green
+  -- posted at 1s 10c never went up and its deposit was not taken. The plan is priced on an item's
+  -- whole silver already; the click is the net, for a plan that reaches it with copper anyway
+  -- (an item whose key said commodity): no PostItem, and the seller is told why.
+  local function postItemAt(unitPrice)
+    local calls, status = {}, {}
+    _G.C_AuctionHouse = { SupportsCopperValues = function() return true end,
+      PostItem = function(...) calls[#calls + 1] = { ... }; return false end }
+    _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 100, at = 100 } end }, SellPositions = {
+      BuildPostPlan = function() return { positionKey = "item:42:100:7:0",
+        scopeKey = "eu\1A-R\1item:42:100:7:0", itemID = 42, quantity = 1, unitPrice = unitPrice } end,
+    } }
+    helper.loadSell(GC)
+    local post = handlers(GC)
+    GC.SellQuotes.driver = { keyInfo = function() return { isCommodity = false } end }
+    GC.SellView.status = function(text) status[#status + 1] = text end
+    local p = position(); p.positionKey = "item:42:100:7:0"; p.scopeKey = "eu\1A-R\1item:42:100:7:0"
+    primeLocation(GC, "item:42:100:7:0", 42, 0, 2, 1)
+    local row = { position = p, action = button(), renderEntryID = "entry:post:copper" }
+    post(row)
+    return calls, status, row
+  end
+
+  it("[Forever] never hands PostItem a price with copper in it", function()
+    local calls, status, row = postItemAt(110)
+    assert.equal(0, #calls)
+    assert.is_nil(row.postStage)
+    assert.equal("This item posts at whole silver only. Set a price without copper", status[#status])
+    -- Whole silver goes through, the buyout with it.
+    calls = postItemAt(200)
+    assert.equal(1, #calls)
+    assert.equal(200, calls[1][5])
+  end)
+
+  it("[Forever] still posts a commodity's copper price, which the client takes", function()
+    local calls = {}
+    local location = { bag = 0, slot = 1 }
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return location end }
+    _G.C_AuctionHouse = { SupportsCopperValues = function() return true end,
+      PostCommodity = function(...) calls[#calls + 1] = { ... }; return false end }
+    _G.C_Container = {
+      GetContainerNumSlots = function(bag) return bag == 0 and 1 or 0 end,
+      GetContainerItemInfo = function() return { itemID = 42, stackCount = 7 } end,
+    }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 39, at = 100 } end }, SellPositions = {
+      BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 7, unitPrice = 39 } end,
+    } }
+    helper.loadSell(GC)
+    local post = handlers(GC)
+    GC.SellQuotes.driver = { keyInfo = function() return { isCommodity = true } end }
+    primeLocation(GC, "commodity:42", 42, 0, 1, 7, location)
+    post({ position = position(), action = button(), renderEntryID = "entry:post:meat" })
+    assert.equal(1, #calls)
+    assert.same({ 2, 7, 39 }, { calls[1][2], calls[1][3], calls[1][4] })
+  end)
+
   it("attributes a successful post once and restores its pinned row", function()
     local records, refreshes = {}, 0
     _G.C_AuctionHouse = { PostCommodity = function() return false end }

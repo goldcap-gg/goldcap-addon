@@ -1833,4 +1833,7 @@ GC.Locales.itIT = {
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "cauzione %s",
   ["not worth the deposit"] = "non vale la cauzione",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "Questo oggetto si mette in vendita solo ad argento intero. Imposta un prezzo senza rame",
 }

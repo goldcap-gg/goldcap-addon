@@ -1726,4 +1726,7 @@ GC.Locales.zhCN = {
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "押金 %s",
   ["not worth the deposit"] = "不值押金",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "该物品只能以整银上架。请设置不含铜的价格",
 }

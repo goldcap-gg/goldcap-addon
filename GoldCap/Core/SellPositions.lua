@@ -292,9 +292,20 @@ local function addLot(position, ownedLot)
   position.listedQty, position.listedValue = listedQty, listedValue
 end
 
+--- Whether a position is a commodity's: its key says so ("commodity:<id>", GC.Acquisitions.
+-- PositionKey; an item's is "item:..."). The kind picks the price grid (GC.Flips.PriceStep): on
+-- WoW: Forever a commodity takes copper and an item only whole silver (owner, 2026-11-06). false
+-- for an item, and for a position with no key, which is posted on an item's grid.
+function GC.SellPositions.IsCommodity(position)
+  return type(position) == "table" and type(position.positionKey) == "string"
+    and position.positionKey:find("commodity:", 1, true) == 1
+end
+
 local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules,
     defaultPrice, cancelForfeit, oneLevelPerItem)
   table.sort(position.ownedLots, stableLotOrder)
+  -- The lot's kind, for every price below that lands on the auction house's grid.
+  local commodity = GC.SellPositions.IsCommodity(position)
   -- An item-level variant is priced from a search for its own ItemKey, filed under its own
   -- `quoteKey` (Services/Sell/Quotes.lua); anything else under its itemID, as ever.
   local quoteID = position.quoteKey or position.itemID
@@ -500,19 +511,20 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   if position.coverage == "COMPLETE" and position.listedQty > 0 then
     position.recommendation = GC.Flips.RepostAdvice({ paidUnit = position.knownCost and math.floor(position.knownCost / position.knownQty),
       marketUnit = fresh, levels = levels, sold = position.soldPerDay, qty = position.exposureQty,
-      floor = position.postFloor, reachUnit = reachUnit, quarterUnit = quarterUnit })
+      floor = position.postFloor, reachUnit = reachUnit, quarterUnit = quarterUnit, isCommodity = commodity })
   elseif position.coverage == "COMPLETE" then
     position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.knownQty),
       fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
-        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit })
+        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit,
+        isCommodity = commodity })
   elseif positive(position.bagQty) and fresh then
     -- Stock GoldCap never bought still deserves an answer to "what should I list this at".
     -- No cost basis means no breakeven and no belowCost warning -- RecommendPost already
     -- degrades to exactly that on a nil paidUnit, rather than inventing a cost from the market.
     position.recommendation = GC.Flips.RecommendPost(nil, fresh, position.marketValue,
       { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
-        reachUnit = reachUnit, quarterUnit = quarterUnit })
+        reachUnit = reachUnit, quarterUnit = quarterUnit, isCommodity = commodity })
   else
     position.recommendation = nil
   end
@@ -528,9 +540,15 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- A forfeit nobody can quote is not shown to be worth it. The verdict rides on the lot for
   -- GC.CancelQueue, and with no lot worth it the advice is hold, reason "deposit". A lot far below
   -- its value is no undercut: the cancel queue pulls it whatever this says.
+  -- The relist price is on the lot's own grid (2026-11-06): the advice's price already is
+  -- (RecommendPost, with the kind), and the bare quote, when there is none, is rounded down onto
+  -- it the way the match price is. An item relists at whole silver on Forever too (a green at
+  -- 1s 10c never went up), so a floor of 2s 25c relists at 3s, and the undercut weighed against
+  -- the deposit is the one a relist would really make.
   local advice = position.recommendation
   if type(cancelForfeit) == "function" and type(advice) == "table" and advice.action == "repost" and fresh then
-    local relist = type(advice.rec) == "table" and positive(advice.rec.unit) and advice.rec.unit or fresh
+    local relist = type(advice.rec) == "table" and positive(advice.rec.unit) and advice.rec.unit
+      or GC.Flips.SilverDown(fresh, commodity)
     local weighed, worthAny = false, false
     for _, ownedLot in ipairs(position.ownedLots) do
       if ownedLot.unitPrice > fresh then
@@ -574,7 +592,8 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
       { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
-        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit })
+        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit,
+        isCommodity = commodity })
   else
     position.postRecommendation = nil
   end
@@ -588,9 +607,9 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- but the player's own, no market value), and GoldCap's own price stands.
   local baseRec = position.postRecommendation
   local defaultUnit = type(baseRec) == "table" and fresh and GC.SellPositions.FillUnit(defaultPrice,
-    GC.SellPositions.CheapestCompetingUnit(levels), position.marketValue) or nil
+    GC.SellPositions.CheapestCompetingUnit(levels), position.marketValue, commodity) or nil
   if defaultUnit then
-    defaultUnit = GC.Flips.SilverUp(math.max(defaultUnit, position.postFloor or 0)) or defaultUnit
+    defaultUnit = GC.Flips.SilverUp(math.max(defaultUnit, position.postFloor or 0), commodity) or defaultUnit
     baseRec.goldcapUnit, baseRec.unit, baseRec.mode, baseRec.defaultId = baseRec.unit, defaultUnit, "default",
       defaultPrice
     baseRec.belowCost = (baseRec.breakeven ~= nil and defaultUnit < baseRec.breakeven) or false
@@ -608,7 +627,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   if rounds > 0 and position.rule and positive(position.rule.stepPct) and positive(position.rule.usualUnit)
       and type(stepRec) == "table" and positive(stepRec.unit) then
     local step = math.floor(position.rule.usualUnit * math.max(0, 100 - position.rule.stepPct * rounds) / 100)
-    local target = GC.Flips.SilverUp(math.max(position.postFloor or 0, math.min(stepRec.unit, step)))
+    local target = GC.Flips.SilverUp(math.max(position.postFloor or 0, math.min(stepRec.unit, step)), commodity)
     if target and target < stepRec.unit then
       stepRec.unit, stepRec.mode, stepRec.ruleRounds = target, "rule", rounds
       stepRec.belowCost = (stepRec.breakeven ~= nil and target < stepRec.breakeven) or false
@@ -619,12 +638,12 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- the moment of posting: the row's PROFIT column, the posting queue's own label and the plan
   -- all have to be one number. This file has carried that defect twice already (see the
   -- floor-raise comment in BuildPostPlan) -- the displayed price and the posted price being
-  -- two different numbers is the bug, not the fix. Rounded onto the silver grid here for the
+  -- two different numbers is the bug, not the fix. Rounded onto the lot's grid here for the
   -- same reason BuildPostPlan rounds: the projection below must price at what will be listed.
   local chosen = chosenUnits and type(position.positionKey) == "string"
     and chosenUnits[position.positionKey] or nil
   if positive(chosen) and type(position.postRecommendation) == "table" then
-    position.chosenUnit = GC.Flips.SilverUp(chosen) or chosen
+    position.chosenUnit = GC.Flips.SilverUp(chosen, commodity) or chosen
     position.postRecommendation.unit = position.chosenUnit
     -- Not "queue" any more: the queue-at-exit raise in BuildPostPlan keys off that mode, and a
     -- raise applied on top of a chosen price would silently undo the choice.
@@ -1150,9 +1169,13 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   -- Part 0 of the posting-queue design (2026-08-17): PostCommodity/PostItem silently reject any
   -- price with a non-zero copper remainder, and neither the raw live quote above nor postFloor
   -- (derived from mv * UNDERPRICE_FLOOR, an arithmetic ratio, not a grid position) is guaranteed
-  -- to land on the 100-copper grid. Normalize AFTER the floor raise, with SilverUp, so this can
-  -- only ever move the price up -- never back under the floor the raise above just enforced.
-  local graded = GC.Flips.SilverUp(unit)
+  -- to land on the grid. Normalize AFTER the floor raise, with SilverUp, so this can only ever
+  -- move the price up -- never back under the floor the raise above just enforced. The grid is
+  -- the lot's kind's (GC.Flips.PriceStep): on WoW: Forever an item's is whole silver even where
+  -- a commodity takes copper (a green at 1s 10c never went up, owner, 2026-11-06), so an item's
+  -- floor of 2s 25c lists at 3s and a commodity's at 2s 25c.
+  local commodity = GC.SellPositions.IsCommodity(position)
+  local graded = GC.Flips.SilverUp(unit, commodity)
   if not graded then return nil, "invalid_price" end
   -- ...but SilverUp is not the rounding the ROW published. RecommendPost normalises its match
   -- candidate with SilverDown, and an item auction's unit price is buyoutAmount/quantity, which
@@ -1171,8 +1194,8 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
     local rec = position.postRecommendation
     -- Through SilverUp, exactly as GC.SellUtil.effectivePostUnit (Services/Sell/State.lua) renders it, so the two are
     -- the same number by construction rather than by coincidence.
-    local published = type(rec) == "table" and positive(rec.unit) and GC.Flips.SilverUp(rec.unit) or nil
-    local floorGrid = GC.Flips.SilverDown(unit)
+    local published = type(rec) == "table" and positive(rec.unit) and GC.Flips.SilverUp(rec.unit, commodity) or nil
+    local floorGrid = GC.Flips.SilverDown(unit, commodity)
     if published and floorGrid and published >= floorGrid and published <= graded then
       graded = published
     end
@@ -1286,12 +1309,15 @@ end
 -- default price (Settings, POSTING) opens every item at: "match" the cheapest ask that is not the
 -- player's own (`competing`, CheapestCompetingUnit's answer), "under" one step of the auction
 -- house's grid under it, "market" GoldCap's market value. nil for any other id, and with nothing
--- to fill from: a step under an ask of a step or less is no price at all.
-function GC.SellPositions.FillUnit(id, competing, marketValue)
+-- to fill from: a step under an ask of a step or less is no price at all. The step is the lot's
+-- kind's (`isCommodity`, GC.Flips.PriceStep): on WoW: Forever an item steps a whole silver, as on
+-- retail, so an item at 1s has no UNDERCUT there either (2026-11-06: an item posted with copper
+-- never goes up), and a commodity steps a copper.
+function GC.SellPositions.FillUnit(id, competing, marketValue, isCommodity)
   if id == "market" then return positive(marketValue) and marketValue or nil end
   if id ~= "match" and id ~= "under" then return nil end
   if not positive(competing) then return nil end
   if id == "match" then return competing end
-  local step = GC.Flips.PriceStep()
+  local step = GC.Flips.PriceStep(isCommodity)
   return competing > step and competing - step or nil
 end

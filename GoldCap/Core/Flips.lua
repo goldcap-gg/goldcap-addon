@@ -122,9 +122,10 @@ end
 --      reaches in a day is a hold, not a post.
 --   6. The floor guard (opts.floor, see GC.Flips.PostFloor) runs LAST and rounds UP.
 --
--- Every candidate is normalised onto the 100-copper grid (GC.Flips.SilverDown/SilverUp below)
--- -- PostCommodity/PostItem silently reject anything else. A nil candidate (neither marketUnit
--- nor mv known) means there is nothing to recommend, and the whole return is nil.
+-- Every candidate is normalised onto the auction house's grid for the lot's kind
+-- (GC.Flips.SilverDown/SilverUp below, with `opts.isCommodity`) -- PostCommodity/PostItem
+-- silently reject anything else. A nil candidate (neither marketUnit nor mv known) means there
+-- is nothing to recommend, and the whole return is nil.
 --
 -- breakeven: the unit price at which the AH's 5% cut exactly cancels out what was paid -- ceil
 -- (not floor) so a rounded-down breakeven could not itself understate a loss. nil whenever
@@ -260,20 +261,31 @@ end
 -- ---------------------------------------------------------------------------
 
 -- One silver, in copper -- the smallest unit PostCommodity/PostItem will ever accept on a
--- client without copper-level prices. Retail's own grid, unconditionally -- see PriceStep for
--- the one place that ever departs from it.
+-- client without copper-level prices, and the smallest PostItem accepts on any client. Retail's
+-- own grid, unconditionally -- see PriceStep for the one place that ever departs from it.
 GC.Flips.SILVER = 100
 
---- The auction house's own price granularity, read fresh on every call (the same shape as every
--- other capability probe in this addon -- Core/ForeverCheck.lua's `has`): 1 copper where the
--- CLIENT reports it can post copper-level commodity prices, GC.Flips.SILVER (retail's grid)
--- everywhere else. Gated on the capability, not on which game this is, per
--- C_AuctionHouse.SupportsCopperValues -- WoW: Forever's book carries copper remainders (67c,
--- 68c...) that retail's whole-silver-only book structurally cannot (warcraft.wiki.gg, verbatim,
--- on PostCommodity's unitPrice: "silently fails for non-zero copper counts" -- true on retail,
--- not on a client this returns true for). Fails closed to the retail grid on anything else: no
+--- The auction house's own price granularity for one kind of lot, read fresh on every call (the
+-- same shape as every other capability probe in this addon -- Core/ForeverCheck.lua's `has`):
+-- 1 copper for a COMMODITY (`isCommodity == true`) where the CLIENT reports it can post
+-- copper-level prices, GC.Flips.SILVER (retail's grid) for everything else. Gated on the
+-- capability, not on which game this is, per C_AuctionHouse.SupportsCopperValues -- WoW:
+-- Forever's commodity book carries copper remainders (67c, 68c...) that retail's
+-- whole-silver-only book structurally cannot (warcraft.wiki.gg, verbatim, on PostCommodity's
+-- unitPrice: "silently fails for non-zero copper counts" -- true on retail, not for a commodity
+-- on a client this returns true for). Fails closed to the retail grid on anything else: no
 -- global, no function, a call that errors, or an answer that isn't `true`.
-function GC.Flips.PriceStep()
+--
+-- An item (non-commodity) lot is whole silver on every client. Proven in game on WoW: Forever,
+-- 2026-11-06 (owner): SupportsCopperValues() is true there and Blizzard's own item sell frame
+-- even shows a copper box, but a green belt posted at 1s 10c never went up -- not in the
+-- Auctions tab, its 1s deposit not taken -- and the scan's fold had 0 of 4,120 gear price
+-- levels with copper, against 406 of 508 commodities. This used to answer 1 copper for every
+-- lot there, so an item's undercut, a floor such as 2s 25c, or a typed copper price posted with
+-- copper and failed silently. A caller that does not know the kind gets silver: a post that goes
+-- through beats one that silently fails.
+function GC.Flips.PriceStep(isCommodity)
+  if isCommodity ~= true then return GC.Flips.SILVER end
   local ah = _G.C_AuctionHouse
   if type(ah) == "table" and type(ah.SupportsCopperValues) == "function" then
     local ok, supports = pcall(ah.SupportsCopperValues)
@@ -282,11 +294,12 @@ function GC.Flips.PriceStep()
   return GC.Flips.SILVER
 end
 
---- Rounds `copper` DOWN to the nearest step of GC.Flips.PriceStep() -- the direction that keeps
--- an undercut as cheap as the grid allows without ever landing above the ask it is undercutting.
--- The result is then clamped UP to the step when that would put it below the grid's own bottom
--- rung: a price under one step cannot be posted at all, so the step is the floor of the whole
--- grid, not a rounding preference that could ever produce less.
+--- Rounds `copper` DOWN to the nearest step of GC.Flips.PriceStep(isCommodity) -- the direction
+-- that keeps an undercut as cheap as the grid allows without ever landing above the ask it is
+-- undercutting. The result is then clamped UP to the step when that would put it below the
+-- grid's own bottom rung: a price under one step cannot be posted at all, so the step is the
+-- floor of the whole grid, not a rounding preference that could ever produce less.
+-- `isCommodity` is the lot's kind (see PriceStep): anything but `true` is an item's grid.
 --
 -- Fails closed -- returns nil -- on nil, a non-number, NaN, +-infinity, or a negative value.
 -- None of those describe a price; they describe a bug somewhere upstream. Clamping a negative or
@@ -294,24 +307,24 @@ end
 -- declines instead. Every caller in this file already treats a nil candidate the same way it
 -- treats "nothing to recommend," so nil propagates safely rather than crashing or posting at a
 -- guessed number.
-function GC.Flips.SilverDown(copper)
+function GC.Flips.SilverDown(copper, isCommodity)
   if type(copper) ~= "number" or copper ~= copper or copper == math.huge
       or copper == -math.huge or copper < 0 then
     return nil
   end
-  local step = GC.Flips.PriceStep()
+  local step = GC.Flips.PriceStep(isCommodity)
   return math.max(step, math.floor(copper / step) * step)
 end
 
 --- As GC.Flips.SilverDown, but rounds UP -- the direction the floor override below needs: it
 -- must never hand back a price under the floor it exists to enforce, and rounding down could do
--- exactly that. Same clamp, same fail-closed input contract as SilverDown.
-function GC.Flips.SilverUp(copper)
+-- exactly that. Same clamp, same kind argument, same fail-closed input contract as SilverDown.
+function GC.Flips.SilverUp(copper, isCommodity)
   if type(copper) ~= "number" or copper ~= copper or copper == math.huge
       or copper == -math.huge or copper < 0 then
     return nil
   end
-  local step = GC.Flips.PriceStep()
+  local step = GC.Flips.PriceStep(isCommodity)
   return math.max(step, math.ceil(copper / step) * step)
 end
 
@@ -408,6 +421,9 @@ GC.Flips.QUARTER_CAP_SHARE = 1.10
 function GC.Flips.OvercutCandidate(marketUnit, opts)
   opts = opts or {}
   if not marketUnit then return nil end
+  -- The lot's kind picks the grid every rung and ceiling lands on (GC.Flips.PriceStep): an
+  -- item is whole silver on every client, a commodity takes copper where the client does.
+  local kind = opts.isCommodity
 
   -- The ceiling, and which line set it. Computed before every early return below so a caller
   -- that gets no candidate still learns what was binding.
@@ -415,9 +431,9 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   local reach = type(opts.reachUnit) == "number" and opts.reachUnit > 0 and opts.reachUnit or nil
   local quarter = type(opts.quarterUnit) == "number" and opts.quarterUnit > 0 and opts.quarterUnit or nil
   if reach then
-    cap, capBy = GC.Flips.SilverDown(reach), "reach"
+    cap, capBy = GC.Flips.SilverDown(reach, kind), "reach"
   elseif quarter then
-    cap, capBy = GC.Flips.SilverDown(math.min(quarter, marketUnit * GC.Flips.QUARTER_CAP_SHARE)), "quarter"
+    cap, capBy = GC.Flips.SilverDown(math.min(quarter, marketUnit * GC.Flips.QUARTER_CAP_SHARE), kind), "quarter"
   end
 
   if not opts.levels or not opts.levels[1] then return nil, nil, cap, capBy end
@@ -462,7 +478,7 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
       -- Of the rungs that may be posted at, the one worth most once its queue is priced in --
       -- not simply the highest. A later rung has to beat the best so far outright, so a tie
       -- goes to the shorter queue.
-      local normalized = GC.Flips.SilverDown(price)
+      local normalized = GC.Flips.SilverDown(price, kind)
       if normalized and normalized > marketUnit and worth(normalized, below) > bestWorth then
         best, bestWorth = normalized, worth(normalized, below)
       end
@@ -497,6 +513,9 @@ end
 function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   opts = opts or {}
   local mode, candidate, overcutAhead, cap, capBy
+  -- `opts.isCommodity`, the lot's kind: the grid every candidate below lands on
+  -- (GC.Flips.PriceStep). Unknown is an item's whole silver.
+  local kind = opts.isCommodity
 
   -- Climb first, match second: the study says matching the cheapest ask is never better than a
   -- rung above it that the floor still reaches, so match is what is left when the climb
@@ -507,15 +526,16 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
     if over then mode, candidate, overcutAhead = "overcut", over, ahead end
   end
 
-  -- Match. Grid-normalised defensively -- a live marketUnit is already whole silver (it could
-  -- not have been posted otherwise), so this is a no-op on every real input and a fail-closed
-  -- guard against whatever reaches this function with one that is not.
+  -- Match. Grid-normalised defensively -- a live marketUnit is already on its kind's grid (it
+  -- could not have been posted otherwise), so this is a no-op on every real input and a
+  -- fail-closed guard against whatever reaches this function with one that is not. An item at
+  -- the bottom rung (1s) matches at 1s on every client: there is no whole silver under it.
   if not mode and marketUnit then
-    mode, candidate = "match", GC.Flips.SilverDown(marketUnit)
+    mode, candidate = "match", GC.Flips.SilverDown(marketUnit, kind)
   end
 
   if not mode then
-    candidate = mv and GC.Flips.SilverDown(mv)
+    candidate = mv and GC.Flips.SilverDown(mv, kind)
   end
 
   if candidate == nil then return nil end
@@ -549,7 +569,7 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
     -- visit within a day is not a post that sells today; it is a hold, and holding is what the
     -- lower ceiling produces -- the plain match price, with the flip's stock still in hand.
     local reach = type(opts.reachUnit) == "number" and opts.reachUnit > 0 and opts.reachUnit or nil
-    local ceiling = GC.Flips.SilverDown(reach and math.min(target, reach) or target)
+    local ceiling = GC.Flips.SilverDown(reach and math.min(target, reach) or target, kind)
     if hours > 0 and ceiling and ceiling > candidate then
       local budget = opts.sold * hours / 24
       local best
@@ -567,7 +587,7 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
           if queued > budget then overBudget = true; break end
           -- A later rung has to beat the best so far outright, so a tie goes to the shorter
           -- queue -- same rule as the climb.
-          local normalized = GC.Flips.SilverDown(lvl.unitPrice)
+          local normalized = GC.Flips.SilverDown(lvl.unitPrice, kind)
           if normalized and normalized > candidate
               and GC.Flips.QueuedWorth(normalized, below, opts.sold) > bestWorth then
             best, bestWorth = normalized, GC.Flips.QueuedWorth(normalized, below, opts.sold)
@@ -598,7 +618,7 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   -- price under the very floor this override exists to enforce.
   local floor = opts.floor
   if type(floor) == "number" and floor > 0 and candidate < floor then
-    mode, candidate = "floor", GC.Flips.SilverUp(floor)
+    mode, candidate = "floor", GC.Flips.SilverUp(floor, kind)
   end
 
   -- Deliberately unnormalized -- breakeven is a displayed threshold to compare a price against,
@@ -624,7 +644,8 @@ end
 -- comment on the armed/disarm pattern this reuses).
 -- ---------------------------------------------------------------------------
 
---- args = { paidUnit, marketUnit, mv, levels, sold, qty, floor, reachUnit, quarterUnit }.
+--- args = { paidUnit, marketUnit, mv, levels, sold, qty, floor, reachUnit, quarterUnit,
+-- isCommodity }.
 -- Returns nil, or
 -- { action = "hold"|"repost", reason = "loss"|"slow" (hold only), rec = <RecommendPost's own
 -- return> }.
@@ -634,7 +655,8 @@ end
 -- its own copy of the climb/match branching. A nil rec (neither marketUnit nor mv known)
 -- means there is nothing to advise on yet, so RepostAdvice itself returns nil too. Every
 -- ceiling the caller has -- reachUnit and quarterUnit both -- has to be forwarded, or a listed
--- lot's repost would be priced against a different rule than the same item's bag stock.
+-- lot's repost would be priced against a different rule than the same item's bag stock. So does
+-- the lot's kind (isCommodity): the relist price lands on the grid that kind posts on.
 --
 -- hold/loss: rec.belowCost already means posting AT THE RECOMMENDED PRICE would lock in a loss
 -- -- cancelling the existing (possibly still break-even-or-better) lot to chase that price is
@@ -655,7 +677,7 @@ function GC.Flips.RepostAdvice(args)
   args = args or {}
   local rec = GC.Flips.RecommendPost(args.paidUnit, args.marketUnit, args.mv,
     { levels = args.levels, sold = args.sold, floor = args.floor,
-      reachUnit = args.reachUnit, quarterUnit = args.quarterUnit })
+      reachUnit = args.reachUnit, quarterUnit = args.quarterUnit, isCommodity = args.isCommodity })
   if not rec then return nil end
 
   if rec.belowCost then
