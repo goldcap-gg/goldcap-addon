@@ -214,7 +214,13 @@ local function realIsCommodity(itemID)
   return answer
 end
 
-local cache = { at = nil, itemCount = nil, builtAt = 0, waitUntil = 0, rows = {}, byItem = {} }
+-- `unsure`: how many items the last build left waiting on the client's commodity answer.
+-- `reask`: the auction house opened since (GC.ForeverDeals.OnAuctionHouseShow), so they are asked
+-- again at the next Refresh.
+local cache = { at = nil, itemCount = nil, builtAt = 0, waitUntil = 0, rows = {}, byItem = {},
+  unsure = 0, reask = false }
+-- keyAsked: when each unsure item's key was first asked, for this fold only (rebuild wipes it when
+-- the fold changes, OnAuctionHouseShow when the auction house opens).
 local requested, dropped, keyAsked = {}, {}, {}
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
@@ -226,6 +232,10 @@ local function foldChanged(fold)
 end
 
 local function rebuild(fold, now)
+  -- Each fold waits for its own unsure items. A stamp kept from an earlier fold (once a session,
+  -- 2026-11-06 and before) gave a new fold's items no wait at all when the first ask had run out
+  -- long ago, and their Under market rows never came for that fold.
+  if foldChanged(fold) then keyAsked = {} end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
   local rows, missing, unsure = GC.ForeverDeals.Build(fold, {
     vendorFor = GC.ForeverValue.VendorUnit,
@@ -273,6 +283,7 @@ local function rebuild(fold, now)
   end
   cache.at, cache.itemCount, cache.builtAt, cache.waitUntil, cache.rows, cache.byItem =
     fold.at, fold.itemCount, now, waitUntil, kept, byItem
+  cache.unsure, cache.reask = #unsure, false
 end
 
 local function currentFold()
@@ -283,7 +294,7 @@ end
 function GC.ForeverDeals.Due(now)
   local fold = currentFold()
   if not fold then return cache.at ~= nil end
-  if foldChanged(fold) then return true end
+  if foldChanged(fold) or cache.reask then return true end
   now = now or time()
   return now < cache.waitUntil and now - cache.builtAt >= C.REBUILD_SECONDS
 end
@@ -299,6 +310,7 @@ function GC.ForeverDeals.Rows(now)
   local fold = currentFold()
   if not fold then
     cache.at, cache.itemCount, cache.rows, cache.byItem, cache.waitUntil = nil, nil, {}, {}, 0
+    cache.unsure, cache.reask = 0, false
     return cache.rows
   end
   if foldChanged(fold) then rebuild(fold, now) end
@@ -313,6 +325,20 @@ function GC.ForeverDeals.Refresh(now)
   if not (fold and GC.ForeverDeals.Due(now)) then return false end
   rebuild(fold, now)
   return true
+end
+
+-- The auction house opened (Core/Init.lua, beside GC.ForeverScan.OnAuctionHouseShow). Away from
+-- it GetItemKeyInfo sends the server nothing (Core/Init.lua's commodityByItem note), so a build
+-- made there -- the window opened from the minimap, or the fold a scan committed as the auction
+-- house closed -- waited 30 s on a question nobody was asked. At the next visit, with the same
+-- fold, nothing was due, and the board had no Under market row the whole visit (review,
+-- 2026-11-06). The items that build left unsure get a wait of their own now, asked at the board
+-- clock's next Refresh (UI/SniperFrame.lua), never here: that rebuild writes the deal tables a
+-- Buy click reads.
+function GC.ForeverDeals.OnAuctionHouseShow()
+  if cache.unsure == 0 or not currentFold() then return end
+  keyAsked = {}
+  cache.reask = true
 end
 
 function GC.ForeverDeals.CeilingFor(itemID)

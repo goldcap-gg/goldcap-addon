@@ -285,6 +285,12 @@ describe("WoW: Forever scan wiring", function()
       assert.truthy(init:find("GC.ForeverScan.Init(GC.db)", 1, true))
     end)
 
+    -- Review, 2026-11-06: the Deals board's unsure items are asked again where the client can ask.
+    it("tells the Deals board the auction house opened, after the scan hears it", function()
+      local scan = init:find("GC.ForeverScan.OnAuctionHouseShow()", 1, true)
+      assert.truthy(init:find("GC.ForeverDeals.OnAuctionHouseShow()", scan, true))
+    end)
+
     it("folds a finished browse pass and lets SCAN start the Forever scan", function()
       assert.truthy(sniper:find("GC.ForeverScan.OnBrowsePassDone(GC.Sniper._bookPass:Book())", 1, true))
       assert.truthy(sniper:find('GC.ForeverScan.Request("button")', 1, true))

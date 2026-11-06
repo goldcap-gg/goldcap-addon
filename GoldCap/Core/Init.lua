@@ -783,6 +783,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper.OnAuctionHouseShow()
       -- WoW: Forever: scan on open when the server's throttle allows (Core/ForeverScan.lua).
       if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseShow() end
+      -- WoW: Forever's Deals board: items a build away from the auction house left unsure are
+      -- asked again now that the client can ask the server (Core/ForeverDeals.lua).
+      if GC.ForeverDeals and GC.ForeverDeals.OnAuctionHouseShow then GC.ForeverDeals.OnAuctionHouseShow() end
       -- The welcome window, when Core/Welcome.lua says this visit should open it. Last, and
       -- guarded: a fault in a window of words must never cost the auction house its scan.
       if GC.WelcomeUI and GC.WelcomeUI.MaybeShow then pcall(GC.WelcomeUI.MaybeShow) end

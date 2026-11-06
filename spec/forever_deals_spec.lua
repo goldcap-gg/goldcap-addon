@@ -471,6 +471,69 @@ describe("ForeverDeals", function()
       _G.C_AuctionHouse = nil
     end)
 
+    -- Review, 2026-11-06: GetItemKeyInfo sends the server its question only at the auction
+    -- house. A client whose answer comes only for a key asked there, a few ms later.
+    local function askedOnlyAtTheAH(isCommodity)
+      local ah = withClient(isCommodity, {})
+      local state = { open = false, cached = {}, pending = {} }
+      ah.GetItemKeyInfo = function(key)
+        if state.cached[key.itemID] then return { itemID = key.itemID, isCommodity = isCommodity[key.itemID] == true } end
+        if state.open then state.pending[key.itemID] = true end
+        return nil
+      end
+      function state.answer() for id in pairs(state.pending) do state.cached[id] = true end end
+      return state
+    end
+
+    it("asks again at the auction house for an item key a build away from it left unsure", function()
+      local client = askedOnlyAtTheAH({ [2592] = true })
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      assert.equal(0, #D.Rows(clock))              -- the window opened from the minimap
+      assert.is_false(D.Due(clock + 40))           -- its wait ran out; nobody was asked
+      client.open = true                           -- 20 minutes later, the auction house
+      D.OnAuctionHouseShow()
+      assert.is_true(D.Due(clock + 1200))
+      assert.is_true(D.Refresh(clock + 1200))      -- the board clock asks, now for real
+      assert.is_nil(D.CeilingFor(2592))
+      client.answer()                              -- ITEM_KEY_ITEM_INFO_RECEIVED
+      assert.is_true(D.Refresh(clock + 1205))      -- inside the new wait
+      assert.equal("market", D.CeilingFor(2592).kind)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("gives a new fold's unsure items a wait of their own, whatever an earlier fold asked", function()
+      local client = askedOnlyAtTheAH({ [2592] = true })
+      local items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" }
+      saved = { at = 5000, items = items }
+      D.Rows(clock)                                -- asked away from the auction house
+      client.open = true
+      saved = { at = 6200, items = items }         -- the scan on opening lands a new fold
+      assert.equal(0, #D.Rows(clock + 1200))       -- asked; the answer is not in yet
+      client.answer()
+      assert.is_true(D.Due(clock + 1205))
+      assert.is_true(D.Refresh(clock + 1205))
+      assert.equal("market", D.CeilingFor(2592).kind)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("leaves the board alone at the auction house when its last build left nothing unsure", function()
+      vendor[2589] = 13
+      assert.equal(1, #D.Rows(clock))
+      D.OnAuctionHouseShow()
+      assert.is_false(D.Due(clock + 60))
+      assert.is_false(D.Refresh(clock + 60))
+    end)
+
+    it("does nothing at the auction house on retail", function()
+      withClient({ [2592] = true }, {})
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      D.Rows(clock)
+      GC.ForeverScan.Enabled = function() return false end
+      D.OnAuctionHouseShow()
+      assert.is_false(D.Refresh(clock + 60))
+      _G.C_AuctionHouse = nil
+    end)
+
     it("takes a known non-commodity from the Sell tab's memory without asking", function()
       withClient({}, {}).GetItemKeyInfo = function() error("asked") end
       GC.db.commodityByItem[2592] = false
