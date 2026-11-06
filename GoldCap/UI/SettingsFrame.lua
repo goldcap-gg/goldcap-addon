@@ -869,9 +869,9 @@ local function build(sniperFrame)
     GC.L["Never spend more than this share of your gold on one purchase."])
   if isForeverClient() then
     -- Core/ForeverDeals.lua's BuyLimits: retail's 5% share left nothing to buy at low level --
-    -- while this field stays at that shipped 5%, a vendor row gets half the wallet and a market
-    -- row a quarter. A player who has already
-    -- changed it gets exactly what they typed, unclamped by this carve-out.
+    -- at that shipped 5% or above, a vendor row gets half the wallet and a market row a quarter
+    -- (the player's own share where that is larger). A player who lowered it gets exactly what
+    -- they typed, unclamped by this carve-out.
     -- A row of its own: it runs to three lines across the card, and the row under it moves down
     -- for them rather than being drawn over.
     local note = Theme.Num(whatCounts, 9)

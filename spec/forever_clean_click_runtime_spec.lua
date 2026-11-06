@@ -1220,11 +1220,23 @@ describe("Clean click ordering, driven end to end", function()
       assert.equal(49, live.decision.stressProfit)
     end)
 
-    it("plans a Below vendor Check inside the player's own share once they changed it", function()
+    -- Review, 2026-11-06: a raised share used to give the row its 10%, less than the default's half.
+    it("plans a Below vendor Check inside half the wallet when the player raised the share", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 12, 13)
       GC.db.settings.sniper.maxCapitalShare = 0.10
-      money = 1000 -- 10%: 100c, not half the wallet (which would buy all 55)
+      money = 200 -- half: 100c, not the 10% (20c buys two at 8c, 10c profit, under the 20c minimum)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      assert.equal("SAFE", live.decision.status)
+      assert.equal(11, live.decision.quantity)
+      assert.equal(94, live.decision.entryTotal)
+    end)
+
+    it("plans a Below vendor Check inside the player's own share once they lowered it", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      GC.db.settings.sniper.maxCapitalShare = 0.03
+      money = 3334 -- 3%: 100c, not half the wallet (which would buy all 55)
       local live = capLive(GC, 42, FOREVER_BOOK)
       assert.equal("SAFE", live.decision.status)
       assert.equal(11, live.decision.quantity)

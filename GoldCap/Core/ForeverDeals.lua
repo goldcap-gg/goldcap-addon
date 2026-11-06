@@ -376,19 +376,18 @@ end
 
 -- Decision 5 of plan 3c (controller ruling 2026-09-26). Wraps GC.SniperDecision.BuyLimits with
 -- the Forever-specific carve-out: retail's 5% per-buy share leaves nothing to buy at low level.
--- While the player kept that shipped default, a "vendor" row (its profit locked in by the vendor
--- price the live Check re-reads) gets half the wallet, and a "market" row a quarter (owner,
--- 2026-11-06); a player who changed the share gets their own value, unclamped by this function.
--- Max units per buy (maxQuantity) is untouched for both kinds.
+-- At that shipped default or above, a "vendor" row (its profit locked in by the vendor price the
+-- live Check re-reads) gets half the wallet, and a "market" row a quarter (owner, 2026-11-06),
+-- or the player's own share where that is the larger. Only the default itself used to qualify,
+-- so a player who RAISED the share to 10% got 10%, less than the default gives (review,
+-- 2026-11-06). A player who lowered it keeps their own value. Max units per buy (maxQuantity) is
+-- untouched for both kinds.
 function GC.ForeverDeals.BuyLimits(config, walletCopper, kind)
   local limits = GC.SniperDecision.BuyLimits(config, walletCopper)
   if not limits then return nil end
   local wide = kind == "vendor" and C.VENDOR_CAPITAL_SHARE or kind == "market" and C.MARKET_CAPITAL_SHARE or nil
-  if wide then
-    local share = type(config) == "table" and config.maxCapitalShare or nil
-    if share == nil or share == C.RETAIL_DEFAULT_CAPITAL_SHARE then
-      return { maxQuantity = limits.maxQuantity, budget = math.floor(walletCopper * wide), share = wide }
-    end
+  if wide and limits.share >= C.RETAIL_DEFAULT_CAPITAL_SHARE and wide > limits.share then
+    return { maxQuantity = limits.maxQuantity, budget = math.floor(walletCopper * wide), share = wide }
   end
   return limits
 end

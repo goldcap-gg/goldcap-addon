@@ -647,9 +647,17 @@ describe("ForeverDeals", function()
       assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, limits)
     end)
 
-    it("leaves a vendor row's budget alone once the player changed the share", function()
-      local limits = D.BuyLimits(config(0.10), 10000, "vendor")
-      assert.same({ maxQuantity = 200, budget = 1000, share = 0.10 }, limits)
+    -- Review, 2026-11-06: only the shipped 5% itself used to qualify, so raising the share to
+    -- 10% gave a vendor row 10% of the wallet where the default gave it half.
+    it("gives a vendor row half the wallet when the player raised the share", function()
+      assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, D.BuyLimits(config(0.10), 10000, "vendor"))
+      assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, D.BuyLimits(config(0.20), 10000, "vendor"))
+      -- Above the 20% the settings allow, the share is clamped first, as everywhere else.
+      assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, D.BuyLimits(config(0.90), 10000, "vendor"))
+    end)
+
+    it("leaves a vendor row the share a player lowered", function()
+      assert.same({ maxQuantity = 200, budget = 300, share = 0.03 }, D.BuyLimits(config(0.03), 10000, "vendor"))
     end)
 
     -- Owner, WoW: Forever 2026-11-06: at 5% nearly every Under market row read "needs 2g" -- a
@@ -660,9 +668,17 @@ describe("ForeverDeals", function()
       assert.same({ maxQuantity = 200, budget = 2500, share = 0.25 }, limits)
     end)
 
-    it("leaves a market row's budget alone once the player changed the share", function()
-      local limits = D.BuyLimits(config(0.10), 10000, "market")
-      assert.same({ maxQuantity = 200, budget = 1000, share = 0.10 }, limits)
+    it("gives a market row a quarter of the wallet when the player raised the share", function()
+      assert.same({ maxQuantity = 200, budget = 2500, share = 0.25 }, D.BuyLimits(config(0.10), 10000, "market"))
+      assert.same({ maxQuantity = 200, budget = 2500, share = 0.25 }, D.BuyLimits(config(0.20), 10000, "market"))
+    end)
+
+    it("leaves a market row the share a player lowered", function()
+      assert.same({ maxQuantity = 200, budget = 300, share = 0.03 }, D.BuyLimits(config(0.03), 10000, "market"))
+    end)
+
+    it("leaves a row of no Forever kind the player's own share, as SniperDecision.BuyLimits gives it", function()
+      assert.same({ maxQuantity = 200, budget = 1000, share = 0.10 }, D.BuyLimits(config(0.10), 10000, nil))
     end)
 
     it("answers nothing when the wallet is bad, exactly like SniperDecision.BuyLimits", function()
