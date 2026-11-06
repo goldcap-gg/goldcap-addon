@@ -217,8 +217,9 @@ end
 -- `unsure`: how many items the last build left waiting on the client's commodity answer.
 -- `reask`: the auction house opened since (GC.ForeverDeals.OnAuctionHouseShow), so they are asked
 -- again at the next Refresh.
-local cache = { at = nil, itemCount = nil, builtAt = 0, waitUntil = 0, rows = {}, byItem = {},
-  unsure = 0, reask = false }
+-- `from`: the fold table the rows were built from (Drop reads the entry a row came from).
+local cache = { at = nil, itemCount = nil, rev = nil, from = nil, builtAt = 0, waitUntil = 0,
+  rows = {}, byItem = {}, unsure = 0, reask = false }
 -- keyAsked: when each unsure item's key was first asked, for this fold only (rebuild wipes it when
 -- the fold changes, OnAuctionHouseShow when the auction house opens).
 local requested, dropped, keyAsked = {}, {}, {}
@@ -226,9 +227,21 @@ local requested, dropped, keyAsked = {}, {}, {}
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
 -- to its dump's own honest stamp, so a top-up can add items while `at` does not move at all --
--- `itemCount` (bumped only when items were actually added) catches that case.
+-- `itemCount` (bumped only when items were actually added) catches that case. A merge that only
+-- overwrote entries moves neither, and the board never rebuilt for it (review, 2026-11-06):
+-- `rev`, bumped on every write, does. A fold saved before `rev` existed has none, and the first
+-- two still tell it apart.
 local function foldChanged(fold)
-  return cache.at ~= fold.at or cache.itemCount ~= fold.itemCount
+  return cache.at ~= fold.at or cache.itemCount ~= fold.itemCount or cache.rev ~= fold.rev
+end
+
+-- A dropped row stays off while the fold still holds the very entry it was built from, under the
+-- same `at`. Keyed to `at` alone, a row stayed off through a merge that brought the item a newer
+-- entry, since a merge keeps `at` (review, 2026-11-06); keyed to every write, a browse-only top-up
+-- that kept the item's saved entry would put a lead the player just bought straight back.
+local function isDropped(fold, itemID)
+  local d = dropped[itemID]
+  return d ~= nil and d.at == fold.at and d.entry == fold.items[itemID]
 end
 
 local function rebuild(fold, now)
@@ -254,7 +267,7 @@ local function rebuild(fold, now)
   })
   local kept, byItem = {}, {}
   for _, row in ipairs(rows) do
-    if dropped[row.itemID] ~= fold.at then
+    if not isDropped(fold, row.itemID) then
       kept[#kept + 1] = row
       byItem[row.itemID] = row
     end
@@ -281,8 +294,8 @@ local function rebuild(fold, now)
     keyAsked[itemID] = keyAsked[itemID] or now
     waitUntil = math.max(waitUntil, keyAsked[itemID] + C.REQUEST_WAIT_SECONDS)
   end
-  cache.at, cache.itemCount, cache.builtAt, cache.waitUntil, cache.rows, cache.byItem =
-    fold.at, fold.itemCount, now, waitUntil, kept, byItem
+  cache.at, cache.itemCount, cache.rev, cache.from = fold.at, fold.itemCount, fold.rev, fold
+  cache.builtAt, cache.waitUntil, cache.rows, cache.byItem = now, waitUntil, kept, byItem
   cache.unsure, cache.reask = #unsure, false
 end
 
@@ -309,7 +322,8 @@ function GC.ForeverDeals.Rows(now)
   now = now or time()
   local fold = currentFold()
   if not fold then
-    cache.at, cache.itemCount, cache.rows, cache.byItem, cache.waitUntil = nil, nil, {}, {}, 0
+    cache.at, cache.itemCount, cache.rev, cache.from = nil, nil, nil, nil
+    cache.rows, cache.byItem, cache.waitUntil = {}, {}, 0
     cache.unsure, cache.reask = 0, false
     return cache.rows
   end
@@ -351,8 +365,9 @@ function GC.ForeverDeals.CeilingFor(itemID)
 end
 
 function GC.ForeverDeals.Drop(itemID)
-  if cache.at == nil then return end
-  dropped[itemID] = cache.at
+  local from = cache.from
+  if from == nil then return end
+  dropped[itemID] = { at = from.at, entry = from.items[itemID] }
   cache.byItem[itemID] = nil
   for i = #cache.rows, 1, -1 do
     if cache.rows[i].itemID == itemID then table.remove(cache.rows, i) end

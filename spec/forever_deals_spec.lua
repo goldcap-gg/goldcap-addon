@@ -380,6 +380,85 @@ describe("ForeverDeals", function()
       assert.is_true(D.Due(clock + 1))
     end)
 
+    -- Review, 2026-11-06: a merge that only overwrote entries keeps both `at` and `itemCount`;
+    -- the fold's `rev` (Core/ForeverScan.lua, bumped on every write) still moves.
+    it("rebuilds on a fold whose rev moved while `at` and itemCount did not", function()
+      vendor[2589] = 13
+      saved = { at = 5000, itemCount = 1, rev = 3, items = saved.items }
+      assert.equal(8, D.Rows(clock)[1].unitPrice)
+      assert.is_false(D.Due(clock + 1))
+      saved = { at = 5000, itemCount = 1, rev = 4, items = { [2589] = "9,350,4,;0x10 3x40 1x100 2x200" } }
+      assert.is_true(D.Due(clock + 1))
+      assert.equal(9, D.Rows(clock + 1)[1].unitPrice)
+    end)
+
+    it("brings a dropped row back when a write under the same `at` gives its item a newer entry", function()
+      vendor[2589] = 13
+      saved = { at = 5000, itemCount = 1, rev = 1, items = saved.items }
+      D.Rows(clock)
+      D.Drop(2589)
+      saved = { at = 5000, itemCount = 1, rev = 2, items = { [2589] = "9,350,4,;0x10 3x40 1x100 2x200" } }
+      assert.equal(1, #D.Rows(clock + 1))
+    end)
+
+    -- A browse-only top-up keeps the saved entry of every item it shares with the fold: the lead
+    -- the player just bought is still that entry, and must not come straight back.
+    it("keeps a dropped row off through a write that kept its item's entry", function()
+      vendor[2589], vendor[3000] = 13, 50
+      saved = { at = 5000, itemCount = 1, rev = 1, items = saved.items }
+      D.Rows(clock)
+      D.Drop(2589)
+      saved = { at = 5000, itemCount = 2, rev = 2,
+        items = { [2589] = saved.items[2589], [3000] = "40,2,1,;0x2" } }
+      local rows = D.Rows(clock + 1)
+      assert.equal(1, #rows)
+      assert.equal(3000, rows[1].itemID)
+    end)
+
+    -- The reviewer's case end to end (review, 2026-11-06): each scan's dump is read whole, and
+    -- the player opens a Deals row while its browse pass runs, which aborts the pass.
+    it("shows each fresh whole scan's prices when a Deals row aborted its browse pass", function()
+      helper.loadModule("Core/Game.lua", GC)
+      helper.loadModule("Core/ForeverGear.lua", GC)
+      helper.loadModule("Core/ForeverScan.lua", GC)
+      local store, timers, dumpRows, t = {}, {}, {}, 100000
+      GC.ForeverScan.Enabled = function() return true end
+      GC.ForeverScan.Fold = function() return store.fold end
+      GC.ForeverValue.CommodityDepositUnit = function() return 0 end
+      GC.db.commodityByItem[5471] = true
+      local drv = {
+        now = function() return t end,
+        after = function(sec, fn) timers[#timers + 1] = { s = sec, fn = fn } end,
+        replicate = function() return true end,
+        numRows = function() return #dumpRows end,
+        rowInfo = function(i) local r = dumpRows[i + 1]; if not r then return nil end; return r[1], r[2], r[3], r[4] end,
+        isGear = function() return false end,
+        startBrowse = function() return "started" end,
+        store = function() return store end,
+        passport = function() return { interface = 16001, region = 3, realm = "R", faction = "Horde" } end,
+        notify = function() end,
+      }
+      local function scan(cheap, abort)
+        store.requestedAt = nil
+        dumpRows = {}
+        for _ = 1, 10 do dumpRows[#dumpRows + 1] = { 5471, 1, cheap, true } end
+        for i = 1, 200 do dumpRows[#dumpRows + 1] = { 5471, 1, 199 + (i % 5), true } end
+        local s = GC.ForeverScan.New(drv)
+        s:OnAuctionHouseShow()
+        while #timers > 0 and (s:State() == "reading" or s:State() == "waiting") do table.remove(timers, 1).fn() end
+        if abort then s:OnBrowsePassAbandoned({}) else s:OnBrowsePassDone({}) end
+        timers = {}
+      end
+      scan(133, false)
+      assert.equal(133, D.Rows(t)[1].unitPrice)
+      t = t + 1200
+      scan(120, true)                            -- 20 minutes on, 120c lots; a row opened
+      assert.equal(120, D.Rows(t)[1].unitPrice)
+      t = t + 1200
+      scan(110, true)
+      assert.equal(110, D.Rows(t)[1].unitPrice)
+    end)
+
     it("names the ceiling a live Check is held to, and drops a row until the next fold", function()
       vendor[2589] = 13
       D.Rows(clock)
