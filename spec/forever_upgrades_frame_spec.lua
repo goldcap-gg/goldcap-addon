@@ -184,6 +184,20 @@ describe("Upgrades window", function()
     assert.equal(1, #timers)
   end)
 
+  it("never lets gold or gear repaints use up the cap on chasing an item that does not load", function()
+    local timers = {}
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    GC.ForeverUpgrades.Current = function() return { rows = {}, loading = 1, loadingIds = { [42] = true } } end
+    U.Show()
+    for _ = 1, U.C.STALE_LIMIT + 2 do                -- buying on the auction house: PLAYER_MONEY after PLAYER_MONEY
+      U.OnChange()
+      timers[#timers]()
+    end
+    local before = #timers
+    U.OnItemInfo(42)                                 -- the item it waits for still gets its repaint
+    assert.equal(before + 1, #timers)
+  end)
+
   -- Final review M1: an id nobody was waiting for must not itself trigger a rebuild, and an id
   -- that never resolves must not keep the window rebuilding forever.
   it("ignores an item it was not waiting for, and gives up once the loading count stops shrinking", function()

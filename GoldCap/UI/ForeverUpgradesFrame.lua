@@ -186,18 +186,22 @@ function GC.ForeverUpgradesUI.Toggle()
   if frame and frame:IsShown() then frame:Hide() else GC.ForeverUpgradesUI.Show() end
 end
 
-function GC.ForeverUpgradesUI.RefreshIfShown()
+-- notLoad: a repaint for another reason (the gold carried, a worn piece -- OnChange), which says
+-- nothing about whether the items still loading answer, so it leaves the storm cap's count alone.
+function GC.ForeverUpgradesUI.RefreshIfShown(notLoad)
   if not (frame and frame:IsShown()) then return end
   local r = current()
   local loading = r.loading or 0
   -- M1: a repaint that did not shrink the loading count is one item (or more) that still has not
   -- answered; after STALE_LIMIT of those in a row, stop chasing it until the window reopens.
-  if lastLoadingCount ~= nil and loading > 0 and loading >= lastLoadingCount then
-    staleRepaints = staleRepaints + 1
-  else
-    staleRepaints = 0
+  if not notLoad then
+    if lastLoadingCount ~= nil and loading > 0 and loading >= lastLoadingCount then
+      staleRepaints = staleRepaints + 1
+    else
+      staleRepaints = 0
+    end
+    lastLoadingCount = loading
   end
-  lastLoadingCount = loading
   GC.ForeverUpgradesUI.Render(r, time())
 end
 
@@ -207,13 +211,13 @@ end
 -- against the last render's own loading set -- an answer for something nobody asked about should
 -- not itself trigger a rebuild -- and a storm that has stopped shrinking the loading count gives up
 -- until the window is reopened.
-local function repaintSoon()
+local function repaintSoon(notLoad)
   local timer = _G.C_Timer
   if type(timer) ~= "table" or type(timer.After) ~= "function" then return end
   pending = true
   timer.After(0.5, function()
     pending = false
-    GC.ForeverUpgradesUI.RefreshIfShown()
+    GC.ForeverUpgradesUI.RefreshIfShown(notLoad)
   end)
 end
 
@@ -228,5 +232,5 @@ end
 -- are weighed against both. The same single repaint half a second on, only while the window is up.
 function GC.ForeverUpgradesUI.OnChange()
   if pending or not (frame and frame:IsShown()) then return end
-  repaintSoon()
+  repaintSoon(true)
 end
