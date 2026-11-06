@@ -5198,11 +5198,12 @@ local function drawVerdict(deal, decision, market)
   elseif hero.kind == "forever" then
     -- WoW: Forever: what the buy makes, captioned by what it is measured against -- the
     -- vendor's exact price, or the scan's AH value and an unknown resale speed.
-    -- A refused one keeps its figure, dim and uncaptioned: the reason line says why.
+    -- A refused one keeps its figure, dim and uncaptioned: the reason line says why. So does one
+    -- the live book priced under the AH value (hero.liveExit, Core/CheckVerdict.lua).
     local up = hero.copper >= 0
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
     figureColor = hero.refused and Theme.color.fgDim or up and Theme.color.green or Theme.color.red
-    caption = hero.refused and ""
+    caption = (hero.refused or hero.liveExit) and ""
       or (GC.L[CV.HERO_CAPTION[hero.forever == "market" and (hero.refSource == "crowd" and "market_crowd" or "market") or "vendor"]])
         :format(displayDecisionAmount(hero.ref))
   elseif hero.kind == "days" then
@@ -5392,15 +5393,16 @@ local function stampDialogFromDecision(deal, decision)
   --
   -- A Forever decision that passed (GC.Sniper._DecideCeiling/_DecideCeilingLot) carries its
   -- `ceiling` and no reasons either; the line says which kind of deal it is and what it makes.
-  -- A Forever refusal carries its reason, and reads it like any other.
+  -- A Forever refusal carries its reason, and reads it like any other. The line names the AH
+  -- value or vendor price (`refUnit`), not the resale the live book holds a market buy to.
   local foreverPass = decision.ceiling ~= nil and #(decision.reasons or {}) == 0
   -- A followed group's cap is that group's deal price, which the player never typed: its own
   -- sentence (GC.Sniper._CapNote), never "the price you set".
   dialog.reasonText:SetText(decision.cap
     and (decision.followed and GC.Sniper._CapNote(deal)
       or GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."])
-    or foreverPass and GC.Sniper._ForeverNote(decision.forever, decision.ceiling, decision.exitUnit,
-      decision.stressProfit)
+    or foreverPass and GC.Sniper._ForeverNote(decision.forever, decision.ceiling,
+      decision.refUnit or decision.exitUnit, decision.stressProfit)
     or GC.SniperDecision.ReasonText(firstReason))
 
   -- The verdict block is drawn by drawVerdict (above), off Core/CheckVerdict.lua. The item's

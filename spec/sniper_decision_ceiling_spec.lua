@@ -7,6 +7,7 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
     helper.loadModule("Core/Caps.lua", GC)
     helper.loadModule("Core/Trigger.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
     S = GC.SniperDecision
   end)
 
@@ -156,6 +157,99 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
         levels = { { unitPrice = 60, quantity = 10 } }, limits = { maxQuantity = 200, budget = 100000 },
         depositForQuantity = function() return nil end, minimumProfit = 20 })
       assert.same({ "deposit_missing" }, d.reasons)
+    end)
+
+    -- Review 2026-11-06: a market row resells into the live book, so the units its buy leaves
+    -- there cap the resale one copper under the cheapest of them, whatever AH value the board's
+    -- scan saw. The row from the owner's own save: the scan saw 55 units at 133c and an AH value of
+    -- 199c (ceiling 139c); since then 300 units were listed at 135c.
+    describe("a market resale held to the live book", function()
+      local function marketInput(over)
+        local i = { ceilingUnit = 139, kind = "market", exitUnit = 199,
+          levels = { { unitPrice = 133, quantity = 55 }, { unitPrice = 135, quantity = 300 },
+            { unitPrice = 199, quantity = 76 } },
+          limits = { maxQuantity = 200, budget = 10000000 },
+          limitsFor = function(wallet) return { maxQuantity = 200, budget = wallet } end,
+          depositForQuantity = function() return 0 end, minimumProfit = 20 }
+        for k, v in pairs(over or {}) do i[k] = v end
+        return i
+      end
+
+      it("refuses a buy the asks left on the book undercut", function()
+        local d = S.EvaluateCeiling(marketInput())
+        assert.equal("AVOID", d.status); assert.is_false(d.buyable)
+        assert.same({ "profit_below_minimum" }, d.reasons)
+        assert.is_nil(d.needsGold)
+        -- 55 at 133c and 145 of the 300 at 135c: 26,890c. The other 155 at 135c sell first.
+        assert.equal(200, d.quantity); assert.equal(26890, d.entryTotal)
+        assert.equal(134, d.exitUnit); assert.equal(199, d.refUnit)
+        assert.equal(-1430, d.stressProfit)  -- 26,800 - 1,340 cut - 26,890; the scan's 199c said +10,920
+        -- And the server's quote for those 200, at Confirm, is held to the same book.
+        assert.same({ "profit_below_minimum" },
+          S.EvaluateCeiling(marketInput({ fixedQuantity = 200, quotedTotal = 26890 })).reasons)
+      end)
+
+      it("reads the book cheapest first, in whatever order it came", function()
+        local d = S.EvaluateCeiling(marketInput({ levels = { { unitPrice = 199, quantity = 76 },
+          { unitPrice = 135, quantity = 300 }, { unitPrice = 133, quantity = 55 } } }))
+        assert.same({ "profit_below_minimum" }, d.reasons)
+        assert.equal(26890, d.entryTotal); assert.equal(134, d.exitUnit)
+      end)
+
+      it("keeps the board's AH value when the buy leaves nothing on the book", function()
+        local d = S.EvaluateCeiling(marketInput({ levels = { { unitPrice = 133, quantity = 55 },
+          { unitPrice = 135, quantity = 145 } } }))
+        assert.equal("SAFE", d.status); assert.is_true(d.buyable)
+        assert.equal(200, d.quantity)
+        assert.equal(199, d.exitUnit); assert.equal(199, d.refUnit)
+        assert.equal(10920, d.stressProfit)  -- 39,800 - 1,990 cut - 26,890
+      end)
+
+      it("changes nothing when what is left asks more than the board's AH value", function()
+        for _, ask in ipairs({ 200, 250 }) do
+          local d = S.EvaluateCeiling(marketInput({ levels = { { unitPrice = 133, quantity = 55 },
+            { unitPrice = 135, quantity = 145 }, { unitPrice = ask, quantity = 76 } } }))
+          assert.is_true(d.buyable)
+          assert.equal(199, d.exitUnit); assert.equal(10920, d.stressProfit)
+        end
+      end)
+
+      it("still buys when the resale one copper under the book clears the minimum", function()
+        local d = S.EvaluateCeiling(marketInput({ levels = { { unitPrice = 133, quantity = 55 },
+          { unitPrice = 180, quantity = 500 } } }))
+        assert.is_true(d.buyable)
+        assert.equal(55, d.quantity); assert.equal(7315, d.entryTotal)
+        assert.equal(179, d.exitUnit); assert.equal(199, d.refUnit)
+        assert.equal(2037, d.stressProfit)   -- 9,845 - 493 cut - 7,315
+      end)
+
+      -- The book EvaluateCeiling is handed carries no numOwnerItems: driver.commodityBook
+      -- (UI/SniperFrame.lua, ownedUnits) took the player's own units out of each level already
+      -- (spec/sniper_purchase_wiring_spec.lua, "leaves the player's own units out of the order
+      -- book"). So when 155 of the 300 at 135c are the player's own, that level arrives as the
+      -- other 145, the buy takes all of them, and nothing of the player's holds the resale down.
+      it("never prices the resale against the player's own listings", function()
+        local d = S.EvaluateCeiling(marketInput({ levels = { { unitPrice = 133, quantity = 55 },
+          { unitPrice = 135, quantity = 145 }, { unitPrice = 250, quantity = 76 } } }))
+        assert.is_true(d.buyable)
+        assert.equal(200, d.quantity); assert.equal(199, d.exitUnit)
+        assert.equal(10920, d.stressProfit)
+      end)
+
+      it("leaves a vendor row's resale at the vendor's price, whatever is left on the book", function()
+        -- 20 units: five at 8c, ten at 9c, five of the forty at 12c, 190c, with 35 at 12c left.
+        local limits = { maxQuantity = 20, budget = 100000 }
+        local d = S.EvaluateCeiling(vendorInput({ limits = limits }))
+        assert.is_true(d.buyable)
+        assert.equal(20, d.quantity); assert.equal(190, d.entryTotal)
+        assert.equal(13, d.exitUnit); assert.equal(13, d.refUnit)
+        assert.equal(70, d.stressProfit)     -- 13 * 20 - 190: a vendor pays no matter who lists
+        -- The same buy as a market row resells under those 35: 11c, and refuses.
+        d = S.EvaluateCeiling(vendorInput({ kind = "market", limits = limits,
+          depositForQuantity = function() return 0 end }))
+        assert.equal(11, d.exitUnit)
+        assert.same({ "profit_below_minimum" }, d.reasons)
+      end)
     end)
 
     it("obeys the purchases kill switch like every SAFE answer", function()

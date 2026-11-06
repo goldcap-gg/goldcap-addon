@@ -931,22 +931,50 @@ describe("Clean click ordering, driven end to end", function()
       assert.is_nil(d.verdictLabel.text:find("Below vendor", 1, true))
     end)
 
+    -- An Under market row's book: the Below vendor one with its wall above the 20c AH value. A
+    -- market resale is held one copper under what the buy leaves on the live book (review
+    -- 2026-11-06), and FOREVER_BOOK's 100 units at 13c would hold it to 12c.
+    local MARKET_BOOK = { { unitPrice = 8, quantity = 5 }, { unitPrice = 9, quantity = 10 },
+      { unitPrice = 12, quantity = 40 }, { unitPrice = 21, quantity = 100 } }
+
     it("the check panel says an Under market commodity is a resale at the scan's AH value, speed unknown", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 12, 20, "market")
-      local live = capLive(GC, 42, FOREVER_BOOK)
+      local live = capLive(GC, 42, MARKET_BOOK)
       assert.equal("SAFE", live.decision.status)
       local deal = foreverDeal(42, true)
       deal.forever, deal.refUnit = "market", 20
       local row = { deal = deal, purchaseToken = 1 }
       local d = panelDialog(row, deal)
       setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
-      armReadyFn(GC)(row, deal, live.decision, FOREVER_BOOK)
+      armReadyFn(GC)(row, deal, live.decision, MARKET_BOOK)
       assert.equal("Under market", d.verdictLabel.text)
       -- 55 units resold at 20c: 1,100c, less the 55c cut, the 0c deposit and the 610c paid.
       assert.equal("+" .. GC.Util.FormatMoney(435), d.verdictAmount.text)
       assert.equal(("resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown")
         :format(GC.Util.FormatMoney(20)), d.verdictAmountNote.text)
+      assertNoRetailWords(d)
+    end)
+
+    it("the check panel prices an Under market buy the live book undercuts at that book, and still names the AH value", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 20, "market")
+      local book = { { unitPrice = 8, quantity = 5 }, { unitPrice = 9, quantity = 10 },
+        { unitPrice = 12, quantity = 40 }, { unitPrice = 16, quantity = 100 } }
+      local live = capLive(GC, 42, book)
+      assert.equal("SAFE", live.decision.status)
+      local deal = foreverDeal(42, true)
+      deal.forever, deal.refUnit = "market", 20
+      local row = { deal = deal, purchaseToken = 1 }
+      local d = panelDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      armReadyFn(GC)(row, deal, live.decision, book)
+      -- 55 units resold at 15c, under the 100 left at 16c: 825c, less the 42c cut and the 610c paid.
+      assert.equal("+" .. GC.Util.FormatMoney(173), d.verdictAmount.text)
+      assert.equal(GC.Util.FormatMoney(15), d.exitUnitText.text)
+      -- No caption calls 15c the AH value; the reason line names the real one, 20c.
+      assert.equal("", d.verdictAmountNote.text)
+      assert.equal(GC.Sniper._ForeverNote("market", 12, 20, 173), d.reasonText.text)
       assertNoRetailWords(d)
     end)
 

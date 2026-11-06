@@ -562,6 +562,22 @@ describe("CheckVerdict", function()
       assert.is_truthy(caption:find("speed unknown", 1, true))
     end)
 
+    -- Review 2026-11-06: EvaluateCeiling holds a market resale one copper under the asks the buy
+    -- leaves on the live book (`exitUnit`), under the board's AH value (`refUnit`). The caption
+    -- would call that price the AH value, so the hero says it has none.
+    it("does not call a resale the live book priced under the AH value the AH value", function()
+      local live = marketPass()
+      live.refUnit, live.exitUnit, live.stressProfit = 20, 15, 173  -- 825 - 42 cut - 610
+      local v = GC.CheckVerdict.Build(live, scanMarket, { forever = "market" })
+      assert.equal("market", v.tone)
+      assert.same({ kind = "forever", forever = "market", copper = 173, ref = 15, liveExit = true }, v.hero)
+      assert.equal(783, factById(v, "youGet").copper)
+      -- At the AH value itself, the caption stands.
+      local atValue = marketPass()
+      atValue.refUnit = 20
+      assert.is_nil(GC.CheckVerdict.Build(atValue, scanMarket, { forever = "market" }).hero.liveExit)
+    end)
+
     it("keeps a refusal a refusal, with the Forever figure rather than the resale caption", function()
       local refused = vendorPass()
       refused.status, refused.buyable, refused.reasons = "AVOID", false, { "profit_below_minimum" }

@@ -964,6 +964,23 @@ local function ceilingProfit(kind, exitUnit, quantity, entryTotal, deposit)
   return gross - safeCeilDiv(gross * 5, 100) - entryTotal - deposit
 end
 
+-- The unit a buy of `quantity` resells at. A "vendor" row sells to the NPC, at a price no book can
+-- move. A "market" row sells back into this auction house, so the board's AH value (`exitUnit`,
+-- from a scan that may be a quarter of an hour old or more) holds only while nobody asks less:
+-- the units the plan leaves on the book have to sell first, so the exit is one copper under the
+-- cheapest of them, as on retail (GC.DealMath.SellUnit, the Sell tab's rule). Review 2026-11-06,
+-- a row on the owner's own save: the scan saw 55 units at 133c, an AH value of 199c, a ceiling
+-- of 139c; since then 300 units were listed at 135c. The Check said SAFE for 200 units, 26,890c,
+-- +10,920c, against the 155 left at 135c: resold at 134c, that buy loses about 1,430c. The book
+-- arrives without the player's own units (driver.commodityBook), so their own listings never
+-- hold the exit down; a plan that empties the book leaves nothing to undercut, and the AH value
+-- stands. `levels` is ascending (EvaluateCeiling), so Book.Fill's units are the plan's own.
+local function ceilingExit(input, levels, quantity)
+  if input.kind ~= "market" then return input.exitUnit end
+  local left = GC.Book.Fill(levels, quantity)
+  return (GC.DealMath.SellUnit(input.exitUnit, left and left.competing))
+end
+
 -- One answer at one set of per-buy limits: EvaluateCeiling's own, and each one its needs-gold
 -- search below asks of itself.
 local function decideCeiling(input, cap, levels, limits)
@@ -982,11 +999,14 @@ local function decideCeiling(input, cap, levels, limits)
     deposit = type(input.depositForQuantity) == "function" and input.depositForQuantity(plan.quantity) or nil
     if not isInteger(deposit) then return refusal("deposit_missing") end
   end
+  -- `exitUnit` is the resale this buy is priced at, which the dialog shows; `refUnit` the board's
+  -- own figure, the AH value or vendor price its words name (GC.Sniper._ForeverNote).
+  local exitUnit = ceilingExit(input, levels, plan.quantity)
   local figures = {
     quantity = plan.quantity, entryTotal = entryTotal,
     entryUnitDisplay = math.floor(entryTotal / plan.quantity), unit = plan.unit,
-    ceiling = input.ceilingUnit, forever = input.kind, exitUnit = input.exitUnit, deposit = deposit,
-    stressProfit = ceilingProfit(input.kind, input.exitUnit, plan.quantity, entryTotal, deposit),
+    ceiling = input.ceilingUnit, forever = input.kind, exitUnit = exitUnit, refUnit = input.exitUnit,
+    deposit = deposit, stressProfit = ceilingProfit(input.kind, exitUnit, plan.quantity, entryTotal, deposit),
     requiredProfit = input.minimumProfit,
   }
   if figures.stressProfit < input.minimumProfit then return refusal("profit_below_minimum", figures) end
@@ -1018,6 +1038,10 @@ function GC.SniperDecision.EvaluateCeiling(input)
     local level = input.levels[i]
     if positiveEntry(level, "unitPrice", "quantity") then levels[#levels + 1] = level end
   end
+  -- Cheapest first, on this copy: Book.Fill walks the book in the order it is given, and the
+  -- units it takes for a market resale (ceilingExit) must be the ones DecideCommodity buys, which
+  -- sorts its own copy for the same reason (Core/Caps.lua, final review M3).
+  table.sort(levels, function(a, b) return a.unitPrice < b.unitPrice end)
   local out = decideCeiling(input, cap, levels, input.limits)
 
   -- A buy the wallet limit ALONE refuses is a deal that needs gold, not a bad one: Evaluate's
