@@ -93,6 +93,9 @@ end
 -- Two copies of one piece at two item levels were two identical rows (review M9): a variant's
 -- row names its level -- a pet's, its pet level -- from its own key.
 function ROW.variantSuffix(position)
+  -- No variant, no level to name: WoW: Forever keys an item by its one level, which tells it from
+  -- nothing (Core/SellPositions.lua). Elsewhere such a key has no level to name anyway.
+  if not position.variantKind then return "" end
   -- A level that is the item's only one (a schematic) says nothing about the stack.
   if position.variantKind == "level" and not GC.SellViewModel.LevelVariant(position) then return "" end
   local level = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match("^item:%d+:(%d+):"))

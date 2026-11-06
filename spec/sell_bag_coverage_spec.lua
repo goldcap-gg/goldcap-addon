@@ -625,6 +625,30 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.is_nil(row.goldcapVariant)
   end)
 
+  -- WoW: Forever (2026-11-06): an item ID has one item level there, and its ItemKey states it for
+  -- gear and bags alike (item:828:5:0:0, Small Blue Pouch, on the owner's save). Its row names no
+  -- level, and it keeps the item's own AH value, while the search stays on the stack's own key.
+  it("keeps the item's own market value for a level key in WoW: Forever", function()
+    _G.C_Item.GetItemInfoInstant = function(id) if id == 222 then return 222, "", "", "", 0, 4, 1 end end
+    GC.ForeverScan = { Enabled = function() return true end }
+    GC.Data.GetItemValue = function(id) return id == 222 and { mv = 30000, source = "scan" } or nil end
+    kinds[222] = false
+    -- A Forever link: the bonus-ID count (field 14) is empty, so the slot's ItemKey keys it.
+    stack(1, 222, 1, "item:%d::::::::5:::::::::", { itemName = "Small Blue Pouch" })
+    slotKeys["0:1"] = key(222, 5)
+    compose()
+    local p = positionOf("item:222:5:0:0")
+    assert.equal("item:222:5:0:0", p.quoteKey)
+    assert.is_nil(p.variantKind)
+    assert.equal(30000, p.marketValue)
+    local row
+    for _, candidate in ipairs(GC.SellUI.rows) do
+      if candidate:IsShown() and candidate.kind == "position" then row = candidate end
+    end
+    assert.is_nil(row.cells.item.text:find("ilvl", 1, true))
+    GC.ForeverScan = nil
+  end)
+
   it("still names the item level on armor", function()
     _G.C_Item.GetItemInfoInstant = function(id) if id == 222 then return 222, "", "", "", 0, 4, 1 end end
     kinds[222] = false

@@ -273,7 +273,7 @@ local function addLot(position, ownedLot)
 end
 
 local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules,
-    defaultPrice, cancelForfeit)
+    defaultPrice, cancelForfeit, oneLevelPerItem)
   table.sort(position.ownedLots, stableLotOrder)
   -- An item-level variant is priced from a search for its own ItemKey, filed under its own
   -- `quoteKey` (Services/Sell/Quotes.lua); anything else under its itemID, as ever.
@@ -351,7 +351,18 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   local keyLevel = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match("^item:%d+:(%d+):")) or 0
   -- A key with no level and no species is the bare one (bonus IDs on a non-gear item): no
   -- variant, and its data is its own (review N8).
-  position.variantKind = position.quoteKey and ((petSpecies or 0) > 0 and "pet" or keyLevel > 0 and "level" or nil)
+  --
+  -- WoW: Forever (`oneLevelPerItem`): an item ID has one item level there, and its ItemKey states
+  -- it for gear, bags, scrolls and recipes alike (the owner's save, 2026-11-06: item:828:5:0:0 for
+  -- Small Blue Pouch, item:2773:8:0:0), so a level alone tells no variant apart, and the scan's and
+  -- the crowd's figures are per item ID. Read as a variant, every non-commodity there had no AH
+  -- value and no floor: a pouch worth 3s was posted at 1s to match one troll lot. Only a suffix
+  -- ("... of the Bear") or a pet makes a variant there. The search still goes by the stack's own
+  -- key (`quoteKey`), the one the client answers for.
+  local keySuffix = type(position.quoteKey) == "string"
+    and tonumber(position.quoteKey:match("^item:%d+:%d+:(%d+):")) or 0
+  local levelVariant = keyLevel > 0 and not (oneLevelPerItem and keySuffix == 0)
+  position.variantKind = position.quoteKey and ((petSpecies or 0) > 0 and "pet" or levelVariant and "level" or nil)
     or nil
   local marketStats = not position.variantKind and statsByItemID and statsByItemID[position.itemID] or nil
   -- Followed groups (spec/sell_group_rules_spec.lua): the selling rule of the group the player
@@ -971,7 +982,8 @@ function GC.SellPositions.Build(args)
     -- here, and (an old save may hold many) would otherwise sit among the rows a player acts on.
     if not onlyIdleVendorLots(position) then
       decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
-        args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules, args.defaultPrice, args.cancelForfeit)
+        args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules, args.defaultPrice, args.cancelForfeit,
+        args.oneLevelPerItem == true)
       result[#result + 1] = position
     end
   end

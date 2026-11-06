@@ -111,6 +111,9 @@ function Compose.Positions(skipPaint)
     -- each lot against there (Core/SellPositions.lua's decoratePosition). Retail's advice is as it
     -- was.
     cancelForfeit = GC.Sell.OnForever and GC.Sell.OnForever() and GC.Sell.LotForfeit or nil,
+    -- WoW: Forever only: an item ID has one item level there, so an ItemKey's level is no variant
+    -- and the item's own market figures apply (Core/SellPositions.lua's decoratePosition).
+    oneLevelPerItem = GC.Sell.OnForever and GC.Sell.OnForever() or nil,
     -- Followed groups: each item's selling rule and its unsold rounds (Core/GroupRules.lua,
     -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. Retail only: on
     -- WoW: Forever neither module loads and no position has a rule.

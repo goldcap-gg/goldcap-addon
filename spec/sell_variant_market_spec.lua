@@ -143,4 +143,61 @@ describe("Sell tab, a variant's market is its own", function()
     }, 10)
     assert.is_nil(lots[1].variant)
   end)
+
+  -- WoW: Forever (2026-11-06): an item ID has one item level there, and its ItemKey states it for
+  -- every non-commodity, gear or not (the owner's save: item:828:5:0:0, Small Blue Pouch). Read as
+  -- a level variant, every one of them lost its AH value and its floor. Compose passes
+  -- `oneLevelPerItem` only there.
+  describe("in WoW: Forever, where an item ID has one item level", function()
+    local POUCH = "item:828:5:0:0"
+    local savedAH
+
+    before_each(function()
+      savedAH = _G.C_AuctionHouse
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+    end)
+
+    after_each(function() _G.C_AuctionHouse = savedAH end)
+
+    -- One troll lot at 1s over the real shelf, 157 at 3s and 300 at 4s; the scan's value is 3s.
+    local function pouch(oneLevel, key)
+      key = key or POUCH
+      return find(build({
+        bagStock = { { positionKey = key, itemID = 828, itemName = "Small Blue Pouch", quantity = 1,
+          isCommodity = false, quoteKey = key, stacks = { { bag = 0, slot = 1, quantity = 1 } } } },
+        quotes = { [key] = { unit = 100, at = 1000, levels = { { unitPrice = 100, quantity = 1 },
+          { unitPrice = 300, quantity = 157 }, { unitPrice = 400, quantity = 300 } } } },
+        statsByItemID = { [828] = { mv = 300, source = "scan", kind = "own_scan" } },
+        oneLevelPerItem = oneLevel,
+      }), key)
+    end
+
+    it("values a level-keyed item from its own item ID, and holds it at the floor over one troll lot", function()
+      local p = pouch(true)
+      assert.is_nil(p.variantKind)
+      assert.equal(300, p.marketValue)
+      assert.equal(225, p.postFloor)
+      assert.equal(225, p.postRecommendation.unit)
+      assert.equal("floor", p.postRecommendation.mode)
+      -- Still searched by the stack's own key, the one the client answers for.
+      assert.equal(POUCH, p.quoteKey)
+      assert.is_nil((GC.SellViewModel.Expansion(p).factsText or ""):find("no market figure", 1, true))
+    end)
+
+    it("keeps retail's level variant as it was", function()
+      local p = pouch(nil)
+      assert.equal("level", p.variantKind)
+      assert.is_nil(p.marketValue)
+      assert.is_nil(p.postFloor)
+      assert.equal(100, p.postRecommendation.unit)
+    end)
+
+    it("keeps a suffix variant on its own book, with no market figure", function()
+      local key = "item:828:5:1234:0"
+      local p = pouch(true, key)
+      assert.equal("level", p.variantKind)
+      assert.is_nil(p.marketValue)
+      assert.is_nil(p.postFloor)
+    end)
+  end)
 end)
