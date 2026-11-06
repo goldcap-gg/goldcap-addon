@@ -382,6 +382,55 @@ describe("Ledger store", function()
       _G.UnitName, _G.GetRealmName = nil, nil
       assert.equal("Belarsa-Dentarg", ctx.char)
     end)
+
+    it("names the character's faction, and none when the client cannot", function()
+      _G.UnitFactionGroup = function() return "Horde" end
+      assert.equal("Horde", GC.Ledger.Context().faction)
+      -- A Pandaren before the choice.
+      _G.UnitFactionGroup = function() return "Neutral" end
+      assert.is_nil(GC.Ledger.Context().faction)
+      _G.UnitFactionGroup = function() error("no player yet") end
+      assert.is_nil(GC.Ledger.Context().faction)
+      _G.UnitFactionGroup = nil
+      assert.is_nil(GC.Ledger.Context().faction)
+    end)
+  end)
+
+  describe("faction on a row", function()
+    local function row(key, char)
+      return { key = key, kind = "sale", source = "mail", itemName = "Linen Cloth", qty = 1, total = 100, at = 1000,
+        char = char, region = "eu" }
+    end
+
+    after_each(function()
+      _G.UnitName, _G.GetRealmName, _G.UnitFactionGroup = nil, nil, nil
+    end)
+
+    it("stamps the faction of the character at the keyboard on its own rows only", function()
+      _G.UnitName = function() return "Belarsa" end
+      _G.GetRealmName = function() return "Dentarg" end
+      _G.UnitFactionGroup = function() return "Alliance" end
+      local own = GC.Ledger.Append(row("own", "Belarsa-Dentarg"))
+      local alt = GC.Ledger.Append(row("alt", "Other-Dentarg"))
+      assert.equal("Alliance", own.faction)
+      assert.is_nil(alt.faction, "another character's faction is never guessed")
+    end)
+
+    it("keeps a faction the row already carries", function()
+      _G.UnitName = function() return "Belarsa" end
+      _G.GetRealmName = function() return "Dentarg" end
+      _G.UnitFactionGroup = function() return "Alliance" end
+      local r = row("given", "Belarsa-Dentarg")
+      r.faction = "Horde"
+      assert.equal("Horde", GC.Ledger.Append(r).faction)
+    end)
+
+    it("writes none when the client cannot name it", function()
+      _G.UnitName = function() return "Belarsa" end
+      _G.GetRealmName = function() return "Dentarg" end
+      local r = GC.Ledger.Append(row("none", "Belarsa-Dentarg"))
+      assert.is_nil(r.faction)
+    end)
   end)
 
   -- Task 9 Step 4b: the Sell tab's pending-sync hint reads this counter to explain why

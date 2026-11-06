@@ -18,6 +18,14 @@ describe("Ledger gold series", function()
     assert.equal("Belarsa-Dentarg", points[1].char)
   end)
 
+  it("keeps the faction the context names, and none when it names none", function()
+    GC.Ledger.RecordGold(1000, { char = "Belarsa-Dentarg", region = "eu", faction = "Horde" }, 1000)
+    GC.Ledger.RecordGold(2000, context, 2000)
+    local points = GC.Ledger.GetGold()
+    assert.equal("Horde", points[1].faction)
+    assert.is_nil(points[2].faction)
+  end)
+
   it("ignores a reading taken again too soon", function()
     GC.Ledger.RecordGold(123456, context, 1000)
     -- PLAYER_MONEY fires on every vendor sale, loot and repair; storing each
