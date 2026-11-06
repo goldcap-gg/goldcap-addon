@@ -124,15 +124,26 @@ local function underMarket(itemID, e, ctx, isCommodity)
   if type(deposit) ~= "number" or deposit < 0 then return nil end
   local ceiling = math.min(math.floor(refUnit * C.MARKET_SHARE), net - deposit - 1)
   if ceiling < 1 then return nil end
-  local units, cost, profit = 0, 0, 0
-  for _, level in ipairs(e.ladder) do
+  -- Priced as the Check prices it (GC.SniperDecision.EvaluateCeiling): resold one copper under the
+  -- cheapest ask the buy leaves on the book, never above the AH value, and of the buys that take
+  -- whole levels under the ceiling, the one that pays most. At the AH value itself every row read
+  -- richer than its Check, which the next level up always holds lower, and some the board listed
+  -- the Check then refused (review 2026-11-06: Silverleaf +1,155c on the board, +544c checked).
+  -- A level past the ladder's last is not known; the AH value stands in for it.
+  local units, cost = 0, 0
+  local best
+  for i, level in ipairs(e.ladder) do
     if level[1] > ceiling then break end
     units = units + level[2]
     cost = cost + level[1] * level[2]
-    profit = profit + (net - level[1] - deposit) * level[2]
+    local after = e.ladder[i + 1]
+    local exit = after and math.max(1, math.min(refUnit, after[1] - 1)) or refUnit
+    local gross = exit * units
+    local profit = gross - math.ceil(gross * 5 / 100) - cost - deposit * units
+    if not best or profit > best.profit then best = { units = units, cost = cost, profit = profit } end
   end
-  if units == 0 then return nil end
-  local row = lead(itemID, e, "market", ceiling, refUnit, units, cost, profit)
+  if not best or best.profit <= 0 then return nil end
+  local row = lead(itemID, e, "market", ceiling, refUnit, best.units, best.cost, best.profit)
   row.depositUnit = deposit
   -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd).
   row.refSource, row.refScanners = ref.source, ref.scanners
@@ -366,6 +377,14 @@ function GC.ForeverDeals.OnAuctionHouseShow()
   if cache.unsure == 0 or not currentFold() then return end
   keyAsked = {}
   cache.reask = true
+end
+
+-- The rows as last built, never building: for what the auction house ticker paints (the ITEMS
+-- chip's count), which must not write the deal tables a Buy click reads (3c taint fix; review
+-- 2026-11-06).
+function GC.ForeverDeals.Built()
+  if not currentFold() then return {} end
+  return cache.rows
 end
 
 function GC.ForeverDeals.CeilingFor(itemID)

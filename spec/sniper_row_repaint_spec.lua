@@ -1106,6 +1106,44 @@ describe("Sniper window OnHide clears the hover pin", function()
     assert.are.equal(5678, row.deal.itemID)
   end)
 
+  -- Review 2026-11-06: opening a buy window aborts a running browse pass, a WoW: Forever scan
+  -- commits, the board rebuilds -- all before the Check pins the row. A new deal table on the
+  -- window's row left the Check's answer matching no attempt, and the window sat on "checking...".
+  it("leaves the row an open buy window belongs to, and its item, alone", function()
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if name == nil then error("no upvalue " .. wanted) end
+        if name == wanted then debug.setupvalue(fn, i, value) return end
+      end
+    end
+    local _, GC = buildFrame()
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local renderList = getUpvalue(refreshRows, "renderList")
+    local sortedDeals = getUpvalue(renderList, "sortedDeals")
+    local deals = getUpvalue(sortedDeals, "deals")
+    local rows = getUpvalue(refreshRows, "rows")
+
+    local opened = { itemID = 1234, unitPrice = 1000, qty = 1, profit = 100, discount = 0.1, tier = "GOOD" }
+    deals[1234] = opened
+    refreshRows()
+    local row = rows[1]
+    assert.are.equal(opened, row.deal)
+    setUpvalue(refreshRows, "dialog", { row = row, deal = opened })
+
+    -- The rebuild: the same item comes back as a new table, and another deal sorts ahead of it.
+    deals[1234] = { itemID = 1234, unitPrice = 1000, qty = 1, profit = 100, discount = 0.1, tier = "GOOD" }
+    deals[5678] = { itemID = 5678, unitPrice = 2000, qty = 1, profit = 900, discount = 0.5, tier = "GOOD" }
+    refreshRows()
+
+    assert.are.equal(opened, row.deal)
+    for _, other in ipairs(rows) do
+      if other ~= row and other.deal then assert.are_not.equal(1234, other.deal.itemID) end
+    end
+    setUpvalue(refreshRows, "dialog", nil)
+  end)
+
   it("is a no-op when no row is hovered", function()
     local frame = buildFrame()
 

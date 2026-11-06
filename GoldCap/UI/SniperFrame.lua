@@ -753,6 +753,7 @@ local function sortedDeals()
   local function renders(itemID)
     return not activeItemID[itemID] and itemID ~= hoveredItemID
       and not (frozen and frozen[itemID])
+      and not (dialog and dialog.row and dialog.deal and dialog.deal.itemID == itemID)
   end
   -- WoW: Forever: the board is the player's own scan's leads (Core/ForeverDeals.lua), split by
   -- board the same way. The stores below hold nothing there -- GC.DealMath.Measure refuses a
@@ -1929,7 +1930,11 @@ local function refreshRows()
   local li = 1
   for i = 1, #rows do
     local row = rows[i]
-    if not row.purchaseStage and row ~= hoveredRow then
+    -- The row an open buy window belongs to, too: openDialog's NotifyDialogOpened aborts a running
+    -- browse pass, a WoW: Forever scan commits, the board rebuilds, and before the Check pinned the
+    -- row it got a new deal table, so the Check's answer matched no attempt and the window sat on
+    -- "checking..." until Cancel (review 2026-11-06).
+    if not row.purchaseStage and row ~= hoveredRow and not (dialog and dialog.row == row) then
       local deal = (li <= shown) and display[li] or nil
       if deal then
         setRowDeal(row, deal)
@@ -2150,7 +2155,7 @@ function GC.Sniper._PaintBoardChips(target)
   local count = GC.Sniper._RealmCount() + #GC.Sniper._RareRows()
   if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() and GC.ForeverDeals then
     count = 0
-    for _, deal in ipairs(GC.ForeverDeals.Rows()) do
+    for _, deal in ipairs(GC.ForeverDeals.Built()) do
       if deal.board == "items" then count = count + 1 end
     end
   end
@@ -5631,8 +5636,8 @@ local function consumePurchasedDeal(deal, boughtQty)
   -- unless the buy took less than the row found: an Items row's buy is one lot (PlaceBid) and a
   -- commodity buy stops at the wallet's share, and dropping the row hid the rest until the next
   -- scan (review 2026-11-06: 18 Items rows held 159 lots, the first buys 18 of them). It stays
-  -- with what is left; it is `stale`, so its next click Checks the live book, and a book with
-  -- nothing left under the ceiling takes it off ("listing gone").
+  -- with what is left; it is `stale`, so its next click Checks the live book: an empty book takes
+  -- it off ("listing gone"), one with nothing left under the ceiling sends it to Hidden.
   if GC.ForeverDeals and GC.ForeverDeals.Drop then
     local board = deal.boardDeal or deal
     local left = board.forever and type(board.qty) == "number" and type(boughtQty) == "number"

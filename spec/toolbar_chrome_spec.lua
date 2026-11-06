@@ -591,9 +591,11 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
     local frame, GC = buildFrame()
     local saved = { scan = GC.ForeverScan, deals = GC.ForeverDeals }
     GC.ForeverScan = { Enabled = function() return true end }
-    GC.ForeverDeals = { Rows = function()
-      return { { itemID = 1, board = "items" }, { itemID = 2, board = "commodities" }, { itemID = 3, board = "items" } }
-    end }
+    -- Built, never Rows: the ticker paints this, and must not rebuild the deal tables (3c).
+    GC.ForeverDeals = { Rows = function() error("the chip count must not build the board") end,
+      Built = function()
+        return { { itemID = 1, board = "items" }, { itemID = 2, board = "commodities" }, { itemID = 3, board = "items" } }
+      end }
     GC.Sniper._PaintBoardChips()
     GC.ForeverScan, GC.ForeverDeals = saved.scan, saved.deals
     assert.equal("ITEMS 2", frame.boardChips.items.label)

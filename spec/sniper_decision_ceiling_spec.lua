@@ -244,11 +244,41 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
         assert.equal(20, d.quantity); assert.equal(190, d.entryTotal)
         assert.equal(13, d.exitUnit); assert.equal(13, d.refUnit)
         assert.equal(70, d.stressProfit)     -- 13 * 20 - 190: a vendor pays no matter who lists
-        -- The same buy as a market row resells under those 35: 11c, and refuses.
+        -- The same book as a market row: the 20-unit buy resells under the 35 it leaves at 12c, 11c,
+        -- and loses; cut at the whole levels inside it, the first 15 units (8c and 9c, 130c) resell
+        -- under the 12c level at 11c: 165, -9 cut, -130 = +26c, over the 20c minimum.
         d = S.EvaluateCeiling(vendorInput({ kind = "market", limits = limits,
           depositForQuantity = function() return 0 end }))
-        assert.equal(11, d.exitUnit)
-        assert.same({ "profit_below_minimum" }, d.reasons)
+        assert.is_true(d.buyable)
+        assert.equal(15, d.quantity); assert.equal(130, d.entryTotal)
+        assert.equal(11, d.exitUnit); assert.equal(26, d.stressProfit)
+      end)
+
+      -- Review 2026-11-06: 10 at 50c, 100 at 135c, 50 at 190c under a 139c ceiling, AH value 199c.
+      -- Everything under the ceiling (10 + 100; the 190c level is over it) resells under 190c; the
+      -- first 10 alone resell under 135c. Whichever pays most is the buy, and a refusal never asks
+      -- for gold the wallet already holds.
+      it("buys the whole levels that pay most, and never asks for gold the wallet holds", function()
+        local book = { { unitPrice = 50, quantity = 10 }, { unitPrice = 135, quantity = 100 },
+          { unitPrice = 190, quantity = 50 } }
+        local function limitsFor(wallet)
+          return { maxQuantity = 200, budget = math.floor(wallet / 4), share = 0.25 }
+        end
+        local input = { kind = "market", ceilingUnit = 139, exitUnit = 199, levels = book,
+          limits = limitsFor(60000), limitsFor = limitsFor, minimumProfit = 20,
+          depositForQuantity = function() return 0 end }
+        local d = S.EvaluateCeiling(input)
+        assert.is_true(d.buyable)
+        -- 110 units (10 at 50c, 100 at 135c, 14,000c) under 190c: 189 x 110 = 20,790, -1,040 cut
+        -- = +5,750c; the first 10 alone under 135c: 1,340 - 67 - 500 = +773c. The 110 pay more.
+        assert.equal(110, d.quantity); assert.equal(5750, d.stressProfit)
+        -- 55,000c: its quarter, 13,750c, buys 98 of the 135c level, and the 2 left hold the resale
+        -- at 134c, a loss. The cut at the first 10 is the buy (it asked this wallet for 2,000c).
+        input.limits = limitsFor(55000)
+        d = S.EvaluateCeiling(input)
+        assert.is_true(d.buyable)
+        assert.equal(10, d.quantity); assert.equal(773, d.stressProfit)
+        assert.is_nil(d.needsGold)
       end)
     end)
 

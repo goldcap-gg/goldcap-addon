@@ -40,14 +40,16 @@ describe("ForeverDeals", function()
       assert.equal(2, math.floor(r.discount * 100 + 0.5))
     end)
 
-    it("a 44% discount is a market row: 165 at 10c, measured at 18c (half-way under its AH value), +7c each", function()
+    -- Resold as the Check resells (review 2026-11-06): one copper under the 15c level the buy
+    -- leaves, 14c, not the AH value's 18c.
+    it("a 44% discount is a market row: 165 at 10c, measured at 18c (half-way under its AH value), +3c each", function()
       vendor[765], commodity[765] = 1, true               -- Silverleaf; a vendor pays under the AH
       local rows = D.Build(fold({ [765] = "10,4062,200,;0x165 5x100 8x3797|0,8,15" }),
         ctx({ depositFor = function() return 0 end }))
       assert.equal(1, #rows)
       local r = rows[1]
       assert.equal("market", r.forever)
-      assert.equal(165, r.qty); assert.equal(1650, r.capTotal); assert.equal(1155, r.profit)
+      assert.equal(165, r.qty); assert.equal(1650, r.capTotal); assert.equal(544, r.profit) -- 14c x165 - 5% - 1650
       assert.equal(44, math.floor(r.discount * 100 + 0.5))
     end)
   end)
@@ -202,7 +204,7 @@ describe("ForeverDeals", function()
       assert.equal(100, r.refUnit)            -- the AH value, not the half-way 1s10c
       assert.equal(6, r.qty)
       assert.equal(210, r.capTotal)
-      assert.equal(348, r.profit)             -- (95-30-2)*3 + (95-40-2)*3
+      assert.equal(342, r.profit)             -- under the 1s level left: 99c x6 = 594, -30 cut, -210, -12 deposit
       assert.equal(2, r.depositUnit)
       assert.is_true(math.abs(r.discount - 0.7) < 1e-9)
     end)
@@ -227,7 +229,7 @@ describe("ForeverDeals", function()
       local r = rows[1]
       assert.equal("market", r.forever)
       assert.equal(100, r.refUnit); assert.equal(70, r.ceiling)
-      assert.equal(30, r.qty); assert.equal(690, r.profit)   -- (95-70-2)*30
+      assert.equal(30, r.qty); assert.equal(661, r.profit)   -- 99c x30 = 2970, -149 cut, -2100, -60 deposit
     end)
 
     it("prefers a vendor deal when both hold", function()
@@ -316,7 +318,7 @@ describe("ForeverDeals", function()
       local rows = D.Build(f, marketCtx({ depositFor = function() return 0 end }))
       assert.equal(25, rows[1].ceiling)
       assert.equal(8, rows[1].qty)           -- the 10c and 25c levels
-      assert.equal(140, rows[1].profit)      -- (35-10)*4 + (35-25)*4
+      assert.equal(133, rows[1].profit)      -- under the 37c level left: 36c x8 = 288, -15 cut, -140
     end)
 
     it("floors the 0.95 x value - deposit - 1 share (AH value 101, that branch binding)", function()
@@ -336,7 +338,7 @@ describe("ForeverDeals", function()
       local rows = D.Build(f, marketCtx({ depositFor = function() return 0 end }))
       assert.equal(100, rows[1].ceiling)
       assert.equal(8, rows[1].qty)           -- the 50c and 100c levels
-      assert.equal(480, rows[1].profit)      -- (135-50)*4 + (135-100)*4
+      assert.equal(479, rows[1].profit)      -- under the 143c level left: 142c x8 = 1136, -57 cut, -600
     end)
   end)
 
