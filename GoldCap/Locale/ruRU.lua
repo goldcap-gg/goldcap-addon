@@ -1171,6 +1171,8 @@ GC.Locales.ruRU = {
   ["everything bought"] = "всё куплено",
   ["from %s"] = "от %s",
   ["deals %s · items %s"] = "сделки %s · предметы %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "сервер обрезал полный скан: сделки только по низшим ценам",
   ["in bags %d · in bank %d"] = "в сумках %d · в банке %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "в сумках %d · в банке %d · в почтовом ящике %d",
   ["in bags and bank · purchases arrive by mail"] = "в сумках и банке · покупки приходят почтой",

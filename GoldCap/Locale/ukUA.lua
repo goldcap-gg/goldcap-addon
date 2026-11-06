@@ -1175,6 +1175,8 @@ GC.Locales.ukUA = {
   ["everything bought"] = "усе куплено",
   ["from %s"] = "від %s",
   ["deals %s · items %s"] = "угоди %s · предмети %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "сервер обрізав повний скан: угоди лише за найнижчими цінами",
   ["in bags %d · in bank %d"] = "у сумках %d · у банку %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "у сумках %d · у банку %d · у поштовій скриньці %d",
   ["in bags and bank · purchases arrive by mail"] = "у сумках і банку · покупки надходять поштою",

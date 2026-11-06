@@ -32,6 +32,9 @@ local C = {
   MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the AH value
   MARKET_MIN_UNITS = 20,             -- thin-market guard: units listed
   MARKET_MIN_LEVELS = 3,             -- thin-market guard: distinct prices listed
+  -- A floor-only entry (below) is measured against the crowd's AH value only when the crowd saw
+  -- the item no more than this long before the scan did.
+  FLOOR_CROWD_MAX_AGE_SECONDS = 6 * 3600,
   ROW_CAP = 100,                     -- per board, as UI/SniperFrame.lua's WIN.ROW_CAP
   REBUILD_SECONDS = 5,               -- while vendor prices the rows need are still loading
   REQUEST_PER_BUILD = 100,           -- item-data requests per build
@@ -111,10 +114,16 @@ end
 -- request, so it is asked only once the cheapest lot sits under the ceiling a zero deposit would
 -- allow. Nothing under that, no row, whatever the item is.
 local function underMarket(itemID, e, ctx, isCommodity)
-  if not (e.levels and e.qty) then return nil end
-  if e.qty < C.MARKET_MIN_UNITS or e.levels < C.MARKET_MIN_LEVELS then return nil end
+  if not e.qty or e.qty < C.MARKET_MIN_UNITS then return nil end
+  if not e.floorOnly and not (e.levels and e.levels >= C.MARKET_MIN_LEVELS) then return nil end
   local ref = ctx.referenceFor and ctx.referenceFor(itemID, e)
     or { value = e.value, p50 = e.p50, source = "own" }
+  -- A floor-only entry has no AH value of its own: its one price is the floor itself. Only the
+  -- crowd's will do, and only one the crowd took about when the scan did.
+  if e.floorOnly and (ref.source ~= "crowd" or (type(ref.at) == "number" and type(e.foldAt) == "number"
+      and e.foldAt - ref.at > C.FLOOR_CROWD_MAX_AGE_SECONDS)) then
+    return nil
+  end
   local refUnit = referenceUnit(ref)
   if not refUnit then return nil end
   local net = math.floor(refUnit * KEEP)
@@ -163,17 +172,29 @@ local function oneBuyAdmits(row, isCommodity, admit)
 end
 
 -- rows, missing (no vendor price yet), unsure (a row or a market candidate waits on the client's
--- word that the item is a commodity).
+-- word that the item is a commodity), floorOnly (how many entries had only their lowest price).
+--
+-- A floor-only entry: the browse pass's (Core/ForeverScan.lua), which is all an item gets once
+-- the server cut the full dump short -- every dump of the owner's evening of 2026-11-06 came back
+-- at 1023 rows, the board was left with 1525 items and no price levels, and it said "deals 0". The
+-- browse pass sees each item's lowest price and how many units are listed in all, not at what
+-- prices. One unit at the lowest price is all that proves, so a row from it is that one unit,
+-- vendor or market alike, and stands only when that one unit clears the minimum profit. The Check
+-- reads the live book when the row is opened and buys whatever more there is under the ceiling.
 function GC.ForeverDeals.Build(fold, ctx)
-  local rows, missing, unsure = {}, {}, {}
+  local rows, missing, unsure, floorOnly = {}, {}, {}, 0
   if type(fold) ~= "table" or type(fold.items) ~= "table" or type(ctx) ~= "table" then
-    return rows, missing, unsure
+    return rows, missing, unsure, floorOnly
   end
   local boards = { commodities = {}, items = {} }
   local admit = { minimumProfitCopper = ctx.minimumProfit, watchPins = ctx.watchPins }
   for itemID, encoded in pairs(fold.items) do
     local e = GC.ForeverFold.Decode(encoded)
-    if e and not e.browse and #e.ladder > 0 then
+    if e and e.browse and #e.ladder == 0 then
+      e.ladder, e.floorOnly, e.foldAt = { { e.min, 1 } }, true, fold.at
+      floorOnly = floorOnly + 1
+    end
+    if e and #e.ladder > 0 then
       local vendor = ctx.vendorFor(itemID)
       local vendorRow
       if type(vendor) == "number" and vendor > 0 then
@@ -215,7 +236,7 @@ function GC.ForeverDeals.Build(fold, ctx)
   end
   table.sort(missing)
   table.sort(unsure)
-  return rows, missing, unsure
+  return rows, missing, unsure, floorOnly
 end
 
 -- The client, for Rows. Guarded: a missing API answers "unknown", never an error. Asked the way
@@ -243,7 +264,7 @@ end
 -- again at the next Refresh.
 -- `from`: the fold table the rows were built from (Drop reads the entry a row came from).
 local cache = { at = nil, itemCount = nil, rev = nil, from = nil, builtAt = 0, waitUntil = 0,
-  rows = {}, byItem = {}, unsure = 0, reask = false }
+  rows = {}, byItem = {}, unsure = 0, reask = false, floorOnly = 0, entries = 0 }
 -- keyAsked: when each unsure item's key was first asked, for this fold only (rebuild wipes it when
 -- the fold changes, OnAuctionHouseShow when the auction house opens).
 local requested, dropped, keyAsked = {}, {}, {}
@@ -274,7 +295,7 @@ local function rebuild(fold, now)
   -- long ago, and their Under market rows never came for that fold.
   if foldChanged(fold) then keyAsked = {} end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
-  local rows, missing, unsure = GC.ForeverDeals.Build(fold, {
+  local rows, missing, unsure, floorOnly = GC.ForeverDeals.Build(fold, {
     vendorFor = GC.ForeverValue.VendorUnit,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
@@ -284,7 +305,9 @@ local function rebuild(fold, now)
     watchPins = settings.watchPins,
     referenceFor = function(itemID, e)
       if GC.Data and GC.Data.ForeverReference then
-        return GC.Data.ForeverReference(itemID, fold.at, e.value, e.p50)
+        -- A floor-only entry's own figure is only its floor, so the crowd's is taken however the
+        -- two compare in time; underMarket bounds how much older it may be.
+        return GC.Data.ForeverReference(itemID, e.floorOnly and 0 or fold.at, e.value, e.p50)
       end
       return { value = e.value, p50 = e.p50, source = "own" }
     end,
@@ -321,6 +344,12 @@ local function rebuild(fold, now)
   cache.at, cache.itemCount, cache.rev, cache.from = fold.at, fold.itemCount, fold.rev, fold
   cache.builtAt, cache.waitUntil, cache.rows, cache.byItem = now, waitUntil, kept, byItem
   cache.unsure, cache.reask = #unsure, false
+  local entries = fold.itemCount
+  if type(entries) ~= "number" then
+    entries = 0
+    for _ in pairs(fold.items) do entries = entries + 1 end
+  end
+  cache.floorOnly, cache.entries = floorOnly or 0, entries
 end
 
 local function currentFold()
@@ -382,6 +411,13 @@ end
 -- The rows as last built, never building: for what the auction house ticker paints (the ITEMS
 -- chip's count), which must not write the deal tables a Buy click reads (3c taint fix; review
 -- 2026-11-06).
+-- Whether the board's last build had only lowest prices for at least half the scan's items: the
+-- server cut the full dump short, and the readout says so instead of a bare "deals 0". Reads the
+-- last build only, never builds.
+function GC.ForeverDeals.MostlyFloors()
+  return cache.entries > 0 and cache.floorOnly * 2 >= cache.entries
+end
+
 function GC.ForeverDeals.Built()
   if not currentFold() then return {} end
   return cache.rows

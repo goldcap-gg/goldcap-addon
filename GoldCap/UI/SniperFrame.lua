@@ -2036,7 +2036,13 @@ function GC.Sniper._ForeverReadout()
     for _ in pairs(fold and fold.items or {}) do items = items + 1 end
   end
   local found = #leads > 0 and ("|cfff7cf5a%d|r"):format(#leads) or "0" -- goldText
-  return (GC.L["deals %s · items %s"]):format(found, tostring(items))
+  local line = (GC.L["deals %s · items %s"]):format(found, tostring(items))
+  -- The server cut the last full scan short (owner, 2026-11-06: every dump of the evening at 1023
+  -- rows, the board at "deals 0" with nothing saying why): the rows come from lowest prices only.
+  if GC.ForeverDeals.MostlyFloors and GC.ForeverDeals.MostlyFloors() then
+    line = line .. " · " .. GC.L["the server cut the full scan short: deals from lowest prices only"]
+  end
+  return line
 end
 
 -- Every row as tall as its item cell needs (a name that wraps grows its row instead of ending in

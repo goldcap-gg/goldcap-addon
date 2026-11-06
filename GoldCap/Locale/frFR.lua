@@ -680,6 +680,8 @@ GC.Locales.frFR = {
   ["done"] = "fait",
   ["from %s"] = "de %s",
   ["deals %s · items %s"] = "affaires %s · objets %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "le serveur a écourté le scan complet : affaires d'après les prix les plus bas seulement",
   ["in bags %d · in bank %d"] = "dans les sacs %d · en banque %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "dans les sacs %d · en banque %d · dans la boîte aux lettres %d",
   ["includes %d for crafting %s"] = "dont %d pour fabriquer %s",

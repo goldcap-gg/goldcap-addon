@@ -633,6 +633,8 @@ GC.Locales.zhCN = {
   ["done"] = "完成",
   ["from %s"] = "来自 %s",
   ["deals %s · items %s"] = "交易 %s · 物品 %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "服务器截断了完整扫描：仅按最低价找出的交易",
   ["in bags %d · in bank %d"] = "背包 %d · 银行 %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "背包 %d · 银行 %d · 邮箱 %d",
   ["includes %d for crafting %s"] = "其中 %d 个用于制作 %s",

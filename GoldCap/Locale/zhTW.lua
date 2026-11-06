@@ -634,6 +634,8 @@ GC.Locales.zhTW = {
   ["done"] = "完成",
   ["from %s"] = "來自 %s",
   ["deals %s · items %s"] = "交易 %s · 物品 %s",
+  ["the server cut the full scan short: deals from lowest prices only"] =
+    "伺服器截斷了完整掃描：僅按最低價找出的交易",
   ["in bags %d · in bank %d"] = "背包 %d · 銀行 %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "背包 %d · 銀行 %d · 信箱 %d",
   ["includes %d for crafting %s"] = "其中 %d 個用於製作 %s",
