@@ -528,6 +528,68 @@ describe("Sell tab, the posting queue control", function()
     assert.matches("a vendor pays more: sell it there", GC.SellUI.Dock.HeldBackHint(), 1, true)
   end)
 
+  -- WoW: Forever (2026-11-06): the deposit a post puts up, which the client quotes for the item,
+  -- the duration and the quantity, and which nothing on the tab named (99c on seven Stringy Wolf
+  -- Meat at 35c on the owner's save).
+  describe("the deposit a post puts up", function()
+    local asked
+    before_each(function()
+      asked = {}
+      GC.db = { settings = { sniper = { postDuration = 3 } } }
+    end)
+
+    local function depositOf(amount)
+      _G.C_AuctionHouse.CalculateCommodityDeposit = function(itemID, duration, quantity)
+        asked[#asked + 1] = { itemID, duration, quantity }
+        return itemID == 23427 and amount or nil
+      end
+    end
+
+    local function oreRow()
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then return row end
+      end
+    end
+
+    it("is named in the dock in WoW: Forever, for what POST lists", function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      depositOf(5000)
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      assert.equal("×246 in bags · deposit " .. GC.Util.Money(5000) .. " · then Widget", container.dockSub.text)
+      assert.same({ 23427, 3, 246 }, asked[#asked])
+    end)
+
+    it("holds a post back that it is not worth, and the dock and its row say so", function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      depositOf(10 ^ 9)
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local held
+      for _, skip in ipairs(GC.SellState.queueSkipped) do
+        if skip.positionKey == "commodity:23427" then held = skip.reason end
+      end
+      assert.equal("below_deposit", held)
+      render()
+      local ore = oreRow()
+      assert.is_truthy(ore.itemStock.text:find("not worth the deposit", 1, true), ore.itemStock.text)
+      ore.scripts.OnClick(ore)
+      assert.equal("Not worth the deposit on the AH · deposit " .. GC.Util.Money(10 ^ 9), container.dockSub.text)
+      assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
+    end)
+
+    it("is neither named nor weighed on retail", function()
+      depositOf(10 ^ 9)
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      assert.equal("×246 in bags · then Widget", container.dockSub.text)
+      for _, skip in ipairs(GC.SellState.queueSkipped) do
+        assert.is_not.equal("commodity:23427", skip.positionKey)
+      end
+      assert.same({}, asked)
+    end)
+  end)
+
   -- The tests above run with no GC.Game at all, which is retail: one press posts, exactly as
   -- addon-v0.15.3 did (retail drift audit F1). These pin the retail passport explicitly, and the
   -- WoW: Forever split -- where the press that has to render first renders only, and the next

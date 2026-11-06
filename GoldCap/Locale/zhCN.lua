@@ -1723,4 +1723,7 @@ GC.Locales.zhCN = {
   ["Cancel this lot and lose its %s deposit. Click again to confirm"] = "取消该批并损失押金 %s。再点一次确认",
   ["the deposit a cancel loses may be more than relisting wins back. Hold"] = "取消损失的押金可能多于重新上架挣回的。先保留",
   ["deposit"] = "押金",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "押金 %s",
+  ["not worth the deposit"] = "不值押金",
 }

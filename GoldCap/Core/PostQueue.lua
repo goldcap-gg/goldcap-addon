@@ -90,6 +90,12 @@ end
 --      cut a vendor pays at least as much for it. "Post everything worth more than a vendor
 --      pays" is this queue's whole design there, so such a position is held back and says why.
 --      Retail passes no opts at all, so this branch never runs there.
+--   5. below_deposit -- WoW: Forever only too (opts.depositFor, 2026-11-06): what one click
+--      lists, after the 5% cut and less what a vendor pays for the same units, is no more than
+--      the deposit the post puts up. The deposit comes back only if the lot sells, so posting
+--      is a bet that wins less than it stakes, the tooltip's "Not worth the deposit" verdict
+--      (Core/ForeverValue.lua's Verdict) for a whole post. A deposit the client cannot quote
+--      holds nothing, as a missing vendor price holds nothing above.
 --
 -- Returns reason, unit, value -- unit/value are only meaningful when reason is nil.
 local function evaluate(position, opts)
@@ -143,6 +149,16 @@ local function evaluate(position, opts)
   local value = mulExact(unit, postable)
   if not value then
     return "unresolved_identity"
+  end
+  -- below_deposit (the list above). value - ceil(value / 20) is floor(value * 0.95) without the
+  -- product. Seven Stringy Wolf Meat posted at 35c put up a 99c deposit, 40% of the sale
+  -- (owner's save, 2026-11-06): on cheap stock the deposit is no rounding error.
+  local deposit = opts and opts.depositFor and opts.depositFor(position, postable) or nil
+  if exact(deposit) then
+    local vendorTotal = positive(vendorUnit) and mulExact(vendorUnit, postable) or 0
+    if vendorTotal and value - math.ceil(value / 20) - vendorTotal <= deposit then
+      return "below_deposit"
+    end
   end
   return nil, unit, value, postable
 end
@@ -206,7 +222,8 @@ end
 -- one it would have been held back for (nil when it could be posted). Its row still has its own
 -- Post, so its row still says what is wrong with it; the dock reads the count.
 -- `opts.vendorUnit` is WoW: Forever's (`function(itemID) ...`), read by `evaluate`'s
--- `below_vendor` case above.
+-- `below_vendor` case above, and so is `opts.depositFor` (`function(position, quantity)`, the
+-- deposit for posting that many, or nil), read by `below_deposit`.
 -- `opts.group`, when set, is the group the Sell tab's GROUPS row picked, and `opts.inGroup(key)`
 -- answers whether a position is in it: one that is not is in none of the three lists, as its row
 -- is not on screen, and one that is sells unless the player unmarked it (Selling's `grouped`).

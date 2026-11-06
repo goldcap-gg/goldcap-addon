@@ -451,6 +451,12 @@ function PostPanel.Paint(row, nextRow, hint)
   -- Under what it cost, under GoldCap's floor or held back is what the line says first, in red;
   -- otherwise what is in the bags and what POST goes to after this.
   local loss = UI.fmt.lossNote(risk, unit)
+  -- How many POST lists, and in WoW: Forever the deposit that puts up (2026-11-06): on cheap
+  -- stock it is a large share of the sale (99c on seven Stringy Wolf Meat posted at 35c, the
+  -- owner's save), and nothing on the tab named it. Retail's line is left as it was.
+  local qty, most, typed = postQuantity(p)
+  local deposit = GC.Sell.OnForever() and GC.SellBags and GC.SellBags.Deposit(p, qty) or nil
+  local depositNote = deposit and (GC.L["deposit %s"]):format(formatCell(deposit)) or nil
   if loss then
     c.dockSub:SetText(loss)
     setColor(c.dockSub, Theme.color.red)
@@ -458,10 +464,11 @@ function PostPanel.Paint(row, nextRow, hint)
     c.dockSub:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
     setColor(c.dockSub, Theme.color.red)
   elseif heldBack then
-    c.dockSub:SetText(heldBack)
+    c.dockSub:SetText(depositNote and heldBack .. " · " .. depositNote or heldBack)
     setColor(c.dockSub, Theme.color.red)
   else
     local line = (GC.L["×%d in bags"]):format(p.bagQty or 0)
+    if depositNote then line = line .. " · " .. depositNote end
     local nextItem = nextRow and nextRow.position and nextRow.position.itemName
     if nextItem then line = line .. " · " .. (GC.L["then %s"]):format(nextItem) end
     c.dockSub:SetText(line)
@@ -470,7 +477,6 @@ function PostPanel.Paint(row, nextRow, hint)
   placeNews(c, true)
 
   -- How many, only when there is more than one to choose from.
-  local qty, most, typed = postQuantity(p)
   if most > 1 then
     stamp(c.qtyBox, key, tostring(qty))
     c.qtyHead:SetText(GC.L["HOW MANY"])

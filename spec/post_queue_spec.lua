@@ -420,6 +420,62 @@ describe("PostQueue", function()
     assert.equal(1, #entries)
   end)
 
+  -- WoW: Forever (2026-11-06): a post whose gain over a vendor, after the 5% cut, does not cover
+  -- the deposit it puts up is a bet that wins less than it stakes (the tooltip's verdict).
+  describe("in WoW: Forever, weighing the deposit a post puts up", function()
+    local function wolfMeat()
+      local quotes = {}
+      setQuote(quotes, 2672, 35, 10)
+      return build({ bagStock = { stock("commodity:2672", 2672, "Stringy Wolf Meat", 7) }, quotes = quotes })
+    end
+
+    it("holds back a post whose gain over a vendor is no more than its deposit", function()
+      local positions = wolfMeat()
+      local U = positions[1].postRecommendation.unit
+      local gain = math.floor(U * 7 * 0.95) - 4 * 7
+      local asked = {}
+      local function depositOf(amount)
+        return function(position, quantity)
+          asked[#asked + 1] = { position.positionKey, quantity }
+          return amount
+        end
+      end
+      local vendor = function() return 4 end
+      local entries, skipped = GC.PostQueue.Build(positions, { vendorUnit = vendor, depositFor = depositOf(gain) })
+      assert.same({}, entries)
+      assert.equal("below_deposit", skipped[1].reason)
+      assert.same({ "commodity:2672", 7 }, asked[1])
+      entries = GC.PostQueue.Build(positions, { vendorUnit = vendor, depositFor = depositOf(gain - 1) })
+      assert.equal(1, #entries)
+      -- The seven at 35c and the 99c deposit the owner's save shows: worth it, so it goes.
+      entries = GC.PostQueue.Build(positions, { vendorUnit = vendor, depositFor = depositOf(99) })
+      assert.equal(1, #entries)
+    end)
+
+    it("weighs the deposit for the quantity one Post sends", function()
+      local positions = wolfMeat()
+      local asked
+      GC.PostQueue.Build(positions, { quantities = { ["commodity:2672"] = 2 },
+        depositFor = function(_, quantity) asked = quantity return 0 end })
+      assert.equal(2, asked)
+    end)
+
+    it("holds nothing on a deposit the client does not quote, or with no weighing at all", function()
+      local positions = wolfMeat()
+      assert.equal(1, #GC.PostQueue.Build(positions, { depositFor = function() return nil end }))
+      assert.equal(1, #GC.PostQueue.Build(positions, {}))
+      assert.equal(1, #GC.PostQueue.Build(positions))
+    end)
+
+    it("says a vendor pays more before it weighs the deposit", function()
+      local positions = wolfMeat()
+      local U = positions[1].postRecommendation.unit
+      local _, skipped = GC.PostQueue.Build(positions, { vendorUnit = function() return U end,
+        depositFor = function() return 1000000 end })
+      assert.equal("below_vendor", skipped[1].reason)
+    end)
+  end)
+
   -- The selling list (owner, 2026-10-09): POST and the post-next key list only what the player
   -- marked for selling. What Deals bought and the player still holds counts as marked until they
   -- say otherwise; the player's own choice, either way, wins and is kept per position.

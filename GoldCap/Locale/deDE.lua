@@ -1833,4 +1833,7 @@ GC.Locales.deDE = {
   ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
     "die Gebühr, die ein Abbruch kostet, kann mehr sein, als neu Einstellen einbringt. Halten",
   ["deposit"] = "Gebühr",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "Gebühr %s",
+  ["not worth the deposit"] = "lohnt die Gebühr nicht",
 }

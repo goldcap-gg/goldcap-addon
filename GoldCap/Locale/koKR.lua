@@ -1759,4 +1759,7 @@ GC.Locales.koKR = {
   ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
     "취소로 잃는 등록비가 재등록으로 되찾는 금액보다 클 수 있습니다. 보류하세요",
   ["deposit"] = "등록비",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "등록비 %s",
+  ["not worth the deposit"] = "등록비만큼의 가치 없음",
 }

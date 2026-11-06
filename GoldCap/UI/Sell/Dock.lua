@@ -148,6 +148,9 @@ local QUEUE_SKIP_TEXT = {
   -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for
   -- it after the AH's cut.
   below_vendor = "a vendor pays more: sell it there",
+  -- WoW: Forever only (Core/PostQueue.lua's below_deposit): the tooltip's own verdict, in its
+  -- own words, for the whole post.
+  below_deposit = "Not worth the deposit on the AH",
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
   advised_hold = "relisting now would lock in a loss or a stall. Hold",

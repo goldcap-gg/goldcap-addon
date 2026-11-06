@@ -1899,4 +1899,7 @@ GC.Locales.ruRU = {
   ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
     "залог, теряемый при отмене, может оказаться больше выигрыша от перевыставления. Придержите",
   ["deposit"] = "залог",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "залог %s",
+  ["not worth the deposit"] = "не окупает залог",
 }

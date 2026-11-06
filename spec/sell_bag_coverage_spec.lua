@@ -478,6 +478,28 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     end)
   end)
 
+  -- WoW: Forever (2026-11-06): an item's deposit is quoted for the stack itself, the one bag slot
+  -- POST posts from (C_AuctionHouse.CalculateItemDeposit takes its ItemLocation).
+  it("names the deposit an item's post puts up, from its own bag slot, in WoW: Forever", function()
+    GC.ForeverScan = { Enabled = function() return true end }
+    local asked
+    _G.C_AuctionHouse.CalculateItemDeposit = function(location, duration, quantity)
+      asked = { location.bag, location.slot, duration, quantity }
+      return 120
+    end
+    kinds[222] = false
+    stack(1, 222, 1, "item:%d::::::::5:::::::::")
+    slotKeys["0:1"] = key(222, 5)
+    results["222:5:0:0"] = { { buyoutAmount = 50000, quantity = 1 } }
+    compose()
+    GC.Sell.Refresh(true)
+    GC.Sell.OnItemSearchResults(222, key(222, 5))
+    compose()
+    assert.equal("item:222:5:0:0", GC.SellUI.PostPanel.position.positionKey)
+    assert.is_truthy(container.dockSub.text:find("deposit " .. GC.Util.Money(120), 1, true), container.dockSub.text)
+    assert.same({ 0, 1, 2, 1 }, asked)
+  end)
+
   it("hands the searched ItemKey on with the item search results", function()
     local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
     local init = f:read("*a")

@@ -339,5 +339,10 @@ function GC.Sell._QueueOpts()
   if GC.Sell.OnForever() and GC.ForeverValue and GC.ForeverValue.VendorUnit then
     opts.vendorUnit = GC.ForeverValue.VendorUnit
   end
+  -- ...and the deposit a post puts up, so it holds back a post the deposit is not worth
+  -- (below_deposit, 2026-11-06). Retail's queue is left as it was.
+  if GC.Sell.OnForever() and GC.SellBags and GC.SellBags.Deposit then
+    opts.depositFor = GC.SellBags.Deposit
+  end
   return opts
 end

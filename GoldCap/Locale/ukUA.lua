@@ -1901,4 +1901,7 @@ GC.Locales.ukUA = {
   ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
     "застава, яку втрачає скасування, може виявитися більшою за виграш від перевиставлення. Притримайте",
   ["deposit"] = "застава",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "застава %s",
+  ["not worth the deposit"] = "не окупає заставу",
 }

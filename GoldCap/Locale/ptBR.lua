@@ -1828,4 +1828,7 @@ GC.Locales.ptBR = {
   ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
     "o depósito perdido ao cancelar pode ser maior do que reanunciar recupera. Segure",
   ["deposit"] = "depósito",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "depósito %s",
+  ["not worth the deposit"] = "não vale o depósito",
 }

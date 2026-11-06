@@ -1830,4 +1830,7 @@ GC.Locales.itIT = {
   ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
     "la cauzione persa annullando può superare quanto rende rimettere in vendita. Aspetta",
   ["deposit"] = "cauzione",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "cauzione %s",
+  ["not worth the deposit"] = "non vale la cauzione",
 }

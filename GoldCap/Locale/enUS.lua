@@ -1818,4 +1818,7 @@ GC.Locales.enUS = {
   ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
     "the deposit a cancel loses may be more than relisting wins back. Hold",
   ["deposit"] = "deposit",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "deposit %s",
+  ["not worth the deposit"] = "not worth the deposit",
 }
