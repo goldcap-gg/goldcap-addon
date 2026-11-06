@@ -209,6 +209,23 @@ describe("WoW: Forever", function()
     assert.is_nil(api.emptyText)
   end)
 
+  -- Owner, WoW: Forever 2026-11-06: the readout said "deals 0 · items 615 · filtered 615" over a
+  -- board full of rows. It counts the board's own rows there, and the items the scan saw.
+  it("reads the board's own rows and the scan's items on Forever, and nothing on retail", function()
+    local api = loadSniper()
+    local rows = { deal(1), deal(2) }
+    api.GC.ForeverDeals = { Rows = function() return rows end }
+    api.GC.ForeverScan = { Enabled = function() return true end,
+      Fold = function() return { itemCount = 2249, items = {} } end }
+    local readout = api.GC.Sniper._ForeverReadout()
+    assert.is_truthy(readout:find("deals |cfff7cf5a2|r · items 2249", 1, true))
+    assert.is_nil(readout:find("filtered", 1, true))
+    rows = {}
+    assert.equal("deals 0 · items 2249", api.GC.Sniper._ForeverReadout())
+    api.GC.ForeverScan.Enabled = function() return false end
+    assert.is_nil(api.GC.Sniper._ForeverReadout())
+  end)
+
   -- Owner, WoW: Forever 2026-11-06: "buy at 16s09c or less, AH value 22s99c" after every name
   -- made each row four lines tall. The row names its kind on the chip and nothing after the
   -- name; the price to buy at and the reference stay in the row's tooltip (GC.Sniper._ForeverNote).

@@ -638,6 +638,7 @@ GC.Locales.deDE = {
   ["deals %s · items %s · filtered %s"] = "Angebote %s · Gegenstände %s · aussortiert %s",
   ["done"] = "erledigt",
   ["from %s"] = "von %s",
+  ["deals %s · items %s"] = "Angebote %s · Gegenstände %s",
   ["in bags %d · in bank %d"] = "in Taschen %d · in der Bank %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "in Taschen %d · in der Bank %d · im Briefkasten %d",
   ["includes %d for crafting %s"] = "davon %d zum Herstellen von %s",

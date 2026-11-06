@@ -7,6 +7,15 @@
   in your bags.
 - WoW: Forever: a DEALS row is one or two lines tall. The price to buy at and the price it is
   measured against are in the row's tooltip, not after the item's name.
+- WoW: Forever: the line next to AUTO counts the deals on the board and the items your last scan
+  saw. It used to say there were no deals and that every item was filtered out, even with deals on
+  the board.
+- WoW: Forever: a deal under the market price may use up to a quarter of the gold on your
+  character, unless you changed the share per buy in Settings. At 5% nearly every one asked for
+  more gold than a new character has.
+- WoW: Forever: the check panel says how old the scan behind a deal is.
+- The line next to AUTO no longer cuts a message short after your first buy. Your session total
+  moved to the end of the COMMODITIES and ITEMS row, and a long message takes a second line.
 
 ## 0.23.1 (2026-10-30)
 

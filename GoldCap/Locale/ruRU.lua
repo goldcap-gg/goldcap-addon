@@ -1125,6 +1125,7 @@ GC.Locales.ruRU = {
   ["done"] = "готово",
   ["everything bought"] = "всё куплено",
   ["from %s"] = "от %s",
+  ["deals %s · items %s"] = "сделки %s · предметы %s",
   ["in bags %d · in bank %d"] = "в сумках %d · в банке %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "в сумках %d · в банке %d · в почтовом ящике %d",
   ["in bags and bank · purchases arrive by mail"] = "в сумках и банке · покупки приходят почтой",

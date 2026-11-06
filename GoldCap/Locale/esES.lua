@@ -637,6 +637,7 @@ GC.Locales.esES = {
   ["deals %s · items %s · filtered %s"] = "oportunidades %s · objetos %s · descartadas %s",
   ["done"] = "hecho",
   ["from %s"] = "de %s",
+  ["deals %s · items %s"] = "oportunidades %s · objetos %s",
   ["in bags %d · in bank %d"] = "en bolsas %d · en banco %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "en bolsas %d · en banco %d · en el buzón %d",
   ["includes %d for crafting %s"] = "incluye %d para fabricar %s",

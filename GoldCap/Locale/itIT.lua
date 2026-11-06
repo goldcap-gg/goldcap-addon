@@ -636,6 +636,7 @@ GC.Locales.itIT = {
   ["deals %s · items %s · filtered %s"] = "occasioni %s · oggetti %s · scartate %s",
   ["done"] = "fatto",
   ["from %s"] = "di %s",
+  ["deals %s · items %s"] = "occasioni %s · oggetti %s",
   ["in bags %d · in bank %d"] = "nelle borse %d · in banca %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "nelle borse %d · in banca %d · nella cassetta postale %d",
   ["includes %d for crafting %s"] = "di cui %d per creare %s",

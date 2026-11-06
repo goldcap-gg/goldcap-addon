@@ -599,6 +599,7 @@ GC.Locales.koKR = {
   ["craft it · %s each"] = "제작 · 개당 %s",
   ["craft it: %s = %s each"] = "제작: %s = 개당 %s",
   ["deals %s · items %s · filtered %s"] = "거래 %s · 아이템 %s · 제외 %s",
+  ["deals %s · items %s"] = "거래 %s · 아이템 %s",
   ["done"] = "완료",
   ["from %s"] = "%s의 목록",
   ["in bags %d · in bank %d"] = "가방 %d · 은행 %d",

@@ -588,6 +588,7 @@ GC.Locales.zhTW = {
   ["deals %s · items %s · filtered %s"] = "交易 %s · 物品 %s · 已濾除 %s",
   ["done"] = "完成",
   ["from %s"] = "來自 %s",
+  ["deals %s · items %s"] = "交易 %s · 物品 %s",
   ["in bags %d · in bank %d"] = "背包 %d · 銀行 %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "背包 %d · 銀行 %d · 信箱 %d",
   ["includes %d for crafting %s"] = "其中 %d 個用於製作 %s",

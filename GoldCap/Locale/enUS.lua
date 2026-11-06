@@ -750,6 +750,7 @@ GC.Locales.enUS = {
   ["fair"] = "fair",
   ["finish the pending buy first"] = "finish the pending buy first",
   ["from %s"] = "from %s",
+  ["deals %s · items %s"] = "deals %s · items %s",
   ["full scan already in progress"] = "full scan already in progress",
   ["full scan interrupted. Confirm your purchase"] = "full scan interrupted. Confirm your purchase",
   ["full scan stalled. Press Full Scan to retry"] = "full scan stalled. Press Full Scan to retry",

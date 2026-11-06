@@ -636,6 +636,7 @@ GC.Locales.ptBR = {
   ["deals %s · items %s · filtered %s"] = "oportunidades %s · itens %s · descartadas %s",
   ["done"] = "feito",
   ["from %s"] = "de %s",
+  ["deals %s · items %s"] = "oportunidades %s · itens %s",
   ["in bags %d · in bank %d"] = "nas bolsas %d · no banco %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "nas bolsas %d · no banco %d · na caixa de correio %d",
   ["includes %d for crafting %s"] = "inclui %d para fabricar %s",

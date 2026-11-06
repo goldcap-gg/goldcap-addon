@@ -1977,7 +1977,33 @@ end
 -- have loaded (GC.ForeverDeals.Refresh, on the board clock in OnAuctionHouseShow): the board
 -- reads GC.ForeverDeals.Rows, so it repaints.
 function GC.Sniper.OnForeverFold()
-  if frame then refreshRows() end
+  if not frame then return end
+  refreshRows()
+  local readout = GC.Sniper._ForeverReadout()
+  if readout then
+    GC.Sniper._readout = readout
+    setStatus(readout)
+  end
+end
+
+-- WoW: Forever's pass readout: the board's own rows (Core/ForeverDeals.lua, both boards) and the
+-- items the last scan saw. The retail one counts this browse pass's rows and what its screen
+-- refused, and on Forever the screen refuses everything (GC.DealMath.Measure will not measure a
+-- scan value): "deals 0 · items 615 · filtered 615" over a board full of rows (owner, 2026-11-06).
+-- nil on retail.
+function GC.Sniper._ForeverReadout()
+  if not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() and GC.ForeverDeals) then
+    return nil
+  end
+  local fold = GC.ForeverScan.Fold and GC.ForeverScan.Fold() or nil
+  local leads = GC.ForeverDeals.Rows() or {}
+  local items = fold and fold.itemCount
+  if type(items) ~= "number" then
+    items = 0
+    for _ in pairs(fold and fold.items or {}) do items = items + 1 end
+  end
+  local found = #leads > 0 and ("|cfff7cf5a%d|r"):format(#leads) or "0" -- goldText
+  return (GC.L["deals %s · items %s"]):format(found, tostring(items))
 end
 
 -- Every row as tall as its item cell needs (a name that wraps grows its row instead of ending in
@@ -2113,15 +2139,40 @@ function GC.Sniper._PaintBoardChips(target)
   local shown = GC.Sniper._RealmBoard()
   if shown then lack:Show() else lack:Hide() end
   lack:SetVariant(GC.Sniper._OnlyLack() and "active" or "ghost")
-  local line = owner.goldLine
-  if line and owner._goldLineToLack ~= shown then
-    owner._goldLineToLack = shown
+  GC.Sniper._LayoutBoardRow(owner)
+end
+
+-- The chips' row, right to left: "Only what I lack" (Items board), the session readout (after a
+-- buy this visit), then the gold line in whatever room is left beside the chips. Each ends where
+-- the next shown one begins: anchored to a hidden one it would lose the room it needs to be
+-- drawn at all. Laid out again only when what is shown changed.
+function GC.Sniper._LayoutBoardRow(target)
+  local owner = target or frame
+  local chips = owner and owner.boardChips
+  if not (chips and owner.boardY and owner.boardRowH) then return end
+  local lack, session, line = owner.lackToggle, owner.sessionText, owner.goldLine
+  local lackShown = lack ~= nil and lack:IsShown() and true or false
+  local sessionShown = session ~= nil and session:IsShown() and true or false
+  local key = (lackShown and "l" or "-") .. (sessionShown and "s" or "-")
+  if owner._boardRowLayout == key then return end
+  owner._boardRowLayout = key
+  local rowY = owner.boardY - owner.boardRowH / 2
+  local function edge(widget)
+    widget:SetPoint("RIGHT", owner, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, rowY)
+  end
+  if session then
+    session:ClearAllPoints()
+    if lackShown then session:SetPoint("RIGHT", lack, "LEFT", -Theme.pad.m, 0) else edge(session) end
+  end
+  if line then
     line:ClearAllPoints()
     line:SetPoint("LEFT", chips.items, "RIGHT", Theme.pad.m, 0)
-    if shown then
+    if sessionShown then
+      line:SetPoint("RIGHT", session, "LEFT", -Theme.pad.m, 0)
+    elseif lackShown then
       line:SetPoint("RIGHT", lack, "LEFT", -Theme.pad.m, 0)
     else
-      line:SetPoint("RIGHT", owner, "RIGHT", -WIN.CONTENT_RIGHT_GUTTER, 0)
+      edge(line)
     end
   end
 end
@@ -3382,7 +3433,7 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   -- while it runs (sendBrowseQuery). setStatus, not SetText: a held announcement outranks it.
   if frame then
     local found = #scanDeals > 0 and ("|cfff7cf5a%d|r"):format(#scanDeals) or "0" -- goldText
-    local readout = (GC.L["deals %s · items %s · filtered %s"]):format(
+    local readout = GC.Sniper._ForeverReadout() or (GC.L["deals %s · items %s · filtered %s"]):format(
       found, tostring(groupCount), tostring(GC.Sniper._screenedCount or 0))
     -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended.
     if (GC.Sniper._keysLastCycle or 0) > 0 then
@@ -4607,12 +4658,13 @@ refreshSessionText = function()
   local fs = frame and frame.sessionText
   if not fs then return end
   local s = GC.Sniper.session
-  if not s or s.buys == 0 then fs:Hide() return end
+  if not s or s.buys == 0 then fs:Hide() GC.Sniper._LayoutBoardRow() return end
   local c = s.estProfit >= 0 and Theme.color.green or Theme.color.red
   fs:SetText((GC.L["SESSION %s%s · BUYS %d"]):format(s.estProfit >= 0 and "+" or "",
     GC.Util.FormatMoney(s.estProfit), s.buys))
   fs:SetTextColor(c[1], c[2], c[3])
   fs:Show()
+  GC.Sniper._LayoutBoardRow()
 end
 
 local function onFullScanClick()
@@ -5261,7 +5313,14 @@ local function stampDialogFromDecision(deal, decision)
   local quantity = decision.quantity or 0
   local entryTotal = decision.entryTotal
   local average = entryTotal and quantity > 0 and math.floor(entryTotal / quantity) or nil
-  local sourceAge = market.sourceAt and math.max(0, time() - market.sourceAt) or nil
+  -- A WoW: Forever row has no market source of its own: its prices are the scan's, so its age is
+  -- the scan's. Sold/day and sell-through stay "-": nothing in Forever measures them yet.
+  local sourceAt = market.sourceAt
+  if not sourceAt and deal.forever and GC.ForeverScan and GC.ForeverScan.Fold then
+    local fold = GC.ForeverScan.Fold()
+    sourceAt = fold and fold.at or nil
+  end
+  local sourceAge = sourceAt and math.max(0, time() - sourceAt) or nil
   -- The headline names the first reason that actually REFUSED, skipping the informational ones
   -- SniperDecision marks. `demand_limit` is added as a note whenever the chosen quantity is
   -- below the player's maximum, which is ordinary, and it sorts ahead of the gate that really
@@ -12034,9 +12093,8 @@ local function createFrame()
       or GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown: rescan anytime."])
   f.fullScanBtn = fullScanBtn
 
-  -- Divider + session block sit further left of Scan, between it and the status line -- the
-  -- session figures (buys/profit this AH visit) are secondary to the toolbar's controls, so
-  -- they read as a trailing readout rather than another button.
+  -- The divider sits left of Scan, between it and the status line. The session figures that
+  -- used to share this spot live at the end of the chips' row (GC.Sniper._LayoutBoardRow).
   f.toolbarDivider = f:CreateTexture(nil, "ARTWORK")
   f.toolbarDivider:SetSize(1, 16)
   f.toolbarDivider:SetColorTexture(Theme.color.border[1], Theme.color.border[2],
@@ -12046,9 +12104,11 @@ local function createFrame()
   -- Hidden by default: refreshSessionText only Shows it once GC.Sniper.session has a buy this
   -- visit (see that function). SESSION resets to zero-buys at AH close, same as the session
   -- table itself (GC.Sniper.OnAuctionHouseClosed) -- an empty session says nothing here rather
-  -- than showing a stale "0 buys" from the last visit.
+  -- than showing a stale "0 buys" from the last visit. It sits at the right end of the board
+  -- chips' row (GC.Sniper._LayoutBoardRow), not here: beside the status line it left the line
+  -- ~90px after the first buy, and "3 hidden: the live check refused them" read "3 hidden: t..."
+  -- (owner, WoW: Forever 2026-11-06).
   f.sessionText = Theme.Num(f, 11, true)
-  f.sessionText:SetPoint("RIGHT", f.toolbarDivider, "LEFT", -Theme.pad.s, 0)
   f.sessionText:Hide()
 
   -- Re-derives the toggle's label and look from `refusedCount`, which renderList recomputes on
@@ -12088,13 +12148,13 @@ local function createFrame()
   -- session block beside it, not a control label.
   local status = Theme.Num(f, 10)
   status:SetJustifyH("LEFT")
-  -- One line, no wrapping, same pair every other single-line cell in the kit carries. This
-  -- one is anchored LEFT *and* RIGHT, so it has a fixed width and a height of one line:
-  -- a long message ("Posting…" and ~40 others from the Sell tab come through here) wrapped
-  -- to a second line that does not fit, and a line that does not fit its box is not drawn at
-  -- all -- the longest, most useful messages were the ones that said nothing.
-  status:SetWordWrap(false)
-  status:SetMaxLines(1)
+  -- Anchored LEFT and RIGHT, so its width is fixed and its height is its own: never given a
+  -- height, the client sizes it to its lines (the rulebook's text trap: a wrapping FontString
+  -- held to a fixed height draws nothing). A message too long for one line takes a second,
+  -- centred on the row, instead of ending in "...": the line has the whole row up to the
+  -- divider, the session readout having moved to the chips' row.
+  status:SetWordWrap(true)
+  status:SetMaxLines(2)
   local muted = Theme.color.fgMuted
   status:SetTextColor(muted[1], muted[2], muted[3], muted[4] or 1)
   -- The light that says Auto is working (refreshAutoButton paints it), between AUTO and the line.
@@ -12102,7 +12162,7 @@ local function createFrame()
   f.liveDot = Theme.LiveDot(f)
   f.liveDot:SetPoint("LEFT", autoBtn, "RIGHT", Theme.pad.m, 0)
   status:SetPoint("LEFT", f.liveDot.dot, "RIGHT", Theme.pad.s, 0)
-  status:SetPoint("RIGHT", f.sessionText, "LEFT", -Theme.pad.s, 0)
+  status:SetPoint("RIGHT", f.toolbarDivider, "LEFT", -Theme.pad.s, 0)
   status:SetText(GC.L["Open the Auction House to begin scanning."])
   f.status = status
 
@@ -12119,6 +12179,7 @@ local function createFrame()
   -- the longest, most useful messages would be the ones that vanished. One list row is the
   -- cheaper price.
   local boardY = row2Y - (CH.BTN_H + Theme.pad.s)
+  f.boardY, f.boardRowH = boardY, CH.BTN_H -- for GC.Sniper._LayoutBoardRow, above CH's own line
   f.boardChips = {}
   local chipPrevious
   for _, id in ipairs({ "commodities", "items" }) do
@@ -12146,8 +12207,8 @@ local function createFrame()
   goldLine:SetPoint("LEFT", f.boardChips.items, "RIGHT", Theme.pad.m, 0)
   goldLine:SetPoint("RIGHT", f, "RIGHT", -WIN.CONTENT_RIGHT_GUTTER, 0)
   goldLine:SetJustifyH("LEFT")
-  goldLine:SetWordWrap(false)
-  goldLine:SetMaxLines(1)
+  goldLine:SetWordWrap(true)
+  goldLine:SetMaxLines(2)
   goldLine:SetTextColor(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
   goldLine:Hide()
   f.goldLine = goldLine

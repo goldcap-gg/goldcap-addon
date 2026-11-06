@@ -194,7 +194,7 @@ describe("locale layer", function()
   it("carries the Forever keys in all twelve languages", function()
     local keys = {
       "What this buy would make is under your minimum profit.",
-      "Below vendor", "Under market",
+      "Below vendor", "Under market", "deals %s · items %s",
       "Buy at or under %s: a vendor pays %s each. This buy makes %s.",
       "Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit.",
       "No deals in your last scan.",

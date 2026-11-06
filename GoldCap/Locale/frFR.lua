@@ -636,6 +636,7 @@ GC.Locales.frFR = {
   ["deals %s · items %s · filtered %s"] = "affaires %s · objets %s · écartées %s",
   ["done"] = "fait",
   ["from %s"] = "de %s",
+  ["deals %s · items %s"] = "affaires %s · objets %s",
   ["in bags %d · in bank %d"] = "dans les sacs %d · en banque %d",
   ["in bags %d · in bank %d · in the mailbox %d"] = "dans les sacs %d · en banque %d · dans la boîte aux lettres %d",
   ["includes %d for crafting %s"] = "dont %d pour fabriquer %s",
