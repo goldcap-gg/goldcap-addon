@@ -137,6 +137,12 @@ end
 -- db.postStats is (Core/Data.lua's POST_STATS_CAP) -- past the cap, keep only what is on hand
 -- or on sale right now. Nothing is lost that cannot be learned again: every entry came from a
 -- GetItemKeyInfo call the next visit to an auctioneer makes anyway.
+--
+-- WoW: Forever: also every item the current scan's fold holds. The Deals board asks the client
+-- about hundreds of them per fold and remembers each answer here (Core/ForeverDeals.lua's
+-- realIsCommodity); past the cap every bag scan wiped them all, and each session asked the server
+-- over again while the board's Under market rows waited (review, 2026-11-06). Still bounded: the
+-- fold is one auction house's items. GC.ForeverScan.Fold() is nil on retail, which prunes as before.
 local COMMODITY_KIND_CAP = 2000
 pruneCommodityKinds = function()
   local cache = Bags.CommodityKinds()
@@ -146,8 +152,10 @@ pruneCommodityKinds = function()
   local keep = {}
   for _, stock in ipairs(S.bagStock) do keep[stock.itemID] = true end
   for _, lot in ipairs(S.ownedLots) do keep[lot.itemID] = true end
+  local fold = GC.ForeverScan and GC.ForeverScan.Fold and GC.ForeverScan.Fold() or nil
+  local scanned = type(fold) == "table" and type(fold.items) == "table" and fold.items or {}
   for itemID in pairs(cache) do
-    if not keep[itemID] then cache[itemID] = nil end
+    if not keep[itemID] and scanned[itemID] == nil then cache[itemID] = nil end
   end
 end
 
