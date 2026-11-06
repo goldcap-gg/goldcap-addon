@@ -16,8 +16,42 @@ GC.Locales.koKR = {
   [" · identity unresolved"] = " · 대상 미확정",
   [" · stale %ds"] = " · %d초 지남",
   [". Check again"] = ". 다시 확인하세요",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (짧게 /gc)",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · 명령어 (/goldcap도 됩니다):",
+  ["open or close the GoldCap window"] =
+    "GoldCap 창 열기 또는 닫기",
+  ["scan the auction house now"] =
+    "지금 경매장 검색",
+  ["find gear upgrades on the auction house"] =
+    "경매장에서 장비 업그레이드 찾기",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "업그레이드용 능력치 가중치, 예: /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "가방 물건을 상인과 경매장에서 팔면 얼마인지",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "탈것 비용 모으기: 가격 설정, 예: /gc mount 100g, 또는 clear, share",
+  ["count what you loot: on, off or clear"] =
+    "전리품 집계: on, off 또는 clear",
+  ["disenchant your gear one press at a time"] =
+    "장비를 한 번에 하나씩 마력 추출",
+  ["what to put in and take out of the Warband Bank"] =
+    "전투부대 은행에 넣을 것과 꺼낼 것",
+  ["your recent auction house sales"] =
+    "최근 경매장 판매 내역",
+  ["sales and buys over the last 24 hours"] =
+    "최근 24시간 판매와 구매",
+  ["keep prices fresh with GoldCap Companion"] =
+    "GoldCap Companion으로 가격을 최신으로 유지",
+  ["paste prices copied from goldcap.gg"] =
+    "goldcap.gg에서 복사한 가격 붙여넣기",
+  ["which prices GoldCap has and how old they are"] =
+    "GoldCap에 있는 가격과 얼마나 오래됐는지",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "GoldCap 소개와 가격이 얼마나 최신인지",
+  ["show or hide the GoldCap button by the minimap"] =
+    "미니맵 옆 GoldCap 버튼 표시 또는 숨기기",
+  ["move the window back to the middle of the screen"] =
+    "창을 화면 가운데로 되돌리기",
   ["%d (whole lot)"] = "%d (전체 물량)",
   ["%d ahead of you"] = "내 앞에 %d개",
   ["%d at %s"] = "%d개 %s",
@@ -1695,8 +1729,6 @@ GC.Locales.koKR = {
   ["Click for GoldCap. Drag to move it."] = "클릭하면 GoldCap이 열립니다. 끌어서 옮길 수 있습니다.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "미니맵 옆 GoldCap 버튼을 숨겼습니다. 다시 표시하려면 /gc minimap을 입력하세요.",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap: 미니맵 옆 GoldCap 버튼을 표시하거나 숨깁니다.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "지금은 마력 추출할 만한 것이 없습니다: 아래는 모두 상점이 더 이득입니다.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

@@ -1,7 +1,10 @@
 local ADDON_NAME, GC = ...
 
 local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
-GC.version = getMeta and getMeta(ADDON_NAME, "Version") or "dev"
+-- A build straight from the repository still carries the packager's "@project-version@" token.
+local metaVersion = getMeta and getMeta(ADDON_NAME, "Version")
+GC.version = (type(metaVersion) == "string" and metaVersion ~= "" and not metaVersion:find("@", 1, true))
+  and metaVersion or "dev"
 
 GC.DEFAULTS = {
   dbVersion = 1,
@@ -1138,11 +1141,40 @@ function GC.OnSlash(msg)
   if handler then
     handler(rest)
   else
-    GC.Print("v" .. GC.version .. GC.L[" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"])
-    -- Where the minimap button is loaded (UI/MinimapButton.lua, retail only), how to show or hide
-    -- it: besides the line printed as it hides, the only place a player learns the command.
-    if GC.slashHandlers.minimap then
-      GC.Print(GC.L["/goldcap minimap shows or hides the GoldCap button by the minimap."])
+    GC.PrintHelp()
+  end
+end
+
+-- `/gc` alone, or a word GoldCap does not know: the version, then every command this game has,
+-- a line each with what it does. One line of bare names (owner, 2026-11-06) broke mid-command in
+-- chat and named only seven of them: none of Forever's, none of retail's disenchant, route or
+-- minimap. A command whose file this game does not load has no handler, so no line. Diagnostics
+-- (forever, sell, board, purchase, taint, buy, buywait, craft, sellstate) answer in English for
+-- support and stay off it.
+function GC.PrintHelp()
+  local commands = {
+    { "sniper", GC.L["open or close the GoldCap window"] },
+    { "scan", GC.L["scan the auction house now"] },
+    { "upgrades", GC.L["find gear upgrades on the auction house"] },
+    { "weights", GC.L["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] },
+    { "bags", GC.L["what your bags fetch at a vendor and on the auction house"] },
+    { "mount", GC.L["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] },
+    { "loot", GC.L["count what you loot: on, off or clear"] },
+    { "disenchant", GC.L["disenchant your gear one press at a time"] },
+    { "route", GC.L["what to put in and take out of the Warband Bank"] },
+    { "sales", GC.L["your recent auction house sales"] },
+    { "ledger", GC.L["sales and buys over the last 24 hours"] },
+    { "companion", GC.L["keep prices fresh with GoldCap Companion"] },
+    { "import", GC.L["paste prices copied from goldcap.gg"] },
+    { "status", GC.L["which prices GoldCap has and how old they are"] },
+    { "welcome", GC.L["what GoldCap does, and how fresh your prices are"] },
+    { "minimap", GC.L["show or hide the GoldCap button by the minimap"] },
+    { "reset", GC.L["move the window back to the middle of the screen"] },
+  }
+  GC.Print(GC.L["%s · commands (/goldcap works too):"]:format(GC.version == "dev" and "dev" or "v" .. GC.version))
+  for _, command in ipairs(commands) do
+    if GC.slashHandlers[command[1]] then
+      print(GC.Util.ClientText("   |cffffd100/gc " .. command[1] .. "|r: " .. command[2]))
     end
   end
 end

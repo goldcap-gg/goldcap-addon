@@ -17,8 +17,42 @@ GC.Locales.zhCN = {
   [" · identity unresolved"] = " · 归属未确定",
   [" · stale %ds"] = " · 已过 %d 秒",
   [". Check again"] = "。请重新检查",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · 命令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger、/goldcap reset（可简写 /gc）",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · 命令（也可以用 /goldcap）：",
+  ["open or close the GoldCap window"] =
+    "打开或关闭 GoldCap 窗口",
+  ["scan the auction house now"] =
+    "立即扫描拍卖行",
+  ["find gear upgrades on the auction house"] =
+    "在拍卖行寻找装备提升",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "用于装备提升的属性权重，例如 /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "背包物品卖给商人和在拍卖行各值多少",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "攒坐骑的金币：设置价格，例如 /gc mount 100g，或 clear、share",
+  ["count what you loot: on, off or clear"] =
+    "统计掉落：on、off 或 clear",
+  ["disenchant your gear one press at a time"] =
+    "一键一件地分解装备",
+  ["what to put in and take out of the Warband Bank"] =
+    "该放进和取出战团银行的物品",
+  ["your recent auction house sales"] =
+    "你最近在拍卖行的售出记录",
+  ["sales and buys over the last 24 hours"] =
+    "最近 24 小时的售出和购买",
+  ["keep prices fresh with GoldCap Companion"] =
+    "用 GoldCap Companion 保持价格最新",
+  ["paste prices copied from goldcap.gg"] =
+    "粘贴从 goldcap.gg 复制的价格",
+  ["which prices GoldCap has and how old they are"] =
+    "GoldCap 有哪些价格，以及它们有多旧",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "GoldCap 能做什么，以及你的价格有多新",
+  ["show or hide the GoldCap button by the minimap"] =
+    "显示或隐藏小地图旁的 GoldCap 按钮",
+  ["move the window back to the middle of the screen"] =
+    "把窗口移回屏幕中央",
   ["%d (whole lot)"] = "%d（整批）",
   ["%d ahead of you"] = "你前面有 %d 件",
   ["%d at %s"] = "%d 个 %s",
@@ -1662,8 +1696,6 @@ GC.Locales.zhCN = {
   ["Click for GoldCap. Drag to move it."] = "点击打开 GoldCap。拖动可移动它。",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "小地图旁的 GoldCap 按钮已隐藏。输入 /gc minimap 可重新显示。",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap：显示或隐藏小地图旁的 GoldCap 按钮。",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] = "现在没有值得分解的：下面的都是卖给商人更值钱。",
   ["Nothing worth disenchanting now: everything below sells for more."] = "现在没有值得分解的：下面的都是卖掉更值钱。",
   ["This character does not know Disenchant."] = "这个角色不会分解。",

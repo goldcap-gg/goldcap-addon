@@ -21,6 +21,8 @@
   with /gc sniper, as the line under the switch says.
 - Settings: the DEFAULTS button shows its whole word in every language, and the language list
   says "Game language" in your language.
+- /gc lists every command your game has, one per line with what it does, Forever's own
+  (scan, bags, upgrades, weights, mount, loot) included.
 - The line next to AUTO no longer cuts a message short after your first buy. Your session total
   moved to the end of the COMMODITIES and ITEMS row, and a long message takes a second line.
 

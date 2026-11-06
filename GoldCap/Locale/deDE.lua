@@ -13,8 +13,42 @@ GC.Locales.deDE = {
   [" · identity unresolved"] = " · Zuordnung ungeklärt",
   [" · stale %ds"] = " · %ds alt",
   [". Check again"] = ". Erneut prüfen",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · Befehle: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (kurz /gc)",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · Befehle (/goldcap geht auch):",
+  ["open or close the GoldCap window"] =
+    "GoldCap-Fenster öffnen oder schließen",
+  ["scan the auction house now"] =
+    "Auktionshaus jetzt scannen",
+  ["find gear upgrades on the auction house"] =
+    "Ausrüstungsverbesserungen im Auktionshaus finden",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "deine Wertgewichtung für Verbesserungen, etwa /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "was deine Taschen beim Händler und im Auktionshaus bringen",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "Gold fürs Reittier: Preis setzen, etwa /gc mount 100g, oder clear, share",
+  ["count what you loot: on, off or clear"] =
+    "Beute zählen: on, off oder clear",
+  ["disenchant your gear one press at a time"] =
+    "Ausrüstung entzaubern, ein Tastendruck pro Teil",
+  ["what to put in and take out of the Warband Bank"] =
+    "was in die Kriegsmeutenbank soll und was heraus",
+  ["your recent auction house sales"] =
+    "deine letzten Verkäufe im Auktionshaus",
+  ["sales and buys over the last 24 hours"] =
+    "Verkäufe und Käufe der letzten 24 Stunden",
+  ["keep prices fresh with GoldCap Companion"] =
+    "Preise aktuell halten mit GoldCap Companion",
+  ["paste prices copied from goldcap.gg"] =
+    "von goldcap.gg kopierte Preise einfügen",
+  ["which prices GoldCap has and how old they are"] =
+    "welche Preise GoldCap hat und wie alt sie sind",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "was GoldCap macht und wie aktuell deine Preise sind",
+  ["show or hide the GoldCap button by the minimap"] =
+    "GoldCap-Knopf an der Minikarte zeigen oder verbergen",
+  ["move the window back to the middle of the screen"] =
+    "Fenster zurück in die Bildschirmmitte",
   ["%d (whole lot)"] = "%d (ganzer Posten)",
   ["%d ahead of you"] = "%d vor dir",
   ["%d at %s"] = "%d zu %s",
@@ -1769,8 +1803,6 @@ GC.Locales.deDE = {
   ["Click for GoldCap. Drag to move it."] = "Klicken öffnet GoldCap. Ziehen verschiebt die Schaltfläche.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "Die GoldCap-Schaltfläche an der Minikarte ist ausgeblendet. Gib /gc minimap ein, um sie zurückzuholen.",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap blendet die GoldCap-Schaltfläche an der Minikarte ein oder aus.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Gerade lohnt sich kein Entzaubern: Für alles unten zahlt ein Händler mehr.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

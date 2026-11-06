@@ -12,8 +12,42 @@ GC.Locales.ruRU = {
   [" · identity unresolved"] = " · позиция не опознана",
   [" · stale %ds"] = " · устарело %dс",
   [". Check again"] = ". Проверьте ещё раз",
-  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " · команды: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (или коротко /gc)",
+  ["%s · commands (/goldcap works too):"] =
+    "%s · команды (можно и /goldcap):",
+  ["open or close the GoldCap window"] =
+    "открыть или закрыть окно GoldCap",
+  ["scan the auction house now"] =
+    "сканировать аукцион сейчас",
+  ["find gear upgrades on the auction house"] =
+    "найти улучшения снаряжения на аукционе",
+  ["your stat weights for upgrades, like /gc weights STR 1 STA 0.5"] =
+    "веса характеристик для улучшений, например /gc weights STR 1 STA 0.5",
+  ["what your bags fetch at a vendor and on the auction house"] =
+    "сколько дадут за сумки торговец и аукцион",
+  ["gold for your mount: set the cost, like /gc mount 100g, or clear, share"] =
+    "золото на ездовое животное: задать цену, например /gc mount 100g, или clear, share",
+  ["count what you loot: on, off or clear"] =
+    "считать добычу: on, off или clear",
+  ["disenchant your gear one press at a time"] =
+    "распылять снаряжение по одному нажатию",
+  ["what to put in and take out of the Warband Bank"] =
+    "что положить в банк отряда и что забрать из него",
+  ["your recent auction house sales"] =
+    "ваши последние продажи на аукционе",
+  ["sales and buys over the last 24 hours"] =
+    "продажи и покупки за последние 24 часа",
+  ["keep prices fresh with GoldCap Companion"] =
+    "свежие цены через GoldCap Companion",
+  ["paste prices copied from goldcap.gg"] =
+    "вставить цены, скопированные с goldcap.gg",
+  ["which prices GoldCap has and how old they are"] =
+    "какие цены есть у GoldCap и какой они давности",
+  ["what GoldCap does, and how fresh your prices are"] =
+    "что умеет GoldCap и насколько свежи ваши цены",
+  ["show or hide the GoldCap button by the minimap"] =
+    "показать или скрыть кнопку GoldCap у миникарты",
+  ["move the window back to the middle of the screen"] =
+    "вернуть окно в середину экрана",
   ["%d (whole lot)"] = "%d (весь лот)",
   ["%d ahead of you"] = "%d впереди вас",
   ["%d at %s"] = "%d по %s",
@@ -1835,8 +1869,6 @@ GC.Locales.ruRU = {
   ["Click for GoldCap. Drag to move it."] = "Нажмите, чтобы открыть GoldCap. Перетащите, чтобы передвинуть.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "Кнопка GoldCap у миникарты скрыта. Чтобы вернуть её, введите /gc minimap.",
-  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
-    "/goldcap minimap показывает или скрывает кнопку GoldCap у миникарты.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Сейчас нечего выгодно распылять: за всё ниже торговец платит больше.",
   ["Nothing worth disenchanting now: everything below sells for more."] =
