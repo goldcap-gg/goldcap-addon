@@ -11,8 +11,22 @@
   saw. It used to say there were no deals and that every item was filtered out, even with deals on
   the board.
 - WoW: Forever: a deal under the market price may use up to a quarter of the gold on your
-  character, unless you changed the share per buy in Settings. At 5% nearly every one asked for
-  more gold than a new character has.
+  character, or the share per buy you set in Settings if it is larger. At 5% nearly every one
+  asked for more gold than a new character has. Raising that share no longer gives a deal less
+  than the default did.
+- WoW: Forever: before you buy a deal under the market price, its check looks at what is listed
+  right now. If others ask less than the price you would resell at, the profit is counted at their
+  price, and a buy that no longer pays is turned down.
+- WoW: Forever: a deal stays on the board after a buy that took only part of it, such as one piece
+  of gear out of many, so you can buy the rest.
+- WoW: Forever: gear under the vendor price is listed only when one piece earns your minimum
+  profit. Each piece is a buy of its own.
+- WoW: Forever: a finished scan always replaces the one before it, even if you open a deal or
+  close the auction house while it ends. It could keep the older prices.
+- WoW: Forever: deals under the market price show up at the auction house even if you first opened
+  GoldCap somewhere else.
+- WoW: Forever: the ITEMS chip counts the deals on the Items board, and "Not enough gold" is
+  measured against one piece, the way you buy it.
 - WoW: Forever: the check panel says how old the scan behind a deal is.
 - WoW: Forever: while a scan runs, the line next to AUTO says so, in front of the last scan's
   figures.
@@ -25,6 +39,8 @@
   (scan, bags, upgrades, weights, mount, loot) included.
 - The line next to AUTO no longer cuts a message short after your first buy. Your session total
   moved to the end of the COMMODITIES and ITEMS row, and a long message takes a second line.
+- WoW: Forever: the line next to AUTO keeps the message about the deal you are buying, instead of
+  going back to the board's figures a few seconds later.
 
 ## 0.23.1 (2026-10-30)
 
