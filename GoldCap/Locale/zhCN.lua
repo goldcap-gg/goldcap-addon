@@ -197,7 +197,12 @@ GC.Locales.zhCN = {
   ["Don't skip"] = "不再跳过",
   ["Everything here is bought"] = "这里的都买齐了",
   ["From goldcap.gg: manage it there"] = "来自 goldcap.gg：请在那里管理",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] = "来自你 %s 前的扫描。只计算 %s。用 /gc weights 修改。",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "来自你 %s 前的扫描：每个栏位显示你身上的金币买得起、提升最多的装备，或几乎一样好但更便宜的装备。只计算 %s。用 /gc weights 修改。",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "拍卖行上比你身上更好的装备，价格都超过你身上的金币。",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "升级装备超过你身上金币的栏位：%d 个。",
   ["Gear upgrades on the auction house"] = "拍卖行上的装备升级",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap 现在会统计你拾取的掉落（不含任何名字），用于 goldcap.gg 的掉落率。该部分发布后由 Companion 分享。输入 /gc loot off 可停止。",

@@ -35,7 +35,9 @@ describe("ForeverUpgrades", function()
     items, statsOf, usableOf, worn, requested = {}, {}, {}, {}, {}
   end)
 
-  it("picks the cheapest piece that beats the worn one, per slot", function()
+  -- Owner, 2026-11-06: the cheapest piece that beat the worn one offered "+1 armour" for 1s in every
+  -- slot, "while there are much better things" a silver or two dearer.
+  it("picks the piece that beats the worn one by the most, per slot", function()
     for _, id in ipairs({ 101, 102, 103 }) do items[id] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 } end
     worn[1] = "item:900"
     statsOf = { ["item:900"] = STR(5), ["item:101"] = STR(4), ["item:102"] = STR(8), ["item:103"] = STR(7) }
@@ -43,10 +45,49 @@ describe("ForeverUpgrades", function()
     assert.equal(1, #r.rows)
     local row = r.rows[1]
     assert.equal("HEAD", row.group); assert.equal("INVTYPE_HEAD", row.labelKey)
-    assert.equal(103, row.itemID); assert.equal(200, row.unit); assert.equal(2, row.gain)
-    assert.equal("[item:103]", row.link)
-    assert.same({ ITEM_MOD_STRENGTH_SHORT = 2 }, row.diffs)
-    assert.is_nil(row.later)
+    assert.equal(102, row.itemID); assert.equal(300, row.unit); assert.equal(3, row.gain)
+    assert.equal("[item:102]", row.link)
+    assert.same({ ITEM_MOD_STRENGTH_SHORT = 3 }, row.diffs)
+    assert.is_nil(row.later); assert.is_nil(row.known); assert.is_nil(row.usable)
+  end)
+
+  it("takes a cheaper piece instead when it gives at least NEAR_BEST of the best one's gain", function()
+    for _, id in ipairs({ 111, 112, 113 }) do items[id] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 } end
+    statsOf = { ["item:111"] = STR(20), ["item:112"] = STR(18), ["item:113"] = STR(19) }
+    -- 18 is 90% of 20: the cheapest of the near ones (112 at 120), not 113 at 400.
+    local r = U.Build(gear({ [111] = "5000:0:0", [112] = "120:0:0", [113] = "400:0:0" }), drv(), W)
+    assert.equal(112, r.rows[1].itemID)
+    statsOf["item:112"] = STR(17)                           -- 85%: no longer near, 113 (95%) is
+    r = U.Build(gear({ [111] = "5000:0:0", [112] = "120:0:0", [113] = "400:0:0" }), drv(), W)
+    assert.equal(113, r.rows[1].itemID)
+  end)
+
+  it("passes over the strongest piece when the tooltip says it cannot be used", function()
+    for _, id in ipairs({ 121, 122 }) do items[id] = { loc = "INVTYPE_WRIST", class = 4, sub = 2 } end
+    statsOf = { ["item:121"] = STR(9), ["item:122"] = STR(4) }
+    usableOf = { ["item:121"] = false }
+    local r = U.Build(gear({ [121] = "50:0:0", [122] = "80:0:0" }), drv(), W)
+    assert.equal(122, r.rows[1].itemID)
+  end)
+
+  it("offers only what the gold carried pays for, and counts the slots it priced out", function()
+    for _, id in ipairs({ 131, 132 }) do items[id] = { loc = "INVTYPE_HAND", class = 4, sub = 2 } end
+    items[133] = { loc = "INVTYPE_WAIST", class = 4, sub = 2 }
+    statsOf = { ["item:131"] = STR(10), ["item:132"] = STR(3), ["item:133"] = STR(6) }
+    local g = gear({ [131] = "3000:0:0", [132] = "200:0:0", [133] = "900:0:0" })
+    local r = U.Build(g, drv({ money = function() return 1000 end }), W)
+    assert.equal(2, #r.rows)
+    assert.equal(132, r.rows[1].itemID)                     -- hands: 131 costs more than 1000c
+    assert.equal(133, r.rows[2].itemID)                     -- waist: 900c fits
+    assert.equal(0, r.dearer)
+    r = U.Build(g, drv({ money = function() return 100 end }), W)
+    assert.equal(0, #r.rows)
+    assert.equal(2, r.dearer)                               -- hands and waist: upgrades, all too dear
+    r = U.Build(g, drv(), W)                                -- no money read: every price
+    assert.equal(131, r.rows[1].itemID)
+    usableOf = { ["item:133"] = false }                     -- the waist piece is red on the tooltip
+    r = U.Build(g, drv({ money = function() return 100 end }), W)
+    assert.equal(1, r.dearer)                               -- only hands count
   end)
 
   it("scores each version of a random-suffix item by its own stats", function()

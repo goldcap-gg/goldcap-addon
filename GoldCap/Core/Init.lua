@@ -362,6 +362,9 @@ if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   -- Plan 3e, Road to 40 (Core/ForeverRoad.lua): its pace clock reads level progress.
   pcall(function() frame:RegisterEvent("PLAYER_XP_UPDATE") end)
   pcall(function() frame:RegisterEvent("PLAYER_LEVEL_UP") end)
+  -- The upgrades window (UI/ForeverUpgradesFrame.lua) weighs the AH against what the character
+  -- wears: a piece put on or taken off repaints it while it is up.
+  pcall(function() frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED") end)
   -- Plan 3e, the loot recorder (Core/ForeverLoot.lua): both loot events (one window counts once),
   -- LOOT_CLOSED to end that session (final review I3), and the player's own spells, which say a
   -- window was opened by skinning or gathering.
@@ -1025,6 +1028,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper and GC.Sniper.OnPlayerMoney then GC.Sniper.OnPlayerMoney() end
     -- WoW: Forever's Road to 40 (a no-op anywhere else).
     if GC.ForeverRoad then GC.ForeverRoad.OnMoney() end
+    -- The upgrades window offers only what the gold carried pays for (nothing while it is not up).
+    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnChange() end
+  elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+    -- Registered in Forever only (the gate above).
+    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnChange() end
   elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
     -- Registered in Forever only (the gate above). PLAYER_LEVEL_UP fires a moment before the
     -- client settles the new level and XP (final review M3) -- read them next frame instead of a

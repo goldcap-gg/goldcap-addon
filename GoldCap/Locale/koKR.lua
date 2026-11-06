@@ -198,8 +198,12 @@ GC.Locales.koKR = {
   ["Don't skip"] = "건너뛰지 않기",
   ["Everything here is bought"] = "여기서는 모두 구매함",
   ["From goldcap.gg: manage it there"] = "goldcap.gg 목록: 거기서 관리하세요",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "%s 전 스캔 기준. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "%s 전 스캔 기준: 슬롯마다 가진 골드로 살 수 있는 것 중 가장 많이 올려 주는 장비, 또는 거의 같으면서 더 싼 장비입니다. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "경매장에서 착용 장비보다 나은 것은 모두 가진 골드보다 비쌉니다.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "가진 골드보다 비싼 업그레이드만 있는 슬롯: %d개.",
   ["Gear upgrades on the auction house"] = "경매장의 장비 업그레이드",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap이 이제 전리품에서 무엇이 나오는지 이름 없이 집계해 goldcap.gg의 드롭 확률에 씁니다. 해당 기능이 출시되면 Companion이 공유합니다. 끄려면 /gc loot off를 입력하세요.",

@@ -189,8 +189,12 @@ GC.Locales.ruRU = {
   ["Could not read that amount. Type it like 12g 50s."] = "Не удалось прочитать сумму. Введите так: 12g 50s.",
   ["Don't skip"] = "Не пропускать",
   ["Everything here is bought"] = "Здесь всё куплено",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "По вашему скану %s назад. Учитывает только %s. Изменить: /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "По вашему скану %s назад: в каждом слоте вещь, которая даёт больше всего за ваше золото, или почти такая же, но дешевле. Учитывает только %s. Изменить: /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Всё, что на аукционе лучше вашей экипировки, стоит больше, чем у вас золота.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Слотов, где улучшения дороже вашего золота: %d.",
   ["Gear upgrades on the auction house"] = "Улучшения экипировки на аукционе",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap теперь считает, что выпадает из добычи, без имён, для шансов выпадения на goldcap.gg. Companion начнёт это передавать, когда эта часть выйдет. Введите /gc loot off, чтобы отключить.",

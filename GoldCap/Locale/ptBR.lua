@@ -201,8 +201,12 @@ GC.Locales.ptBR = {
   ["Don't skip"] = "Não pular",
   ["Everything here is bought"] = "Tudo aqui está comprado",
   ["From goldcap.gg: manage it there"] = "Do goldcap.gg: gerencie lá",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "Do seu escaneamento de %s atrás. Conta só %s. Mude com /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "Do seu escaneamento de %s atrás: em cada espaço, a peça que mais acrescenta com o ouro que você tem, ou uma mais barata quase tão boa. Conta só %s. Mude com /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Tudo na casa de leilões que supera seu equipamento custa mais do que o ouro que você tem.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Espaços cujas melhorias custam mais do que você tem: %d.",
   ["Gear upgrades on the auction house"] = "Melhorias de equipamento na casa de leilões",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "O GoldCap agora conta o que cai das criaturas que você saqueia, sem nomes, para as taxas de saque no goldcap.gg. O Companion vai compartilhar isso quando essa parte for lançada. Digite /gc loot off para parar.",

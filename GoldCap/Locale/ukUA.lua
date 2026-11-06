@@ -192,8 +192,12 @@ GC.Locales.ukUA = {
   ["Could not read that amount. Type it like 12g 50s."] = "Не вдалося прочитати суму. Введіть так: 12g 50s.",
   ["Don't skip"] = "Не пропускати",
   ["Everything here is bought"] = "Тут усе куплено",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "За вашим скануванням %s тому. Враховує лише %s. Змінити: /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "За вашим скануванням %s тому: у кожному слоті річ, яка дає найбільше за ваше золото, або майже така сама, але дешевша. Враховує лише %s. Змінити: /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Усе, що на аукціоні краще за ваше спорядження, коштує більше, ніж у вас золота.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Слотів, де покращення дорожчі за ваше золото: %d.",
   ["Gear upgrades on the auction house"] = "Покращення спорядження на аукціоні",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap тепер рахує, що випадає зі здобичі, без імен, для шансів випадіння на goldcap.gg. Companion почне це передавати, коли ця частина вийде. Введіть /gc loot off, щоб вимкнути.",

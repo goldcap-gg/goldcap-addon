@@ -200,8 +200,12 @@ GC.Locales.frFR = {
   ["Don't skip"] = "Ne plus ignorer",
   ["Everything here is bought"] = "Tout est acheté ici",
   ["From goldcap.gg: manage it there"] = "De goldcap.gg : gère-la là-bas",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "D'après votre scan d'il y a %s. Compte seulement %s. À modifier avec /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "D'après votre scan d'il y a %s : pour chaque emplacement, la pièce qui apporte le plus avec l'or que vous avez, ou une moins chère presque aussi bonne. Compte seulement %s. À modifier avec /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Tout ce qui dépasse votre équipement à l'hôtel des ventes coûte plus que l'or que vous avez.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Emplacements dont les améliorations coûtent plus que ce que vous avez : %d.",
   ["Gear upgrades on the auction house"] = "Améliorations d'équipement à l'hôtel des ventes",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap compte désormais ce que lâchent les créatures que vous dépouillez, sans aucun nom, pour les taux de butin sur goldcap.gg. Le Companion le partagera dès que cette partie sortira. Tapez /gc loot off pour arrêter.",

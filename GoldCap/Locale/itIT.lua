@@ -201,8 +201,12 @@ GC.Locales.itIT = {
   ["Don't skip"] = "Non saltare",
   ["Everything here is bought"] = "Qui è tutto comprato",
   ["From goldcap.gg: manage it there"] = "Da goldcap.gg: gestiscila lì",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "Dalla tua scansione di %s fa. Conta solo %s. Cambia con /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "Dalla tua scansione di %s fa: per ogni slot, il pezzo che dà di più con l'oro che hai, o uno più economico quasi altrettanto buono. Conta solo %s. Cambia con /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Tutto ciò che alla casa d'aste batte il tuo equipaggiamento costa più dell'oro che hai.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Slot i cui miglioramenti costano più di quanto hai: %d.",
   ["Gear upgrades on the auction house"] = "Miglioramenti di equipaggiamento alla casa d'aste",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap ora conta cosa rilasciano le creature che saccheggi, senza nomi, per le probabilità di bottino su goldcap.gg. Il Companion lo condividerà quando quella parte uscirà. Scrivi /gc loot off per fermarlo.",

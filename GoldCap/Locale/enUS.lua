@@ -167,8 +167,12 @@ GC.Locales.enUS = {
   ["Don't skip"] = "Don't skip",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Everything else checks out. With more gold on this character, this is a buy.",
   ["Everything here is bought"] = "Everything here is bought",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "From your scan %s ago. Counts only %s. Change with /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Everything on the auction house that beats your gear costs more than the gold you carry.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Slots where the upgrades cost more than you carry: %d.",
   ["GOLDCAP"] = "GOLDCAP",
   ["Gear upgrades on the auction house"] = "Gear upgrades on the auction house",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
