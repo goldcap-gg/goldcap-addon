@@ -1895,4 +1895,10 @@ GC.Locales.ukUA = {
   ["Disenchant it again"] = "Розпилювати знову",
   ["GoldCap could not disenchant these"] = "GoldCap не зміг розпилити ці предмети",
   ["Try again"] = "Спробувати знову",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Скасувати цей лот і втратити заставу: %s. Натисніть ще раз для підтвердження",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "застава, яку втрачає скасування, може виявитися більшою за виграш від перевиставлення. Притримайте",
+  ["deposit"] = "застава",
 }

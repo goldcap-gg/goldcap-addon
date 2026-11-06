@@ -31,6 +31,9 @@ local _, GC = ...
 --   * `opts.undercutPct` -- the player's own threshold (0 to 20, nil is 0): an undercut lot counts
 --     only when the fresh price is more than that share under it (else it holds,
 --     `small_undercut`). Urgent lots are queued whatever the threshold.
+-- And one from WoW: Forever (2026-11-06), published by decoratePosition like the advice: a lot's
+-- `cancelWorth == false` -- relisting would not win back the deposit the cancel loses -- holds
+-- (`deposit`). Retail never sets it.
 GC.CancelQueue = {}
 
 local MAX_EXACT = 9007199254740991
@@ -83,19 +86,26 @@ function GC.CancelQueue.Build(positions, opts)
         local floorUnit = type(position.rule) == "table" and positive(position.rule.floorUnit)
           and position.rule.floorUnit or nil
         local lossHold = advice == "hold" and position.recommendation.reason == "loss"
+        -- WoW: Forever's deposit weighing (decoratePosition): no lot of the position was worth
+        -- its cancel, so the advice turned to hold.
+        local depositHold = advice == "hold" and position.recommendation.reason == "deposit"
         for _, lot in ipairs(lots) do
           if positive(lot.auctionID) and positive(lot.quantity) and positive(lot.unitPrice) then
             local undercut = lot.unitPrice > fresh
             if undercut then aboveMarket = aboveMarket + 1 end
             local urgent = urgentUnit ~= nil and lot.unitPrice == urgentUnit
             local passes = (lot.unitPrice - fresh) * 100 > pct * lot.unitPrice
-            -- Would this lot be queued but for the threshold, or but for the floor? The two
-            -- holds name what stopped it, ahead of the advice's own.
+            -- Would this lot be queued but for the threshold, the floor or the deposit? The holds
+            -- name what stopped it, ahead of the advice's own.
             local wanted
             if floorUnit then wanted = undercut and not lossHold
-            else wanted = advice == "repost" and undercut end
-            local advised = wanted and passes and (not floorUnit or fresh >= floorUnit)
-            if wanted and passes and not advised then heldBy.below_floor = true end
+            else wanted = (advice == "repost" or depositHold) and undercut end
+            local overFloor = not floorUnit or fresh >= floorUnit
+            -- Only Forever's weighing writes the verdict; nil, everywhere else, is worth it.
+            local worth = lot.cancelWorth ~= false
+            local advised = wanted and passes and overFloor and worth
+            if wanted and passes and not overFloor then heldBy.below_floor = true end
+            if wanted and passes and overFloor and not worth then heldBy.deposit = true end
             if wanted and not passes then heldBy.small_undercut = true end
             if urgent or advised then
               local value = mulExact(lot.quantity, fresh)
@@ -118,7 +128,7 @@ function GC.CancelQueue.Build(positions, opts)
           reason, included = "unresolved_identity", {}
         elseif #included == 0 and aboveMarket > 0 then
           reason = heldBy.below_floor and "below_floor" or heldBy.small_undercut and "small_undercut"
-            or advice == "hold" and "advised_hold" or "no_advice"
+            or heldBy.deposit and "deposit" or advice == "hold" and "advised_hold" or "no_advice"
         end
       end
       if reason then

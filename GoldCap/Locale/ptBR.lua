@@ -1822,4 +1822,10 @@ GC.Locales.ptBR = {
   ["Disenchant it again"] = "Desencantar de novo",
   ["GoldCap could not disenchant these"] = "O GoldCap não conseguiu desencantar estes",
   ["Try again"] = "Tentar de novo",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Cancelar este lote e perder o depósito de %s. Clique de novo para confirmar",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "o depósito perdido ao cancelar pode ser maior do que reanunciar recupera. Segure",
+  ["deposit"] = "depósito",
 }

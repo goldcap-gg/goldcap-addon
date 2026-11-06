@@ -1893,4 +1893,10 @@ GC.Locales.ruRU = {
   ["Disenchant it again"] = "Распылять снова",
   ["GoldCap could not disenchant these"] = "GoldCap не смог распылить эти предметы",
   ["Try again"] = "Попробовать снова",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Отменить лот и потерять залог: %s. Нажмите ещё раз для подтверждения",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "залог, теряемый при отмене, может оказаться больше выигрыша от перевыставления. Придержите",
+  ["deposit"] = "залог",
 }

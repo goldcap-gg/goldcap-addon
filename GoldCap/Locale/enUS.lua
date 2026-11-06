@@ -1812,4 +1812,10 @@ GC.Locales.enUS = {
   ["Disenchant it again"] = "Disenchant it again",
   ["GoldCap could not disenchant these"] = "GoldCap could not disenchant these",
   ["Try again"] = "Try again",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Cancel this lot and lose its %s deposit. Click again to confirm",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "the deposit a cancel loses may be more than relisting wins back. Hold",
+  ["deposit"] = "deposit",
 }

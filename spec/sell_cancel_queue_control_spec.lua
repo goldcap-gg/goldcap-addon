@@ -332,6 +332,62 @@ describe("Sell tab, the cancel queue control", function()
     end)
   end)
 
+  -- WoW: Forever (2026-11-06): a cancel loses the lot's deposit, which the client quotes there, and
+  -- an undercut smaller than it is held (Core/SellPositions.lua's deposit weighing). The lot's own
+  -- arm says how much it loses.
+  describe("in WoW: Forever", function()
+    local deposits
+    before_each(function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      deposits = {}
+      _G.C_AuctionHouse.CalculateCommodityDeposit = function(itemID, duration, quantity)
+        deposits[#deposits + 1] = { itemID, duration, quantity }
+        return 50000
+      end
+      _G.C_AuctionHouse.GetCancelCost = function() return 0 end
+    end)
+
+    it("holds a lot a silver under the market when its 5g deposit is more than the 4g relisting moves", function()
+      GC.QuoteCache.Set(quotes(), 23427, 27200, 1000)
+      compose()
+      assert.same({ 23427, 2, 400 }, deposits[1]) -- the lot's own size, at the player's duration
+      assert.equal(0, #GC.SellState.cancelEntries)
+      assert.equal("deposit", GC.SellState.cancelSkipped[1].reason)
+      assert.equal("NOTHING TO CANCEL", container.cancelButton.label)
+      local lines = {}
+      _G.GameTooltip = { SetOwner = function() end, Show = function() end,
+        AddLine = function(_, text) lines[#lines + 1] = text end }
+      container.cancelHeldBackHit.scripts.OnEnter(container.cancelHeldBackHit)
+      _G.GameTooltip = nil
+      assert.matches("the deposit a cancel loses may be more than relisting wins back. Hold",
+        table.concat(lines, " "), 1, true)
+    end)
+
+    it("queues a lot the market left far behind, and its arm names the deposit it loses", function()
+      _G.C_AuctionHouse.GetCancelCost = function(auctionID) return auctionID == 77 and 300 or 0 end
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose()
+      assert.equal(1, #GC.SellState.cancelEntries)
+      local button = container.cancelButton
+      button.scripts.OnClick(button)
+      assert.equal("armed", armedLotRow().repostStage)
+      assert.equal(0, cancelCalls)
+      -- 5g of deposit and the 3s GetCancelCost names on top of it.
+      assert.equal("Cancel this lot and lose its " .. helper.money("5g3s") .. " deposit. Click again to confirm",
+        root.status.text)
+    end)
+
+    it("keeps retail's words and its queue when the game is not Forever", function()
+      GC.ForeverScan = { Enabled = function() return false end }
+      GC.QuoteCache.Set(quotes(), 23427, 27200, 1000)
+      compose()
+      assert.equal(0, #deposits)
+      assert.equal(1, #GC.SellState.cancelEntries)
+      container.cancelButton.scripts.OnClick(container.cancelButton)
+      assert.equal("Cancel this lot and lose its deposit. Click again to confirm", root.status.text)
+    end)
+  end)
+
   -- An armed cancel is a question, and a click anywhere else is the answer "no". The render
   -- used to stay held for the arm's full twenty seconds: rows would not open, the panel would
   -- not shut, and the tab looked hung.

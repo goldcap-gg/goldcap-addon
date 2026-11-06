@@ -107,6 +107,10 @@ function Compose.Positions(skipPaint)
     -- the market there, so the projection prices bag stock from it while the live walk is still
     -- waiting on the throttle. Posting and cancelling are untouched -- they still wait for fresh.
     scanProjects = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() or nil,
+    -- WoW: Forever only: what a cancel loses (GC.Sell.LotForfeit), which the repost advice weighs
+    -- each lot against there (Core/SellPositions.lua's decoratePosition). Retail's advice is as it
+    -- was.
+    cancelForfeit = GC.Sell.OnForever and GC.Sell.OnForever() and GC.Sell.LotForfeit or nil,
     -- Followed groups: each item's selling rule and its unsold rounds (Core/GroupRules.lua,
     -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. Retail only: on
     -- WoW: Forever neither module loads and no position has a rule.

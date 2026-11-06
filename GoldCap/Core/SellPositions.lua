@@ -273,7 +273,7 @@ local function addLot(position, ownedLot)
 end
 
 local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules,
-    defaultPrice)
+    defaultPrice, cancelForfeit)
   table.sort(position.ownedLots, stableLotOrder)
   -- An item-level variant is priced from a search for its own ItemKey, filed under its own
   -- `quoteKey` (Services/Sell/Quotes.lua); anything else under its itemID, as ever.
@@ -484,6 +484,35 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
         reachUnit = reachUnit, quarterUnit = quarterUnit })
   else
     position.recommendation = nil
+  end
+
+  -- WoW: Forever (`cancelForfeit`, Services/Sell/Cancel.lua's GC.Sell.LotForfeit: what a cancel
+  -- loses, nil where the client cannot quote it). A cancel throws the lot's deposit away, and on
+  -- the owner's save (2026-11-06) the advice did it for seven copper: 7 Stringy Wolf Meat at 40c,
+  -- one 39c lot under them, "repost" and the head of the cancel queue, while those 7 units had
+  -- paid a 99c deposit. Retail stops a cancel like that with the "slow" hold and the player's own
+  -- threshold; Forever has neither (no sold figure, so no ETA, and the threshold row is retail's).
+  -- So every lot the advice would cancel (listed over the fresh quote) is weighed: worth it only
+  -- when the undercut, (listed - the relist price) x quantity, is more than what the cancel loses.
+  -- A forfeit nobody can quote is not shown to be worth it. The verdict rides on the lot for
+  -- GC.CancelQueue, and with no lot worth it the advice is hold, reason "deposit". A lot far below
+  -- its value is no undercut: the cancel queue pulls it whatever this says.
+  local advice = position.recommendation
+  if type(cancelForfeit) == "function" and type(advice) == "table" and advice.action == "repost" and fresh then
+    local relist = type(advice.rec) == "table" and positive(advice.rec.unit) and advice.rec.unit or fresh
+    local weighed, worthAny = false, false
+    for _, ownedLot in ipairs(position.ownedLots) do
+      if ownedLot.unitPrice > fresh then
+        local gain = ownedLot.unitPrice > relist and valueFor(ownedLot.quantity, ownedLot.unitPrice - relist) or 0
+        local forfeit = cancelForfeit(ownedLot)
+        ownedLot.cancelForfeit = exact(forfeit) and forfeit or nil
+        ownedLot.cancelWorth = gain ~= nil and ownedLot.cancelForfeit ~= nil and gain > ownedLot.cancelForfeit
+        weighed, worthAny = true, worthAny or ownedLot.cancelWorth
+      end
+    end
+    if weighed and not worthAny then
+      position.recommendation = { action = "hold", reason = "deposit", rec = advice.rec }
+    end
   end
 
   -- What would I list the stock in my BAGS at -- a narrower, always-the-same question than
@@ -942,7 +971,7 @@ function GC.SellPositions.Build(args)
     -- here, and (an old save may hold many) would otherwise sit among the rows a player acts on.
     if not onlyIdleVendorLots(position) then
       decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
-        args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules, args.defaultPrice)
+        args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules, args.defaultPrice, args.cancelForfeit)
       result[#result + 1] = position
     end
   end

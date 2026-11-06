@@ -88,6 +88,9 @@ function GC.Sell._RecommendationText(recommendation)
   local nested = recommendation.rec
   local unit = nested and nested.unit or recommendation.unit
   local reason = type(recommendation.reason) == "string" and recommendation.reason or nil
+  -- WoW: Forever's hold for a cancel the deposit outweighs (Core/SellPositions.lua), in the
+  -- player's language. "loss" and "slow" print as they always have.
+  if reason == "deposit" then reason = GC.L["deposit"] end
   local text = action .. (reason and (" (" .. reason .. ")") or "")
     .. (unit and (" @ " .. formatCell(unit)) or "")
   if recommendation.belowCost then text = text .. GC.L[" · below cost"] end

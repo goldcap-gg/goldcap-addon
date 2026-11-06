@@ -1720,4 +1720,8 @@ GC.Locales.zhTW = {
   ["Disenchant it again"] = "重新分解",
   ["GoldCap could not disenchant these"] = "GoldCap 無法分解這些物品",
   ["Try again"] = "重試",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] = "取消這批並損失押金 %s。再按一次確認",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] = "取消損失的押金可能多於重新上架賺回的。先保留",
+  ["deposit"] = "押金",
 }

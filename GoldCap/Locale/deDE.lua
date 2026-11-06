@@ -1827,4 +1827,10 @@ GC.Locales.deDE = {
   ["Disenchant it again"] = "Wieder entzaubern",
   ["GoldCap could not disenchant these"] = "GoldCap konnte diese nicht entzaubern",
   ["Try again"] = "Erneut versuchen",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Diesen Posten abbrechen und die Gebühr von %s verlieren. Zum Bestätigen erneut klicken",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "die Gebühr, die ein Abbruch kostet, kann mehr sein, als neu Einstellen einbringt. Halten",
+  ["deposit"] = "Gebühr",
 }

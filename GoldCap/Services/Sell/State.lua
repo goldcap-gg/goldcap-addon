@@ -317,6 +317,13 @@ function GC.Sell.DefaultPrice()
   return nil
 end
 
+-- WoW: Forever, the way this tab has always told it (Core/ForeverScan.lua's Enabled, set at
+-- ADDON_LOADED from the interface number): the one place the Sell services ask, so what differs
+-- there reaches Core as an option and Core never asks which game it is.
+function GC.Sell.OnForever()
+  return GC.ForeverScan ~= nil and type(GC.ForeverScan.Enabled) == "function" and GC.ForeverScan.Enabled() == true
+end
+
 -- What the POST queue is built with (Core/PostQueue.lua's Build): the player's selling list, the
 -- marks kept in the saved data (GC.Sell.SetSelling), and in WoW: Forever the vendor's price, so it
 -- holds back what a vendor pays at least as much for (below_vendor). `quantities` are the
@@ -329,8 +336,7 @@ end
 function GC.Sell._QueueOpts()
   local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil, quantities = GC.SellState.quantityOverrides,
     group = GC.SellState.group, inGroup = GC.Sell.InPickedGroup }
-  if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
-      and GC.ForeverValue and GC.ForeverValue.VendorUnit then
+  if GC.Sell.OnForever() and GC.ForeverValue and GC.ForeverValue.VendorUnit then
     opts.vendorUnit = GC.ForeverValue.VendorUnit
   end
   return opts

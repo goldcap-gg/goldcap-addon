@@ -1754,4 +1754,9 @@ GC.Locales.koKR = {
   ["Disenchant it again"] = "다시 마력 추출",
   ["GoldCap could not disenchant these"] = "GoldCap이 추출하지 못한 아이템",
   ["Try again"] = "다시 시도",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] = "이 물량을 취소하고 등록비 %s을(를) 잃습니다. 다시 클릭하면 확정됩니다",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "취소로 잃는 등록비가 재등록으로 되찾는 금액보다 클 수 있습니다. 보류하세요",
+  ["deposit"] = "등록비",
 }

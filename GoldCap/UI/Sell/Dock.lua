@@ -158,6 +158,9 @@ local QUEUE_SKIP_TEXT = {
   below_rule_floor = "the market is under your group's floor. Type a price to post anyway",
   below_floor = "relisting would go under your group's floor. Hold",
   small_undercut = "undercut by less than your cancel setting. Hold",
+  -- WoW: Forever only (Core/SellPositions.lua's deposit weighing). It says may, because a
+  -- deposit the client cannot quote holds the lot too.
+  deposit = "the deposit a cancel loses may be more than relisting wins back. Hold",
 }
 
 -- Why the queue held a position back, in the words above; nil when it did not.
