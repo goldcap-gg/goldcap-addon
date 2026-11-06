@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.24.0 (unreleased)
+
+- WoW: Forever: your sales, purchases and gold readings now remember which faction the character
+  is. The ledger on goldcap.gg uses it to value what you still hold on the auction house you trade
+  on. It takes GoldCap Companion 1.21.0 or later to send them.
+
 ## 0.23.3 (2026-11-06)
 
 - Sell: the auction house's listings are read from the top of the list down, so what POST is about
@@ -77,6 +83,7 @@
 - WoW: Forever: the line next to AUTO keeps the message about the deal you are buying, instead of
   going back to the board's figures a few seconds later.
 ||||||| parent of 65626f68 (fix: Sell reads the books in the order the rows are drawn)
+||||||| parent of 12c0cbd9 (feat: ledger rows and gold readings carry the character's faction)
 
 ## 0.23.1 (2026-10-30)
 

@@ -87,6 +87,23 @@ local function indexOf(key)
   return nil
 end
 
+-- The character at the keyboard as "Name-Realm", the key every ledger row and gold reading
+-- carries. Nil under busted and before the player exists.
+local function playerChar()
+  local name = UnitName and UnitName("player") or nil
+  local realm = GetRealmName and GetRealmName() or nil
+  return (name and realm) and (name .. "-" .. realm) or name
+end
+
+-- The character's faction, only when it is one of the two: a Pandaren who has not chosen yet
+-- answers "Neutral", and a client without the call answers nothing. Either way none is written.
+local function playerFaction()
+  if type(UnitFactionGroup) ~= "function" then return nil end
+  local ok, faction = pcall(UnitFactionGroup, "player")
+  if ok and (faction == "Alliance" or faction == "Horde") then return faction end
+  return nil
+end
+
 local function compatibleKeyOwner(stored, entry)
   if type(stored) ~= "table" or type(entry) ~= "table" then return false end
   if stored.kind ~= nil and entry.kind ~= nil and stored.kind ~= entry.kind then return false end
@@ -128,6 +145,13 @@ function GC.Ledger.Append(entry)
     return entry, false, "invalid_entry"
   end
   local entries = db.ledger
+
+  -- Every caller writes the character at the keyboard, so its faction is this one. A row for
+  -- another character (none is written today) keeps whatever it carries: a faction is never
+  -- guessed. On WoW: Forever the faction picks the auction house a trade was made on.
+  if entry.faction == nil and type(entry.char) == "string" and entry.char == playerChar() then
+    entry.faction = playerFaction()
+  end
 
   local existing = indexOf(entry.key)
   if existing then
@@ -824,13 +848,12 @@ end
 -- GetStatus() survives only as the fallback for a client that cannot name its own portal:
 -- there, this is exactly the old behaviour and never worse than it.
 function GC.Ledger.Context()
-  local name = UnitName and UnitName("player") or nil
-  local realm = GetRealmName and GetRealmName() or nil
   local status = GC.Data and GC.Data.GetStatus and GC.Data.GetStatus() or nil
   local client = GC.Data and GC.Data.ClientRegion and GC.Data.ClientRegion() or nil
   return {
-    char = (name and realm) and (name .. "-" .. realm) or name,
+    char = playerChar(),
     region = client or (status and status.region) or nil,
+    faction = playerFaction(),
   }
 end
 
@@ -929,6 +952,7 @@ function GC.Ledger.RecordGold(copper, context, now, force)
     copper = copper,
     char = char,
     region = context and context.region or nil,
+    faction = context and context.faction or nil,
   }
   while #points > GC.Ledger.MAX_GOLD_POINTS do
     table.remove(points, 1)
