@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.24.1 (unreleased)
+## 0.24.1 (2026-11-06)
 
 - WoW: Forever: when the server cuts the full auction house scan short, DEALS still finds what is
   listed below the price a vendor pays, and what sits far under the auction house value on
