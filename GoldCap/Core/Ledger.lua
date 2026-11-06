@@ -96,12 +96,16 @@ local function playerChar()
 end
 
 -- The character's faction, only when it is one of the two: a Pandaren who has not chosen yet
--- answers "Neutral", and a client without the call answers nothing. Either way none is written.
+-- answers "Neutral", and none is written. A client that cannot answer right now -- the player
+-- being torn down for PLAYER_LOGOUT, whose forced gold reading is the last of the session --
+-- gets the answer this session last had: a character cannot change faction without logging out.
+local factionSeen
 local function playerFaction()
-  if type(UnitFactionGroup) ~= "function" then return nil end
+  if type(UnitFactionGroup) ~= "function" then return factionSeen end
   local ok, faction = pcall(UnitFactionGroup, "player")
-  if ok and (faction == "Alliance" or faction == "Horde") then return faction end
-  return nil
+  if not ok or faction == nil then return factionSeen end
+  factionSeen = (faction == "Alliance" or faction == "Horde") and faction or nil
+  return factionSeen
 end
 
 local function compatibleKeyOwner(stored, entry)

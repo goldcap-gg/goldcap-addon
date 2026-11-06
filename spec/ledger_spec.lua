@@ -394,6 +394,20 @@ describe("Ledger store", function()
       _G.UnitFactionGroup = nil
       assert.is_nil(GC.Ledger.Context().faction)
     end)
+
+    -- The /reload or logout reading (PLAYER_LOGOUT) is taken while the player is torn down.
+    it("keeps the faction it last heard when the client cannot answer at logout", function()
+      _G.UnitFactionGroup = function() return "Alliance" end
+      assert.equal("Alliance", GC.Ledger.Context().faction)
+      _G.UnitFactionGroup = function() return nil end
+      assert.equal("Alliance", GC.Ledger.Context().faction)
+      _G.UnitFactionGroup = function() error("no player any more") end
+      assert.equal("Alliance", GC.Ledger.Context().faction)
+      _G.UnitFactionGroup = function() return "Neutral" end   -- an answer: none, and forgotten
+      assert.is_nil(GC.Ledger.Context().faction)
+      _G.UnitFactionGroup = function() return nil end
+      assert.is_nil(GC.Ledger.Context().faction)
+    end)
   end)
 
   describe("faction on a row", function()
