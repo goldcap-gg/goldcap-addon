@@ -40,6 +40,9 @@ local C = {
   -- shipped share -- Core/Init.lua's default, Core/SniperDecision.lua's normalizeConfig clamp.
   RETAIL_DEFAULT_CAPITAL_SHARE = 0.05,
   VENDOR_CAPITAL_SHARE = 0.50,
+  -- A market row's resale is a bet, so less than a vendor row's half -- but 5% left a new
+  -- character's wallet buying nothing at all ("needs 2g" on a 10s lot; owner, 2026-11-06).
+  MARKET_CAPITAL_SHARE = 0.25,
 }
 GC.ForeverDeals.C = C
 
@@ -331,20 +334,19 @@ function GC.ForeverDeals.Drop(itemID)
 end
 
 -- Decision 5 of plan 3c (controller ruling 2026-09-26). Wraps GC.SniperDecision.BuyLimits with
--- the one Forever-specific carve-out: a "vendor" row's profit is locked in by the vendor price
--- the live Check re-reads, so retail's 5% per-buy share would leave nothing to buy at low level.
--- While the player kept that shipped default, a vendor row gets half the wallet instead; a
--- player who changed the share gets their own value, unclamped by this function. Kind "market"
--- always gets exactly what SniperDecision.BuyLimits answers. Max units per buy (maxQuantity)
--- is untouched for both kinds.
+-- the Forever-specific carve-out: retail's 5% per-buy share leaves nothing to buy at low level.
+-- While the player kept that shipped default, a "vendor" row (its profit locked in by the vendor
+-- price the live Check re-reads) gets half the wallet, and a "market" row a quarter (owner,
+-- 2026-11-06); a player who changed the share gets their own value, unclamped by this function.
+-- Max units per buy (maxQuantity) is untouched for both kinds.
 function GC.ForeverDeals.BuyLimits(config, walletCopper, kind)
   local limits = GC.SniperDecision.BuyLimits(config, walletCopper)
   if not limits then return nil end
-  if kind == "vendor" then
+  local wide = kind == "vendor" and C.VENDOR_CAPITAL_SHARE or kind == "market" and C.MARKET_CAPITAL_SHARE or nil
+  if wide then
     local share = type(config) == "table" and config.maxCapitalShare or nil
     if share == nil or share == C.RETAIL_DEFAULT_CAPITAL_SHARE then
-      return { maxQuantity = limits.maxQuantity, budget = math.floor(walletCopper * C.VENDOR_CAPITAL_SHARE),
-        share = C.VENDOR_CAPITAL_SHARE }
+      return { maxQuantity = limits.maxQuantity, budget = math.floor(walletCopper * wide), share = wide }
     end
   end
   return limits

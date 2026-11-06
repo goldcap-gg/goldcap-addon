@@ -510,9 +510,17 @@ describe("ForeverDeals", function()
       assert.same({ maxQuantity = 200, budget = 1000, share = 0.10 }, limits)
     end)
 
-    it("never widens a market row's share", function()
+    -- Owner, WoW: Forever 2026-11-06: at 5% nearly every Under market row read "needs 2g" -- a
+    -- new character's whole wallet buys nothing. A quarter while the shipped share stands; a
+    -- resale is a bet, so less than a vendor row's half.
+    it("gives a market row a quarter of the wallet when the player kept the shipped 5% share", function()
       local limits = D.BuyLimits(config(0.05), 10000, "market")
-      assert.same({ maxQuantity = 200, budget = 500, share = 0.05 }, limits)
+      assert.same({ maxQuantity = 200, budget = 2500, share = 0.25 }, limits)
+    end)
+
+    it("leaves a market row's budget alone once the player changed the share", function()
+      local limits = D.BuyLimits(config(0.10), 10000, "market")
+      assert.same({ maxQuantity = 200, budget = 1000, share = 0.10 }, limits)
     end)
 
     it("answers nothing when the wallet is bad, exactly like SniperDecision.BuyLimits", function()
