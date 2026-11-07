@@ -194,10 +194,8 @@ GC.DEFAULTS = {
       minimumProfitCopper = 50000,
       -- foreverMinimumProfitCopper: undeclared here on purpose (Task S, UI/SettingsFrame.lua's
       -- own Forever "Min profit per buy" row, Core/ForeverDeals.lua's MinimumProfit). ApplyDefaults
-      -- must never stamp this into an existing save -- ABSENT is what lets MinimumProfit's
-      -- migration rule (honour a changed retail value until this key is ever touched) actually
-      -- see the "never touched" state, and it is also what makes the field's own DEFAULTS button
-      -- un-set the override instead of hard-resetting it to 20c.
+      -- must never stamp this into an existing save: ABSENT is what makes the field's own
+      -- DEFAULTS button un-set the override, back to MinimumProfit's built-in 20c.
       profitFloorVersion = 1,
       -- Same reason as profitFloorVersion above: stamped here so ApplyDefaults versions a
       -- FRESH database immediately, before migrateSniperWindowWidth ever runs on it -- without

@@ -33,7 +33,6 @@ GC.ForeverDeals = GC.ForeverDeals or {}
 
 local C = {
   MIN_PROFIT_COPPER = 20,            -- a Forever row's whole buy, unless the player changed theirs
-  RETAIL_DEFAULT_MIN_PROFIT = 50000, -- Core/Init.lua's default for settings.sniper.minimumProfitCopper
   MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the AH value
   MARKET_MIN_UNITS = 20,             -- thin-market guard: units listed
   MARKET_MIN_LEVELS = 3,             -- thin-market guard: distinct prices listed
@@ -55,25 +54,20 @@ local C = {
 }
 GC.ForeverDeals.C = C
 
--- Task S (Settings for Forever): its own key now, settings.sniper.foreverMinimumProfitCopper --
+-- Task S (Settings for Forever): its own key, settings.sniper.foreverMinimumProfitCopper --
 -- UI/SettingsFrame.lua edits it in copper, so an edit there can never move retail's own
 -- minimumProfitCopper (5g), and the field never shows a number this function ignores. Once it
--- holds a number (even 0, even a re-save of the figure the migration below would have chosen
--- anyway) it always wins, forever after.
+-- holds a number (even 0) it wins. Without one, 20c.
 --
--- Migration (decision 4 of plan 3c, kept as the fallback): a player who changed the RETAIL
--- field's default before this key ever existed keeps that old rule -- their retail value, as it
--- stands -- until they touch the Forever field once. Retail's own floor (at least 1g,
--- SniperDecision's normalizeConfig) is a gold economy's and never applies here.
+-- Retail's own field is never read here. It used to be, for a player who had changed it before
+-- the Forever key existed (decision 4 of plan 3c), but retail's field is at least 1g
+-- (SniperDecision's normalizeConfig), a gold economy's figure: carried into Forever's copper and
+-- silver, a 2g minimum hid every row the board could find, with nothing on screen saying why
+-- (review, 2026-11-07).
 function GC.ForeverDeals.MinimumProfit(settings)
-  if type(settings) ~= "table" then return C.MIN_PROFIT_COPPER end
-  local own = settings.foreverMinimumProfitCopper
+  local own = type(settings) == "table" and settings.foreverMinimumProfitCopper or nil
   if type(own) == "number" and own == own and own >= 0 then
     return math.floor(own)
-  end
-  local m = settings.minimumProfitCopper
-  if type(m) == "number" and m == m and m >= 0 and m ~= C.RETAIL_DEFAULT_MIN_PROFIT then
-    return math.floor(m)
   end
   return C.MIN_PROFIT_COPPER
 end

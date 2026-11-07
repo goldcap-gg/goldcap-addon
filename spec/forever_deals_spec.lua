@@ -443,27 +443,21 @@ describe("ForeverDeals", function()
   end)
 
   describe("MinimumProfit", function()
-    it("is 20c unless the player changed Min profit per buy from its default", function()
+    it("is 20c unless the player set the Forever field; retail's own field never applies", function()
       assert.equal(20, D.MinimumProfit({ minimumProfitCopper = 50000 }))
       assert.equal(20, D.MinimumProfit({}))
       assert.equal(20, D.MinimumProfit(nil))
-      assert.equal(20, D.MinimumProfit({ minimumProfitCopper = -5 }))
-      assert.equal(0, D.MinimumProfit({ minimumProfitCopper = 0 }))
-      assert.equal(30000, D.MinimumProfit({ minimumProfitCopper = 30000 }))
-      assert.equal(12, D.MinimumProfit({ minimumProfitCopper = 12.7 }))
+      -- A retail minimum the player changed is a gold figure (1g at least): never Forever's.
+      assert.equal(20, D.MinimumProfit({ minimumProfitCopper = 20000 }))
+      assert.equal(20, D.MinimumProfit({ minimumProfitCopper = 0 }))
     end)
 
-    -- Task S: foreverMinimumProfitCopper is the settings panel's own Forever key now
-    -- (UI/SettingsFrame.lua). Once it holds a number, it always wins -- retail's own
-    -- minimumProfitCopper, changed or not, is never consulted again.
-    it("prefers foreverMinimumProfitCopper once it holds a number, over the old retail carry-forward", function()
+    it("takes foreverMinimumProfitCopper once it holds a number", function()
       assert.equal(500, D.MinimumProfit({ foreverMinimumProfitCopper = 500, minimumProfitCopper = 30000 }))
-      assert.equal(500, D.MinimumProfit({ foreverMinimumProfitCopper = 500, minimumProfitCopper = 50000 }))
       assert.equal(0, D.MinimumProfit({ foreverMinimumProfitCopper = 0, minimumProfitCopper = 30000 }))
       assert.equal(12, D.MinimumProfit({ foreverMinimumProfitCopper = 12.7 }))
-      -- Absent (nil) or garbage falls through to the old rule, unchanged.
-      assert.equal(30000, D.MinimumProfit({ foreverMinimumProfitCopper = -5, minimumProfitCopper = 30000 }))
-      assert.equal(20, D.MinimumProfit({ foreverMinimumProfitCopper = nil, minimumProfitCopper = 50000 }))
+      assert.equal(20, D.MinimumProfit({ foreverMinimumProfitCopper = -5, minimumProfitCopper = 30000 }))
+      assert.equal(20, D.MinimumProfit({ foreverMinimumProfitCopper = 0 / 0 }))
     end)
   end)
 

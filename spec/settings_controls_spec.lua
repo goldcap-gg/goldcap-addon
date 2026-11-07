@@ -486,9 +486,8 @@ describe("Settings controls", function()
     describe("the Forever min-profit field", function()
       it("shows what GC.ForeverDeals.MinimumProfit would actually apply, not retail's own field",
         function()
-          -- minimumProfitCopper still at RETAIL's own shipped default (50000, plan 3c's
-          -- RETAIL_DEFAULT_MIN_PROFIT) and foreverMinimumProfitCopper never touched: the built-in
-          -- 20c applies.
+          -- minimumProfitCopper at retail's own shipped default (50000) and
+          -- foreverMinimumProfitCopper never touched: the built-in 20c applies.
           GC.db.settings.sniper.minimumProfitCopper = 50000
           GC.db.settings.sniper.foreverMinimumProfitCopper = nil
           GC.SettingsUI.Toggle()
@@ -496,14 +495,14 @@ describe("Settings controls", function()
           assert.equal("20", box.editBox:GetText())
         end)
 
-      it("keeps honouring an already-changed retail value until the Forever field is itself saved",
+      it("never shows a changed retail value, and saving the Forever field leaves retail's alone",
         function()
-          -- Migration: the player changed retail's field before this key ever existed.
+          -- Retail's field changed to 3g: a gold figure, never Forever's minimum (review 2026-11-07).
           GC.db.settings.sniper.minimumProfitCopper = 30000
           GC.db.settings.sniper.foreverMinimumProfitCopper = nil
           GC.SettingsUI.Toggle()
           local box = fieldOf(_G.GoldCapSniperFrame, "Min profit per buy (copper)")
-          assert.equal("30000", box.editBox:GetText())
+          assert.equal("20", box.editBox:GetText())
 
           -- One save of the Forever field, even nominally, and it always wins from here on --
           -- retail's own field is never written by this box.
@@ -515,7 +514,7 @@ describe("Settings controls", function()
 
       it("a card DEFAULTS click un-sets the override rather than hard-resetting to the built-in 20c",
         function()
-          GC.db.settings.sniper.minimumProfitCopper = 30000 -- an old, already-migrated value
+          GC.db.settings.sniper.minimumProfitCopper = 30000 -- retail's own, never Forever's
           GC.db.settings.sniper.foreverMinimumProfitCopper = 777
           GC.SettingsUI.Toggle()
 
@@ -525,7 +524,7 @@ describe("Settings controls", function()
 
           assert.is_nil(GC.db.settings.sniper.foreverMinimumProfitCopper)
           local box = fieldOf(_G.GoldCapSniperFrame, "Min profit per buy (copper)")
-          assert.equal("30000", box.editBox:GetText()) -- the migration rule runs again, not 20c
+          assert.equal("20", box.editBox:GetText()) -- the built-in 20c, not retail's 3g
         end)
     end)
   end)
