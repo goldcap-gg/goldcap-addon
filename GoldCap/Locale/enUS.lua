@@ -206,6 +206,7 @@ GC.Locales.enUS = {
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
     "No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Not enough gold on this character to buy what GoldCap finds",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL.",
   ["Nothing on the auction house beats what you wear at your level."] =
     "Nothing on the auction house beats what you wear at your level.",
   ["Nothing to sell"] = "Nothing to sell",

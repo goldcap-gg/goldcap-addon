@@ -385,6 +385,7 @@ GC.Locales.ukUA = {
   ["No safe resale price could be worked out."] = "Безпечну ціну перепродажу обчислити не вдалося.",
   ["No sales data for this item."] = "Немає даних про продажі цього предмета.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Бракує золота на цьому персонажі, щоб купити знахідки",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Бракує золота на знахідки. Речі в сумках коштують %s на аукціоні: виставте їх у SELL.",
   ["Not enough units on the Auction House to fill that quantity."] =
     "На аукціоні не вистачає одиниць, щоб набрати цю кількість.",
   ["Not in your bags or listed. Mail or bank?"] =

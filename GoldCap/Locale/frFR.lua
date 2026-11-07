@@ -390,6 +390,7 @@ GC.Locales.frFR = {
   ["No safe resale price could be worked out."] = "Impossible d'établir un prix de revente sûr.",
   ["No sales data for this item."] = "Aucune donnée de vente pour cet objet.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Pas assez d'or sur ce personnage pour acheter ces affaires",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Pas assez d'or pour ces affaires. Vos sacs valent %s à l'hôtel des ventes : mettez-les en vente dans SELL.",
   ["Not enough units on the Auction House to fill that quantity."] =
     "Pas assez d'unités à l'hôtel des ventes pour cette quantité.",
   ["Not in your bags or listed. Mail or bank?"] =

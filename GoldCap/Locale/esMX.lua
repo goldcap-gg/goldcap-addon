@@ -395,6 +395,7 @@ GC.Locales.esMX = {
     "No se pudo calcular un precio de reventa seguro.",
   ["No sales data for this item."] = "No hay datos de ventas para este objeto.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Falta oro en este personaje para comprar estas ofertas",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Falta oro para estas ofertas. Tus bolsas valen %s en la casa de subastas: publícalas en SELL.",
   ["Not enough units on the Auction House to fill that quantity."] =
     "No hay unidades suficientes en la casa de subastas para esa cantidad.",
   ["Not in your bags or listed. Mail or bank?"] =

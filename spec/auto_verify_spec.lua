@@ -1605,6 +1605,35 @@ describe("Deals background verification", function()
       assert.is_true(line.shown)
     end)
 
+    -- Owner, 2026-11-07: 9s14c, every find out of reach. On WoW: Forever the line also says what
+    -- the bags fetch on the auction house, and where to post them.
+    it("says on WoW: Forever what the bags fetch and where to post them", function()
+      local api, line = foreverLoad(1300, "commodities")
+      local walks = 0
+      api.GC.Game = { IsForever = function() return true end, Passport = function() return {} end }
+      api.GC.ForeverValue = { RealBagTotals = function() walks = walks + 1; return { ah = 12345 } end }
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 700, "vendor", true) })
+      assert.is_true(line.shown)
+      assert.equal(("Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL.")
+        :format(api.GC.Util.FormatMoney(12345)), line.text)
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 700, "vendor", true) })
+      assert.equal(1, walks) -- once in 10 s: the line paints on every render
+      -- Nothing in the bags the auction house pays for: the plain line.
+      api.GC.Sniper._bagLineMemo = nil
+      api.GC.ForeverValue.RealBagTotals = function() return { ah = 0 } end
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 700, "vendor", true) })
+      assert.equal("Not enough gold on this character to buy what GoldCap finds", line.text)
+    end)
+
+    it("keeps the plain line on retail", function()
+      local api, line = load(10000000)
+      api.GC.Game = { IsForever = function() return false end, Passport = function() return {} end }
+      api.GC.ForeverValue = { RealBagTotals = function() error("not on retail") end }
+      board(api, { deal(1, 800000) })
+      assert.is_true(line.shown)
+      assert.equal("Not enough gold on this character to buy what GoldCap finds", line.text)
+    end)
+
     -- Review 2026-11-06: an Items row's capTotal is every lot it found, but its buy is one lot.
     it("holds a Forever Items row to its cheapest lot, not to every lot it found", function()
       local api, line = foreverLoad(1300, "items")

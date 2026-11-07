@@ -375,6 +375,7 @@ GC.Locales.koKR = {
   ["No safe resale price could be worked out."] = "안전한 재판매 가격을 산출할 수 없었습니다.",
   ["No sales data for this item."] = "이 아이템의 판매 데이터가 없습니다.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "이 캐릭터의 골드로는 GoldCap이 찾은 매물을 살 수 없음",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "찾은 매물을 살 골드가 부족합니다. 가방의 물건은 경매장에서 %s에 팔립니다. SELL에서 등록하세요.",
   ["Not enough units on the Auction House to fill that quantity."] = "경매장에 그 수량을 채울 만큼의 물량이 없습니다.",
   ["Not in your bags or listed. Mail or bank?"] = "가방에도 없고 등록도 안 됨. 우편함이나 은행인가요?",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =

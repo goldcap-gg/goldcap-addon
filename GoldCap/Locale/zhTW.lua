@@ -373,6 +373,7 @@ GC.Locales.zhTW = {
   ["No safe resale price could be worked out."] = "算不出一個安全的轉售價。",
   ["No sales data for this item."] = "該物品沒有成交資料。",
   ["Not enough gold on this character to buy what GoldCap finds"] = "此角色金幣不足，買不起 GoldCap 找到的交易",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "金幣不足，買不起這些交易。背包物品在拍賣場可賣 %s，請在 SELL 上架。",
   ["Not enough units on the Auction House to fill that quantity."] = "拍賣場上的數量不足以湊齊這個量。",
   ["Not in your bags or listed. Mail or bank?"] = "不在背包也未上架。在信箱或銀行嗎？",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =

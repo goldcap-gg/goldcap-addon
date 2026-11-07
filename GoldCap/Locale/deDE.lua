@@ -391,6 +391,7 @@ GC.Locales.deDE = {
     "Es ließ sich kein sicherer Wiederverkaufspreis ermitteln.",
   ["No sales data for this item."] = "Keine Verkaufsdaten für diesen Gegenstand.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Zu wenig Gold auf diesem Charakter, um die Funde zu kaufen",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Zu wenig Gold für diese Funde. Deine Taschen bringen %s im Auktionshaus: stell sie unter SELL ein.",
   ["Not enough units on the Auction House to fill that quantity."] =
     "Im Auktionshaus liegen nicht genug Einheiten für diese Menge.",
   ["Not in your bags or listed. Mail or bank?"] =

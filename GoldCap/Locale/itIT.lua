@@ -391,6 +391,7 @@ GC.Locales.itIT = {
     "Non è stato possibile calcolare un prezzo di rivendita sicuro.",
   ["No sales data for this item."] = "Nessun dato di vendita per questo oggetto.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Oro insufficiente per comprare le offerte trovate",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Oro insufficiente per queste offerte. Le tue borse valgono %s all'asta: mettile in vendita in SELL.",
   ["Not enough units on the Auction House to fill that quantity."] =
     "Non ci sono abbastanza unità alla casa d'aste per quella quantità.",
   ["Not in your bags or listed. Mail or bank?"] =

@@ -378,6 +378,7 @@ GC.Locales.ruRU = {
     "Безопасную цену перепродажи вычислить не удалось.",
   ["No sales data for this item."] = "Нет данных о продажах этого предмета.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Не хватает золота на этом персонаже, чтобы купить находки",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Не хватает золота на находки. Вещи в сумках стоят %s на аукционе: выставьте их в SELL.",
   ["Not enough units on the Auction House to fill that quantity."] =
     "На аукционе не хватает единиц, чтобы набрать это количество.",
   ["Not in your bags or listed. Mail or bank?"] =

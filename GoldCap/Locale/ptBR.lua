@@ -390,6 +390,7 @@ GC.Locales.ptBR = {
     "Não foi possível calcular um preço de revenda seguro.",
   ["No sales data for this item."] = "Sem dados de vendas para este item.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Ouro insuficiente neste personagem para comprar as ofertas",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Ouro insuficiente para essas ofertas. Suas bolsas valem %s na casa de leilões: anuncie-as em SELL.",
   ["Not enough units on the Auction House to fill that quantity."] =
     "Não há unidades suficientes na casa de leilões para essa quantidade.",
   ["Not in your bags or listed. Mail or bank?"] =

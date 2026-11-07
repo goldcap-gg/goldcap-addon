@@ -2506,6 +2506,26 @@ end
 -- Painted from the render it describes (refreshRows) and again on PLAYER_MONEY
 -- (GC.Sniper.OnPlayerMoney), since gold arriving changes it with nothing on the board moving.
 -- Fields, not locals: this chunk sits near its 200-local ceiling.
+-- The words of that line. On WoW: Forever, with something in the bags the auction house pays for,
+-- it also says what that comes to and where to post it: a new character that cannot pay for any
+-- find can still make gold from what it carries (owner, 2026-11-07: 9s14c, the board's finds out
+-- of reach, "no benefit from the addon"). The bags are walked at most once in 10 s: the line is
+-- painted on every render, and a render comes with every browse page.
+function GC.Sniper._GoldLineText(now)
+  local plain = GC.L["Not enough gold on this character to buy what GoldCap finds"]
+  if not (isForever() and GC.ForeverValue and GC.ForeverValue.RealBagTotals) then return plain end
+  local memo = GC.Sniper._bagLineMemo
+  if memo and now - memo.at < 10 then return memo.text end
+  local ok, totals = pcall(GC.ForeverValue.RealBagTotals)
+  local text = plain
+  if ok and type(totals) == "table" and type(totals.ah) == "number" and totals.ah > 0 then
+    text = GC.L["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."]
+      :format(GC.Util.FormatMoney(totals.ah))
+  end
+  GC.Sniper._bagLineMemo = { at = now, text = text }
+  return text
+end
+
 function GC.Sniper._PaintGoldLine(list)
   local line = frame and frame.goldLine
   if not line then return end
@@ -2543,7 +2563,7 @@ function GC.Sniper._PaintGoldLine(list)
     end
   end
   if candidates > 0 and not buyable then
-    line:SetText(GC.L["Not enough gold on this character to buy what GoldCap finds"])
+    line:SetText(GC.Sniper._GoldLineText(time()))
     line:Show()
   else
     line:Hide()
