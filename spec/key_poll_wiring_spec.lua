@@ -836,6 +836,56 @@ describe("Key poll wiring", function()
         assert.truthy(text:find("GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID, showDealTooltip)", 1, true))
       end)
 
+      -- A row hovered before the client has loaded its item (owner, WoW: Forever 2026-11-07: a
+      -- deal's tooltip headed by the red "Retrieving item information"). The item's data arrives
+      -- later, and the game's tooltip rebuilds itself only for an owner without UpdateTooltip
+      -- (GameTooltip_OnUpdate, both games); a row has one, so the row draws its tooltip again
+      -- itself, once, when the item is in.
+      it("draws a row's tooltip again once its item has loaded", function()
+        local GC = load()
+        local tip = {}
+        function tip:SetItemByID() end
+        local saved = { _G.GameTooltip, _G.GameTooltip_SuppressAutomaticCompareItem, GC.Theme.ItemTooltipOutside,
+          _G.C_Item, _G.IsModifiedClick }
+        finally(function()
+          _G.GameTooltip, _G.GameTooltip_SuppressAutomaticCompareItem, GC.Theme.ItemTooltipOutside,
+            _G.C_Item, _G.IsModifiedClick = saved[1], saved[2], saved[3], saved[4], saved[5]
+        end)
+        _G.GameTooltip = tip
+        _G.GameTooltip_SuppressAutomaticCompareItem = function() end
+        GC.Theme.ItemTooltipOutside = function() end
+        _G.IsModifiedClick = function() return false end
+        local cached = false
+        _G.C_Item = { IsItemDataCachedByID = function(itemID)
+          assert.equal(2672, itemID)
+          return cached
+        end }
+
+        local owner, draws = {}, 0
+        local function draw(o)
+          draws = draws + 1
+          GC.Sniper._ShowItemTooltip(o, 2672, draw)
+        end
+        draw(owner)
+        owner:UpdateTooltip()
+        assert.equal(1, draws) -- still loading: nothing to draw yet
+        cached = true
+        owner:UpdateTooltip()
+        assert.equal(2, draws)
+        owner:UpdateTooltip()
+        assert.equal(2, draws) -- drawn with the item: once
+
+        -- An item that was in from the start is drawn once.
+        local fresh, freshDraws = {}, 0
+        local function drawFresh(o)
+          freshDraws = freshDraws + 1
+          GC.Sniper._ShowItemTooltip(o, 2672, drawFresh)
+        end
+        drawFresh(fresh)
+        fresh:UpdateTooltip()
+        assert.equal(1, freshDraws)
+      end)
+
       -- GoldCap's own price block under the item (UI/Tooltip.lua) stays on a flip row's tooltip
       -- (owner, 2026-10-25: "в тултипе пусть будет", only the comparison windows were in the way)
       -- and stands aside for a Rare finds row alone, which has no price. The realm line that

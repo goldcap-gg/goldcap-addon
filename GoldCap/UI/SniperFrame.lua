@@ -1770,9 +1770,21 @@ end
 -- (TooltipDataHandlerMixin:ProcessInfo, a securecallfunction). GoldCap cannot show the comparison
 -- itself: C_TooltipComparison.CompareItem is a protected function. So the owner draws its tooltip
 -- again, once per change of the key (owner, 2026-10-25: Shift only worked held before the hover).
+-- And once when an item that was not loaded at the hover is in: the game's tooltip rebuilds itself
+-- when the data arrives only for an owner WITHOUT UpdateTooltip (GameTooltip_OnUpdate, both games),
+-- so a row's stayed headed by the red "Retrieving item information" (owner, WoW: Forever
+-- 2026-11-07).
+local function itemLoaded(itemID)
+  local item = _G.C_Item
+  if not (item and item.IsItemDataCachedByID) then return true end
+  local ok, cached = pcall(item.IsItemDataCachedByID, itemID)
+  return not ok or cached ~= false
+end
+
 local function redrawOnCompareKey(owner)
   local held = compareKeyHeld()
-  if held ~= owner.goldcapCompareHeld and owner.goldcapDrawTooltip then owner.goldcapDrawTooltip(owner) end
+  local arrived = owner.goldcapItemLoading and itemLoaded(owner.goldcapItemLoading)
+  if (held ~= owner.goldcapCompareHeld or arrived) and owner.goldcapDrawTooltip then owner.goldcapDrawTooltip(owner) end
 end
 
 -- The game's tooltip for an item the board points at, outside the window, without the tooltips
@@ -1780,10 +1792,12 @@ end
 -- board). Shift still shows them, as anywhere in the game: Blizzard's own switch, which it sets
 -- before its Set*Item call the same way (ItemUtil.DisplayEquipSlotTooltip) and clears with the
 -- tooltip (GameTooltip_OnTooltipCleared). `draw(owner)` is what draws the whole tooltip, called
--- again when the compare key changes under the cursor (redrawOnCompareKey).
+-- again when the compare key changes under the cursor, or the item loads (redrawOnCompareKey).
 function GC.Sniper._ShowItemTooltip(owner, itemID, draw)
   Theme.ItemTooltipOutside(owner, frame)
   if GameTooltip_SuppressAutomaticCompareItem then GameTooltip_SuppressAutomaticCompareItem(GameTooltip) end
+  -- Asked before SetItemByID: whether the item this draw shows was in when it was drawn.
+  owner.goldcapItemLoading = not itemLoaded(itemID) and itemID or nil
   GameTooltip:SetItemByID(itemID)
   owner.goldcapCompareHeld = compareKeyHeld()
   owner.goldcapDrawTooltip = draw
