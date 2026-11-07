@@ -45,6 +45,8 @@
 - WoW: Forever, SELL and tooltips: an item held back because of its deposit now says why in plain
   words: the deposit is more than the auction house would add over a vendor, and you lose it if
   the lot does not sell. A lot that sells gives the deposit back with the money.
+- DEALS and SELL: the buy window's buttons (Buy, Check, Confirm) are now in your game's language,
+  and every hint that tells you which button to press names it as it reads on the button.
 
 ## 0.24.1 (2026-11-06)
 
