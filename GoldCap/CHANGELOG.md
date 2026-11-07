@@ -33,6 +33,10 @@
 - WoW: Forever, DEALS: the deposit for reposting is now counted once for the whole stack you post,
   the way the auction house charges it (at least 1s a post), instead of once for every unit. Cheap
   goods bought by the stack, such as cloth, herbs or meat, now show up as deals.
+- WoW: Forever: with the controller interface on, "GoldCap has been blocked from an action only
+  available to the Blizzard UI" no longer comes up at the auction house, or afterwards on every
+  target change until a reload. The GoldCap tab on the auction house now leaves Blizzard's own
+  tabs alone and covers their page instead of switching it, so their tabs look and work as before.
 - WoW: Forever: Road to 40 now counts toward the trainer's 100g for Apprentice Riding. /gc mount
   still sets a cost of your own, for a reputation discount for example, and /gc mount clear goes
   back to 100g.

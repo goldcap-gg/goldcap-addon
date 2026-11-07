@@ -43,6 +43,18 @@ describe("Auction House tab", function()
       self.scripts[name] = existing and function(...) existing(...) fn(...) end or fn
     end
     function w:IsShown() return self.shown end
+    function w:SetParent(p) self.parent = p end
+    function w:GetParent() return self.parent end
+    function w:SetFrameLevel(level) self.level = level end
+    function w:GetFrameLevel() return self.level or 1 end
+    function w:EnableMouse(on) self.mouse = on end
+    function w:EnableMouseWheel(on) self.wheel = on end
+    function w:CreateTexture()
+      local t = {}
+      function t:SetAllPoints() end
+      function t:SetColorTexture(...) self.color = { ... } end
+      return t
+    end
     -- Screen position, which is what decides where the bar actually ends -- array order does
     -- not: another addon's tab can be appended after ours and still anchor itself to a tab
     -- BEFORE ours. Left nil unless a test sets it, so the anchor falls back to array order the
@@ -64,6 +76,9 @@ describe("Auction House tab", function()
       self.displayMode = mode
     end
     ah.SetTitle = function(self, title) self.title = title end
+    -- Blizzard's UpdateTitle names the title from the selected tab (Blizzard_AuctionHouseFrame.lua).
+    ah.UpdateTitle = function(self) self.title = "Blizzard tab " .. tostring(self.selectedTab) end
+    ah.selectedTab = 1
     _G.AuctionHouseFrame = ah
     _G.AuctionHouseFrameDisplayMode = {
       Buy = {}, ItemSell = {}, CommoditiesSell = {}, ItemBuy = {}, CommoditiesBuy = {},
@@ -79,13 +94,21 @@ describe("Auction House tab", function()
       local w = widget(kind, parent)
       w.template, w.name = template, name
       created[#created + 1] = w
+      -- Where it was made: WoW: Forever's controller interface hooks CreateFrame and rebuilds
+      -- the navigation of the open panel the new frame sits in, in the creating addon's code.
+      local p = parent
+      while p do
+        if p == ah then w.madeInsideAH = true end
+        p = p.parent
+      end
       -- Faithful to the real client: PanelTabButtonTemplate carries parentArray="Tabs"
       -- (SharedUIPanelTemplates.xml:905, read verbatim), so creating a tab from the AH tab
       -- template APPENDS it to the parent's Tabs array by itself. The first shipped version
       -- of this module did not know that, inserted the tab a second time, anchored it to
       -- itself through the duplicate, and rendered no tab at all -- a fake without this line
       -- proves nothing about that whole failure class.
-      if template == "AuctionHouseFrameTabTemplate" and parent and parent.Tabs then
+      if template == "AuctionHouseFrameTabTemplate" and parent then
+        parent.Tabs = parent.Tabs or {}
         parent.Tabs[#parent.Tabs + 1] = w
       end
       return w
@@ -100,6 +123,13 @@ describe("Auction House tab", function()
     end
     _G.PanelTemplates_TabResize = function() end
     _G.PanelTemplates_SetNumTabs = function(target, n) target.numTabs = n end
+    -- Blizzard's drawing of the bar: shows and hides textures, writes no field
+    -- (SharedUIPanelTemplates.lua, read verbatim). `selected` stands for what the bar shows.
+    _G.PanelTemplates_SelectTab = function(t) t.selected = true end
+    _G.PanelTemplates_DeselectTab = function(t) t.selected = false end
+    _G.PanelTemplates_UpdateTabs = function(frame)
+      for i = 1, frame.numTabs do frame.Tabs[i].selected = i == frame.selectedTab end
+    end
     GC = { Sniper = { shown = false } }
     GC.Sniper.SetDocked = function(host) docked[#docked + 1] = { host = host }; GC.Sniper.shown = host ~= nil end
     GC.Sniper.IsWindowShown = function() return GC.Sniper.shown end
@@ -110,6 +140,7 @@ describe("Auction House tab", function()
   after_each(function()
     _G.AuctionHouseFrame, _G.CreateFrame, _G.hooksecurefunc = nil, nil, nil
     _G.PanelTemplates_TabResize, _G.PanelTemplates_SetNumTabs = nil, nil
+    _G.PanelTemplates_SelectTab, _G.PanelTemplates_DeselectTab, _G.PanelTemplates_UpdateTabs = nil, nil, nil
     _G.AuctionHouseFrameDisplayMode = nil
     _G.time = os.time
   end)
@@ -128,16 +159,29 @@ describe("Auction House tab", function()
     return nil
   end
 
-  it("registers the tab in Blizzard's own tab machinery, after their tabs", function()
+  -- 2026-11-07: AuctionHouseFrame.numTabs and .tabsForDisplayMode read as written by GoldCap in
+  -- the owner's client, and on WoW: Forever's controller interface the auction house's next
+  -- opening was blocked for it (see the module header). The tab is built as LibAHTab builds its
+  -- own, on a root frame of ours.
+  it("builds the tab on a root of its own, after Blizzard's tabs, writing nothing into the auction house", function()
     GC.AuctionHouseTab.Install()
     local tab = tabButton()
     assert.is_table(tab)
-    assert.equal(ah, tab.parent)
-    assert.equal(tab, ah.Tabs[4])
-    assert.equal(4, ah.numTabs)
-    assert.is_table(tab.displayMode)
-    assert.equal(4, ah.tabsForDisplayMode[tab.displayMode])
+    assert.are_not.equal(ah, tab.parent)
+    assert.equal(ah, tab.parent.parent)       -- the root hangs on the auction house
+    assert.same({ tab }, tab.parent.Tabs)     -- the template's parentArray filled OUR root's
+    assert.equal(3, #ah.Tabs)
+    assert.equal(3, ah.numTabs)
+    assert.is_nil(next(ah.tabsForDisplayMode))
+    assert.is_false(tab.selected)
     assert.equal(ah.Tabs[3], tab.points[1][2]) -- anchored to the last Blizzard tab
+  end)
+
+  it("makes nothing inside the auction house frame, attaching each frame after", function()
+    GC.AuctionHouseTab.Install()
+    assert.is_true(#created >= 3)              -- the root, the tab, the dock
+    for _, w in ipairs(created) do assert.is_nil(w.madeInsideAH) end
+    assert.equal(ah, dockPanel().parent)
   end)
 
   -- Auctionator adds four tabs of its own and anchors them to Blizzard's last one. Whether
@@ -157,7 +201,7 @@ describe("Auction House tab", function()
 
     assert.equal(1, #tab.points)
     assert.equal(foreign, tab.points[1][2])
-    assert.equal(5, #ah.Tabs) -- and no second tab of ours
+    assert.equal(4, #ah.Tabs) -- Blizzard's three and the foreign one, never ours
   end)
 
   -- The FIRST auction house of a session is the case the inline pass cannot answer: nothing on
@@ -177,14 +221,14 @@ describe("Auction House tab", function()
       runDeferred()
 
       assert.equal(foreign, tab.points[1][2])
-      assert.equal(5, ah.numTabs) -- and the count covers our index again
+      assert.equal(3, ah.numTabs) -- Blizzard's count, untouched
     end)
 
   it("installs once however many times the auction house opens", function()
     GC.AuctionHouseTab.Install()
     GC.AuctionHouseTab.Install()
     GC.AuctionHouseTab.Install()
-    assert.equal(4, #ah.Tabs)
+    assert.equal(3, #ah.Tabs)
     assert.equal(1, #(function()
       local tabs = {}
       for _, w in ipairs(created) do
@@ -194,53 +238,77 @@ describe("Auction House tab", function()
     end)())
   end)
 
-  it("a click drives Blizzard's own SetDisplayMode, docks the window, and names the title", function()
+  -- The fields the auction house's own code reads, as Blizzard set them.
+  local function blizzardFields()
+    local map = {}
+    for k, v in pairs(ah.tabsForDisplayMode) do map[k] = v end
+    return { displayMode = ah.displayMode, numTabs = ah.numTabs, selectedTab = ah.selectedTab,
+      tabs = #ah.Tabs, map = map }
+  end
+
+  it("a click shows the dock over Blizzard's pane, draws our tab chosen, and names the title", function()
     GC.AuctionHouseTab.Install()
+    ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy) -- the auction house's own OnShow
     local tab, dock = tabButton(), dockPanel()
     assert.is_table(dock)
     assert.is_false(dock:IsShown()) -- hidden until the tab is chosen
     tab.scripts.OnClick(tab)
-    -- LibAHTab.lua:89-90 stomps AuctionHouseFrame.displayMode back to nil in the same breath it
-    -- sets it; our own tab must leave the field exactly as empty-handed, never holding a
-    -- GoldCap-owned table for as long as our tab is the active panel (the taint the owner hit
-    -- posting in Forever, "An action was blocked because of taint from GoldCap").
-    assert.is_nil(ah.displayMode)
     assert.is_true(dock:IsShown())
     assert.equal(1, #docked) -- the window was docked into the panel, once
     assert.equal(dock, docked[1].host)
     assert.equal("GoldCap", ah.title)
+    assert.is_true(tab.selected)
+    for _, blizzardTab in ipairs(ah.Tabs) do assert.is_false(blizzardTab.selected) end
+    -- Over the pane, solid, and the pointer and the wheel stop at it.
+    assert.is_true(dock:GetFrameLevel() > ah:GetFrameLevel() + 50)
+    assert.is_true(dock.mouse); assert.is_true(dock.wheel)
+    -- Blizzard's pane under the dock is not the player's: nothing reads as posting or buying.
+    assert.is_false(GC.AuctionHouseTab.PlayerIsPosting())
+    assert.is_false(GC.AuctionHouseTab.PlayerIsBuying())
+    assert.is_false(GC.AuctionHouseTab.PlayerIsUsingAnotherTab())
   end)
 
-  -- The real proof is in-game (a taint log clean of "GoldCap" around Post); this is the
-  -- code-level invariant the fix establishes: whatever else happens while our tab is shown,
-  -- Blizzard's own frame carries nothing of GoldCap's in this field.
-  it("leaves Blizzard's own displayMode field holding nothing of GoldCap's while the tab is shown", function()
+  it("leaves every field the auction house reads as Blizzard set it, whatever our tab does", function()
     GC.AuctionHouseTab.Install()
+    ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+    local before = blizzardFields()
     local tab = tabButton()
     tab.scripts.OnClick(tab)
-    assert.is_nil(ah.displayMode)
-    -- Still true after whatever else a visit does with our tab active.
     tab.scripts.OnClick(tab)
-    assert.is_nil(ah.displayMode)
+    assert.same(before, blizzardFields())
+    GC.Sniper.shown = false
+    GC.AuctionHouseTab.OnWindowHidden()
+    GC.AuctionHouseTab.OnAuctionHouseClosed()
+    assert.same(before, blizzardFields())
   end)
 
-  it("hides the dock and the window when a Blizzard tab takes the display back", function()
+  -- Blizzard's tab sets the mode its pane already has under the dock, and SetDisplayMode returns
+  -- before drawing anything: the bar and the title are ours to redraw.
+  it("hides the dock and the window and redraws Blizzard's bar when a Blizzard tab takes the display back", function()
     GC.AuctionHouseTab.Install()
+    ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
     local tab, dock = tabButton(), dockPanel()
     tab.scripts.OnClick(tab)
     ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
     assert.is_false(dock:IsShown())
     assert.is_false(GC.Sniper.IsWindowShown())
+    assert.is_false(tab.selected)
+    assert.is_true(ah.Tabs[1].selected)
+    assert.equal("Blizzard tab 1", ah.title)
   end)
 
-  it("returns the auction house to Buy when the window hides while our mode is up", function()
+  it("uncovers Blizzard's pane when the window hides while our tab is up", function()
     GC.AuctionHouseTab.Install()
+    ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
     local tab, dock = tabButton(), dockPanel()
     tab.scripts.OnClick(tab)
     GC.Sniper.shown = false -- the window's own X / Escape
     GC.AuctionHouseTab.OnWindowHidden()
     assert.equal(_G.AuctionHouseFrameDisplayMode.Buy, ah.displayMode)
     assert.is_false(dock:IsShown())
+    assert.is_false(tab.selected)
+    assert.is_true(ah.Tabs[1].selected)
+    assert.is_false(GC.AuctionHouseTab.PlayerIsPosting())
   end)
 
   it("does nothing on a window hide when our mode is not the one showing", function()
@@ -258,6 +326,7 @@ describe("Auction House tab", function()
     assert.is_false(dock:IsShown())
     assert.equal(2, #docked)
     assert.is_nil(docked[2].host) -- SetDocked(nil): back to a floating window
+    assert.is_false(tab.selected) -- the next visit opens on Blizzard's bar
   end)
 
   -- Install runs synchronously inside GC.Sniper.OnAuctionHouseShow. An error here would abort
@@ -302,7 +371,8 @@ describe("Auction House tab", function()
     GC.AuctionHouseTab.Install()
 
     assert.is_table(dockPanel())
-    assert.equal(4, #ah.Tabs)
+    assert.is_table(tabButton())
+    assert.equal(3, #ah.Tabs)
   end)
 
   -- Blizzard's request throttle is one shared budget: while the player is on the default

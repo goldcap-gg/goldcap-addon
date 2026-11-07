@@ -46,7 +46,7 @@ read_globals = {
   -- the embedded AH tab (see UI/AuctionHouseTab.lua's header): numTabs/selectedTab feed
   -- insecure UI code only, and the pattern is what Auctionator ships at scale.
   "PanelTemplates_TabResize", "PanelTemplates_SelectTab", "PanelTemplates_DeselectTab",
-  "PanelTemplates_SetNumTabs",
+  "PanelTemplates_SetNumTabs", "PanelTemplates_UpdateTabs",
   "C_Container", "ItemLocation",
   -- The Warband Bank: whether it can be used and its tabs (UI/BankRoute.lua, retail only).
   "C_Bank",

@@ -2,28 +2,35 @@ local _, GC = ...
 
 -- An embedded GoldCap tab on Blizzard's own Auction House window.
 --
--- Owner-approved 2026-08-17, superseding this file's earlier entry-point-only design (which
--- toggled the floating window and deliberately avoided Blizzard's tab bookkeeping). The
--- earlier taint fear was re-examined against the actual source before this shipped --
--- Blizzard_AuctionHouseFrame.lua, Gethe/wow-ui-source (live), read verbatim:
+-- Owner-approved 2026-08-17: the GoldCap tab sits on the auction house's own tab bar, and the
+-- addon window docks into a panel over the content area (GC.Sniper.SetDocked), undocked back to
+-- a floating window when the auction house closes. `/goldcap` away from an auctioneer keeps the
+-- floating window exactly as before.
 --
---   * SetDisplayMode(mode) compares modes BY IDENTITY against its own tables, hides every
---     subframe not in the target mode, then `for i = 1, #mode do self[mode[i]]:Show() end`.
---     Our mode is a fresh EMPTY table: no identity ever matches (all their panels hide) and
---     the show loop is a no-op. Nothing of ours is indexed by their code beyond that.
---   * `numTabs`/`selectedTab` (PanelTemplates_SetNumTabs / PanelTemplates_SetTab) feed
---     insecure UI code only -- UpdateTitle is the lone reader -- never a protected path. Our
---     own purchase calls are already addon code; they are gated on HARDWARE input, not on
---     taint, and registering a tab changes nothing about that.
---   * This registration pattern (append to ah.Tabs, SetNumTabs, tabsForDisplayMode) is what
---     Auctionator has shipped at scale for years.
+-- Nothing of ours is written into the auction house frame (2026-11-07). The tab used to be
+-- registered in Blizzard's own machinery: appended to AuctionHouseFrame.Tabs, counted in
+-- numTabs, mapped in tabsForDisplayMode, and selected through SetDisplayMode. Every one of those
+-- writes is a field Blizzard's own code reads later as written by GoldCap: the frame's OnShow
+-- calls SetDisplayMode(Buy), which reads tabsForDisplayMode and numTabs, and then opens the bags
+-- tainted. On WoW: Forever with the controller interface that bag opening reaches the protected
+-- SetPreferredGamepadInteractTarget, and the client put up "GoldCap has been blocked" at the
+-- auctioneer and then on every target change until /reload (taint.log and the probe's
+-- issecurevariable read, owner's client 2026-11-07: AuctionHouseFrame.numTabs and
+-- .tabsForDisplayMode written by GoldCap). LibAHTab's README warns of the same taint in bags.
 --
--- With the tab registered, the ENGINE does the whole dance: clicking our tab makes Blizzard
--- hide its panels and paint our tab selected; clicking Buy/Sell/Auctions restores their
--- panels and deselects ours -- no bookkeeping of "what was showing before" on our side, ever.
--- The addon window is reparented into a dock panel over the vacated content area
--- (GC.Sniper.SetDocked), and undocked back to a floating window when the auction house
--- closes. `/goldcap` away from an auctioneer keeps the floating window exactly as before.
+-- So the tab is built the way LibAHTab builds its own: on a root frame of ours, where the
+-- template's parentArray="Tabs" appends it to OUR root's Tabs and not to the auction house's.
+-- Picking it shows the dock OVER Blizzard's panes, which stay in their mode underneath, and
+-- draws the bar with Blizzard's own PanelTemplates_SelectTab/DeselectTab/UpdateTabs and the
+-- title with its SetTitle/UpdateTitle, which change only what is drawn, never a field. Any
+-- SetDisplayMode, which only the player's own clicks reach while the dock covers the panes
+-- (a tab, a bag item to post, a search; Blizzard_AuctionHouseFrame.lua read verbatim), takes
+-- the display back: the dock hides and the bar is redrawn as Blizzard's mode has it.
+--
+-- Frames hung on the auction house are created with no parent and attached after: WoW: Forever's
+-- controller interface hooks CreateFrame (Blizzard_GamepadSmartNavigation/SmartNavigation.lua),
+-- and a frame created inside an open panel makes it rebuild that panel's navigation in the
+-- creating addon's code. SetParent is not hooked.
 --
 -- Every step stays pcall-guarded: this runs synchronously inside
 -- GC.Sniper.OnAuctionHouseShow, and an error here would abort the rest of that function --
@@ -31,7 +38,9 @@ local _, GC = ...
 GC.AuctionHouseTab = {}
 
 local tab, dock, installed, hookedTabs = nil, nil, false, false
-local registered = false
+-- Set when our own tab was built from Blizzard's tab template (buildTab): its bar look is drawn
+-- by Blizzard's PanelTemplates functions. A template-less client's fallback button is not.
+local nativeTab = false
 -- Set when the tab was created through LibAHTab-1-0 (see libAHTab below) rather than built
 -- here: the library then owns its position, its click, and its visibility.
 local libRegistered = false
@@ -70,6 +79,9 @@ GC.AuctionHouseTab.addonBrowse = false
 local listOurs = false
 local veil = nil
 local VEIL = { WIDTH = 330, GAP = 6, TITLE = 14, BODY = 12, LEVEL = 50, ALPHA = 0.96 }
+-- The dock's frame level over the auction house's: above every pane a display mode shows, and
+-- above the veil those panes may carry (VEIL.LEVEL over the list).
+local DOCK_LEVEL = 100
 
 -- Blizzard's tabs are `AuctionHouseFrame.Tabs` on current builds and globals named
 -- AuctionHouseFrameTab1..N on older ones. Walk whichever exists; the last one is the anchor.
@@ -129,33 +141,33 @@ end
 local function scheduleAnchor(ah)
   anchorTab(ah)
   if not (_G.C_Timer and _G.C_Timer.After) then return end
-  pcall(_G.C_Timer.After, 0, function()
-    anchorTab(ah)
-    -- Reclaim the tab count in the same breath. Another addon setting it to ITS OWN total
-    -- after we set ours leaves our index outside frame.numTabs, and Blizzard's
-    -- PanelTemplates_UpdateTabs then walks straight past our tab.
-    pcall(function()
-      if registered and ah.Tabs then PanelTemplates_SetNumTabs(ah, #ah.Tabs) end
-    end)
-  end)
+  pcall(_G.C_Timer.After, 0, function() anchorTab(ah) end)
 end
 
 local function buildTab(ah)
   local built
   pcall(function()
-    built = CreateFrame("Button", "GoldCapAuctionHouseTab", ah, "AuctionHouseFrameTabTemplate")
+    -- The root is ours, so the template's parentArray="Tabs" fills root.Tabs (see the header).
+    -- Both are made before the root hangs on the auction house: CreateFrame with a parent inside
+    -- an open panel is what WoW: Forever's controller interface hooks, SetParent is not.
+    local root = CreateFrame("Frame")
+    root:SetSize(1, 1)
+    built = CreateFrame("Button", "GoldCapAuctionHouseTab", root, "AuctionHouseFrameTabTemplate")
+    root:SetParent(ah)
+    root:SetPoint("TOPLEFT", ah, "BOTTOMLEFT")
   end)
   if built then
     pcall(function() built:SetText("GoldCap") end)
     -- The template's own OnShow already resized -- at creation, with EMPTY text. Re-run the
-    -- exact call PanelTabButtonMixin:OnShow makes (same paddings from the parent), now that
-    -- the label exists. This button only.
+    -- exact call PanelTabButtonMixin:OnShow makes (same paddings from the auction house), now
+    -- that the label exists. This button only.
     pcall(function() PanelTemplates_TabResize(built, ah.tabPadding, nil, ah.minTabWidth, ah.maxTabWidth) end)
+    pcall(PanelTemplates_DeselectTab, built)
     return built, true
   end
   -- A client build without the template falls back to the addon's own button as a plain
-  -- entry point -- and must NOT register: PanelTemplates_SetTab reaches into template
-  -- textures this button does not have.
+  -- entry point: PanelTemplates' drawing reaches into template textures this button does not
+  -- have.
   if not (GC.Theme and GC.Theme.Button) then return nil, false end
   built = GC.Theme.Button(ah, "ghost")
   built:SetSize(80, 22)
@@ -192,6 +204,27 @@ local function hideDock()
   if dock and dock:IsShown() then dock:Hide() end
 end
 
+-- Our tab picked, on the native path: the dock over Blizzard's panes, the bar drawn with ours
+-- chosen, the title. Nothing written into the auction house (see the header); Blizzard's mode
+-- stays what it was under the dock, and currentMode says ours, as SetDisplayMode's hook used to
+-- record it.
+local function selectOurs(ah)
+  for _, other in ipairs(blizzardTabs(ah)) do pcall(PanelTemplates_DeselectTab, other) end
+  pcall(PanelTemplates_SelectTab, tab)
+  currentMode, provokedBuyMode = DISPLAY_MODE, false
+  showDock()
+  pcall(function() ah:SetTitle("GoldCap") end)
+end
+
+-- The bar and the title as Blizzard's own mode has them, ours not chosen. SetDisplayMode returns
+-- before drawing when the mode is the one it already had, as it is under our dock.
+local function restoreBlizzard(ah)
+  if not nativeTab then return end
+  pcall(PanelTemplates_DeselectTab, tab)
+  pcall(PanelTemplates_UpdateTabs, ah)
+  pcall(function() ah:UpdateTitle() end)
+end
+
 -- One hook, both directions on the native path: our mode up -> show the dock, any other mode
 -- -> hide it. Their OnClick is a template script we must not replace, so hook the frame method
 -- it calls. On the LibAHTab path the library already hides every registered tab's frame -- ours
@@ -213,7 +246,7 @@ local function installSetDisplayModeHook(ah)
       provokedBuyMode = false
     end) and true or false
   end
-  pcall(hooksecurefunc, ah, "SetDisplayMode", function(_, mode)
+  pcall(hooksecurefunc, ah, "SetDisplayMode", function()
     -- SetDisplayMode itself resolves a Sell-family request (ItemSell/CommoditiesSell/
     -- WoWTokenSell) against whichever SellFrame actually has an item loaded before it stores
     -- self.displayMode (Blizzard_AuctionHouseFrame.lua, read verbatim) -- so read the RESOLVED
@@ -238,11 +271,10 @@ local function installSetDisplayModeHook(ah)
       provokedBuyMode = addonSearchAt ~= nil and (time() - addonSearchAt) <= PROVOKED_PAGE_SECONDS
     end
     if libRegistered then return end
-    if mode == DISPLAY_MODE then
-      showDock()
-    else
-      hideDock()
-    end
+    -- Only the player's clicks reach SetDisplayMode while the dock is up (see the header): one
+    -- of them took the display back.
+    hideDock()
+    restoreBlizzard(ah)
   end)
 end
 
@@ -430,10 +462,23 @@ function GC.AuctionHouseTab.Install()
   -- above and the money strip below visible: both live outside the display-mode lists and stay
   -- useful.
   pcall(function()
-    dock = CreateFrame("Frame", "GoldCapAuctionHouseDock", ah)
-    dock:SetPoint("TOPLEFT", 7, -28)
-    dock:SetPoint("BOTTOMRIGHT", -7, 32)
-    dock:Hide()
+    -- Made with no parent and attached after, like the tab (see the header).
+    local built = CreateFrame("Frame", "GoldCapAuctionHouseDock")
+    built:Hide()
+    built:SetParent(ah)
+    built:SetPoint("TOPLEFT", ah, "TOPLEFT", 7, -28)
+    built:SetPoint("BOTTOMRIGHT", ah, "BOTTOMRIGHT", -7, 32)
+    -- Over Blizzard's panes, which stay shown under it, and solid: the window draws through
+    -- itself in places, and the pointer and the wheel must not reach the list beneath.
+    built:SetFrameLevel(ah:GetFrameLevel() + DOCK_LEVEL)
+    local bg = built:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(built)
+    local c = GC.Theme and GC.Theme.color and GC.Theme.color.bg or { 0.05, 0.05, 0.07 }
+    bg:SetColorTexture(c[1], c[2], c[3], 1)
+    built:EnableMouse(true)
+    built:EnableMouseWheel(true)
+    built:SetScript("OnMouseWheel", function() end)
+    dock = built
   end)
   -- The "we are built" latch is set here, not above: everything below hangs off this dock, and
   -- the pcall that builds it can come back empty (another addon's taint on the auction house
@@ -472,54 +517,15 @@ function GC.AuctionHouseTab.Install()
   local native
   tab, native = buildTab(ah)
   if not tab then return end
-  tab.displayMode = DISPLAY_MODE
+  nativeTab = native
 
-  if native then
-    -- The registration the header explains: with these writes the engine owns tab selection,
-    -- panel hiding and restoration end to end. PanelTabButtonTemplate itself carries
-    -- parentArray="Tabs" (SharedUIPanelTemplates.xml:905, read verbatim), so CreateFrame has
-    -- ALREADY appended this button to ah.Tabs -- the first shipped version inserted it a
-    -- second time, which made "the last tab" the button itself, turned the anchor below into
-    -- an anchor-to-self error swallowed by pcall, and rendered NO tab at all. Register only
-    -- what the template did not do: the count and the display-mode lookup.
-    pcall(function()
-      PanelTemplates_SetNumTabs(ah, #ah.Tabs)
-      ah.tabsForDisplayMode = ah.tabsForDisplayMode or {}
-      for index, candidate in ipairs(ah.Tabs) do
-        if candidate == tab then
-          ah.tabsForDisplayMode[DISPLAY_MODE] = index
-          break
-        end
-      end
-    end)
-    registered = true
-  end
-
-  -- Ours is already in ah.Tabs (see above), and a frame cannot anchor to itself -- anchorTab
-  -- skips it and runs again a frame later, and on every later visit.
   scheduleAnchor(ah)
 
   tab:SetScript("OnClick", function()
     local frame = _G.AuctionHouseFrame
     if not frame then return end
-    if registered and frame.SetDisplayMode then
-      -- The hook below is what shows the dock, so a mode change from ANY source behaves the
-      -- same. SetTitle runs after: SetDisplayMode's own UpdateTitle only knows Blizzard's
-      -- three tab indices and would have fallen back to the Buy title.
-      pcall(frame.SetDisplayMode, frame, DISPLAY_MODE)
-      -- Stomped back in the same breath, mirroring LibAHTab.lua:89-90
-      -- (`AuctionHouseFrame:SetDisplayMode({}); AuctionHouseFrame.displayMode = nil`). Without
-      -- this, Blizzard's own field sits holding a GoldCap-owned table reference for the entire
-      -- time our tab is the active panel -- exactly the window during which the player posts --
-      -- and a later protected call (PostCommodity/PostItem) made while that reference lingers is
-      -- what the owner's taint log named ("taint from GoldCap"), with Blizzard's own Browse
-      -- search broken until /reload. currentMode above has already read the resolved field
-      -- inside the hooksecurefunc this call triggered, so nothing downstream loses track of
-      -- "our mode is active" -- see PlayerIsPosting/PlayerIsUsingAnotherTab, which already
-      -- tolerate a nil ah.displayMode while the dock is shown (the LibAHTab path always looked
-      -- like this).
-      frame.displayMode = nil
-      pcall(function() frame:SetTitle("GoldCap") end)
+    if nativeTab then
+      selectOurs(frame)
     else
       -- Fallback button on a template-less client: plain entry point, old behaviour.
       if GC.Sniper and GC.Sniper.Toggle then GC.Sniper.Toggle() end
@@ -721,10 +727,15 @@ function GC.AuctionHouseTab.OnWindowHidden()
   paintVeil()
   local ah = _G.AuctionHouseFrame
   if not ah or not dock or not dock:IsShown() then return end
-  -- Both paths now leave AuctionHouseFrame.displayMode nil while our tab is selected -- the
-  -- native tab's OnClick stomps it back the same way LibAHTab's SetSelected always did -- so the
-  -- dock being up (checked above) is the whole condition on either path; a second check against
-  -- DISPLAY_MODE would never see it there to compare against.
+  if not libRegistered then
+    -- Blizzard's panes never left their mode under the dock: uncover them and redraw the bar.
+    hideDock()
+    currentMode = ah.displayMode
+    restoreBlizzard(ah)
+    return
+  end
+  -- LibAHTab emptied the auction house's mode when its tab was picked (its SetSelected), so the
+  -- Buy pane has to be asked for.
   local buy = _G.AuctionHouseFrameDisplayMode and _G.AuctionHouseFrameDisplayMode.Buy
   if buy and ah.SetDisplayMode then
     pcall(ah.SetDisplayMode, ah, buy) -- the hook above hides the dock
@@ -750,6 +761,11 @@ function GC.AuctionHouseTab.OnAuctionHouseClosed()
   listOurs = false
   paintVeil()
   if dock and dock:IsShown() then dock:Hide() end
+  local ah = _G.AuctionHouseFrame
+  if ah and not libRegistered then
+    currentMode = ah.displayMode
+    restoreBlizzard(ah)
+  end
   if GC.Sniper and GC.Sniper.SetDocked then pcall(GC.Sniper.SetDocked, nil) end
   GC.AuctionHouseTab.Refresh()
 end
