@@ -757,6 +757,7 @@ describe("Clean click ordering, driven end to end", function()
         return { ceilingUnit = ceilingUnit, kind = kind or "vendor", exitUnit = exitUnit, minimumProfit = 20 }
       end
       GC.ForeverDeals.Drop = function(id) GC._dropped = id end
+      GC.ForeverDeals.Bought = function(id, qty) GC._bought = { id, qty } end
     end
 
     local function foreverDeal(itemID, isCommodity)
@@ -1021,7 +1022,8 @@ describe("Clean click ordering, driven end to end", function()
         expectedProfit = 105 }, facts)
       GC.Sniper.OnCommodityPurchaseSucceeded()
       assertForeverRecord(GC, 55, 610, 105)
-      assert.equal(42, GC._dropped) -- and the lead leaves the board
+      -- All 55 the row found: the board drops it (GC.ForeverDeals.Bought, Core/ForeverDeals.lua).
+      assert.same({ 42, 55 }, GC._bought)
     end)
 
     -- Review 2026-11-06: a buy that took less than the row found (the wallet's share stopped it,
@@ -1041,7 +1043,7 @@ describe("Clean click ordering, driven end to end", function()
       click() -- Confirm
       GC.Sniper.OnCommodityPurchaseSucceeded()
       assert.is_nil(GC._dropped)
-      assert.equal(45, deal.qty)
+      assert.same({ 42, 55 }, GC._bought) -- the board keeps the 45 left (Core/ForeverDeals.lua)
     end)
 
     it("records a Forever lot at its buyout, with what the vendor pays over it", function()

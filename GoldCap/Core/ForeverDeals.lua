@@ -275,6 +275,11 @@ local cache = { at = nil, itemCount = nil, rev = nil, from = nil, builtAt = 0, w
 -- keyAsked: when each unsure item's key was first asked, for this fold only (rebuild wipes it when
 -- the fold changes, OnAuctionHouseShow when the auction house opens).
 local requested, dropped, keyAsked = {}, {}, {}
+-- bought: units the player bought from a row that took less than it found, per item, kept with the
+-- entry the row came from (as `dropped`). A rebuild makes new row objects from the same fold, and
+-- a count kept on the old row was lost: the next rebuild showed the whole row again, at its whole
+-- profit (review, 2026-11-07).
+local bought = {}
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
@@ -294,6 +299,24 @@ end
 local function isDropped(fold, itemID)
   local d = dropped[itemID]
   return d ~= nil and d.at == fold.at and d.entry == fold.items[itemID]
+end
+
+-- Units already bought from this item's row, while the fold still holds the entry it came from.
+local function boughtFrom(fold, itemID)
+  local b = bought[itemID]
+  if b ~= nil and b.at == fold.at and b.entry == fold.items[itemID] then return b.qty end
+  return 0
+end
+
+-- What is left of a row once `taken` of its units are bought: the units, and the cost and profit
+-- in proportion. An estimate, as the row itself is: it is `stale`, and its next click Checks.
+local function shrink(row, taken)
+  local left = row.qty - taken
+  local share = left / row.qty
+  row.qty = left
+  row.capTotal = math.floor(row.capTotal * share + 0.5)
+  row.profit = math.floor(row.profit * share + 0.5)
+  row.estProfit = row.profit
 end
 
 local function rebuild(fold, now)
@@ -322,7 +345,9 @@ local function rebuild(fold, now)
   })
   local kept, byItem = {}, {}
   for _, row in ipairs(rows) do
-    if not isDropped(fold, row.itemID) then
+    local taken = boughtFrom(fold, row.itemID)
+    if not isDropped(fold, row.itemID) and taken < row.qty then
+      if taken > 0 then shrink(row, taken) end
       kept[#kept + 1] = row
       byItem[row.itemID] = row
     end
@@ -438,6 +463,26 @@ function GC.ForeverDeals.CeilingFor(itemID)
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
   return { ceilingUnit = row.ceiling, kind = row.forever, exitUnit = row.refUnit,
     depositUnit = row.depositUnit, minimumProfit = GC.ForeverDeals.MinimumProfit(settings) }
+end
+
+-- A buy from the row that took `qty` units: the row stays with what is left, through every
+-- rebuild from the same fold entry, and leaves the board once nothing is (as Drop).
+function GC.ForeverDeals.Bought(itemID, qty)
+  local from = cache.from
+  local row = cache.byItem[itemID]
+  if from == nil or row == nil or type(qty) ~= "number" or qty <= 0 then
+    GC.ForeverDeals.Drop(itemID)
+    return
+  end
+  local entry = from.items[itemID]
+  local prior = bought[itemID]
+  local before = (prior and prior.at == from.at and prior.entry == entry) and prior.qty or 0
+  bought[itemID] = { at = from.at, entry = entry, qty = before + qty }
+  if qty >= row.qty then
+    GC.ForeverDeals.Drop(itemID)
+  else
+    shrink(row, qty)
+  end
 end
 
 function GC.ForeverDeals.Drop(itemID)

@@ -5642,13 +5642,16 @@ local function consumePurchasedDeal(deal, boughtQty)
   -- unless the buy took less than the row found: an Items row's buy is one lot (PlaceBid) and a
   -- commodity buy stops at the wallet's share, and dropping the row hid the rest until the next
   -- scan (review 2026-11-06: 18 Items rows held 159 lots, the first buys 18 of them). It stays
-  -- with what is left; it is `stale`, so its next click Checks the live book: an empty book takes
-  -- it off ("listing gone"), one with nothing left under the ceiling sends it to Hidden.
+  -- with what is left (GC.ForeverDeals.Bought, which keeps that count through the board's
+  -- rebuilds); it is `stale`, so its next click Checks the live book: an empty book takes it off
+  -- ("listing gone"), one with nothing left under the ceiling sends it to Hidden.
   if GC.ForeverDeals and GC.ForeverDeals.Drop then
     local board = deal.boardDeal or deal
-    local left = board.forever and type(board.qty) == "number" and type(boughtQty) == "number"
-      and board.qty - boughtQty or 0
-    if left > 0 then board.qty = left else GC.ForeverDeals.Drop(deal.itemID) end
+    if board.forever and type(boughtQty) == "number" and GC.ForeverDeals.Bought then
+      GC.ForeverDeals.Bought(deal.itemID, boughtQty)
+    else
+      GC.ForeverDeals.Drop(deal.itemID)
+    end
   end
 end
 

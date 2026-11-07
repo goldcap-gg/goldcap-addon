@@ -550,6 +550,36 @@ describe("ForeverDeals", function()
       assert.equal(1, #D.Rows(clock + 1))
     end)
 
+    -- Review 2026-11-07: the count left after a partial buy lived on the row object, and the next
+    -- rebuild (every 5 s while vendor prices load) made a new one from the same fold: whole again.
+    it("keeps a partial buy's remainder through rebuilds from the same entry", function()
+      vendor[2589] = 13
+      saved = { at = 5000, itemCount = 1, rev = 1, items = saved.items }
+      local row = D.Rows(clock)[1]
+      assert.same({ 55, 610, 105 }, { row.qty, row.capTotal, row.profit })
+      D.Bought(2589, 15)
+      assert.equal(40, D.Rows(clock)[1].qty)
+      saved = { at = 5000, itemCount = 1, rev = 2, items = saved.items } -- same entry, rebuilt
+      row = D.Rows(clock + 1)[1]
+      assert.same({ 40, 444, 76 }, { row.qty, row.capTotal, row.profit }) -- 610 and 105 x 40/55
+      assert.equal(76, row.estProfit)
+      D.Bought(2589, 40)                                                  -- the rest of it
+      assert.equal(0, #D.Rows(clock + 1))
+      saved = { at = 5000, itemCount = 1, rev = 3, items = saved.items }
+      assert.equal(0, #D.Rows(clock + 2))
+      -- The item's entry changed (a new scan saw it): its row is whole again.
+      saved = { at = 5000, itemCount = 1, rev = 4, items = { [2589] = "9,350,4,;0x10 3x40 1x100 2x200" } }
+      assert.equal(50, D.Rows(clock + 3)[1].qty)
+    end)
+
+    it("drops a row it cannot count a buy against", function()
+      vendor[2589] = 13
+      D.Rows(clock)
+      D.Bought(2589, nil)
+      assert.equal(0, #D.Rows(clock))
+      D.Bought(4242, 3) -- no row for it: nothing to change
+    end)
+
     -- A browse-only top-up keeps the saved entry of every item it shares with the fold: the lead
     -- the player just bought is still that entry, and must not come straight back.
     it("keeps a dropped row off through a write that kept its item's entry", function()
