@@ -40,6 +40,11 @@
 - WoW: Forever: Road to 40 now counts toward the trainer's 100g for Apprentice Riding. /gc mount
   still sets a cost of your own, for a reputation discount for example, and /gc mount clear goes
   back to 100g.
+- DEALS: hovering a deal before the game has loaded its item no longer leaves the tooltip headed
+  by "Retrieving item information". It fills in as soon as the item loads.
+- WoW: Forever, SELL and tooltips: an item held back because of its deposit now says why in plain
+  words: the deposit is more than the auction house would add over a vendor, and you lose it if
+  the lot does not sell. A lot that sells gives the deposit back with the money.
 
 ## 0.24.1 (2026-11-06)
 
