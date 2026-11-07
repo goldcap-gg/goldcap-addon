@@ -704,8 +704,8 @@ GC.Locales.zhTW = {
   ["full scan stalled, retrying shortly"] = "完整掃描停住了，稍後重試",
   ["full scan stopped. Press %s to run it again"] = "完整掃描已停止。按 %s 重新執行",
   ["gone / price changed"] = "已消失 / 價格已變",
-  ["goldcap.gg prices for WoW: Forever are not out yet."] =
-    "WoW: Forever 的 goldcap.gg 價格還未上線。",
+  ["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."] =
+    "在 WoW: Forever 中，goldcap.gg 的價格透過 GoldCap Companion 取得，而不是貼上字串。",
   ["strong"] = "高",
   ["hold"] = "持有",
   ["identity unresolved (variant item, not priced by design)"] =

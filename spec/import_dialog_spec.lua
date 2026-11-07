@@ -371,7 +371,7 @@ describe("ImportDialog", function()
       local dialog = paste("GCS1;something else")
       assert.is_true(dialog.shown)
       assert.is_truthy(dialog.status:GetText():find(
-        "goldcap.gg prices for WoW: Forever are not out yet.", 1, true))
+        "On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string.", 1, true))
     end)
 
     it("still imports buy runs -- a different grammar, not a price string", function()

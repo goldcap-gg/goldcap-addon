@@ -741,8 +741,8 @@ GC.Locales.ukUA = {
   ["full scan stopped. Press %s to run it again"] =
     "повне сканування зупинено. Натисніть %s, щоб запустити його знову",
   ["gone / price changed"] = "зникло / ціна змінилася",
-  ["goldcap.gg prices for WoW: Forever are not out yet."] =
-    "Ціни goldcap.gg для WoW: Forever ще не доступні.",
+  ["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."] =
+    "У WoW: Forever ціни goldcap.gg надходять через GoldCap Companion, а не вставленим рядком.",
   ["strong"] = "надійні",
   ["hold"] = "тримати",
   ["identity unresolved (variant item, not priced by design)"] =

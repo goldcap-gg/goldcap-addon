@@ -118,14 +118,15 @@ local function createDialog()
       importLists(f, text)
       return
     end
-    -- Final review I2: no Forever import string exists yet (goldcap.gg has not shipped one),
-    -- so anything pasted here on a Forever client is a retail string -- and would feed the
-    -- tooltip, Deals and Sell with another client's prices. Refused before the string is even
+    -- Final review I2: there is no Forever import string (goldcap.gg's Forever prices reach the
+    -- addon through the Companion, GCF1), so anything pasted here on a Forever client is a retail
+    -- string -- and would feed the tooltip, Deals and Sell with another client's prices. The
+    -- refusal says where Forever prices do come from. Refused before the string is even
     -- parsed, at the one place a price string is committed, so both /goldcap import (which
     -- only opens this dialog) and the dialog's own Import button are covered. Buy runs (above)
     -- are a different grammar and unaffected.
     if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
-      setStatus(f, "|cffff4040" .. GC.L["goldcap.gg prices for WoW: Forever are not out yet."] .. "|r")
+      setStatus(f, "|cffff4040" .. GC.L["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."] .. "|r")
       return
     end
     local parsed, err = GC.ImportString.Parse(text)

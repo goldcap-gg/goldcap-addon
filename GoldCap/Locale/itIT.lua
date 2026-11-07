@@ -759,8 +759,8 @@ GC.Locales.itIT = {
   ["full scan stopped. Press %s to run it again"] =
     "scansione completa interrotta. Premi %s per rilanciarla",
   ["gone / price changed"] = "sparito / prezzo cambiato",
-  ["goldcap.gg prices for WoW: Forever are not out yet."] =
-    "I prezzi di goldcap.gg per WoW: Forever non sono ancora disponibili.",
+  ["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."] =
+    "In WoW: Forever i prezzi di goldcap.gg arrivano tramite GoldCap Companion, non da un testo incollato.",
   ["strong"] = "solidi",
   ["hold"] = "tenere",
   ["identity unresolved (variant item, not priced by design)"] =

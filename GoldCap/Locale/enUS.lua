@@ -805,7 +805,8 @@ GC.Locales.enUS = {
   ["full scan stopped. Press %s to run it again"] =
     "full scan stopped. Press %s to run it again",
   ["gone / price changed"] = "gone / price changed",
-  ["goldcap.gg prices for WoW: Forever are not out yet."] = "goldcap.gg prices for WoW: Forever are not out yet.",
+  ["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."] =
+    "On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string.",
   ["strong"] = "strong",
   ["identity unresolved (variant item, not priced by design)"] = "identity unresolved (variant item, not priced by design)",
   ["if you buy all %d and sell them back at the price standing there now"] =

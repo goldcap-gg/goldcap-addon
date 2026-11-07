@@ -731,8 +731,8 @@ GC.Locales.ruRU = {
   ["full scan stopped. Press %s to run it again"] =
     "полное сканирование остановлено. Нажмите %s, чтобы запустить его снова",
   ["gone / price changed"] = "исчезло / цена изменилась",
-  ["goldcap.gg prices for WoW: Forever are not out yet."] =
-    "Цены goldcap.gg для WoW: Forever пока недоступны.",
+  ["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."] =
+    "В WoW: Forever цены goldcap.gg приходят через GoldCap Companion, а не вставленной строкой.",
   ["strong"] = "надёжные",
   ["hold"] = "держать",
   ["identity unresolved (variant item, not priced by design)"] =
