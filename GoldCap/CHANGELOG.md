@@ -8,6 +8,15 @@
 - WoW: Forever, DEALS: a price from goldcap.gg that was taken from fewer than 20 units listed no
   longer counts as the auction house value, so a couple of lonely high listings cannot make
   ordinary stock look like a bargain.
+- WoW: Forever, DEALS: a quick scan between full scans now updates the lowest price of items the
+  last full scan already saw. A new cheap listing on a known item reaches the board right away,
+  instead of waiting for the next full scan.
+- WoW: Forever, DEALS: after buying part of a deal, the row keeps showing what is left, instead
+  of the whole amount coming back a few seconds later.
+- WoW: Forever: "Min profit per buy" no longer takes the retail figure (in gold) when you changed
+  it there. Forever starts at 20c until you set its own field.
+- WoW: Forever, DEALS: when nothing on the board fits your gold, the line at the top also says
+  what your bags would fetch on the auction house and to post them on SELL.
 
 ## 0.24.1 (2026-11-06)
 
