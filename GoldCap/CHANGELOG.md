@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.24.2 (unreleased)
+## 0.24.2 (2026-11-07)
 
 - WoW: Forever, DEALS: grey items are no longer offered as "Under market" buys. Their listings sit
   on the auction house unsold, so the price they ask is not a price anyone pays. A grey item
