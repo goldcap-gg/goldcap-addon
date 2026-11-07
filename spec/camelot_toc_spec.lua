@@ -37,8 +37,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- goldcap.gg works out where flips sell for retail realms alone. Minus the followed groups'
   -- selling rules too: groups are retail only (plan 2026-10-22). The mail files
   -- (Core/Mail*.lua) and the vendor sell files are retail only in this wave:
-  -- WoW: Forever must not change. Crafting in the profession window is retail's too: Forever's
-  -- professions differ and have a design of their own.
+  -- WoW: Forever must not change. Crafting in the profession window loads in both games, with
+  -- Forever's differences in files of its own (FOREVER_ONLY below).
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
     ["Core/GroupRules.lua"] = true, ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true,
     ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true,
@@ -46,13 +46,6 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["Core/VendorSelect.lua"] = true, ["Data/NoDisenchant.lua"] = true, ["Core/Disenchant.lua"] = true,
     ["Core/VendorPress.lua"] = true,
     ["Services/VendorBags.lua"] = true, ["UI/VendorSellCard.lua"] = true }
-  RETAIL_ONLY["Core/CraftMath.lua"] = true
-  RETAIL_ONLY["Core/CraftQueue.lua"] = true
-  RETAIL_ONLY["Services/CraftClient.lua"] = true
-  RETAIL_ONLY["UI/CraftStrip.lua"] = true
-  RETAIL_ONLY["UI/CraftPanel.lua"] = true
-  RETAIL_ONLY["UI/CraftQueueView.lua"] = true
-  RETAIL_ONLY["UI/Kit/Bar.lua"] = true
   -- The Hoard: the followed groups at a bank are retail only, and so is the bank route they move
   -- through.
   RETAIL_ONLY["Core/BankGroups.lua"] = true
@@ -74,12 +67,33 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- GoldCap's button on the minimap, which counts what is worth disenchanting: retail only for now.
   RETAIL_ONLY["UI/MinimapButton.lua"] = true
 
-  it("loads the same files in the same order, minus the retail-only files", function()
-    local expected = {}
+  -- WoW: Forever's own files, each loaded right after the file whose functions it replaces where
+  -- Forever differs (or, for a pure module, beside the files that use it). Retail never loads them.
+  local FOREVER_ONLY = {
+    ["Core/ForeverVendorPrices.lua"] = "Core/CraftQueue.lua",
+    ["Services/CraftClient_Camelot.lua"] = "Services/CraftClient.lua",
+    ["UI/CraftPanel_Camelot.lua"] = "UI/CraftQueueView.lua",
+  }
+
+  it("loads the same files in the same order, minus the retail-only files, plus its own", function()
+    local expected, shared = {}, {}
     for _, f in ipairs(retailF) do
       if not RETAIL_ONLY[f] then expected[#expected + 1] = f end
     end
-    assert.same(expected, foreverF)
+    for _, f in ipairs(foreverF) do
+      if not FOREVER_ONLY[f] then shared[#shared + 1] = f end
+    end
+    assert.same(expected, shared)
+  end)
+
+  it("loads each of its own files right after the file it belongs with, and retail none of them", function()
+    local at = {}
+    for i, f in ipairs(foreverF) do at[f] = i end
+    for file, after in pairs(FOREVER_ONLY) do
+      assert.is_not_nil(at[file], file)
+      assert.equal(at[after] + 1, at[file], file)
+    end
+    for _, f in ipairs(retailF) do assert.is_nil(FOREVER_ONLY[f], f) end
   end)
 end)
 

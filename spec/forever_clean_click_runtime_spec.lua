@@ -757,6 +757,7 @@ describe("Clean click ordering, driven end to end", function()
         return { ceilingUnit = ceilingUnit, kind = kind or "vendor", exitUnit = exitUnit, minimumProfit = 20 }
       end
       GC.ForeverDeals.Drop = function(id) GC._dropped = id end
+      GC.ForeverDeals.Bought = function(id, qty) GC._bought = { id, qty } end
     end
 
     local function foreverDeal(itemID, isCommodity)
@@ -803,6 +804,23 @@ describe("Clean click ordering, driven end to end", function()
       assert.equal(55, live.decision.quantity)
       assert.equal(12, live.decision.ceiling)
       assert.equal(105, live.decision.stressProfit)
+    end)
+
+    -- ClickUp 869fpab6a: a row measured against what sold names the units its sales allow
+    -- (GC.ForeverDeals.CeilingFor's maxUnits), and the live Check buys no more than that.
+    it("holds a Forever buy to the units the item's sales allow", function()
+      local GC = loadSniper()
+      local evaluate = getUpvalue(GC.Sniper.OnCommoditySearchResults, "evaluateLiveCommodityDeal")
+      books[42] = FOREVER_BOOK
+      foreverCeiling(GC, 42, 12, 13)
+      local plain = GC.ForeverDeals.CeilingFor
+      GC.ForeverDeals.CeilingFor = function(id)
+        local c = plain(id)
+        if c then c.maxUnits = 15 end
+        return c
+      end
+      local live = evaluate(42, FOREVER_BOOK)
+      assert.equal(15, live.decision.quantity) -- the 8c and 9c levels, not the 12c one's 40 more
     end)
 
     it("Start (StartCommoditiesPurchase), on a Forever row armed by its ceiling", function()
@@ -1021,7 +1039,8 @@ describe("Clean click ordering, driven end to end", function()
         expectedProfit = 105 }, facts)
       GC.Sniper.OnCommodityPurchaseSucceeded()
       assertForeverRecord(GC, 55, 610, 105)
-      assert.equal(42, GC._dropped) -- and the lead leaves the board
+      -- All 55 the row found: the board drops it (GC.ForeverDeals.Bought, Core/ForeverDeals.lua).
+      assert.same({ 42, 55 }, GC._bought)
     end)
 
     -- Review 2026-11-06: a buy that took less than the row found (the wallet's share stopped it,
@@ -1041,7 +1060,7 @@ describe("Clean click ordering, driven end to end", function()
       click() -- Confirm
       GC.Sniper.OnCommodityPurchaseSucceeded()
       assert.is_nil(GC._dropped)
-      assert.equal(45, deal.qty)
+      assert.same({ 42, 55 }, GC._bought) -- the board keeps the 45 left (Core/ForeverDeals.lua)
     end)
 
     it("records a Forever lot at its buyout, with what the vendor pays over it", function()

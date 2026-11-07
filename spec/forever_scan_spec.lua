@@ -496,8 +496,9 @@ describe("ForeverScan", function()
     d.browseAnswer = "started"
     assert.equal("cooldown", s:Request("button"))
     assert.equal("wide", d.browse)
-    -- Priced at a much cheaper floor than the dump's own ladder -- proves the merge keeps the
-    -- dump's own entry rather than letting a thin browse row overwrite it.
+    -- Priced at a much cheaper floor than the dump's own ladder: the merge keeps the dump's
+    -- levels and depth, never a thin browse row in their place, and puts the new floor under them
+    -- (review 2026-11-07: a known item's new cheap lot never reached the board until a whole dump).
     s:OnBrowsePassDone({ [2589] = { floor = 1, qty = 500 }, [3000] = { floor = 250, qty = 4 } })
     runAll()
     local fold = store.fold
@@ -509,7 +510,10 @@ describe("ForeverScan", function()
     -- fold is still mostly the dump's own hour-old prices, and this is the age they get shown at.
     assert.equal(originalAt, fold.at)
     assert.not_equal(now, fold.at)
-    assert.equal(originalMin, GC.ForeverFold.Decode(fold.items[2589]).min) -- kept, not overwritten
+    local known = GC.ForeverFold.Decode(fold.items[2589])
+    assert.same({ { 1, 1 }, { originalMin, 20 } }, known.ladder) -- the new floor, then the dump's
+    assert.equal(500, known.qty)
+    assert.is_false(known.browse)
     local added = GC.ForeverFold.Decode(fold.items[3000])
     assert.equal(250, added.min)
     assert.is_true(added.browse)

@@ -134,6 +134,10 @@ function GC.ForeverFold.Encode(e, gear)
   local s = ("%s,%d,%s,%s;%s"):format(GC.Util.IntText(e.min), e.qty or 0,
     e.lots and ("%d"):format(e.lots) or "", flags, table.concat(parts, " "))
   local p25, p50, levels = GC.ForeverFold.Depths(e)
+  -- An entry with no levels in memory (Refloor's, decoded from the save) keeps the depth it has.
+  if not p25 and positiveInt(e.p25) and positiveInt(e.p50) and positiveInt(e.levels) then
+    p25, p50, levels = e.p25, e.p50, e.levels
+  end
   if p25 and p50 and levels then
     s = s .. ("|%s,%s,%d"):format(GC.Util.IntText(p25 - e.min), GC.Util.IntText(p50 - e.min), levels)
   end
@@ -159,6 +163,32 @@ function GC.ForeverFold.Decode(s)
   end
   e.value = GC.ForeverFold.Value(e)
   return e
+end
+
+-- A saved dump's entry (`encoded`) as a later browse pass found the item: its lowest price `floor`
+-- and the units listed in all, `qty`. A browse-only scan used to keep the saved entry whole for
+-- every item the dump had priced, however old the dump: a new cheap lot on a known item never
+-- reached the Deals board, and lots bought since stayed on it, until the next whole dump (review,
+-- 2026-11-07). The levels under the floor are gone (bought, or expired); a floor under the first
+-- level is a new lot, of a size the browse pass does not say, so one unit, as a floor-only entry
+-- counts it (Core/ForeverDeals.lua). The levels above the floor, the lot count and the depth part
+-- stay the dump's, the depth never under the floor. Gear is left as it is: its browse rows are
+-- per item key, and the first key a pass saw need not be the cheapest. Anything that does not
+-- decode, or is not a dump's entry, comes back unchanged.
+function GC.ForeverFold.Refloor(encoded, floor, qty)
+  local e = GC.ForeverFold.Decode(encoded)
+  if not e or e.gear or e.browse or #e.ladder == 0 or not positiveInt(floor) then return encoded end
+  if not positiveInt(qty) then qty = e.qty end
+  if floor == e.min and qty == e.qty then return encoded end
+  local ladder = {}
+  for _, level in ipairs(e.ladder) do
+    if level[1] >= floor then ladder[#ladder + 1] = { level[1], level[2] } end
+  end
+  if #ladder == 0 or ladder[1][1] ~= floor then table.insert(ladder, 1, { floor, 1 }) end
+  while #ladder > GC.ForeverFold.LADDER_LEVELS do ladder[#ladder] = nil end
+  local out = { min = floor, qty = qty, lots = e.lots, ladder = ladder, levels = e.levels,
+    p25 = e.p25 and math.max(e.p25, floor), p50 = e.p50 and math.max(e.p50, floor) }
+  return GC.ForeverFold.Encode(out, false)
 end
 
 -- isGear(itemID) is the caller's client question (weapon or armor: several random suffixes can

@@ -19,11 +19,34 @@ function GC.ForeverValue.VendorUnit(itemID)
   return nil
 end
 
+-- The item's quality (0 poor, 1 common, ...) from the same C_Item.GetItemInfo answer VendorUnit
+-- reads, so an item with a vendor price has a quality too. nil while the client has not loaded it.
+function GC.ForeverValue.Quality(itemID)
+  local item = _G.C_Item
+  if type(itemID) ~= "number" or type(item) ~= "table" or type(item.GetItemInfo) ~= "function" then
+    return nil
+  end
+  local ok, quality = pcall(function() return select(3, item.GetItemInfo(itemID)) end)
+  if ok and type(quality) == "number" then return quality end
+  return nil
+end
+
 -- One unit's deposit for a commodity, as the client quotes it from the item alone
 -- (C_AuctionHouse.CalculateCommodityDeposit): the caller has already been told the item IS a
 -- commodity. nil when the client does not answer.
 function GC.ForeverValue.CommodityDepositUnit(itemID)
   local ok, deposit = pcall(GC.Flips.CommodityDeposit, itemID, 1)
+  if ok and type(deposit) == "number" and deposit >= 0 then return deposit end
+  return nil
+end
+
+-- The deposit for one post of `quantity` units of a commodity, as the client quotes it. On WoW:
+-- Forever a post pays at least 1s whatever its size, and about a fifth of the vendor price a unit
+-- above that (owner's client, 2026-11-07: Linen Cloth 1s for 1 unit, 1s for 10, 2s for 100), so
+-- the 1-unit quote is a post's floor, never a unit's share of a bigger one. nil when the client
+-- does not answer.
+function GC.ForeverValue.CommodityDeposit(itemID, quantity)
+  local ok, deposit = pcall(GC.Flips.CommodityDeposit, itemID, quantity)
   if ok and type(deposit) == "number" and deposit >= 0 then return deposit end
   return nil
 end

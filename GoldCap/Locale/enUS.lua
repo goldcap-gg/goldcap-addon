@@ -206,6 +206,7 @@ GC.Locales.enUS = {
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
     "No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Not enough gold on this character to buy what GoldCap finds",
+  ["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."] = "Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL.",
   ["Nothing on the auction house beats what you wear at your level."] =
     "Nothing on the auction house beats what you wear at your level.",
   ["Nothing to sell"] = "Nothing to sell",
@@ -399,7 +400,7 @@ GC.Locales.enUS = {
   ["Entry total"] = "Entry total",
   ["FIFO allocations"] = "FIFO allocations",
   ["Fetching a fresh price for this item. Press Post again in a moment"] = "Fetching a fresh price for this item. Press Post again in a moment",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] = "Fetching a fresh price for this lot. Press Repost again in a moment",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] = "Fetching a fresh price for this lot. Press Cancel lot again in a moment",
   ["Finish the pending post first"] = "Finish the pending post first",
   ["Finish the pending post or repost first"] = "Finish the pending post or repost first",
   ["Font scale"] = "Font scale",
@@ -509,7 +510,7 @@ GC.Locales.enUS = {
   ["Not in your bags or listed. Mail or bank?"] = "Not in your bags or listed. Mail or bank?",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =
     "Not on hand: the stock is in the mail, the bank, or on another character",
-  ["Not worth the deposit on the AH"] = "Not worth the deposit on the AH",
+  ["The deposit outweighs the gain and is lost if unsold"] = "The deposit outweighs the gain and is lost if unsold",
   ["Nothing is being held back."] = "Nothing is being held back.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Nothing left to sell against after this buy, so there is no exit price.",
@@ -804,7 +805,8 @@ GC.Locales.enUS = {
   ["full scan stopped. Press %s to run it again"] =
     "full scan stopped. Press %s to run it again",
   ["gone / price changed"] = "gone / price changed",
-  ["goldcap.gg prices for WoW: Forever are not out yet."] = "goldcap.gg prices for WoW: Forever are not out yet.",
+  ["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."] =
+    "On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string.",
   ["strong"] = "strong",
   ["identity unresolved (variant item, not priced by design)"] = "identity unresolved (variant item, not priced by design)",
   ["if you buy all %d and sell them back at the price standing there now"] =
@@ -1062,6 +1064,10 @@ GC.Locales.enUS = {
   ["1 scanner, %s ago"] = "1 scanner, %s ago",
   ["%d scanners, %s ago"] = "%d scanners, %s ago",
   ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown",
+  ["resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day"] =
+    "resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day",
+  ["far under what it sells for, about %s sell a day. Click Buy to purchase"] =
+    "far under what it sells for, about %s sell a day. Click Buy to purchase",
   ["Shared with goldcap.gg on your next /reload"] = "Shared with goldcap.gg on your next /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back.",
@@ -1828,8 +1834,17 @@ GC.Locales.enUS = {
   ["deposit"] = "deposit",
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "deposit %s",
-  ["not worth the deposit"] = "not worth the deposit",
+  ["deposit outweighs the gain"] = "deposit outweighs the gain",
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "This item posts at whole silver only. Set a price without copper",
+  -- WoW: Forever's crafting panel (UI/CraftPanel_Camelot.lua): where its prices come from, and a
+  -- vendor's reagent priced at the merchant (Core/ForeverVendorPrices.lua), 2026-11-07
+  ["Prices from your scan %s ago and the Companion %s ago"] =
+    "Prices from your scan %s ago and the Companion %s ago",
+  ["Prices from your scan %s ago"] = "Prices from your scan %s ago",
+  ["A reagent a vendor sells gets its price once you open that vendor."] =
+    "A reagent a vendor sells gets its price once you open that vendor.",
+  ["An auction house price needs at least %d listed."] =
+    "An auction house price needs at least %d listed.",
 }

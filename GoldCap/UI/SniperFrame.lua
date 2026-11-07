@@ -1770,9 +1770,21 @@ end
 -- (TooltipDataHandlerMixin:ProcessInfo, a securecallfunction). GoldCap cannot show the comparison
 -- itself: C_TooltipComparison.CompareItem is a protected function. So the owner draws its tooltip
 -- again, once per change of the key (owner, 2026-10-25: Shift only worked held before the hover).
+-- And once when an item that was not loaded at the hover is in: the game's tooltip rebuilds itself
+-- when the data arrives only for an owner WITHOUT UpdateTooltip (GameTooltip_OnUpdate, both games),
+-- so a row's stayed headed by the red "Retrieving item information" (owner, WoW: Forever
+-- 2026-11-07).
+local function itemLoaded(itemID)
+  local item = _G.C_Item
+  if not (item and item.IsItemDataCachedByID) then return true end
+  local ok, cached = pcall(item.IsItemDataCachedByID, itemID)
+  return not ok or cached ~= false
+end
+
 local function redrawOnCompareKey(owner)
   local held = compareKeyHeld()
-  if held ~= owner.goldcapCompareHeld and owner.goldcapDrawTooltip then owner.goldcapDrawTooltip(owner) end
+  local arrived = owner.goldcapItemLoading and itemLoaded(owner.goldcapItemLoading)
+  if (held ~= owner.goldcapCompareHeld or arrived) and owner.goldcapDrawTooltip then owner.goldcapDrawTooltip(owner) end
 end
 
 -- The game's tooltip for an item the board points at, outside the window, without the tooltips
@@ -1780,10 +1792,12 @@ end
 -- board). Shift still shows them, as anywhere in the game: Blizzard's own switch, which it sets
 -- before its Set*Item call the same way (ItemUtil.DisplayEquipSlotTooltip) and clears with the
 -- tooltip (GameTooltip_OnTooltipCleared). `draw(owner)` is what draws the whole tooltip, called
--- again when the compare key changes under the cursor (redrawOnCompareKey).
+-- again when the compare key changes under the cursor, or the item loads (redrawOnCompareKey).
 function GC.Sniper._ShowItemTooltip(owner, itemID, draw)
   Theme.ItemTooltipOutside(owner, frame)
   if GameTooltip_SuppressAutomaticCompareItem then GameTooltip_SuppressAutomaticCompareItem(GameTooltip) end
+  -- Asked before SetItemByID: whether the item this draw shows was in when it was drawn.
+  owner.goldcapItemLoading = not itemLoaded(itemID) and itemID or nil
   GameTooltip:SetItemByID(itemID)
   owner.goldcapCompareHeld = compareKeyHeld()
   owner.goldcapDrawTooltip = draw
@@ -2506,6 +2520,26 @@ end
 -- Painted from the render it describes (refreshRows) and again on PLAYER_MONEY
 -- (GC.Sniper.OnPlayerMoney), since gold arriving changes it with nothing on the board moving.
 -- Fields, not locals: this chunk sits near its 200-local ceiling.
+-- The words of that line. On WoW: Forever, with something in the bags the auction house pays for,
+-- it also says what that comes to and where to post it: a new character that cannot pay for any
+-- find can still make gold from what it carries (owner, 2026-11-07: 9s14c, the board's finds out
+-- of reach, "no benefit from the addon"). The bags are walked at most once in 10 s: the line is
+-- painted on every render, and a render comes with every browse page.
+function GC.Sniper._GoldLineText(now)
+  local plain = GC.L["Not enough gold on this character to buy what GoldCap finds"]
+  if not (isForever() and GC.ForeverValue and GC.ForeverValue.RealBagTotals) then return plain end
+  local memo = GC.Sniper._bagLineMemo
+  if memo and now - memo.at < 10 then return memo.text end
+  local ok, totals = pcall(GC.ForeverValue.RealBagTotals)
+  local text = plain
+  if ok and type(totals) == "table" and type(totals.ah) == "number" and totals.ah > 0 then
+    text = GC.L["Not enough gold for these finds. Your bags fetch %s on the auction house: post them on SELL."]
+      :format(GC.Util.FormatMoney(totals.ah))
+  end
+  GC.Sniper._bagLineMemo = { at = now, text = text }
+  return text
+end
+
 function GC.Sniper._PaintGoldLine(list)
   local line = frame and frame.goldLine
   if not line then return end
@@ -2543,7 +2577,7 @@ function GC.Sniper._PaintGoldLine(list)
     end
   end
   if candidates > 0 and not buyable then
-    line:SetText(GC.L["Not enough gold on this character to buy what GoldCap finds"])
+    line:SetText(GC.Sniper._GoldLineText(time()))
     line:Show()
   else
     line:Hide()
@@ -2739,10 +2773,22 @@ function GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
     return { status = "WATCH", buyable = false, reasons = { "live_verification_required" } }
   end
   local settings = GC.db.settings.sniper
+  -- A row measured against what sold takes no more units than its sales allow
+  -- (GC.ForeverDeals.CeilingFor's maxUnits, ClickUp 869fpab6a): the per-buy limit's units, lowered.
+  local function limitsAt(wallet)
+    local limits = GC.ForeverDeals.BuyLimits(settings, wallet, ceiling.kind)
+    if not (limits and type(ceiling.maxUnits) == "number" and ceiling.maxUnits < limits.maxQuantity) then
+      return limits
+    end
+    local held = {}
+    for k, v in pairs(limits) do held[k] = v end
+    held.maxQuantity = ceiling.maxUnits
+    return held
+  end
   return GC.SniperDecision.EvaluateCeiling({
     ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind, exitUnit = ceiling.exitUnit,
-    levels = levels, limits = GC.ForeverDeals.BuyLimits(settings, GetMoney(), ceiling.kind),
-    limitsFor = function(wallet) return GC.ForeverDeals.BuyLimits(settings, wallet, ceiling.kind) end,
+    levels = levels, limits = limitsAt(GetMoney()),
+    limitsFor = limitsAt,
     fixedQuantity = fixedQuantity, quotedTotal = quotedTotal,
     depositForQuantity = function(quantity) return depositFor(itemID, quantity) end,
     minimumProfit = ceiling.minimumProfit,
@@ -2757,9 +2803,22 @@ function GC.Sniper._DecideCeilingLot(itemID, lots)
     minimumProfit = ceiling.minimumProfit })
 end
 
+-- Units a day, as the check panel and the buy line print it: under one a day is "<1", never "0"
+-- (three lots in a week is a sale every other day, not none).
+function GC.Sniper._PerDayText(perDay)
+  if type(perDay) ~= "number" or perDay ~= perDay or perDay <= 0 then return nil end
+  if perDay < 1 then return "<1" end
+  return GC.Util.FormatCount(perDay)
+end
+
 -- What the buy window says once a Forever row's Check armed Buy.
-function GC.Sniper._ForeverArmText(decision)
+function GC.Sniper._ForeverArmText(decision, deal)
   if decision and decision.forever == "market" then
+    -- A row measured against what the house sold knows how fast it goes (ClickUp 869fpab6a).
+    local perDay = deal and GC.Sniper._PerDayText(deal.soldPerDay)
+    if perDay then
+      return (GC.L["far under what it sells for, about %s sell a day. Click Buy to purchase"]):format(perDay)
+    end
     return GC.L["far under the market, resale speed unknown. Click Buy to purchase"]
   end
   return GC.L["under the vendor price. Click Buy to purchase"]
@@ -4831,7 +4890,7 @@ end
 --
 -- Final fix wave (item 4): the color write is skipped while the button is DISABLED --
 -- previously this ran unconditionally, so e.g. armLoudConfirm's Disable() immediately followed
--- by setPrimaryLabel("Confirm", 1, 0.35, 0.35) overwrote Theme.Button's own OnDisable dim
+-- by setPrimaryLabel(GC.L["Confirm"], 1, 0.35, 0.35) overwrote Theme.Button's own OnDisable dim
 -- (fgDim text -- Theme.lua) with bright red text on a button the player can't yet click,
 -- defeating the "this isn't clickable" signal. Text (the label itself) always updates
 -- regardless -- only the color write is gated. Theme.Button's OnEnable (Theme.lua) already
@@ -4887,7 +4946,7 @@ local requoteArmToken = 0
 local function armLoudConfirm(row, label, calm)
   requoteArmToken = requoteArmToken + 1
   local token, stage = requoteArmToken, row.purchaseStage
-  label = label or "Confirm"
+  label = label or GC.L["Confirm"]
   local r, g, b = 1, 0.35, 0.35
   if calm then r, g, b = nil, nil, nil end
 
@@ -5169,6 +5228,7 @@ local function drawVerdict(deal, decision, market)
   -- came from, named when the player follows it.
   local realm = deal.isCommodity == false
   local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever, refSource = deal.refSource,
+    soldPerDay = deal.soldPerDay,
     route = GC.Sniper._CheckRoute(deal.itemID, decision), realm = realm,
     sold = realm and GC.Data.FlipFacts and GC.Data.FlipFacts(deal.itemID) or nil, group = deal.capGroup })
   local tone = verdict.tone
@@ -5214,9 +5274,11 @@ local function drawVerdict(deal, decision, market)
     local up = hero.copper >= 0
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
     figureColor = hero.refused and Theme.color.fgDim or up and Theme.color.green or Theme.color.red
+    local key = hero.forever ~= "market" and "vendor" or hero.refSource == "sold" and "market_sold"
+      or hero.refSource == "crowd" and "market_crowd" or "market"
     caption = (hero.refused or hero.liveExit) and ""
-      or (GC.L[CV.HERO_CAPTION[hero.forever == "market" and (hero.refSource == "crowd" and "market_crowd" or "market") or "vendor"]])
-        :format(displayDecisionAmount(hero.ref))
+      or (GC.L[CV.HERO_CAPTION[key]]):format(displayDecisionAmount(hero.ref),
+        GC.Sniper._PerDayText(hero.soldPerDay) or "-")
   elseif hero.kind == "days" then
     figure = (GC.L["%d days"]):format(hero.days)
     figureColor = Theme.color.gold
@@ -5642,13 +5704,16 @@ local function consumePurchasedDeal(deal, boughtQty)
   -- unless the buy took less than the row found: an Items row's buy is one lot (PlaceBid) and a
   -- commodity buy stops at the wallet's share, and dropping the row hid the rest until the next
   -- scan (review 2026-11-06: 18 Items rows held 159 lots, the first buys 18 of them). It stays
-  -- with what is left; it is `stale`, so its next click Checks the live book: an empty book takes
-  -- it off ("listing gone"), one with nothing left under the ceiling sends it to Hidden.
+  -- with what is left (GC.ForeverDeals.Bought, which keeps that count through the board's
+  -- rebuilds); it is `stale`, so its next click Checks the live book: an empty book takes it off
+  -- ("listing gone"), one with nothing left under the ceiling sends it to Hidden.
   if GC.ForeverDeals and GC.ForeverDeals.Drop then
     local board = deal.boardDeal or deal
-    local left = board.forever and type(board.qty) == "number" and type(boughtQty) == "number"
-      and board.qty - boughtQty or 0
-    if left > 0 then board.qty = left else GC.ForeverDeals.Drop(deal.itemID) end
+    if board.forever and type(boughtQty) == "number" and GC.ForeverDeals.Bought then
+      GC.ForeverDeals.Bought(deal.itemID, boughtQty)
+    else
+      GC.ForeverDeals.Drop(deal.itemID)
+    end
   end
 end
 
@@ -6017,7 +6082,7 @@ function GC.Sniper._TickConfirmCountdown()
   if dialog and dialog.countdownOnButton
       and not (dialog.row and dialog.row.purchaseStage == "requote") then
     dialog.countdownOnButton = nil
-    if dialog.row and dialog.row.purchaseStage == "confirming" then setPrimaryLabel("Confirm") end
+    if dialog.row and dialog.row.purchaseStage == "confirming" then setPrimaryLabel(GC.L["Confirm"]) end
   end
   local pending = commodityPurchase
   local row = pending and pending.row
@@ -6037,7 +6102,7 @@ function GC.Sniper._TickConfirmCountdown()
   if row.purchaseStage == "requote" then
     pending.countdownShown = left
     dialog.countdownOnButton = true
-    setPrimaryLabel(("%s (%d)"):format("Confirm", left), 1, 0.35, 0.35)
+    setPrimaryLabel(("%s (%d)"):format(GC.L["Confirm"], left), 1, 0.35, 0.35)
     return
   end
   pending.countdownShown = left
@@ -6212,12 +6277,12 @@ local function armReady(row, deal, decision, levels, hold)
   if dialog and dialog.row == row then
     hideRequoteBanner()
     if hold then
-      armLoudConfirm(row, "Buy", true)
+      armLoudConfirm(row, GC.L["Buy"], true)
     else
       -- A hold still counting belongs to an arm this one replaces.
       requoteArmToken = requoteArmToken + 1
       dialog.primaryBtn:Enable()
-      setPrimaryLabel("Buy")
+      setPrimaryLabel(GC.L["Buy"])
     end
     dialog.bookLevels = levels
     setDialogHeader(deal, decision)
@@ -6248,7 +6313,7 @@ local function armCheck(row, deal, decision, note, clearSnapshots)
   if dialog and dialog.row == row then
     dialog.primaryBtn:Enable()
     hideRequoteBanner()
-    setPrimaryLabel("Check")
+    setPrimaryLabel(GC.L["Check"])
     setDialogHeader(deal, clearSnapshots and { status = "WATCH", reasons = { "requote_broke_safety" } } or decision)
     stampDialogFromDecision(deal, clearSnapshots and { status = "WATCH", reasons = { "requote_broke_safety" } } or decision)
     -- Inside the guard with the rest of the dialog. The quiet-zone release (and the auction
@@ -6589,7 +6654,7 @@ local function applyRequeryResult(row, itemID, live)
       -- confirmed purchase still owed its answer says "waiting" there too (GC.Sniper._HoldWhileOwed).
       if frame then
         frame.status:SetText(decision.cap and GC.Sniper._CapArmText(decision)
-          or decision.ceiling and GC.Sniper._ForeverArmText(decision)
+          or decision.ceiling and GC.Sniper._ForeverArmText(decision, deal)
           or GC.L["live safety confirmed. Click Buy to purchase"])
       end
       armReady(row, deal, decision, live.levels, hold)
@@ -6616,7 +6681,7 @@ local function applyRequeryResult(row, itemID, live)
       -- Forever per-buy wallet limit (GC.ForeverDeals.BuyLimits).
       local ceilingLot = decision.ceiling ~= nil
       local capMiss = not capLot and GC.Sniper._CapMiss(deal, decision) or nil
-      local label = (capLot or ceilingLot) and "Buy" or GC.L["BUY (unverified)"]
+      local label = (capLot or ceilingLot) and GC.L["Buy"] or GC.L["BUY (unverified)"]
       row.purchaseStage = "ready"
       row.purchaseDeal = nil
       row.decisionSnapshot = decision
@@ -6660,14 +6725,14 @@ local function applyRequeryResult(row, itemID, live)
           elseif hold then
             armLoudConfirm(row, label, true)
             setDialogStatus(capLot and GC.Sniper._CapArmText(decision)
-              or ceilingLot and GC.Sniper._ForeverArmText(decision)
+              or ceilingLot and GC.Sniper._ForeverArmText(decision, deal)
               or GC.L["price checked a moment ago. Whether it sells is your call"])
           elseif capLot then
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.Sniper._CapArmText(decision), 0.25, 0.85, 0.25)
           elseif ceilingLot then
             dialog.primaryBtn:Enable()
-            setDialogStatus(GC.Sniper._ForeverArmText(decision), 0.25, 0.85, 0.25)
+            setDialogStatus(GC.Sniper._ForeverArmText(decision, deal), 0.25, 0.85, 0.25)
           else
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.L["price checked a moment ago. Whether it sells is your call"], 1, 0.82, 0)
@@ -6706,7 +6771,7 @@ local function applyRequeryResult(row, itemID, live)
       end
       armCheck(row, deal, decision, note, false)
       if needs and dialog and dialog.row == row then
-        setPrimaryLabel("Buy")
+        setPrimaryLabel(GC.L["Buy"])
         dialog.primaryBtn:Disable()
       end
     end
@@ -6908,7 +6973,7 @@ local function startRequery(row, deal)
     activeItemID[itemID] = (dialog and dialog.row == row) or nil
     if dialog and dialog.row == row then
       dialog.primaryBtn:Enable()
-      setPrimaryLabel("Check")
+      setPrimaryLabel(GC.L["Check"])
     end
     setDialogStatus(GC.L["waiting for previous search result to settle"], 1, 0.82, 0)
     if frame then frame.status:SetText(GC.L["waiting for previous search result to settle"]) end
@@ -7427,7 +7492,7 @@ local function askHeldPaneAgain(covered)
   local held = row and row.purchaseStage == "check" and row.decisionSnapshot or nil
   if held and held.needsGold and covered(held.needsGold) then
     dialog.primaryBtn:Disable()
-    setPrimaryLabel("Buy")
+    setPrimaryLabel(GC.L["Buy"])
     setDialogStatus(GC.L["checking live safety..."])
     startRequery(row, row.deal)
   end
@@ -8859,7 +8924,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
       dialog.bookLevels = nil
       dialog.primaryBtn:Disable()
       hideRequoteBanner()
-      setPrimaryLabel("Buy")
+      setPrimaryLabel(GC.L["Buy"])
     end
     setDialogStatus(GC.SniperDecision.ReasonText("requote_broke_safety") .. " "
       .. GC.L["re-checking what remains at a safe price..."], 1, 0.82, 0)
@@ -8932,7 +8997,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     if dialog and dialog.row == row then
       requoteArmToken = requoteArmToken + 1
       hideRequoteBanner()
-      setPrimaryLabel("Confirm")
+      setPrimaryLabel(GC.L["Confirm"])
       if affordable then
         dialog.primaryBtn:Enable()
       else
@@ -8986,7 +9051,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
       else
         requoteArmToken = requoteArmToken + 1
         dialog.primaryBtn:Disable()
-        setPrimaryLabel("Confirm", 1, 0.35, 0.35)
+        setPrimaryLabel(GC.L["Confirm"], 1, 0.35, 0.35)
       end
     else
       requoteArmToken = requoteArmToken + 1
@@ -8996,7 +9061,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
       else
         dialog.primaryBtn:Disable()
       end
-      setPrimaryLabel("Confirm", 1, 0.35, 0.35)
+      setPrimaryLabel(GC.L["Confirm"], 1, 0.35, 0.35)
     end
     if refreshQtyRow then refreshQtyRow() end -- "requote" is not "ready" -- box/quick-fill stay greyed out
   end
@@ -9077,7 +9142,7 @@ function GC.Sniper.OnCommodityPriceUnavailable()
     dialog.bookLevels = nil
     dialog.primaryBtn:Disable()
     hideRequoteBanner()
-    setPrimaryLabel("Buy")
+    setPrimaryLabel(GC.L["Buy"])
   end
   setDialogStatus(GC.L["not enough units left for that quantity, re-checking what remains..."], 1, 0.82, 0)
   if frame then frame.status:SetText(GC.L["not enough units left for that quantity, re-checking what remains..."]) end
@@ -9444,7 +9509,7 @@ local function planDialogPrimaryClick()
     -- so a player who read the numbers past the quote window is never dead-ended into
     -- Cancel. finishRequery re-arms "ready" with fresh numbers (or closes on gone/changed).
     dialog.primaryBtn:Disable()
-    setPrimaryLabel("Buy")
+    setPrimaryLabel(GC.L["Buy"])
     setDialogStatus(GC.L["checking live price..."])
     startRequery(row, row.deal)
     return
@@ -9452,7 +9517,7 @@ local function planDialogPrimaryClick()
 
   if stage == "check" then
     dialog.primaryBtn:Disable()
-    setPrimaryLabel("Check")
+    setPrimaryLabel(GC.L["Check"])
     setDialogStatus(GC.L["checking live safety..."])
     startRequery(row, row.deal)
     return
@@ -10894,7 +10959,7 @@ local function openDialog(row, deal)
     end
   else
     dialog.primaryBtn:Disable()
-    setPrimaryLabel("Check")
+    setPrimaryLabel(GC.L["Check"])
     -- Task 2 restyle: the discovery stamp just above already routed through
     -- stampDialogFromDecision's refusal branch (discovery.buyable is always nil), so without
     -- this the kicker would read REFUSED for the couple of ticks a real check takes -- override

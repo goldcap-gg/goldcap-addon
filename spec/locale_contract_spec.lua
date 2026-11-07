@@ -118,6 +118,9 @@ describe("locale contract", function()
       ["GoldCap/UI/Kit/Button.lua"] = true,
       -- Theme.Chip and Theme.TierMark, moved out of Theme.lua: the same widget factories, the label comes from the caller.
       ["GoldCap/UI/Kit/Chip.lua"] = true,
+      -- Theme.Parts, moved out of the Hoard's files: text helpers, an item icon's count and the price
+      -- line, every text from the caller.
+      ["GoldCap/UI/Kit/Parts.lua"] = true,
       -- Its one SetText is the brand name on the auction house tab.
       ["GoldCap/UI/AuctionHouseTab.lua"] = true,
       -- /gc forever: a diagnostic self-check meant to be pasted into a bug report, plain

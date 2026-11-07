@@ -18,8 +18,9 @@ local _, GC = ...
 --   window, a right click offers the queue. A recipe that makes no profit, and one GoldCap cannot
 --   price (a reagent or what it makes has no price), are each counted under the list, never listed;
 -- - the foot: where the prices come from and how old they are, as the Disenchant window says it.
--- Item icons, the brand, the tabs' track and the price line are the GoldCap Hoard's (UI/HoardRow.lua's
--- icon, UI/HoardFooter.lua's price line, UI/HoardFrame.lua's helpers), loaded before this file.
+-- Item icons, the brand, the tabs' track and the price line are the kit's parts the GoldCap Hoard
+-- draws with too (UI/Kit/Parts.lua), loaded before this file in both games; what the price line
+-- says is the Hoard's footer's on retail (P.PricesNow).
 --
 -- The panel is a frame of its own, a child of the crafting page so it goes with the page, and it
 -- leaves Blizzard's frames as they are: no hook, no method replaced. It shows only for the
@@ -28,8 +29,7 @@ local _, GC = ...
 -- Every line it draws is drawn again whenever it shows again (docs/addon/AGENTS.md "Text").
 GC.CraftPanel = GC.CraftPanel or {}
 local P = GC.CraftPanel
-local HF = GC.HoardFrame
-local U = HF.ui
+local U = GC.Theme.Parts
 local K = GC.Kit.Tokens.color
 local setText, colour, wrapping, heightOf, track, restamp = U.setText, U.colour, U.wrapping, U.heightOf, U.track,
   U.restamp
@@ -248,7 +248,7 @@ local function addTip(button)
   tip:Show()
 end
 
--- A row on the glass in a hairline, with the engine's gold wash under the cursor (HF.ui.plate):
+-- A row on the glass in a hairline, with the engine's gold wash under the cursor (Parts.plate):
 -- what the recipe makes, its name over the craft's math, the profit over the pace chip, the "+".
 local function newRow(v)
   local T = GC.Theme
@@ -257,7 +257,7 @@ local function newRow(v)
   frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassTop, T.SLICE.plaque)
   frame.fill:SetAllPoints()
   local row = { frame = frame }
-  row.slot = HF.Row.NewIcon(frame, LAYOUT.ROW_ICON)
+  row.slot = U.NewIcon(frame, LAYOUT.ROW_ICON)
   row.slot.edge:SetPoint("LEFT", frame, "LEFT", LAYOUT.ROW_PAD, 0)
   row.name = track(row, wrapping(T.Label(frame, LAYOUT.ROW_NAME)))
   colour(row.name, K.text1)
@@ -325,7 +325,7 @@ local function paintRow(row, data, ctx)
   local fill, ring = isOpen and OPEN_FILL or K.glassTop, isOpen and OPEN_RING or K.hairline
   frame.fill:SetVertexColor(fill[1], fill[2], fill[3], fill[4])
   frame.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
-  HF.Row.PaintIcon(row.slot, recipe.output, GC.CraftClient.IconOf(recipe.output), nil, nil, { pip = true })
+  U.PaintIcon(row.slot, recipe.output, GC.CraftClient.IconOf(recipe.output), nil, nil, { pip = true })
   setText(row.name, data.name)
   setText(row.math, mathLine(recipe, data.result))
   setText(row.profit, "+" .. GC.Util.Money(data.result.profit))
@@ -502,7 +502,7 @@ local function buildCard(f)
   local T = GC.Theme
   local card = T.Card(f, CARD_FILL, CARD_RING)
   card:SetWidth(LAYOUT.INNER)
-  card.slot = HF.Row.NewIcon(card, LAYOUT.ICON)
+  card.slot = U.NewIcon(card, LAYOUT.ICON)
   card.kicker = track(f, wrapping(T.Heading(card, LAYOUT.KICKER)))
   colour(card.kicker, K.text3)
   card.name = track(f, wrapping(T.Label(card, LAYOUT.NAME)))
@@ -628,7 +628,7 @@ local function paintCard(f)
   -- What this allocation makes, as the window says, else what the recipe makes. The window's
   -- item comes with its link, which says crafted gear's quality (Theme.QualityAtlas).
   local item = open.output or recipe.output
-  HF.Row.PaintIcon(card.slot, item, CC.IconOf(item), nil, nil, { pip = true, link = open.output and open.link or nil })
+  U.PaintIcon(card.slot, item, CC.IconOf(item), nil, nil, { pip = true, link = open.output and open.link or nil })
   setText(card.kicker, GC.Util.Upper(GC.L["This recipe"]))
   setText(card.name, recipe.name)
   local queued = char and queuedText(char, recipe.recipeID) or nil
@@ -688,7 +688,7 @@ function P.View()
   return "worth"
 end
 
--- A segmented control in the sunken track the Hoard's switches have (HF.ui.sunkenTrack): the view
+-- A segmented control in the sunken track the Hoard's switches have (Parts.sunkenTrack): the view
 -- on screen filled gold, the other bare words; the Queue with a round count of its lines after its
 -- word.
 local function buildSwitch(f)
@@ -767,7 +767,7 @@ end
 -- The header and the foot
 -- ---------------------------------------------------------------------------------------------
 
--- The GoldCap mark and the brand as the Hoard's header draws them (HF.ui.newBrand), and the open
+-- The GoldCap mark and the brand as the Hoard's header draws them (Parts.newBrand), and the open
 -- profession's chip at the right, its icon round as Blizzard's portraits are.
 local function buildHeader(f)
   local T = GC.Theme
@@ -809,23 +809,38 @@ local function paintHeader(f)
   chip:Show()
 end
 
+--- Where the prices come from and how old they are, and whether that is fresh: the words and the
+--- dot's colour the Hoard's footer says them in (UI/HoardFooter.lua's PricesNow). WoW: Forever's
+--- prices are its scans, and its file says so instead (UI/CraftPanel_Camelot.lua).
+function P.PricesNow()
+  return GC.HoardFrame.Footer.PricesNow()
+end
+
 -- Where the prices come from and how old they are, beside a dot in the kit's green while they are
--- fresh, amber after or with none: the Hoard's price line (HF.Footer), as the Disenchant window's
--- foot draws it. Keeps its height for the layout.
+-- fresh, amber after or with none: the kit's price line, as the Disenchant window's foot draws it.
+-- Keeps its height for the layout.
 local function paintFoot(f)
-  f.footH = HF.Footer.PaintPriceLine(f, LAYOUT.PAD, LAYOUT.PAD, LAYOUT.INNER)
+  local text, fresh = P.PricesNow()
+  f.footH = U.PaintPriceLine(f, LAYOUT.PAD, LAYOUT.PAD, LAYOUT.INNER, text, fresh)
 end
 
 -- ---------------------------------------------------------------------------------------------
 -- The panel
 -- ---------------------------------------------------------------------------------------------
 
+--- Where the panel stands: its top left at the window's top right. WoW: Forever's window hangs
+--- its profession tabs off that edge, and its file moves the panel past them
+--- (UI/CraftPanel_Camelot.lua).
+function P.Place(f, frame)
+  f:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, 0)
+end
+
 local function build(frame)
   local T = GC.Theme
   local f = CreateFrame("Frame", nil, frame.CraftingPage)
   f.glass = T.Window(f)
   f:SetWidth(LAYOUT.WIDTH)
-  f:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, 0)
+  P.Place(f, frame)
   -- The recipes page is 942 wide: on a 16:10 or 4:3 screen, or with the window pushed to the
   -- centre, the panel's right edge (the profit column) would fall off the screen. Clamped, the
   -- client slides it back over the window instead. Blizzard's own UI panel width is left alone.
@@ -834,7 +849,7 @@ local function build(frame)
   buildHeader(f)
   f.card = buildCard(f)
   f.switch = buildSwitch(f)
-  HF.Footer.NewPriceLine(f, f)
+  U.NewPriceLine(f, f)
   f.body = CreateFrame("Frame", nil, f)
   f.worth = buildWorth(f.body)
   -- UI/CraftQueueView.lua loads after this file; by the time the window opens it is there.

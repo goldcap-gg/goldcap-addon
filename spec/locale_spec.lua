@@ -561,4 +561,35 @@ describe("locale layer", function()
       end
     end
   end)
+
+  -- The buy drawer's hints name the button by what that button reads in the player's language:
+  -- «Нажмите Confirm» under a button that says ПОДТВЕРДИТЬ sent a Russian player hunting.
+  it("names the quote buttons by the language's own label in the quote hints", function()
+    local hints = {
+      { "quote %s. Click Confirm to buy", "Confirm" },
+      { "quote expired. Refresh to re-check the price", "Refresh" },
+      { "quote expires in %d s. Click Confirm to buy", "Confirm" },
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      if code ~= "enUS" then
+        local loc = helper.loadModule("Locale/Core.lua")
+        helper.loadModule("Locale/" .. code .. ".lua", loc)
+        local strings = loc.Locales[code]
+        for _, hint in ipairs(hints) do
+          local text, word = strings[hint[1]], hint[2]
+          assert.is_string(text, code .. " lacks: " .. hint[1])
+          assert.is_string(strings[word], code .. " lacks the label: " .. word)
+          assert.is_truthy(text:find(strings[word], 1, true), code .. " hint does not carry its " .. word .. " label")
+          assert.is_nil(text:find("%f[%a]" .. word .. "%f[%A]"), code .. " hint still says " .. word)
+        end
+      end
+    end
+  end)
+
+  it("gives the buy drawer's primary button a localized label at every call", function()
+    local f = assert(io.open("GoldCap/UI/SniperFrame.lua"))
+    local text = f:read("*a")
+    f:close()
+    assert.is_nil(text:find('setPrimaryLabel%("'), "setPrimaryLabel is passed a bare string literal")
+  end)
 end)

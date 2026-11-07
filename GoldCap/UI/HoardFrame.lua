@@ -88,7 +88,7 @@ local L = {
   MOVE_ICON = 12, MOVE_GAP = 4, WORTH_W = 46, COL_GAP = 6, CHIP_H = 13, CHIP_GAP = 4, NAME_MIN = 60,
   MIN_ICONS = 3, CHEVRON = 8, BAR_H = 2, BAR_IN = 7, ALL_H = 18, LEGEND_W = 7, LEGEND_H = 3, FOLD_H = 22,
   ITEM_ICON = 16, ITEM_GAP = 4, KEEP_H = 16, KEEP_PAD = 5, PENCIL = 8, HANDLE_H = 28, HANDLE_LOGO = 18,
-  CHECK = 13, CHECK_GAP = 5, CHECK_GLYPH = 9, MARK = 9, CAST_GAP = 6, FILL_H = 3, TOOL_GAP = 6, WELL_H = 22,
+  CHECK = 13, CHECK_GAP = 5, CHECK_GLYPH = 9, CAST_GAP = 6, FILL_H = 3, TOOL_GAP = 6, WELL_H = 22,
   WELL_ICON = 10, WELL_PAD = 8, SORT_H = 20, SEL_PAD = 8, SEL_GAP = 4, SEL_BTN = 21, SEL_BTN_PAD = 8, SEL_ICON = 12,
   SEL_TEXT_MIN = 110, ROWS_MIN = 3,
 }
@@ -101,10 +101,6 @@ for _, bag in ipairs(BAGS) do IS_BAG[bag] = true end
 -- UI/HoardRow.lua): the kit's "yours" blue dimmed to the boards' slate, the kit having no slate of
 -- its own. The bags' share is the kit's gold.
 local SLATE = { K.yours[1], K.yours[2], K.yours[3], 0.6 }
--- The sunken track of a two-way switch, the bank switch's and the search row's filter
--- (UI/HoardList.lua): black at 0.35 under the glass, as the boards draw it; the kit has no token for
--- it.
-local SWITCH_TRACK = { 0, 0, 0, 0.35 }
 
 -- The stacks a press has sent, "bag:slot" -> { itemID, count } as the slot held them, until the
 -- slot shows the move or the settle timer gives up on it.
@@ -163,21 +159,12 @@ HF._foldersHere = {}
 local frame, handle
 local settleSeq = 0
 
-local function heightOf(fs, fallback)
-  local h = fs.GetStringHeight and fs:GetStringHeight()
-  return type(h) == "number" and h or fallback
-end
-
-local function colour(fs, c)
-  fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-end
-
--- SetText with the text a FontString already holds does not redraw it (docs/addon/AGENTS.md
--- "Text"): clear first.
-local function setText(fs, text)
-  fs:SetText("")
-  fs:SetText(text or "")
-end
+-- The text helpers, the plate, the sunken track and the brand are the kit's (UI/Kit/Parts.lua),
+-- which the crafting panel draws with on both games; the window hands them on in HF.ui.
+local KP = GC.Theme.Parts
+local heightOf, colour, setText, wrapping, track, restamp = KP.heightOf, KP.colour, KP.setText, KP.wrapping,
+  KP.track, KP.restamp
+local hideTip, sunkenTrack, plate, newBrand = KP.hideTip, KP.sunkenTrack, KP.plate, KP.newBrand
 
 -- How tall `fs` is for the tallest of `texts`, at `width` when one is given, else at the width it
 -- has: the room a line keeps for the most it can say, so a count or a word that changes moves
@@ -190,39 +177,6 @@ local function tallest(fs, texts, width)
     most = math.max(most, heightOf(fs, 12))
   end
   return math.ceil(most)
-end
-
--- A line that wraps, at word breaks and, for a name with none (a Chinese one, or one long German
--- word), anywhere.
-local function wrapping(fs)
-  fs:SetJustifyH("LEFT")
-  fs:SetWordWrap(true)
-  fs:SetNonSpaceWrap(true)
-  return fs
-end
-
--- Every FontString a frame of the window draws in (`owner`: the window, a row, the handle), so a
--- re-show can redraw them all (restamp).
-local function track(owner, fs)
-  owner.texts = owner.texts or {}
-  owner.texts[#owner.texts + 1] = fs
-  return fs
-end
-
--- docs/addon/AGENTS.md "Text", measured in game: a one-line FontString whose frame or a parent was
--- hidden and shown again can come back with its text not drawn, and SetText with the text it holds
--- does not redraw it. The cure is clear, set, hide, show, on every re-show: here for each of
--- `owner`'s lines that shows.
-local function restamp(owner)
-  for _, fs in ipairs(owner.texts or {}) do
-    if fs:IsShown() then
-      local text = fs:GetText()
-      fs:SetText("")
-      fs:SetText(text or "")
-      fs:Hide()
-      fs:Show()
-    end
-  end
 end
 
 -- `text` with the figure `n` in it in `c`, brighter than the words around it, as the boards draw a
@@ -739,10 +693,6 @@ local function showMoveTip(button)
   tooltip:Show()
 end
 
-local function hideTip()
-  if _G.GameTooltip then _G.GameTooltip:Hide() end
-end
-
 -- ---------------------------------------------------------------------------------------------
 -- Building
 -- ---------------------------------------------------------------------------------------------
@@ -783,16 +733,6 @@ local function quietMove(parent, into, runId)
   return button
 end
 
--- A switch's sunken track in the glass's border, over the whole of `switch`: the Hoard's switches
--- below and the crafting panel's tabs (UI/CraftPanel.lua).
-local function sunkenTrack(switch)
-  local T = GC.Theme
-  switch.track = T.SlicedTexture(switch, "BACKGROUND", T.MEDIA .. "plaque.png", SWITCH_TRACK, T.SLICE.plaque)
-  switch.track:SetAllPoints(switch)
-  switch.edge = T.SlicedTexture(switch, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)
-  switch.edge:SetAllPoints(switch)
-end
-
 -- A two-way switch, the bank switch's and the search row's filter (UI/HoardList.lua): the sunken
 -- track, and a kit segment for each of `values`, carrying it as `side[field]`, its click `onClick`.
 local function newSwitch(parent, field, values, onClick)
@@ -810,31 +750,6 @@ local function newSwitch(parent, field, values, onClick)
     switch.sides[i] = side
   end
   return switch
-end
-
--- The kit's rounded art a plate is cut from, by its size class: plaque for a widget taller than
--- twice its 12px slice, badge (6px) for one down to 13px (UI/Kit/Textures.lua's slice rule).
-local PLATE_ART = {
-  plaque = { fill = "plaque.png", ring = "plaque_ring.png" },
-  badge = { fill = "badge.png", ring = "badge_ring.png" },
-}
-
--- A quiet clickable plate: a ring when asked, and the engine's gold wash under the cursor.
-local function plate(parent, ring, art)
-  local T = GC.Theme
-  local files, slice = PLATE_ART[art], T.SLICE[art]
-  local b = CreateFrame("Button", nil, parent)
-  b:RegisterForClicks("LeftButtonUp")
-  -- Required for the HIGHLIGHT layer (docs/addon/AGENTS.md "Buttons and hover").
-  b:EnableMouse(true)
-  if ring then
-    b.ring = T.SlicedTexture(b, "BORDER", T.MEDIA .. files.ring, ring, slice)
-    b.ring:SetAllPoints()
-  end
-  b.wash = T.SlicedTexture(b, "HIGHLIGHT", T.MEDIA .. files.fill, K.hoverWash, slice)
-  b.wash:SetAllPoints()
-  b.wash:SetBlendMode("ADD")
-  return b
 end
 
 -- The window's name, "Hoard" in the player's language, in Fira Sans SemiBold as the board draws it
@@ -868,23 +783,6 @@ local function freeChip(glyph)
   colour(chip.rest, K.text3)
   for _, fs in ipairs({ chip.words, chip.num, chip.rest }) do fs:SetWordWrap(false) end
   return chip
-end
-
--- The GoldCap mark on `f` (f.logo, `logo` square, full colour as the rail and the welcome window
--- draw it) and the brand `gap` right of it (f.brand, `size` points, among f's lines for the
--- re-show), in the condensed heavy face whatever the language: it is the name, written in Latin.
--- The caller places the mark: a window's header, below, and the crafting panel's (UI/CraftPanel.lua).
-local function newBrand(f, logo, size, gap)
-  local T = GC.Theme
-  f.logo = f:CreateTexture(nil, "ARTWORK")
-  f.logo:SetTexture(T.MEDIA .. "GoldCap")
-  f.logo:SetSize(logo, logo)
-  f.brand = track(f, f:CreateFontString(nil, "OVERLAY"))
-  f.brand:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "")
-  T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = size })
-  f.brand:SetWordWrap(false)
-  colour(f.brand, K.goldText)
-  f.brand:SetPoint("LEFT", f.logo, "RIGHT", gap, 0)
 end
 
 -- A window's header on `f`, as the Hoard and the mailbox's Send to alts (UI/MailAltsFrame.lua) draw

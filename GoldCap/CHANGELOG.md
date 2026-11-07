@@ -1,5 +1,53 @@
 # GoldCap
 
+## 0.24.2 (2026-11-07)
+
+- WoW: Forever, DEALS: grey items are no longer offered as "Under market" buys. Their listings sit
+  on the auction house unsold, so the price they ask is not a price anyone pays. A grey item
+  listed below what a vendor pays for it is still a deal.
+- WoW: Forever, DEALS: a price from goldcap.gg that was taken from fewer than 20 units listed no
+  longer counts as the auction house value, so a couple of lonely high listings cannot make
+  ordinary stock look like a bargain.
+- WoW: Forever, DEALS: a quick scan between full scans now updates the lowest price of items the
+  last full scan already saw. A new cheap listing on a known item reaches the board right away,
+  instead of waiting for the next full scan.
+- WoW: Forever, DEALS: after buying part of a deal, the row keeps showing what is left, instead
+  of the whole amount coming back a few seconds later.
+- WoW: Forever: "Min profit per buy" no longer takes the retail figure (in gold) when you changed
+  it there. Forever starts at 20c until you set its own field.
+- WoW: Forever, DEALS: with the Companion, "Under market" deals are now measured against the
+  price your auction house actually sold the item for this week, not against the cheapest
+  listings. Only items that sell are offered, a buy takes no more than about two days of what
+  sells, and the buy window says how many sell a day instead of "resale speed unknown".
+- WoW: Forever, DEALS: when nothing on the board fits your gold, the line at the top also says
+  what your bags would fetch on the auction house and to post them on SELL.
+- WoW: Forever, crafting: the GoldCap panel beside the profession window now opens in Forever too.
+  This recipe shows what the reagents cost, what one craft sells for on the auction house after
+  the 5% cut and the profit, Worth crafting lists the recipes you know that make a profit, and the
+  craft queue works as in retail, except that it does not count what waits in your mailbox. Prices
+  come from your auction house scans and, with GoldCap Companion, every player's.
+  A reagent a vendor sells, such as thread, vials or flux, gets its price the first time you open
+  a vendor that sells it; until then a recipe that needs it shows which price is missing instead of
+  a guess. An auction house price needs at least 20 units listed, as in DEALS. The panel does not
+  show how many of an item sell a day on Forever yet.
+- WoW: Forever, DEALS: the deposit for reposting is now counted once for the whole stack you post,
+  the way the auction house charges it (at least 1s a post), instead of once for every unit. Cheap
+  goods bought by the stack, such as cloth, herbs or meat, now show up as deals.
+- WoW: Forever: with the controller interface on, "GoldCap has been blocked from an action only
+  available to the Blizzard UI" no longer comes up at the auction house, or afterwards on every
+  target change until a reload. The GoldCap tab on the auction house now leaves Blizzard's own
+  tabs alone and covers their page instead of switching it, so their tabs look and work as before.
+- WoW: Forever: Road to 40 now counts toward the trainer's 100g for Apprentice Riding. /gc mount
+  still sets a cost of your own, for a reputation discount for example, and /gc mount clear goes
+  back to 100g.
+- DEALS: hovering a deal before the game has loaded its item no longer leaves the tooltip headed
+  by "Retrieving item information". It fills in as soon as the item loads.
+- WoW: Forever, SELL and tooltips: an item held back because of its deposit now says why in plain
+  words: the deposit is more than the auction house would add over a vendor, and you lose it if
+  the lot does not sell. A lot that sells gives the deposit back with the money.
+- DEALS and SELL: the buy window's buttons (Buy, Check, Confirm) are now in your game's language,
+  and every hint that tells you which button to press names it as it reads on the button.
+
 ## 0.24.1 (2026-11-06)
 
 - WoW: Forever: when the server cuts the full auction house scan short, DEALS still finds what is

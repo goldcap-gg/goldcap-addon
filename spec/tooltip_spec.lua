@@ -490,7 +490,7 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
 
   it("tells the deposit apart", function()
     local lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 900, depositUnit = 60 } })
-    assert.truthy(find(lines, function(l) return l.text == "Not worth the deposit on the AH" end))
+    assert.truthy(find(lines, function(l) return l.text == "The deposit outweighs the gain and is lost if unsold" end))
     lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 900 } })
     assert.truthy(find(lines, function(l) return l.text == "Sell it on the AH (deposit not counted)" end))
     lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 2000, depositUnit = 1 } })

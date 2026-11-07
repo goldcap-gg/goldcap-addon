@@ -618,16 +618,33 @@ end
 -- recently than this player's own fold, else the player's own (plan 3d decision E10 — the same
 -- "fresher look wins" rule the tooltip follows). ForeverDeals measures against the lower of the two.
 -- A crowd answer says when the crowd saw it (`at`, epoch seconds): BUY's tooltip says how old it is.
+-- `qty` is how many units the crowd saw listed: ForeverDeals takes no AH value from a thin book.
 function GC.Data.ForeverReference(itemID, ownAt, ownValue, ownP50)
   local p = adoptedPayload()
   local c = p and p.items[itemID]
   if c and c.ah then
     local at = p.ts - c.age * 60
     if at >= (ownAt or 0) then
-      return { value = c.ah, p50 = c.p50, source = "crowd", scanners = c.w, at = at }
+      return { value = c.ah, p50 = c.p50, source = "crowd", scanners = c.w, at = at, qty = c.qty }
     end
   end
   return { value = ownValue, p50 = ownP50, source = "own" }
+end
+
+-- WoW: Forever: what an item sold for lately in this character's auction house, from Blizzard's
+-- hourly snapshots as goldcap.gg reads them (GCF1's H and S sections). nil while the payload has
+-- under a day of tape: a listing runs up to a day, so less says nothing about what does not sell.
+-- An item the tape covered and S does not list sold nothing: `sales` 0. `perDay` is units a day.
+GC.Data.FOREVER_SALES_MIN_HOURS = 24
+
+function GC.Data.ForeverSales(itemID)
+  local p = adoptedPayload()
+  local hours = p and p.salesHours
+  if type(hours) ~= "number" or hours < GC.Data.FOREVER_SALES_MIN_HOURS then return nil end
+  local s = p.sales and p.sales[itemID]
+  if not s then return { units = 0, sales = 0, perDay = 0, hours = hours } end
+  return { units = s.units, sales = s.sales, median = s.median, p25 = s.p25,
+    perDay = s.units * 24 / hours, hours = hours }
 end
 
 function GC.Data.GetItemValue(itemID)

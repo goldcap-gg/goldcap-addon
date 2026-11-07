@@ -48,7 +48,7 @@ local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
 local U = HF.ui
 local L = U.L
-local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrapping, U.heightOf, U.track
+local setText, heightOf = U.setText, U.heightOf
 
 HF.Footer = {}
 local HFF = HF.Footer
@@ -58,7 +58,9 @@ HFF.FRESH_SECONDS = 7200
 -- In UI units; the boards are drawn at twice that. GAP: between the two buttons; LINE_GAP: between
 -- the buttons and the price line, beside them or under them; DOT and DOT_GAP: the price line's dot
 -- and the room right of it.
-local M = { GAP = 4, LINE_GAP = 10, DOT = 6, DOT_GAP = 5 }
+-- The dot and its gap are the price line's own (UI/Kit/Parts.lua).
+local KP = GC.Theme.Parts
+local M = { GAP = 4, LINE_GAP = 10, DOT = KP.DOT, DOT_GAP = KP.DOT_GAP }
 
 local function charNow()
   return GC.CraftClient.Char()
@@ -104,16 +106,8 @@ local function onPutBack(moved)
 end
 
 --- The price line on `f`: its dot (f.dot) and its words (f.prices, wrapping, among `owner`'s lines
---- for the re-show), as the Hoard's footer, the Disenchant window's and the crafting panel's draw it.
-function HFF.NewPriceLine(f, owner)
-  local T = GC.Theme
-  -- The badge art is round at this size (T.LiveDot draws its light the same way).
-  f.dot = f:CreateTexture(nil, "ARTWORK")
-  f.dot:SetTexture(T.MEDIA .. "badge.png")
-  f.dot:SetSize(M.DOT, M.DOT)
-  f.prices = track(owner, wrapping(T.Label(f, 9)))
-  colour(f.prices, K.text3)
-end
+--- for the re-show), as the Hoard's footer and the Disenchant window's draw it: the kit's.
+HFF.NewPriceLine = KP.NewPriceLine
 
 local function build(f)
   f.makeRoom = U.quietMove(f, true, "footer:makeRoom")
@@ -149,21 +143,11 @@ end
 HFF.PricesNow = pricesNow
 
 --- The price line NewPriceLine built on `f`, along f's foot from `x` in and `y` up, `w` wide with
---- its dot: the words wrapped right of the dot, the dot level with their last line (both stand on
---- the foot) in the kit's green while the prices are fresh, amber after or with none. The Disenchant window's foot and the
---- crafting panel's. Answers its height.
+--- its dot, saying where these prices came from and whether they are fresh (PricesNow), as the
+--- kit paints it. The Disenchant window's foot. Answers its height.
 function HFF.PaintPriceLine(f, x, y, w)
   local text, fresh = pricesNow()
-  f.prices:SetWidth(w - M.DOT - M.DOT_GAP)
-  setText(f.prices, text)
-  local c = fresh and K.profit or K.warn
-  f.dot:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-  local h = math.ceil(heightOf(f.prices, 12))
-  f.prices:ClearAllPoints()
-  f.prices:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", x + M.DOT + M.DOT_GAP, y)
-  f.dot:ClearAllPoints()
-  f.dot:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", x, y + math.floor((math.min(h, 12) - M.DOT) / 2))
-  return h
+  return KP.PaintPriceLine(f, x, y, w, text, fresh)
 end
 
 -- Every line the price line can say in this visit: each source at each widest age, and none.

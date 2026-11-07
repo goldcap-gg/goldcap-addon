@@ -163,11 +163,16 @@ function GC.ForeverScan.New(driver)
           mergedCount = mergedCount + 1
         end
         for itemID, encoded in pairs(items) do
+          local fresh = a.items[itemID]
           if merged[itemID] == nil then
             merged[itemID] = encoded
             mergedCount = mergedCount + 1
           elseif overwrite then
             merged[itemID] = encoded
+          elseif fresh and fresh.browse then
+            -- A known item's floor from this pass: the saved ladder as it stands now (lots under
+            -- the floor gone, a cheaper one new), not the dump's as it stood then.
+            merged[itemID] = GC.ForeverFold.Refloor(merged[itemID], fresh.min, fresh.qty)
           end
         end
         -- Honest source/age (final review I3, re-review I2b): still fundamentally the dump's own

@@ -801,14 +801,12 @@ local function build(sniperFrame)
   -- differ from every other numeric row here: the unit (copper, not gold/percent/hours), the
   -- storage key (never retail's own minimumProfitCopper -- an edit here must not move retail's
   -- 5g), and an UNSET value's on-screen figure, which is whatever
-  -- GC.ForeverDeals.MinimumProfit would actually apply right now (a migrated old value, or the
-  -- built-in 20c) rather than a flat GC.DEFAULTS lookup -- see bindNumberField's
-  -- opts.defaultValue. Deliberately absent from GC.DEFAULTS (Core/Init.lua): ApplyDefaults must
-  -- never stamp this key into an existing save, or the migration GC.ForeverDeals.MinimumProfit
-  -- performs could never see its own "never touched" state. This also makes the card's own
-  -- DEFAULTS button (below) do the right thing for free: it writes GC.DEFAULTS.settings.sniper
-  -- [key] straight into the config, which is nil for a key that isn't there -- i.e. "forget my
-  -- override," letting the migration rule run again, not "reset to 20c" outright.
+  -- GC.ForeverDeals.MinimumProfit would actually apply right now (the built-in 20c) rather than a
+  -- flat GC.DEFAULTS lookup -- see bindNumberField's opts.defaultValue. Deliberately absent from
+  -- GC.DEFAULTS (Core/Init.lua): ApplyDefaults must never stamp this key into an existing save.
+  -- That also makes the card's own DEFAULTS button (below) do the right thing for free: it writes
+  -- GC.DEFAULTS.settings.sniper[key] straight into the config, which is nil for a key that isn't
+  -- there -- "forget my override", back to the built-in 20c.
   local function foreverMinProfitRow(cardFrame, i)
     local box = makeEditBox(cardFrame, FIELD_W, ROW_H)
     box:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
@@ -831,9 +829,7 @@ local function build(sniperFrame)
       cardFrame.displays[#cardFrame.displays + 1] = refreshField
     end
 
-    -- Line 3 is the shipped BUILT-IN default (20c), like every other field's tooltip -- not the
-    -- migrated figure the box itself may be showing right now (see the comment above this
-    -- function for why those two can differ).
+    -- Line 3 is the shipped BUILT-IN default (20c), like every other field's tooltip.
     local defaultText = GC.L["Default: %s"]:format(GC.Util.CoinText(GC.ForeverDeals.C.MIN_PROFIT_COPPER))
     attachExplanation({ label, box }, labelText,
       GC.L["Skip a buy unless it clears at least this much after the AH cut."], defaultText)

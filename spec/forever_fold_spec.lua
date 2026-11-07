@@ -200,4 +200,55 @@ describe("ForeverFold", function()
     for id, s in pairs(items) do bytes = bytes + #s + #tostring(id) + 12 end
     assert.is_true(bytes < 600 * 1024, ("fold is %d bytes"):format(bytes))
   end)
+
+  describe("Refloor", function()
+    -- 100c x10, 120c x10, 150c x10, 200c x10, 300c x10; 50 units in 6 lots; a quarter of the
+    -- units at 130c or under, half at 180c, 7 distinct prices.
+    local DUMP = "100,50,6,;0x10 20x10 30x10 50x10 100x10|30,80,7"
+
+    local function shape(encoded)
+      local e = F.Decode(encoded)
+      return { ladder = e.ladder, qty = e.qty, lots = e.lots, p25 = e.p25, p50 = e.p50,
+        levels = e.levels, browse = e.browse, gear = e.gear }
+    end
+
+    it("puts a cheaper floor under the dump's levels, as one unit, five levels at most", function()
+      assert.same({ ladder = { { 60, 1 }, { 100, 10 }, { 120, 10 }, { 150, 10 }, { 200, 10 } }, qty = 51,
+        lots = 6, p25 = 130, p50 = 180, levels = 7, browse = false, gear = false }, shape(F.Refloor(DUMP, 60, 51)))
+    end)
+
+    it("takes away the levels under a higher floor, and keeps the one it lands on", function()
+      assert.same({ ladder = { { 150, 10 }, { 200, 10 }, { 300, 10 } }, qty = 30, lots = 6, p25 = 150,
+        p50 = 180, levels = 7, browse = false, gear = false }, shape(F.Refloor(DUMP, 150, 30)))
+      assert.same({ { 140, 1 }, { 150, 10 }, { 200, 10 }, { 300, 10 } }, shape(F.Refloor(DUMP, 140, 30)).ladder)
+      local past = shape(F.Refloor(DUMP, 400, 5))
+      assert.same({ { { 400, 1 } }, 400, 400 }, { past.ladder, past.p25, past.p50 })
+    end)
+
+    it("measures the AH value on the ladder as it stands now", function()
+      assert.equal(100, F.Decode(DUMP).value)               -- a tenth of 50: the 100c level
+      assert.equal(100, F.Decode(F.Refloor(DUMP, 60, 51)).value) -- one unit at 60c is not a tenth
+      assert.equal(150, F.Decode(F.Refloor(DUMP, 150, 30)).value)
+    end)
+
+    it("keeps the dump's quantity when the browse pass gives none", function()
+      assert.equal(50, F.Decode(F.Refloor(DUMP, 60, nil)).qty)
+    end)
+
+    it("leaves unchanged the same floor, gear, a browse entry, and what is not a floor", function()
+      assert.equal(DUMP, F.Refloor(DUMP, 100, 50))
+      assert.equal("100,5,1,g;0x5", F.Refloor("100,5,1,g;0x5", 50, 5))
+      assert.equal("100,5,,b;", F.Refloor("100,5,,b;", 50, 5))
+      assert.equal(DUMP, F.Refloor(DUMP, 0, 50))
+      assert.equal(DUMP, F.Refloor(DUMP, nil, 50))
+      assert.equal(DUMP, F.Refloor(DUMP, 1.5, 50))
+      assert.equal("garbage", F.Refloor("garbage", 50, 5))
+    end)
+
+    it("writes a version-1 entry back without a depth part", function()
+      local e = F.Decode(F.Refloor("100,20,2,;0x10 50x10", 120, 15))
+      assert.same({ { 120, 1 }, { 150, 10 } }, e.ladder)
+      assert.is_nil(e.levels)
+    end)
+  end)
 end)

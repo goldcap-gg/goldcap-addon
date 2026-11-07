@@ -93,7 +93,7 @@ end
 --   5. below_deposit -- WoW: Forever only too (opts.depositFor, 2026-11-06): what one click
 --      lists, after the 5% cut and less what a vendor pays for the same units, is no more than
 --      the deposit the post puts up. The deposit comes back only if the lot sells, so posting
---      is a bet that wins less than it stakes, the tooltip's "Not worth the deposit" verdict
+--      is a bet that wins less than it stakes, the tooltip's "deposit outweighs the gain" verdict
 --      (Core/ForeverValue.lua's Verdict) for a whole post. A deposit the client cannot quote
 --      holds nothing, as a missing vendor price holds nothing above.
 --

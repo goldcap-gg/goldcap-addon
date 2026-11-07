@@ -33,14 +33,10 @@ local L = U.L
 local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrapping, U.heightOf, U.track
 
 -- The colours the boards draw a row with, all from the kit's tokens: Store in the gold the bags'
--- share wears, an opened row ringed in it; an icon with no quality colour edged dark; the "+N" box
--- in the kit's hairline; each play's chip in its own colour.
+-- share wears, an opened row ringed in it; the "+N" box in the kit's hairline; each play's chip in
+-- its own colour.
 local STORE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.45 }
 local OPEN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
-local ICON_EDGE = { 0, 0, 0, 0.75 }
--- An icon whose item has moved in the run: shaded in the window's own dark under the check, as
--- the board draws it.
-local MOVED_SHADE = { K.windowBottom[1], K.windowBottom[2], K.windowBottom[3], 0.6 }
 -- The boards' gold on a row: while its run goes (Window, mode running), checked (ManyGroups), and a
 -- folder with any group checked.
 local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
@@ -52,8 +48,10 @@ local PLAY_COLOR = { gather = K.profit, craft = K.yours, flip = K.goldText, stoc
 -- The bar's bank share: the legend's slate (HF.ui.SLATE) a step darker, as the board draws the
 -- bar's track under the bags' gold.
 local SLATE_TRACK = { U.SLATE[1], U.SLATE[2], U.SLATE[3], 0.38 }
--- The sizes an item's count over its icon tries, largest first, so it fits inside the icon.
-local COUNT_SIZES = { 8, 7, 6 }
+-- An item's icon, as every row and window draws it, is the kit's (UI/Kit/Parts.lua), which the
+-- crafting panel draws with on both games; HF.Row hands it on.
+local KP = GC.Theme.Parts
+local newIcon, paintIcon, hideIcon = KP.NewIcon, KP.PaintIcon, KP.HideIcon
 
 -- The words for the bank the window works with: the Warband Bank's, else the character's own
 -- bank's.
@@ -141,97 +139,6 @@ local function iconMove(parent, into)
   b.icon:SetSize(L.MOVE_ICON, L.MOVE_ICON)
   b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
   return b
-end
-
--- A count over an item's icon: the condensed heavy face with an outline, as the game writes a
--- stack's count over its slot.
-local function countText(parent, size)
-  local T = GC.Theme
-  local fs = parent:CreateFontString(nil, "OVERLAY")
-  fs:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "OUTLINE")
-  T.TrackFont(fs, { role = "count", path = T.FONT_HEAD_HEAVY, size = size, flags = "OUTLINE" })
-  fs:SetJustifyH("RIGHT")
-  fs:SetWordWrap(false)
-  return fs
-end
-
--- A count drawn inside its icon, `iconSize` wide, in from the icon's 1px edge: at the largest of
--- COUNT_SIZES it fits at, else in whole thousands ("1k" for 1.2k) at the smallest, else not at all
--- (the opened row still says it in full).
-local function fitCount(fs, count, iconSize)
-  local T = GC.Theme
-  local text = count and GC.Util.FormatCount(count) or ""
-  local room = iconSize - 2
-  for _, candidate in ipairs({ text, (text:gsub("%.%d", "")) }) do
-    for _, size in ipairs(COUNT_SIZES) do
-      fs:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "OUTLINE")
-      T.TrackFont(fs, { role = "count", path = T.FONT_HEAD_HEAVY, size = size, flags = "OUTLINE" })
-      setText(fs, candidate)
-      if (fs:GetStringWidth() or 0) <= room then return end
-    end
-  end
-  setText(fs, "")
-end
-
--- An item's icon in a 1px edge in its quality's colour (common and poor: a dark edge), the game's
--- own border cut off the art; with a count over it when `counted`. A run's marks: a ring 1px out
--- round the edge, which turns gold with it, while a stack of the item is on its way; the kit's
--- check over the shaded icon once one has moved.
-local function newIcon(row, size, counted)
-  local T = GC.Theme
-  local edge = row:CreateTexture(nil, "BORDER")
-  edge:SetSize(size, size)
-  local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetPoint("TOPLEFT", edge, "TOPLEFT", 1, -1)
-  icon:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT", -1, 1)
-  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  local count = counted and track(row, countText(row, COUNT_SIZES[1])) or nil
-  if count then count:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT", 0, 1) end
-  local ring = row:CreateTexture(nil, "BORDER", nil, -1)
-  ring:SetColorTexture(K.goldText[1], K.goldText[2], K.goldText[3], 1)
-  ring:SetPoint("TOPLEFT", edge, "TOPLEFT", -1, 1)
-  ring:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT", 1, -1)
-  local shade = T.Solid(row, "OVERLAY", MOVED_SHADE)
-  shade:SetAllPoints(icon)
-  local mark = row:CreateTexture(nil, "OVERLAY", nil, 1)
-  mark:SetSize(L.MARK, L.MARK)
-  mark:SetPoint("CENTER", edge, "CENTER", 0, 0)
-  T.SetIcon(mark, "check", K.profit)
-  local pip = row:CreateTexture(nil, "OVERLAY", nil, 2)
-  pip:SetSize(math.floor(size / 3), math.floor(size / 3))
-  pip:SetPoint("TOPLEFT", edge, "TOPLEFT", 0, 0)
-  local slot = { edge = edge, icon = icon, count = count, ring = ring, shade = shade, mark = mark, pip = pip, size = size }
-  for _, part in ipairs({ ring, shade, mark, pip }) do part:Hide() end
-  return slot
-end
-
--- `mark`: the run's for the item (UI/HoardList.lua's RunState), "moving", "moved" or nil. `opts`
--- (optional): `pip`, the item's crafting quality top left over the icon, nothing for an item
--- without one; `link`, the item's link, with which crafted gear's quality is asked
--- (Theme.QualityAtlas).
-local function paintIcon(slot, itemID, file, count, mark, opts)
-  local quality = GC.Theme.QualityColor(itemID)
-  local c = quality and { quality.r, quality.g, quality.b, 1 } or ICON_EDGE
-  if mark == "moving" then c = K.goldText end
-  slot.edge:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-  slot.icon:SetTexture(file or 134400) -- the question mark, while the client has no icon for it yet
-  slot.edge:Show()
-  slot.icon:Show()
-  if slot.count then
-    fitCount(slot.count, count, slot.size)
-    slot.count:Show()
-  end
-  slot.ring:SetShown(mark == "moving")
-  slot.shade:SetShown(mark == "moved")
-  slot.mark:SetShown(mark == "moved")
-  local atlas = opts and opts.pip and GC.Theme.QualityAtlas(itemID, opts.link)
-  if atlas then slot.pip:SetAtlas(atlas) end
-  slot.pip:SetShown(atlas ~= nil)
-end
-
-local function hideIcon(slot)
-  for _, part in ipairs({ slot.edge, slot.icon, slot.ring, slot.shade, slot.mark, slot.pip }) do part:Hide() end
-  if slot.count then slot.count:Hide() end
 end
 
 -- The keep count's chip: a quiet badge with its words in the second text colour and the kit's

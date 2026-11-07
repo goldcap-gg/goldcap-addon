@@ -24,14 +24,20 @@ local _, GC = ...
 -- Forever measures how fast an item sells. A thin book (under 20 units, or under three prices) is
 -- no market at all, and an item auction is left out: its deposit needs a bag location a scan has
 -- not got, and it has no quote step to catch a bad resale estimate before PlaceBid.
+-- A crowd AH value taken from a thin book is no market either: item 250945's crowd value was 79s98
+-- from two units listed, and the board offered 47 of them at 40s (owner, 2026-11-07).
+-- A poor (grey) item is never a market row: its listings are what nobody buys -- 80 Rough Crocolisk
+-- Scales sat at 4s43 and up, and the board offered the two at 2s "under market" (owner,
+-- 2026-11-07). Bought under its vendor price, it is a vendor row like any other item.
 GC.ForeverDeals = GC.ForeverDeals or {}
 
 local C = {
   MIN_PROFIT_COPPER = 20,            -- a Forever row's whole buy, unless the player changed theirs
-  RETAIL_DEFAULT_MIN_PROFIT = 50000, -- Core/Init.lua's default for settings.sniper.minimumProfitCopper
   MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the AH value
   MARKET_MIN_UNITS = 20,             -- thin-market guard: units listed
   MARKET_MIN_LEVELS = 3,             -- thin-market guard: distinct prices listed
+  SOLD_MIN_SALES = 3,                -- sales in the sales window, for a sold reference
+  SOLD_DAYS = 2,                     -- a buy takes at most this many days of what sells
   -- A floor-only entry (below) is measured against the crowd's AH value only when the crowd saw
   -- the item no more than this long before the scan did.
   FLOOR_CROWD_MAX_AGE_SECONDS = 6 * 3600,
@@ -50,25 +56,20 @@ local C = {
 }
 GC.ForeverDeals.C = C
 
--- Task S (Settings for Forever): its own key now, settings.sniper.foreverMinimumProfitCopper --
+-- Task S (Settings for Forever): its own key, settings.sniper.foreverMinimumProfitCopper --
 -- UI/SettingsFrame.lua edits it in copper, so an edit there can never move retail's own
 -- minimumProfitCopper (5g), and the field never shows a number this function ignores. Once it
--- holds a number (even 0, even a re-save of the figure the migration below would have chosen
--- anyway) it always wins, forever after.
+-- holds a number (even 0) it wins. Without one, 20c.
 --
--- Migration (decision 4 of plan 3c, kept as the fallback): a player who changed the RETAIL
--- field's default before this key ever existed keeps that old rule -- their retail value, as it
--- stands -- until they touch the Forever field once. Retail's own floor (at least 1g,
--- SniperDecision's normalizeConfig) is a gold economy's and never applies here.
+-- Retail's own field is never read here. It used to be, for a player who had changed it before
+-- the Forever key existed (decision 4 of plan 3c), but retail's field is at least 1g
+-- (SniperDecision's normalizeConfig), a gold economy's figure: carried into Forever's copper and
+-- silver, a 2g minimum hid every row the board could find, with nothing on screen saying why
+-- (review, 2026-11-07).
 function GC.ForeverDeals.MinimumProfit(settings)
-  if type(settings) ~= "table" then return C.MIN_PROFIT_COPPER end
-  local own = settings.foreverMinimumProfitCopper
+  local own = type(settings) == "table" and settings.foreverMinimumProfitCopper or nil
   if type(own) == "number" and own == own and own >= 0 then
     return math.floor(own)
-  end
-  local m = settings.minimumProfitCopper
-  if type(m) == "number" and m == m and m >= 0 and m ~= C.RETAIL_DEFAULT_MIN_PROFIT then
-    return math.floor(m)
   end
   return C.MIN_PROFIT_COPPER
 end
@@ -113,25 +114,67 @@ end
 -- `isCommodity` is a function: for an item key the client has not cached, its answer is a server
 -- request, so it is asked only once the cheapest lot sits under the ceiling a zero deposit would
 -- allow. Nothing under that, no row, whatever the item is.
-local function underMarket(itemID, e, ctx, isCommodity)
+-- The reference while the listings are all there is: the AH value (the cheapest tenth of the
+-- units listed), the crowd's or the scan's, from a book deep enough to mean something.
+local function listedReference(itemID, e, ctx)
   if not e.qty or e.qty < C.MARKET_MIN_UNITS then return nil end
   if not e.floorOnly and not (e.levels and e.levels >= C.MARKET_MIN_LEVELS) then return nil end
   local ref = ctx.referenceFor and ctx.referenceFor(itemID, e)
-    or { value = e.value, p50 = e.p50, source = "own" }
+  if not ref or (ref.source == "crowd" and type(ref.qty) == "number" and ref.qty < C.MARKET_MIN_UNITS) then
+    ref = { value = e.value, p50 = e.p50, source = "own" }
+  end
   -- A floor-only entry has no AH value of its own: its one price is the floor itself. Only the
   -- crowd's will do, and only one the crowd took about when the scan did.
   if e.floorOnly and (ref.source ~= "crowd" or (type(ref.at) == "number" and type(e.foldAt) == "number"
       and e.foldAt - ref.at > C.FLOOR_CROWD_MAX_AGE_SECONDS)) then
     return nil
   end
+  return ref
+end
+
+-- The reference once goldcap.gg reads what this auction house sold (ClickUp 869fpab6a): the median
+-- price the item sold at, which is what a buyer pays, and how many units go a day. Measured
+-- against the cheapest tenth of what is listed, a lot holding a tenth of the units set that price
+-- itself and never read as cheap, and a price that was only falling read as a bargain: 18 rows from
+-- 3003 items (owner's scan, 2026-11-07). An item sold fewer than SOLD_MIN_SALES times in the
+-- window (a partial fill of a lot is one sale) gets no row: a resale nobody buys is no deal at any
+-- price. The listings' depth no longer
+-- matters: the sales are the proof the listings were standing in for.
+local function soldReference(sold)
+  if (sold.sales or 0) < C.SOLD_MIN_SALES or type(sold.median) ~= "number" or sold.median <= 0 then
+    return nil
+  end
+  return { value = sold.median, source = "sold", perDay = sold.perDay }
+end
+
+local function underMarket(itemID, e, ctx, isCommodity)
+  -- Grey, or not loaded yet: the client loads an item's quality with its vendor price, which Build
+  -- has already asked for, and the rebuild that picks the price up picks the quality up too.
+  if ctx.qualityFor then
+    local quality = ctx.qualityFor(itemID)
+    if type(quality) ~= "number" or quality < 1 then return nil end
+  end
+  local sold = ctx.salesFor and ctx.salesFor(itemID) or nil
+  local ref, maxUnits
+  if sold then
+    ref = soldReference(sold)
+    -- No more than SOLD_DAYS of what sells: a buy that took a month of the item's sales would sit
+    -- on the auction house, relisted and paying a deposit each time.
+    maxUnits = ref and math.max(1, math.floor((sold.perDay or 0) * C.SOLD_DAYS))
+  else
+    ref = listedReference(itemID, e, ctx)
+  end
+  if not ref then return nil end
   local refUnit = referenceUnit(ref)
   if not refUnit then return nil end
   local net = math.floor(refUnit * KEEP)
   if e.ladder[1][1] > math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1) then return nil end
   if isCommodity() ~= true then return nil end
-  local deposit = ctx.depositFor(itemID)
-  if type(deposit) ~= "number" or deposit < 0 then return nil end
-  local ceiling = math.min(math.floor(refUnit * C.MARKET_SHARE), net - deposit - 1)
+  -- The deposit is the post's, not a unit's: the client's quote for posting what the buy took
+  -- (GC.ForeverValue.CommodityDeposit). It used to be the 1-unit quote, which on WoW: Forever is a
+  -- post's 1s floor, taken once per unit and off the most a unit may cost: no cheap commodity ever
+  -- made a row (owner's client, 2026-11-07: 1s on every item under 5c a unit at a vendor).
+  local ceiling = math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1)
   if ceiling < 1 then return nil end
   -- Priced as the Check prices it (GC.SniperDecision.EvaluateCeiling): resold one copper under the
   -- cheapest ask the buy leaves on the book, never above the AH value, and of the buys that take
@@ -142,20 +185,26 @@ local function underMarket(itemID, e, ctx, isCommodity)
   local units, cost = 0, 0
   local best
   for i, level in ipairs(e.ladder) do
-    if level[1] > ceiling then break end
+    if level[1] > ceiling or (maxUnits and units + level[2] > maxUnits) then break end
     units = units + level[2]
     cost = cost + level[1] * level[2]
     local after = e.ladder[i + 1]
     local exit = after and math.max(1, math.min(refUnit, after[1] - 1)) or refUnit
     local gross = exit * units
-    local profit = gross - math.ceil(gross * 5 / 100) - cost - deposit * units
-    if not best or profit > best.profit then best = { units = units, cost = cost, profit = profit } end
+    local deposit = ctx.depositFor(itemID, units)
+    if type(deposit) ~= "number" or deposit < 0 then return nil end
+    local profit = gross - math.ceil(gross * 5 / 100) - cost - deposit
+    if not best or profit > best.profit then
+      best = { units = units, cost = cost, profit = profit, deposit = deposit }
+    end
   end
   if not best or best.profit <= 0 then return nil end
   local row = lead(itemID, e, "market", ceiling, refUnit, best.units, best.cost, best.profit)
-  row.depositUnit = deposit
-  -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd).
+  row.depositUnit = math.ceil(best.deposit / best.units)
+  -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd,
+  -- market_sold), and how much a day sells, which the live Check holds the buy to.
   row.refSource, row.refScanners = ref.source, ref.scanners
+  row.soldPerDay, row.maxUnits = ref.perDay, maxUnits
   return row
 end
 
@@ -268,6 +317,11 @@ local cache = { at = nil, itemCount = nil, rev = nil, from = nil, builtAt = 0, w
 -- keyAsked: when each unsure item's key was first asked, for this fold only (rebuild wipes it when
 -- the fold changes, OnAuctionHouseShow when the auction house opens).
 local requested, dropped, keyAsked = {}, {}, {}
+-- bought: units the player bought from a row that took less than it found, per item, kept with the
+-- entry the row came from (as `dropped`). A rebuild makes new row objects from the same fold, and
+-- a count kept on the old row was lost: the next rebuild showed the whole row again, at its whole
+-- profit (review, 2026-11-07).
+local bought = {}
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
@@ -289,6 +343,24 @@ local function isDropped(fold, itemID)
   return d ~= nil and d.at == fold.at and d.entry == fold.items[itemID]
 end
 
+-- Units already bought from this item's row, while the fold still holds the entry it came from.
+local function boughtFrom(fold, itemID)
+  local b = bought[itemID]
+  if b ~= nil and b.at == fold.at and b.entry == fold.items[itemID] then return b.qty end
+  return 0
+end
+
+-- What is left of a row once `taken` of its units are bought: the units, and the cost and profit
+-- in proportion. An estimate, as the row itself is: it is `stale`, and its next click Checks.
+local function shrink(row, taken)
+  local left = row.qty - taken
+  local share = left / row.qty
+  row.qty = left
+  row.capTotal = math.floor(row.capTotal * share + 0.5)
+  row.profit = math.floor(row.profit * share + 0.5)
+  row.estProfit = row.profit
+end
+
 local function rebuild(fold, now)
   -- Each fold waits for its own unsure items. A stamp kept from an earlier fold (once a session,
   -- 2026-11-06 and before) gave a new fold's items no wait at all when the first ask had run out
@@ -297,10 +369,13 @@ local function rebuild(fold, now)
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
   local rows, missing, unsure, floorOnly = GC.ForeverDeals.Build(fold, {
     vendorFor = GC.ForeverValue.VendorUnit,
+    qualityFor = GC.ForeverValue.Quality,
+    salesFor = GC.Data and GC.Data.ForeverSales,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
-    -- its deposit -- not only those the Sell tab once saw in the bags (final review I2).
-    depositFor = GC.ForeverValue.CommodityDepositUnit,
+    -- its deposit -- not only those the Sell tab once saw in the bags (final review I2). The
+    -- deposit for one post of the units a buy takes.
+    depositFor = GC.ForeverValue.CommodityDeposit,
     minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     watchPins = settings.watchPins,
     referenceFor = function(itemID, e)
@@ -314,7 +389,9 @@ local function rebuild(fold, now)
   })
   local kept, byItem = {}, {}
   for _, row in ipairs(rows) do
-    if not isDropped(fold, row.itemID) then
+    local taken = boughtFrom(fold, row.itemID)
+    if not isDropped(fold, row.itemID) and taken < row.qty then
+      if taken > 0 then shrink(row, taken) end
       kept[#kept + 1] = row
       byItem[row.itemID] = row
     end
@@ -429,7 +506,28 @@ function GC.ForeverDeals.CeilingFor(itemID)
   if not row then return nil end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
   return { ceilingUnit = row.ceiling, kind = row.forever, exitUnit = row.refUnit,
-    depositUnit = row.depositUnit, minimumProfit = GC.ForeverDeals.MinimumProfit(settings) }
+    depositUnit = row.depositUnit, minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
+    maxUnits = row.maxUnits }
+end
+
+-- A buy from the row that took `qty` units: the row stays with what is left, through every
+-- rebuild from the same fold entry, and leaves the board once nothing is (as Drop).
+function GC.ForeverDeals.Bought(itemID, qty)
+  local from = cache.from
+  local row = cache.byItem[itemID]
+  if from == nil or row == nil or type(qty) ~= "number" or qty <= 0 then
+    GC.ForeverDeals.Drop(itemID)
+    return
+  end
+  local entry = from.items[itemID]
+  local prior = bought[itemID]
+  local before = (prior and prior.at == from.at and prior.entry == entry) and prior.qty or 0
+  bought[itemID] = { at = from.at, entry = entry, qty = before + qty }
+  if qty >= row.qty then
+    GC.ForeverDeals.Drop(itemID)
+  else
+    shrink(row, qty)
+  end
 end
 
 function GC.ForeverDeals.Drop(itemID)
