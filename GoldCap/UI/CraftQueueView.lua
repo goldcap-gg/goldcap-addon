@@ -26,13 +26,12 @@ local _, GC = ...
 -- Its events are its own, each registered under pcall (Core/Collection.lua's shape), so
 -- Core/Init.lua is not touched. The arithmetic is Core/CraftQueue.lua's; every count and price
 -- comes through Services/CraftClient.lua. Item icons, the bar and the lines are drawn with the
--- GoldCap Hoard's and the panel's helpers (UI/HoardRow.lua's icon, UI/Kit/Bar.lua, HF.ui,
--- UI/CraftPanel.lua's P.ui), and every line it draws is drawn again whenever it shows again
--- (docs/addon/AGENTS.md "Text").
+-- kit's parts the GoldCap Hoard draws with too and the panel's helpers (UI/Kit/Parts.lua,
+-- UI/Kit/Bar.lua, UI/CraftPanel.lua's P.ui), and every line it draws is drawn again whenever it
+-- shows again (docs/addon/AGENTS.md "Text").
 GC.CraftQueueView = GC.CraftQueueView or {}
 local QV = GC.CraftQueueView
-local HF = GC.HoardFrame
-local U = HF.ui
+local U = GC.Theme.Parts
 local K = GC.Kit.Tokens.color
 local setText, colour, wrapping, heightOf, track, restamp = U.setText, U.colour, U.wrapping, U.heightOf, U.track,
   U.restamp
@@ -254,7 +253,7 @@ local function wrapped(owner, parent, size, c)
   return fs
 end
 
--- A card on the glass in its faint edge, with the engine's gold wash under the cursor (HF.ui.plate),
+-- A card on the glass in its faint edge, with the engine's gold wash under the cursor (Parts.plate),
 -- as a Worth crafting row is: the item, the name over what is left, Craft at the right; under them
 -- the bar with its figures; under that the notes.
 local function newLine(v)
@@ -264,7 +263,7 @@ local function newLine(v)
   frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassTop, T.SLICE.plaque)
   frame.fill:SetAllPoints()
   local line = { frame = frame }
-  line.slot = HF.Row.NewIcon(frame, LAYOUT.ICON)
+  line.slot = U.NewIcon(frame, LAYOUT.ICON)
   line.name = wrapped(line, frame, LAYOUT.NAME, K.text1)
   line.detail = wrapped(line, frame, LAYOUT.SMALL, K.text3)
   -- Craft: what the reagents allow of what is left, in one press. CraftRecipe with a count crafts
@@ -444,7 +443,7 @@ local function paintLine(line, row, ctx)
   local fill, ring = busy and BUSY_FILL or K.glassTop, busy and BUSY_RING or K.glassBorder
   frame.fill:SetVertexColor(fill[1], fill[2], fill[3], fill[4])
   frame.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
-  HF.Row.PaintIcon(line.slot, recipe.output, GC.CraftClient.IconOf(recipe.output), nil, nil, { pip = true })
+  U.PaintIcon(line.slot, recipe.output, GC.CraftClient.IconOf(recipe.output), nil, nil, { pip = true })
   setText(line.name, recipe.name)
   local reason, allowed = paintCraft(line, row, ctx)
   setText(line.detail, detailText(row, ctx, allowed))
@@ -505,7 +504,7 @@ end
 local function newCell(card)
   local T = GC.Theme
   local cell = T.Card(card, CELL_FILL, NO_RING, true)
-  cell.slot = HF.Row.NewIcon(cell, LAYOUT.CELL_ICON, true)
+  cell.slot = U.NewIcon(cell, LAYOUT.CELL_ICON, true)
   cell.name = wrapped(cell, cell, LAYOUT.CELL_NAME, K.text1)
   cell.mailIcon = cell:CreateTexture(nil, "OVERLAY")
   cell.mailIcon:SetSize(LAYOUT.MAIL, LAYOUT.MAIL)
@@ -558,7 +557,7 @@ end
 -- stand.
 local function paintCell(cell, data, width)
   local CC = GC.CraftClient
-  HF.Row.PaintIcon(cell.slot, data.itemID, CC.IconOf(data.itemID), data.buy + data.mail, nil, { pip = true })
+  U.PaintIcon(cell.slot, data.itemID, CC.IconOf(data.itemID), data.buy + data.mail, nil, { pip = true })
   cell:SetWidth(width)
   local textW = width - CELL_TEXT_X - LAYOUT.CELL_PAD
   local name, known = CC.MissingName({ itemID = data.itemID })

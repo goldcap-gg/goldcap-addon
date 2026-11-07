@@ -15,7 +15,8 @@ _G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 
 --- UI/Kit/*.lua, in the order both TOCs load them, right before UI/Theme.lua
 --- (spec/kit_structure_spec.lua holds the TOCs to this list). Theme.lua builds on them.
-helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua", "UI/Kit/Button.lua", "UI/Kit/Chip.lua" }
+helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua", "UI/Kit/Button.lua", "UI/Kit/Chip.lua",
+  "UI/Kit/Parts.lua" }
 --- Services/Sell/*.lua, in the order both TOCs load them: one block after Core/QuoteCache.lua and
 --- before the first UI file (spec/sell_services_structure_spec.lua holds the TOCs to this list).
 helper.SELL_FILES = { "Services/Sell/State.lua", "Services/Sell/Quotes.lua", "Services/Sell/Bags.lua", "Services/Sell/Compose.lua",
