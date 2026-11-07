@@ -115,6 +115,8 @@ describe("ForeverDeals", function()
         referenceFor = crowd(1000, 5000 - D.C.FLOOR_CROWD_MAX_AGE_SECONDS) })))
       assert.equal(0, #D.Build(fold({ [2] = "300,19,,b;" }), ctx({ depositFor = deposit,
         referenceFor = crowd(1000, 4000) })))                              -- under 20 units listed
+      assert.equal(0, #D.Build(fold(entry), ctx({ depositFor = deposit,     -- the crowd saw under 20
+        referenceFor = function() return { value = 1000, source = "crowd", at = 4000, scanners = 1, qty = 19 } end })))
     end)
   end)
 
@@ -294,6 +296,40 @@ describe("ForeverDeals", function()
       assert.equal("market", r.forever)
       assert.equal(100, r.refUnit); assert.equal(70, r.ceiling)
       assert.equal(30, r.qty); assert.equal(661, r.profit)   -- 99c x30 = 2970, -149 cut, -2100, -60 deposit
+    end)
+
+    -- The owner's board (WoW: Forever, 2026-11-07): two Rough Crocolisk Scales, a grey, at 2s
+    -- "Under market" against 80 more listed at 4s43 and up that nobody buys.
+    it("makes no market row of a poor (grey) item, nor of one whose quality has not loaded", function()
+      commodity[2592] = true
+      local quality = {}
+      local c = marketCtx({ qualityFor = function(id) return quality[id] end })
+      assert.equal(0, #D.Build(fold({ [2592] = WOOL }), c))     -- not loaded yet
+      quality[2592] = 0
+      assert.equal(0, #D.Build(fold({ [2592] = WOOL }), c))     -- poor
+      quality[2592] = 1
+      local rows = D.Build(fold({ [2592] = WOOL }), c)          -- common
+      assert.equal(1, #rows); assert.equal("market", rows[1].forever)
+    end)
+
+    it("still lists a poor item bought under what a vendor pays for it", function()
+      commodity[2592], vendor[2592] = true, 41
+      local rows = D.Build(fold({ [2592] = WOOL }), marketCtx({ qualityFor = function() return 0 end }))
+      assert.equal(1, #rows); assert.equal("vendor", rows[1].forever)
+    end)
+
+    -- The owner's board of 2026-11-07: 47 units at 40s measured against a crowd AH value of 79s98
+    -- the crowd took from two units listed.
+    it("takes no crowd AH value from a book of under 20 units: the item's own stands instead", function()
+      commodity[2592] = true
+      local function crowdOf(qty)
+        return function() return { value = 1000, source = "crowd", scanners = 1, at = 6000, qty = qty } end
+      end
+      local thin = D.Build(fold({ [2592] = WOOL }), marketCtx({ referenceFor = crowdOf(19) }))
+      assert.equal(1, #thin)
+      assert.equal(100, thin[1].refUnit); assert.equal("own", thin[1].refSource)
+      local thick = D.Build(fold({ [2592] = WOOL }), marketCtx({ referenceFor = crowdOf(20) }))
+      assert.equal(1000, thick[1].refUnit); assert.equal("crowd", thick[1].refSource)
     end)
 
     it("prefers a vendor deal when both hold", function()
@@ -618,6 +654,7 @@ describe("ForeverDeals", function()
       helper.loadModule("Core/Flips.lua", GC)
       helper.loadModule("Core/ForeverValue.lua", GC)
       GC.ForeverValue.VendorUnit = function() return 1 end
+      GC.ForeverValue.Quality = function() return 1 end     -- loaded with the vendor price, common
       _G.C_AuctionHouse = clientAH(isCommodity, cached)
       return _G.C_AuctionHouse
     end

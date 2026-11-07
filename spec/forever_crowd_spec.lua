@@ -267,10 +267,10 @@ describe("the Deals board's market reference", function()
   after_each(function() _G.time = os.time end)
 
   it("is every player's AH value and half-way price when the crowd looked more recently", function()
-    assert.same({ value = 75, p50 = 120, source = "crowd", scanners = 3, at = 1790000000 },
+    assert.same({ value = 75, p50 = 120, source = "crowd", scanners = 3, at = 1790000000, qty = 7000 },
       GC.Data.ForeverReference(2589, 1789999000, 70, 79))
     -- A crowd with no half-way price still has its AH value.
-    assert.same({ value = 269, source = "crowd", scanners = 1, at = 1790000000 },
+    assert.same({ value = 269, source = "crowd", scanners = 1, at = 1790000000, qty = 2029 },
       GC.Data.ForeverReference(2592, 1, 35, 40))
   end)
 

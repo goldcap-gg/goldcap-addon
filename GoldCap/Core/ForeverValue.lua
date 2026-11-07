@@ -19,6 +19,18 @@ function GC.ForeverValue.VendorUnit(itemID)
   return nil
 end
 
+-- The item's quality (0 poor, 1 common, ...) from the same C_Item.GetItemInfo answer VendorUnit
+-- reads, so an item with a vendor price has a quality too. nil while the client has not loaded it.
+function GC.ForeverValue.Quality(itemID)
+  local item = _G.C_Item
+  if type(itemID) ~= "number" or type(item) ~= "table" or type(item.GetItemInfo) ~= "function" then
+    return nil
+  end
+  local ok, quality = pcall(function() return select(3, item.GetItemInfo(itemID)) end)
+  if ok and type(quality) == "number" then return quality end
+  return nil
+end
+
 -- One unit's deposit for a commodity, as the client quotes it from the item alone
 -- (C_AuctionHouse.CalculateCommodityDeposit): the caller has already been told the item IS a
 -- commodity. nil when the client does not answer.

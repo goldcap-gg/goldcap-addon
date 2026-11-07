@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.24.2 (unreleased)
+
+- WoW: Forever, DEALS: grey items are no longer offered as "Under market" buys. Their listings sit
+  on the auction house unsold, so the price they ask is not a price anyone pays. A grey item
+  listed below what a vendor pays for it is still a deal.
+- WoW: Forever, DEALS: a price from goldcap.gg that was taken from fewer than 20 units listed no
+  longer counts as the auction house value, so a couple of lonely high listings cannot make
+  ordinary stock look like a bargain.
+
 ## 0.24.1 (2026-11-06)
 
 - WoW: Forever: when the server cuts the full auction house scan short, DEALS still finds what is

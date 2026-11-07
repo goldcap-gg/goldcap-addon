@@ -24,6 +24,11 @@ local _, GC = ...
 -- Forever measures how fast an item sells. A thin book (under 20 units, or under three prices) is
 -- no market at all, and an item auction is left out: its deposit needs a bag location a scan has
 -- not got, and it has no quote step to catch a bad resale estimate before PlaceBid.
+-- A crowd AH value taken from a thin book is no market either: item 250945's crowd value was 79s98
+-- from two units listed, and the board offered 47 of them at 40s (owner, 2026-11-07).
+-- A poor (grey) item is never a market row: its listings are what nobody buys -- 80 Rough Crocolisk
+-- Scales sat at 4s43 and up, and the board offered the two at 2s "under market" (owner,
+-- 2026-11-07). Bought under its vendor price, it is a vendor row like any other item.
 GC.ForeverDeals = GC.ForeverDeals or {}
 
 local C = {
@@ -116,8 +121,16 @@ end
 local function underMarket(itemID, e, ctx, isCommodity)
   if not e.qty or e.qty < C.MARKET_MIN_UNITS then return nil end
   if not e.floorOnly and not (e.levels and e.levels >= C.MARKET_MIN_LEVELS) then return nil end
+  -- Grey, or not loaded yet: the client loads an item's quality with its vendor price, which Build
+  -- has already asked for, and the rebuild that picks the price up picks the quality up too.
+  if ctx.qualityFor then
+    local quality = ctx.qualityFor(itemID)
+    if type(quality) ~= "number" or quality < 1 then return nil end
+  end
   local ref = ctx.referenceFor and ctx.referenceFor(itemID, e)
-    or { value = e.value, p50 = e.p50, source = "own" }
+  if not ref or (ref.source == "crowd" and type(ref.qty) == "number" and ref.qty < C.MARKET_MIN_UNITS) then
+    ref = { value = e.value, p50 = e.p50, source = "own" }
+  end
   -- A floor-only entry has no AH value of its own: its one price is the floor itself. Only the
   -- crowd's will do, and only one the crowd took about when the scan did.
   if e.floorOnly and (ref.source ~= "crowd" or (type(ref.at) == "number" and type(e.foldAt) == "number"
@@ -297,6 +310,7 @@ local function rebuild(fold, now)
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
   local rows, missing, unsure, floorOnly = GC.ForeverDeals.Build(fold, {
     vendorFor = GC.ForeverValue.VendorUnit,
+    qualityFor = GC.ForeverValue.Quality,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
     -- its deposit -- not only those the Sell tab once saw in the bags (final review I2).

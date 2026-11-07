@@ -50,6 +50,21 @@ describe("ForeverValue", function()
     assert.is_nil(GC.ForeverValue.VendorUnit(2589))
   end)
 
+  it("reads the quality from the same answer, poor included, and nil where the client has none", function()
+    _G.C_Item = { GetItemInfo = function(id)
+      if id == 3401 then return "Rough Crocolisk Scale", nil, 0, 1, 0, "Junk", "Junk", 5, "", 1, 81 end
+      if id == 2589 then return "Linen Cloth", nil, 1, 1, 1, "Trade Goods", "Cloth", 20, "", 1, 13 end
+      if id == 5 then error("not cached") end
+      return nil
+    end }
+    assert.equal(0, GC.ForeverValue.Quality(3401))
+    assert.equal(1, GC.ForeverValue.Quality(2589))
+    assert.is_nil(GC.ForeverValue.Quality(7))
+    assert.is_nil(GC.ForeverValue.Quality(5))
+    _G.C_Item = nil
+    assert.is_nil(GC.ForeverValue.Quality(2589))
+  end)
+
   it("asks a commodity's deposit at the player's post duration, and nothing of an unknown item", function()
     local asked
     _G.C_AuctionHouse = { CalculateCommodityDeposit = function(id, duration, qty)

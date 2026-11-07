@@ -618,13 +618,14 @@ end
 -- recently than this player's own fold, else the player's own (plan 3d decision E10 — the same
 -- "fresher look wins" rule the tooltip follows). ForeverDeals measures against the lower of the two.
 -- A crowd answer says when the crowd saw it (`at`, epoch seconds): BUY's tooltip says how old it is.
+-- `qty` is how many units the crowd saw listed: ForeverDeals takes no AH value from a thin book.
 function GC.Data.ForeverReference(itemID, ownAt, ownValue, ownP50)
   local p = adoptedPayload()
   local c = p and p.items[itemID]
   if c and c.ah then
     local at = p.ts - c.age * 60
     if at >= (ownAt or 0) then
-      return { value = c.ah, p50 = c.p50, source = "crowd", scanners = c.w, at = at }
+      return { value = c.ah, p50 = c.p50, source = "crowd", scanners = c.w, at = at, qty = c.qty }
     end
   end
   return { value = ownValue, p50 = ownP50, source = "own" }
