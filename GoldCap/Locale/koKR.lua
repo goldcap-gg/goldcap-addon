@@ -1778,4 +1778,11 @@ GC.Locales.koKR = {
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "이 아이템은 은 단위로만 등록됩니다. 동 없이 가격을 정하세요",
+  -- WoW: Forever's crafting panel (UI/CraftPanel_Camelot.lua): where its prices come from, and a
+  -- vendor's reagent priced at the merchant (Core/ForeverVendorPrices.lua), 2026-11-07
+  ["Prices from your scan %s ago and the Companion %s ago"] =
+    "내 검색(%s 전)과 Companion(%s 전)의 가격",
+  ["Prices from your scan %s ago"] = "내 검색 가격, %s 전",
+  ["A reagent a vendor sells gets its price once you open that vendor."] =
+    "상인이 판매하는 재료는 그 상인 창을 열면 가격이 생깁니다.",
 }

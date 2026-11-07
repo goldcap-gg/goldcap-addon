@@ -1743,4 +1743,11 @@ GC.Locales.zhCN = {
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "该物品只能以整银上架。请设置不含铜的价格",
+  -- WoW: Forever's crafting panel (UI/CraftPanel_Camelot.lua): where its prices come from, and a
+  -- vendor's reagent priced at the merchant (Core/ForeverVendorPrices.lua), 2026-11-07
+  ["Prices from your scan %s ago and the Companion %s ago"] =
+    "价格来自你%s前的扫描和 Companion %s前的数据",
+  ["Prices from your scan %s ago"] = "价格来自你%s前的扫描",
+  ["A reagent a vendor sells gets its price once you open that vendor."] =
+    "商人出售的材料，在你打开该商人后就会有价格。",
 }

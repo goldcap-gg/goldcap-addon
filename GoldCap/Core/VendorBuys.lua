@@ -155,6 +155,23 @@ function V.MerchantRow(index)
     maxStack = GetMerchantItemMaxStack and GetMerchantItemMaxStack(index) or nil }
 end
 
+--- Whether an item is a crafting reagent: Blizzard's own flag first (C_Item.GetItemInfo's
+--- isCraftingReagent, its 17th return), then the item class (GetItemInfoInstant's classID, always
+--- known: 7 is Tradeskill). The rule a merchant purchase is booked by, and WoW: Forever's merchant
+--- prices are kept by (Core/ForeverVendorPrices.lua).
+function V.IsReagent(itemID)
+  if not C_Item then return false end
+  if C_Item.GetItemInfo then
+    local ok, flag = pcall(function() return select(17, C_Item.GetItemInfo(itemID)) end)
+    if ok and flag == true then return true end
+  end
+  if C_Item.GetItemInfoInstant then
+    local ok, classID = pcall(function() return select(6, C_Item.GetItemInfoInstant(itemID)) end)
+    if ok and classID == V.TRADESKILL_CLASS then return true end
+  end
+  return false
+end
+
 -- Wires the module to the client: the post-hook and the driver. Called once, when the database is
 -- ready. A client without the hook function or the call (nothing does today) simply books nothing.
 function V.Install()
@@ -176,20 +193,8 @@ function V.Install()
     end,
     -- A craft consumes a lot of a crafting reagent and nothing consumes any other merchant item
     -- (food, water, ammunition, a spell's reagent), so those would pile up as unsold stock for
-    -- good. Blizzard's own flag first (C_Item.GetItemInfo's isCraftingReagent, its 17th return),
-    -- then the item class (GetItemInfoInstant's classID, always known: 7 is Tradeskill).
-    isReagent = function(itemID)
-      if not C_Item then return false end
-      if C_Item.GetItemInfo then
-        local ok, flag = pcall(function() return select(17, C_Item.GetItemInfo(itemID)) end)
-        if ok and flag == true then return true end
-      end
-      if C_Item.GetItemInfoInstant then
-        local ok, classID = pcall(function() return select(6, C_Item.GetItemInfoInstant(itemID)) end)
-        if ok and classID == V.TRADESKILL_CLASS then return true end
-      end
-      return false
-    end,
+    -- good (V.IsReagent).
+    isReagent = V.IsReagent,
     countOf = function(itemID)
       if not (C_Item and C_Item.GetItemCount) then return 0 end
       local ok, n = pcall(C_Item.GetItemCount, itemID)

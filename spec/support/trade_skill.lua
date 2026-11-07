@@ -33,6 +33,9 @@
 --     craftedLinks = { [hyperlink] = crafting quality } (GetItemCraftedQualityByItemInfo asked with an
 --     item's link, as Blizzard's crafting order forms ask it; the tier's atlas on that link's tooltip,
 --     C_TooltipInfo.GetHyperlink),
+--     classes = { [itemID] = classID } (GetItemInfoInstant's sixth return; nothing for another id),
+--     craftingReagents = { [itemID] = bool } (GetItemInfo's isCraftingReagent, its 17th return;
+--     nothing for another id, as for an item the client has not cached),
 --     owned = { OwnedAuctionInfo, ... },
 --     external = { guild, guildMember, linked, npc, runeforging },
 --     absent = { [name] = true },
@@ -260,6 +263,20 @@ function TS.install(opts)
     GetItemIconByID = function(id) return (opts.icons or {})[id] end,
     GetItemQualityByID = function(id) return (opts.qualities or {})[id] end,
     RequestLoadItemDataByID = function(id) record("RequestLoadItemDataByID", id) end,
+    -- ItemDocumentation.lua: itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subClassID.
+    GetItemInfoInstant = function(id)
+      local class = (opts.classes or {})[id]
+      if class == nil then return nil end
+      return id, "", "", "", 0, class, 0
+    end,
+    -- ItemDocumentation.lua: name, link, quality, level, minLevel, type, subType, stackCount,
+    -- equipLoc, texture, sellPrice, classID, subclassID, bindType, expansionID, setID,
+    -- isCraftingReagent.
+    GetItemInfo = function(id)
+      local flag = (opts.craftingReagents or {})[id]
+      if flag == nil then return nil end
+      return "Item " .. id, "", 1, 1, 1, "", "", 1, "", 0, 0, (opts.classes or {})[id] or 0, 0, 0, 0, nil, flag
+    end,
   })
   -- TooltipData (TooltipInfoDocumentation.lua): an item of a crafting quality carries its tier's
   -- atlas in a line's text, which UI/Theme.lua's QualityAtlas reads.
@@ -360,6 +377,22 @@ function TS.craftGC()
   for _, path in ipairs({ "Core/Trigger.lua", "Core/CraftCapture.lua", "Core/CraftMath.lua", "Core/CraftQueue.lua",
     "Services/CraftClient.lua", "UI/Theme.lua", "UI/Kit/Bar.lua", "UI/Tooltip.lua", "UI/HoardFrame.lua",
     "UI/HoardRow.lua", "UI/HoardFooter.lua", "UI/CraftStrip.lua" }) do
+    helper.loadModule(path, GC)
+  end
+  return GC
+end
+
+--- GoldCap as WoW: Forever's TOC loads it for crafting (GoldCap_Camelot.toc): the same modules in the
+--- same order but none of the Hoard's files, which Forever never loads, and Forever's own beside
+--- them: the merchant prices (Core/ForeverVendorPrices.lua, with the merchant reads of
+--- Core/BuyVendor.lua and Core/VendorBuys.lua) and Services/CraftClient_Camelot.lua right after
+--- Services/CraftClient.lua. A spec loads the panel's files after it, then UI/CraftPanel_Camelot.lua.
+function TS.craftGCForever()
+  local helper = require("spec.spec_helper")
+  local GC = helper.loadModule("Core/Util.lua")
+  for _, path in ipairs({ "Core/Trigger.lua", "Core/CraftCapture.lua", "Core/BuyVendor.lua", "Core/VendorBuys.lua",
+    "Core/CraftMath.lua", "Core/CraftQueue.lua", "Core/ForeverVendorPrices.lua", "Services/CraftClient.lua",
+    "Services/CraftClient_Camelot.lua", "UI/Theme.lua", "UI/Kit/Bar.lua", "UI/Tooltip.lua", "UI/CraftStrip.lua" }) do
     helper.loadModule(path, GC)
   end
   return GC

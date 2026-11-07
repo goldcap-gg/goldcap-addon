@@ -99,6 +99,9 @@ Core/Caps.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
+Core/CraftMath.lua
+Core/CraftQueue.lua
+Core/ForeverVendorPrices.lua
 Services/Sell/State.lua
 Services/Sell/Quotes.lua
 Services/Sell/Bags.lua
@@ -108,6 +111,8 @@ Services/Sell/Walk.lua
 Services/Sell/Post.lua
 Services/Sell/Cancel.lua
 Services/Sell/Session.lua
+Services/CraftClient.lua
+Services/CraftClient_Camelot.lua
 UI/Kit/Tokens.lua
 UI/Kit/Icons.lua
 UI/Kit/Fonts.lua
@@ -118,6 +123,7 @@ UI/Kit/Chip.lua
 UI/Kit/Parts.lua
 UI/Theme.lua
 UI/FontPreload.lua
+UI/Kit/Bar.lua
 UI/Tooltip.lua
 UI/QuestRewardMark.lua
 UI/MerchantNote.lua
@@ -145,5 +151,9 @@ UI/BuyLists.lua
 UI/BuyAddBox.lua
 UI/BuySearch.lua
 UI/BuyVendorPanel.lua
+UI/CraftStrip.lua
+UI/CraftPanel.lua
+UI/CraftQueueView.lua
+UI/CraftPanel_Camelot.lua
 UI/SettingsFrame.lua
 Core/Init.lua

@@ -1848,4 +1848,11 @@ GC.Locales.itIT = {
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "Questo oggetto si mette in vendita solo ad argento intero. Imposta un prezzo senza rame",
+  -- WoW: Forever's crafting panel (UI/CraftPanel_Camelot.lua): where its prices come from, and a
+  -- vendor's reagent priced at the merchant (Core/ForeverVendorPrices.lua), 2026-11-07
+  ["Prices from your scan %s ago and the Companion %s ago"] =
+    "Prezzi dalla tua scansione di %s fa e da Companion di %s fa",
+  ["Prices from your scan %s ago"] = "Prezzi dalla tua scansione di %s fa",
+  ["A reagent a vendor sells gets its price once you open that vendor."] =
+    "Un reagente venduto da un mercante riceve il suo prezzo appena apri quel mercante.",
 }

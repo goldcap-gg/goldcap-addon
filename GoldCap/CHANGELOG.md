@@ -21,6 +21,14 @@
   sells, and the buy window says how many sell a day instead of "resale speed unknown".
 - WoW: Forever, DEALS: when nothing on the board fits your gold, the line at the top also says
   what your bags would fetch on the auction house and to post them on SELL.
+- WoW: Forever, crafting: the GoldCap panel beside the profession window now opens in Forever too.
+  This recipe shows what the reagents cost, what one craft sells for on the auction house after
+  the 5% cut and the profit, Worth crafting lists the recipes you know that make a profit, and the
+  craft queue works as in retail, except that it does not count what waits in your mailbox. Prices
+  come from your auction house scans and, with GoldCap Companion, every player's.
+  A reagent a vendor sells, such as thread, vials or flux, gets its price the first time you open
+  a vendor that sells it; until then a recipe that needs it shows which price is missing instead of
+  a guess. The panel does not show how many of an item sell a day on Forever yet.
 
 ## 0.24.1 (2026-11-06)
 
