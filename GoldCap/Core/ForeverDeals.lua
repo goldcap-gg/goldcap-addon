@@ -170,9 +170,11 @@ local function underMarket(itemID, e, ctx, isCommodity)
   local net = math.floor(refUnit * KEEP)
   if e.ladder[1][1] > math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1) then return nil end
   if isCommodity() ~= true then return nil end
-  local deposit = ctx.depositFor(itemID)
-  if type(deposit) ~= "number" or deposit < 0 then return nil end
-  local ceiling = math.min(math.floor(refUnit * C.MARKET_SHARE), net - deposit - 1)
+  -- The deposit is the post's, not a unit's: the client's quote for posting what the buy took
+  -- (GC.ForeverValue.CommodityDeposit). It used to be the 1-unit quote, which on WoW: Forever is a
+  -- post's 1s floor, taken once per unit and off the most a unit may cost: no cheap commodity ever
+  -- made a row (owner's client, 2026-11-07: 1s on every item under 5c a unit at a vendor).
+  local ceiling = math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1)
   if ceiling < 1 then return nil end
   -- Priced as the Check prices it (GC.SniperDecision.EvaluateCeiling): resold one copper under the
   -- cheapest ask the buy leaves on the book, never above the AH value, and of the buys that take
@@ -189,12 +191,16 @@ local function underMarket(itemID, e, ctx, isCommodity)
     local after = e.ladder[i + 1]
     local exit = after and math.max(1, math.min(refUnit, after[1] - 1)) or refUnit
     local gross = exit * units
-    local profit = gross - math.ceil(gross * 5 / 100) - cost - deposit * units
-    if not best or profit > best.profit then best = { units = units, cost = cost, profit = profit } end
+    local deposit = ctx.depositFor(itemID, units)
+    if type(deposit) ~= "number" or deposit < 0 then return nil end
+    local profit = gross - math.ceil(gross * 5 / 100) - cost - deposit
+    if not best or profit > best.profit then
+      best = { units = units, cost = cost, profit = profit, deposit = deposit }
+    end
   end
   if not best or best.profit <= 0 then return nil end
   local row = lead(itemID, e, "market", ceiling, refUnit, best.units, best.cost, best.profit)
-  row.depositUnit = deposit
+  row.depositUnit = math.ceil(best.deposit / best.units)
   -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd,
   -- market_sold), and how much a day sells, which the live Check holds the buy to.
   row.refSource, row.refScanners = ref.source, ref.scanners
@@ -367,8 +373,9 @@ local function rebuild(fold, now)
     salesFor = GC.Data and GC.Data.ForeverSales,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
-    -- its deposit -- not only those the Sell tab once saw in the bags (final review I2).
-    depositFor = GC.ForeverValue.CommodityDepositUnit,
+    -- its deposit -- not only those the Sell tab once saw in the bags (final review I2). The
+    -- deposit for one post of the units a buy takes.
+    depositFor = GC.ForeverValue.CommodityDeposit,
     minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     watchPins = settings.watchPins,
     referenceFor = function(itemID, e)

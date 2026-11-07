@@ -293,9 +293,10 @@ describe("ForeverDeals", function()
     -- AH value 100c: the cheapest tenth (10 units) reaches the 1s band; the six cheap units do not.
     local WOOL = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5"
 
-    -- ctx() with a 2c deposit per unit, the answer GC.ForeverValue.CommodityDepositUnit gives a commodity.
+    -- ctx() with a deposit of 2c a unit for a post, the answer GC.ForeverValue.CommodityDeposit
+    -- gives a commodity whose post is past the 1s floor.
     local function marketCtx(over)
-      local o = { depositFor = function() return 2 end }
+      local o = { depositFor = function(_, quantity) return 2 * quantity end }
       for k, v in pairs(over or {}) do o[k] = v end
       return ctx(o)
     end
@@ -306,7 +307,7 @@ describe("ForeverDeals", function()
       assert.same({ 2592 }, missing)          -- no vendor price: asked for, and market still judged
       local r = rows[1]
       assert.equal("market", r.forever)
-      assert.equal(70, r.ceiling)             -- min(floor(100 * 0.70), 95 - 2 - 1)
+      assert.equal(70, r.ceiling)             -- min(floor(100 * 0.70), 95 - 1)
       assert.equal(100, r.refUnit)            -- the AH value, not the half-way 1s10c
       assert.equal(6, r.qty)
       assert.equal(210, r.capTotal)
@@ -431,11 +432,22 @@ describe("ForeverDeals", function()
       assert.equal(0, #D.Build(fold({ [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40" }), marketCtx()))
     end)
 
-    it("never sets a ceiling that loses money after the deposit", function()
+    -- WoW: Forever charges a post at least 1s, whatever its size (owner's client, 2026-11-07:
+    -- Linen Cloth 1s for 1 unit, 1s for 10, 2s for 100). Taken once per unit, that floor sank
+    -- every cheap commodity: 6 units here would have paid 6s.
+    it("takes the deposit once for the post the buy makes, so a 1s floor does not sink a cheap stack", function()
       commodity[5] = true
-      -- AH value 100c, deposit 30c: 95 - 30 - 1 = 64 caps the ceiling under 70.
-      local rows = D.Build(fold({ [5] = WOOL }), marketCtx({ depositFor = function() return 30 end }))
-      assert.equal(64, rows[1].ceiling)
+      local asked = {}
+      local rows = D.Build(fold({ [5] = WOOL }), marketCtx({ depositFor = function(_, quantity)
+        asked[#asked + 1] = quantity
+        return math.max(100, 2 * quantity)
+      end }))
+      assert.same({ 3, 6 }, asked)            -- one quote per buy the board weighs
+      local r = rows[1]
+      assert.equal(70, r.ceiling)             -- the deposit no longer comes off a unit's price
+      assert.equal(6, r.qty)
+      assert.equal(254, r.profit)             -- 99c x6 = 594, -30 cut, -210, -100 for the one post
+      assert.equal(17, r.depositUnit)         -- 100c over 6 units, rounded up
     end)
 
     it("measures against the half-way price when a reference's is the lower of the two", function()
@@ -461,14 +473,14 @@ describe("ForeverDeals", function()
       assert.equal(133, rows[1].profit)      -- under the 37c level left: 36c x8 = 288, -15 cut, -140
     end)
 
-    it("floors the 0.95 x value - deposit - 1 share (AH value 101, that branch binding)", function()
-      -- net = floor(101 * 0.95) = 95 (101 * 0.95 = 95.95); net - 32 - 1 = 62, under floor(101*0.7) = 70.
+    it("floors the 0.70 x value share and pays one post's deposit (AH value 101)", function()
+      -- floor(101 * 0.70) = 70 (101 * 0.7 = 70.7); net - 1 = 95 - 1 = 94 does not bind.
       commodity[7] = true
       local f = fold({ [7] = "20,100,3,;0x4 40x4 41x92|81,81,3" })  -- 20c x4, 60c x4, 101c x92
       local rows = D.Build(f, marketCtx({ depositFor = function() return 32 end }))
-      assert.equal(62, rows[1].ceiling)
+      assert.equal(70, rows[1].ceiling)
       assert.equal(8, rows[1].qty)           -- the 20c and 60c levels
-      assert.equal(184, rows[1].profit)      -- (95-20-32)*4 + (95-60-32)*4
+      assert.equal(408, rows[1].profit)      -- under the 101c level left: 100c x8 = 800, -40 cut, -320, -32
     end)
 
     it("floors the 0.70 x value share again at a larger scale (AH value 143)", function()
@@ -643,7 +655,7 @@ describe("ForeverDeals", function()
       local store, timers, dumpRows, t = {}, {}, {}, 100000
       GC.ForeverScan.Enabled = function() return true end
       GC.ForeverScan.Fold = function() return store.fold end
-      GC.ForeverValue.CommodityDepositUnit = function() return 0 end
+      GC.ForeverValue.CommodityDeposit = function() return 0 end
       GC.db.commodityByItem[5471] = true
       local drv = {
         now = function() return t end,
@@ -680,7 +692,7 @@ describe("ForeverDeals", function()
 
     it("names the units a day's sales allow, for the live Check to hold its buy to", function()
       GC.Data = { ForeverSales = function() return { units = 140, sales = 30, median = 20, p25 = 18, perDay = 20 } end }
-      GC.ForeverValue.CommodityDepositUnit = function() return 0 end
+      GC.ForeverValue.CommodityDeposit = function() return 0 end
       local ceiling = (function() D.Rows(clock); return D.CeilingFor(2589) end)()
       assert.equal("market", ceiling.kind)
       assert.equal(40, ceiling.maxUnits)
@@ -740,12 +752,12 @@ describe("ForeverDeals", function()
     -- had never seen, and WoW: Forever's board showed no Under market row at all (2026-11-06).
     it("builds a market row for a commodity the client names by its item key, never held in the bags", function()
       local ah = withClient({ [2592] = true }, { [2592] = true })
-      local asked
-      ah.CalculateCommodityDeposit = function(id, _, qty) asked = { id, qty }; return 2 end
+      local asked = {}
+      ah.CalculateCommodityDeposit = function(id, _, qty) asked[#asked + 1] = { id, qty }; return 2 * qty end
       saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
       assert.is_nil(GC.db.commodityByItem[2592])
       D.Rows(clock)
-      assert.same({ 2592, 1 }, asked)
+      assert.same({ { 2592, 3 }, { 2592, 6 } }, asked)   -- the post of each buy the board weighs
       assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
         D.CeilingFor(2592))
       assert.is_true(GC.db.commodityByItem[2592])   -- remembered, as the Sell tab remembers it
@@ -854,7 +866,7 @@ describe("ForeverDeals", function()
     it("hands out a market ceiling with its deposit", function()
       saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
       GC.db.commodityByItem[2592] = true
-      GC.ForeverValue.CommodityDepositUnit = function() return 2 end
+      GC.ForeverValue.CommodityDeposit = function(_, quantity) return 2 * quantity end
       D.Rows(clock)
       assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
         D.CeilingFor(2592))

@@ -30,6 +30,12 @@
   a vendor that sells it; until then a recipe that needs it shows which price is missing instead of
   a guess. An auction house price needs at least 20 units listed, as in DEALS. The panel does not
   show how many of an item sell a day on Forever yet.
+- WoW: Forever, DEALS: the deposit for reposting is now counted once for the whole stack you post,
+  the way the auction house charges it (at least 1s a post), instead of once for every unit. Cheap
+  goods bought by the stack, such as cloth, herbs or meat, now show up as deals.
+- WoW: Forever: Road to 40 now counts toward the trainer's 100g for Apprentice Riding. /gc mount
+  still sets a cost of your own, for a reputation discount for example, and /gc mount clear goes
+  back to 100g.
 
 ## 0.24.1 (2026-11-06)
 

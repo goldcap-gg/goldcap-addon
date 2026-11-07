@@ -40,6 +40,17 @@ function GC.ForeverValue.CommodityDepositUnit(itemID)
   return nil
 end
 
+-- The deposit for one post of `quantity` units of a commodity, as the client quotes it. On WoW:
+-- Forever a post pays at least 1s whatever its size, and about a fifth of the vendor price a unit
+-- above that (owner's client, 2026-11-07: Linen Cloth 1s for 1 unit, 1s for 10, 2s for 100), so
+-- the 1-unit quote is a post's floor, never a unit's share of a bigger one. nil when the client
+-- does not answer.
+function GC.ForeverValue.CommodityDeposit(itemID, quantity)
+  local ok, deposit = pcall(GC.Flips.CommodityDeposit, itemID, quantity)
+  if ok and type(deposit) == "number" and deposit >= 0 then return deposit end
+  return nil
+end
+
 -- The tooltip's deposit: only for an item the Sell tab has seen is a commodity
 -- (GC.db.commodityByItem, learned at the auction house). An item needs an ItemLocation the
 -- tooltip does not reliably carry, so it gets nil and its verdict says the deposit is not counted.
