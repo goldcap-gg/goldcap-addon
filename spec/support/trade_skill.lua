@@ -21,6 +21,8 @@
 --     professionName = name (GetChildProfessionInfo), professionTexture = fileID (GetTradeSkillTexture),
 --     baseProfession = { professionID, professionName } (GetBaseProfessionInfo), recasts = n
 --     (GetRemainingRecasts, a spec sets TS.opts.recasts as a run goes on),
+--     skillLine = n (the line IsRecipeInSkillLine places every recipe on; professionID when nil. On
+--     WoW: Forever it is the base profession's: Blizzard's window asks with it, its child answers 0),
 --     open = { recipeID, level, allocations = { [slotIndex] = { { itemID, q }, ... } }, output, guid,
 --       recraft = bool (the transaction's IsRecraft), link = the output's hyperlink
 --       (GetRecipeOutputItemData's) } | nil,
@@ -132,7 +134,7 @@ function TS.install(opts)
     IsRecipeInSkillLine = function(id, skillLineID)
       record("IsRecipeInSkillLine", id, skillLineID)
       local r = recipes[id]
-      return r ~= nil and r.inSkillLine ~= false and skillLineID == opts.professionID
+      return r ~= nil and r.inSkillLine ~= false and skillLineID == (opts.skillLine or opts.professionID)
     end,
     GetChildProfessionInfo = function()
       return { professionID = opts.professionID or 0, professionName = opts.professionName or "" }

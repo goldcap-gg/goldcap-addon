@@ -116,6 +116,17 @@ describe("craft client", function()
     assert.same({ 1, 2823 }, TS.callsOf("IsRecipeInSkillLine")[1].args)
   end)
 
+  -- WoW: Forever has no expansion child professions: the child answer is professionID 0, and
+  -- Blizzard's own Professions.GetProfessionInfo falls back to the base profession (owner,
+  -- 2026-11-07: Worth crafting empty over a Leatherworking window).
+  it("reads the base profession's skill line when the child profession is 0, as Blizzard does", function()
+    load({ recipes = { [1] = potion() }, filtered = { 1 }, professionID = 0, skillLine = 165,
+      baseProfession = { professionID = 165, professionName = "Leatherworking" } })
+    assert.same({ 1 }, CC.KnownRecipes())
+    assert.same({ 1, 165 }, TS.callsOf("IsRecipeInSkillLine")[1].args)
+    assert.is_true(CC.CraftableHere(1))
+  end)
+
   -- Probe A3 (retail 12.1.5, 2026-10-26): CraftRecipe with the window shut crafts nothing and says
   -- nothing. A recipe is craftable here only on the player's own window, on its skill line.
   it("says a recipe is craftable here only on the player's own window, on its skill line", function()

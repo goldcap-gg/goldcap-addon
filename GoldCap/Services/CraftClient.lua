@@ -121,6 +121,20 @@ end
 --- The recipes this character has learned in the profession the window shows, as the window
 --- lists them (the player's search and filters included), that GoldCap can price. A ranked
 --- recipe once, at the highest rank learned.
+-- The skill line of the open profession window, read as Blizzard's own Professions.GetProfessionInfo
+-- reads it (Blizzard_ProfessionsTemplates/Blizzard_Professions.lua, live and forever alike): the
+-- child profession's, else the base profession's. WoW: Forever has no expansion child professions:
+-- its child answer is professionID 0, every recipe read as off a skill line of 0, and Worth crafting
+-- said no recipe had a price over a Leatherworking window whose recipe it priced (owner, 2026-11-07).
+local function openSkillLine()
+  for _, name in ipairs({ "GetChildProfessionInfo", "GetBaseProfessionInfo" }) do
+    local ok, prof = call(name)
+    local id = ok and type(prof) == "table" and prof.professionID or nil
+    if type(id) == "number" and id > 0 then return id end
+  end
+  return nil
+end
+
 function CC.KnownRecipes()
   local api = ts()
   if type(api) ~= "table" then return {} end
@@ -131,9 +145,8 @@ function CC.KnownRecipes()
     ok, ids = pcall(api.GetAllRecipeIDs)
   end
   if not ok or type(ids) ~= "table" then return {} end
-  local okP, prof = call("GetChildProfessionInfo")
-  local skillLine = okP and type(prof) == "table" and prof.professionID or nil
-  if type(skillLine) ~= "number" then return {} end
+  local skillLine = openSkillLine()
+  if not skillLine then return {} end
   local out = {}
   for _, id in ipairs(ids) do
     local okL, inLine = call("IsRecipeInSkillLine", id, skillLine)
@@ -272,10 +285,9 @@ end
 function CC.CraftableHere(recipeID)
   local frame = _G.ProfessionsFrame
   if type(frame) == "table" and frame.IsShown and frame:IsShown() and CC.IsOwnList() then
-    local okP, prof = call("GetChildProfessionInfo")
-    local line = okP and type(prof) == "table" and prof.professionID or nil
+    local line = openSkillLine()
     local okL, inLine = false, false
-    if type(line) == "number" then okL, inLine = call("IsRecipeInSkillLine", recipeID, line) end
+    if line then okL, inLine = call("IsRecipeInSkillLine", recipeID, line) end
     if okL and inLine == true then return true end
   end
   local okI, info = call("GetProfessionInfoByRecipeID", recipeID)
