@@ -398,7 +398,7 @@ GC.Locales.deDE = {
     "Weder in den Taschen noch eingestellt. Post oder Bank?",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =
     "Nicht greifbar: der Bestand liegt in der Post, der Bank oder auf einem anderen Charakter",
-  ["Not worth the deposit on the AH"] = "Lohnt die AH-Gebühr nicht",
+  ["The deposit outweighs the gain and is lost if unsold"] = "Die Gebühr übersteigt den Gewinn und verfällt ohne Verkauf",
   ["Nothing is being held back."] = "Es wird nichts zurückgehalten.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Nach diesem Kauf bleibt nichts übrig, wogegen man verkaufen könnte, es gibt also keinen Ausstiegspreis.",
@@ -1848,7 +1848,7 @@ GC.Locales.deDE = {
   ["deposit"] = "Gebühr",
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "Gebühr %s",
-  ["not worth the deposit"] = "lohnt die Gebühr nicht",
+  ["deposit outweighs the gain"] = "Gebühr übersteigt den Gewinn",
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "Dieser Gegenstand wird nur in ganzem Silber eingestellt. Gib einen Preis ohne Kupfer ein",

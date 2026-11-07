@@ -380,7 +380,7 @@ GC.Locales.koKR = {
   ["Not in your bags or listed. Mail or bank?"] = "가방에도 없고 등록도 안 됨. 우편함이나 은행인가요?",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =
     "보유 중이 아님. 물량이 우편함, 은행 또는 다른 캐릭터에 있습니다",
-  ["Not worth the deposit on the AH"] = "경매장 등록비만큼의 가치가 없습니다",
+  ["The deposit outweighs the gain and is lost if unsold"] = "등록비가 이익보다 크고, 팔리지 않으면 잃습니다",
   ["Nothing is being held back."] = "보류된 것이 없습니다.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "이번 구매 뒤에는 되팔 상대 물량이 남지 않아 매도 기준가가 없습니다.",
@@ -1774,7 +1774,7 @@ GC.Locales.koKR = {
   ["deposit"] = "등록비",
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "등록비 %s",
-  ["not worth the deposit"] = "등록비만큼의 가치 없음",
+  ["deposit outweighs the gain"] = "등록비가 이익보다 큼",
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "이 아이템은 은 단위로만 등록됩니다. 동 없이 가격을 정하세요",

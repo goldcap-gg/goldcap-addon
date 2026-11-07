@@ -392,7 +392,7 @@ GC.Locales.ukUA = {
     "Немає в сумках і не виставлено. Пошта чи банк?",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =
     "Немає під рукою: запас у пошті, банку або на іншому персонажі",
-  ["Not worth the deposit on the AH"] = "Не окупає заставу на аукціоні",
+  ["The deposit outweighs the gain and is lost if unsold"] = "Застава більша за вигоду і пропаде, якщо не куплять",
   ["Nothing is being held back."] = "Нічого не притримано.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Після цієї покупки не лишиться того, у що продавати, тому ціни виходу немає.",
@@ -1916,7 +1916,7 @@ GC.Locales.ukUA = {
   ["deposit"] = "застава",
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "застава %s",
-  ["not worth the deposit"] = "не окупає заставу",
+  ["deposit outweighs the gain"] = "застава більша за вигоду",
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "Цей предмет виставляється лише за ціле срібло. Вкажіть ціну без міді",

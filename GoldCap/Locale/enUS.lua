@@ -510,7 +510,7 @@ GC.Locales.enUS = {
   ["Not in your bags or listed. Mail or bank?"] = "Not in your bags or listed. Mail or bank?",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =
     "Not on hand: the stock is in the mail, the bank, or on another character",
-  ["Not worth the deposit on the AH"] = "Not worth the deposit on the AH",
+  ["The deposit outweighs the gain and is lost if unsold"] = "The deposit outweighs the gain and is lost if unsold",
   ["Nothing is being held back."] = "Nothing is being held back.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Nothing left to sell against after this buy, so there is no exit price.",
@@ -1834,7 +1834,7 @@ GC.Locales.enUS = {
   ["deposit"] = "deposit",
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "deposit %s",
-  ["not worth the deposit"] = "not worth the deposit",
+  ["deposit outweighs the gain"] = "deposit outweighs the gain",
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "This item posts at whole silver only. Set a price without copper",

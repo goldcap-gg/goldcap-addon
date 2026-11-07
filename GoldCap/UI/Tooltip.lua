@@ -181,7 +181,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
     elseif verdict == "vendor" then
       lines[#lines + 1] = { kind = "verdict", tone = "dim", text = GC.L["Sell it to a vendor"] }
     elseif verdict == "deposit" then
-      lines[#lines + 1] = { kind = "verdict", tone = "warn", text = GC.L["Not worth the deposit on the AH"] }
+      lines[#lines + 1] = { kind = "verdict", tone = "warn", text = GC.L["The deposit outweighs the gain and is lost if unsold"] }
     end
   end
   -- Clamped like the live line's: data stamped ahead of this client's clock is new, not

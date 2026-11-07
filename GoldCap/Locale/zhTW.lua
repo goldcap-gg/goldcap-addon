@@ -378,7 +378,7 @@ GC.Locales.zhTW = {
   ["Not in your bags or listed. Mail or bank?"] = "不在背包也未上架。在信箱或銀行嗎？",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =
     "不在手邊：存貨在信箱、銀行或其他角色身上",
-  ["Not worth the deposit on the AH"] = "不值得支付拍賣場手續費",
+  ["The deposit outweighs the gain and is lost if unsold"] = "押金高於收益，未售出則押金不退",
   ["Nothing is being held back."] = "沒有任何項目被保留。",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "買完之後沒有可對手的掛單，也就沒有出貨價。",
@@ -1740,7 +1740,7 @@ GC.Locales.zhTW = {
   ["deposit"] = "押金",
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "押金 %s",
-  ["not worth the deposit"] = "不值押金",
+  ["deposit outweighs the gain"] = "押金高於收益",
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "該物品只能以整銀上架。請設定不含銅的價格",

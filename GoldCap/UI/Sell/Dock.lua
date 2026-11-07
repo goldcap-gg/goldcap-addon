@@ -154,7 +154,7 @@ local QUEUE_SKIP_TEXT = {
   below_vendor = "a vendor pays more: sell it there",
   -- WoW: Forever only (Core/PostQueue.lua's below_deposit): the tooltip's own verdict, in its
   -- own words, for the whole post.
-  below_deposit = "Not worth the deposit on the AH",
+  below_deposit = "The deposit outweighs the gain and is lost if unsold",
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
   advised_hold = "relisting now would lock in a loss or a stall. Hold",
@@ -172,7 +172,7 @@ local QUEUE_SKIP_TEXT = {
 
 -- Why the queue held a position back, in the words above; nil when it did not.
 -- An unmarked row's reason too (S.notSelling, Core/PostQueue.lua's Build keeps it): a click on
--- its row puts it in the dock as well, and its row already said "not worth the deposit" while the
+-- its row puts it in the dock as well, and its row already said "deposit outweighs the gain" while the
 -- dock read as a plain post (owner, WoW: Forever 2026-11-06: an unmarked staff, 1s deposit on a 2s
 -- sale). The rows read both lists (UI/Sell/List.lua's heldBackReason); so does the dock.
 function Dock.HeldBackText(positionKey)

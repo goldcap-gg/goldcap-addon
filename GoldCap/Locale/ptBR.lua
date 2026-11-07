@@ -397,7 +397,7 @@ GC.Locales.ptBR = {
     "Nem nas bolsas nem anunciado. Correio ou banco?",
   ["Not on hand: the stock is in the mail, the bank, or on another character"] =
     "Não está à mão: o estoque está no correio, no banco ou em outro personagem",
-  ["Not worth the deposit on the AH"] = "Não vale o depósito no leilão",
+  ["The deposit outweighs the gain and is lost if unsold"] = "O depósito supera o ganho e se perde se não vender",
   ["Nothing is being held back."] = "Nada está sendo retido.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Depois desta compra não sobra nada contra o que vender, então não há preço de saída.",
@@ -1842,7 +1842,7 @@ GC.Locales.ptBR = {
   ["deposit"] = "depósito",
   -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
   ["deposit %s"] = "depósito %s",
-  ["not worth the deposit"] = "não vale o depósito",
+  ["deposit outweighs the gain"] = "depósito maior que o ganho",
   -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
   ["This item posts at whole silver only. Set a price without copper"] =
     "Este item só é anunciado em prata inteira. Defina um preço sem cobre",

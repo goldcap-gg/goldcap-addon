@@ -333,7 +333,7 @@ describe("Sell tab with followed groups' rules", function()
       S.queueSkipped = {}
       S.notSelling = { { positionKey = "item:7", itemID = 7, reason = "below_deposit" },
         { positionKey = "item:8", itemID = 8 } }
-      assert.equal("Not worth the deposit on the AH", GC.SellUI.Dock.HeldBackText("item:7"))
+      assert.equal("The deposit outweighs the gain and is lost if unsold", GC.SellUI.Dock.HeldBackText("item:7"))
       assert.is_nil(GC.SellUI.Dock.HeldBackText("item:8")) -- unmarked, but nothing holds it
       S.queueSkipped, S.notSelling = saved.skipped, saved.rest
     end)
