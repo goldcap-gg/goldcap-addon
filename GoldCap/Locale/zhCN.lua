@@ -59,7 +59,7 @@ GC.Locales.zhCN = {
   ["%d caps · %s"] = "%d 个价格上限 · %s",
   ["%d days"] = "%d 天",
   ["%d deals from your last scan. Full Scan to refresh"] =
-    "上次扫描的 %d 笔交易。按 Full Scan 刷新",
+    "上次扫描的 %d 笔交易。按扫描刷新",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d 笔因难以转卖或低于单次购买最低利润被过滤",
   ["%d held back"] = "%d 笔已保留",
   ["%d hidden: the live check refused them"] = "已隐藏 %d 项：实时核对已拒绝",
@@ -97,7 +97,7 @@ GC.Locales.zhCN = {
   ["A dash means GoldCap does not know the cost of every unit yet. It will never guess one from the market price."] =
     "破折号表示还不知道每一件的成本。它绝不会拿市场价去猜。",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
-    "这是线索而非承诺：按导入市场价的 95% 转卖，数量以 Check 本身会批准的为准。",
+    "这是线索而非承诺：按导入市场价的 95% 转卖，数量以检查本身会批准的为准。",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多笔购买被合并成一行，会一并全部删除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍卖行返回为空",
@@ -125,7 +125,7 @@ GC.Locales.zhCN = {
   ["Auction House is not open"] = "拍卖行未打开",
   ["Auto-scan on next AH visit"] = "下次进入拍卖行时自动扫描",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
-    "自动：持续运行 Full Scan，你购买时立即让出，自己在拍卖行搜索，或查看邮件。点击可切换。",
+    "自动：持续运行完整扫描，你购买时立即让出，自己在拍卖行搜索，或查看邮件。点击可切换。",
   ["Avoid"] = "避开",
   ["BOOKS %d/%d"] = "挂单簿 %d/%d",
   ["BUY %d"] = "购买 %d",
@@ -172,7 +172,7 @@ GC.Locales.zhCN = {
     "还有更便宜的挂单，但按这个物品的速度，几小时内就会被吃光。",
   ["Check"] = "检查",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower (or refuse) if the market has moved since your last import."] =
-    "Check 会在金币动用前按实时挂单重新计算；若市场在你上次导入后发生变化，结果可能更低，甚至直接拒绝。",
+    "检查会在金币动用前按实时挂单重新计算；若市场在你上次导入后发生变化，结果可能更低，甚至直接拒绝。",
   ["Checked against the live order book a moment ago."] = "刚刚与实时挂单簿核对过。",
   ["Checked: %d of the top %d on screen"] = "已检查：%d 笔（屏幕前 %d 笔中）",
   ["Checking prices…"] = "正在检查价格…",
@@ -180,7 +180,7 @@ GC.Locales.zhCN = {
   ["Checking this item's price…"] = "正在检查该物品的价格…",
   ["Checking..."] = "正在核对...",
   ["Clear to buy"] = "可以买入",
-  ["Click Confirm to post"] = "点击 Confirm 上架",
+  ["Click Confirm to post"] = "点击确认上架",
   ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
     "再点一次将取消这条在售拍卖。它不会自动重新上架：手续费不退，物品通过邮件寄回而不是直接进包。",
   ["Clicking again deletes this hand-entered cost for good."] = "再点一次将永久删除这条手动填写的成本。",
@@ -267,7 +267,7 @@ GC.Locales.zhCN = {
   ["Everything else checks out. With more gold on this character, this is a buy."] = "其他条件都满足。这个角色金币再多些，就可以买入。",
   ["FIFO allocations"] = "先进先出分配",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
-    "正在获取该物品的最新价格。稍后再按 Post",
+    "正在获取该物品的最新价格。稍后再按上架",
   ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
     "正在获取该批的最新价格。稍后再按 Repost",
   ["Finish the pending post first"] = "请先完成进行中的上架",
@@ -292,7 +292,7 @@ GC.Locales.zhCN = {
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap：尚未在实时拍卖行核对",
   ["Gone"] = "已消失",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
-    "灰色表示报价已过期；Post 和 Repost 会在操作前先刷新。",
+    "灰色表示报价已过期；上架和 Repost 会在操作前先刷新。",
   ["HIDDEN 0"] = "隐藏 0",
   ["HOLDING %d"] = "持有 %d",
   ["Held back from cancelling"] = "已从取消中保留",
@@ -432,9 +432,9 @@ GC.Locales.zhCN = {
   ["Posting failed"] = "上架失败",
   ["Posting unavailable"] = "当前无法上架",
   ["Posting…"] = "上架中…",
-  ["Press Full Scan to find deals."] = "按 Full Scan 查找交易。",
+  ["Press Full Scan to find deals."] = "按扫描查找交易。",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
-    "按 Scan 扫描整个拍卖行一次，或按 Auto 持续扫描。",
+    "按扫描对整个拍卖行扫描一次，或按自动持续扫描。",
   ["Previous removal selection cleared"] = "已清除先前的删除选择",
   ["Previous repost selection cleared"] = "已清除先前的重新上架选择",
   ["Price"] = "价格",
@@ -666,7 +666,7 @@ GC.Locales.zhCN = {
   ["another purchase took over: nothing was confirmed"] = "另一笔购买已接手：没有确认任何购买",
   ["any figure here would be invented out of the very number being refused"] =
     "这里的任何数字都只能凭那个被否决的数值编出来",
-  ["at or under your price. Click Buy to purchase"] = "不高于你的价格。点击 Buy 购买",
+  ["at or under your price. Click Buy to purchase"] = "不高于你的价格。点击购买",
   ["auto off"] = "自动已关闭",
   ["auto-synced %dh ago"] = "%d 小时前自动同步",
   ["auto-synced data for %s loaded (%s old)"] = "已加载 %s 的自动同步数据（已过 %s）",
@@ -699,7 +699,7 @@ GC.Locales.zhCN = {
   ["fresh"] = "最新",
   ["full scan already in progress"] = "完整扫描已在进行中",
   ["full scan interrupted. Confirm your purchase"] = "完整扫描被中断。请确认你的购买",
-  ["full scan stalled. Press Full Scan to retry"] = "完整扫描卡住了。按 Full Scan 重试",
+  ["full scan stalled. Press Full Scan to retry"] = "完整扫描卡住了。按扫描重试",
   ["full scan stalled, retrying shortly"] = "完整扫描卡住了，稍后重试",
   ["full scan stopped. Press %s to run it again"] = "完整扫描已停止。按 %s 重新运行",
   ["gone / price changed"] = "已消失 / 价格已变",
@@ -734,7 +734,7 @@ GC.Locales.zhCN = {
   ["level %d"] = "等级 %d",
   ["listing gone: already bought out or price changed"] = "挂单已消失：已被买走或价格已变",
   ["listing gone: bought out or repriced"] = "该拍卖已消失：被买走或改价",
-  ["live safety confirmed. Click Buy to purchase"] = "已实时确认安全。点击 Buy 购买",
+  ["live safety confirmed. Click Buy to purchase"] = "已实时确认安全。点击购买",
   ["live verification required"] = "需要实时验证",
   ["the cheapest is %s, your cap is %s"] = "最低价 %s，你的上限 %s",
   ["the run changed. Start again"] = "清单已变化。请重新开始",
@@ -762,13 +762,13 @@ GC.Locales.zhCN = {
   ["Makes %s"] = "制作：%s",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "还没有价格：/goldcap companion 或 /goldcap import",
-  ["no purchase confirmation received. Cancel and retry"] = "未收到购买确认。点 Cancel 后重试",
+  ["no purchase confirmation received. Cancel and retry"] = "未收到购买确认。点取消后重试",
   ["no sales recorded yet. Open your mailbox with GoldCap loaded and they will be read from the invoices"] =
     "尚未记录任何销售。在加载 GoldCap 的情况下打开邮箱，系统会从账单中读取",
   ["no stock in bags or listed, nothing to price for"] = "背包没有库存也未上架，没有可查价的对象",
   ["none"] = "无",
   ["not enough gold: total %s, you have %s"] = "金币不足：共需 %s，你有 %s",
-  ["not enough gold for this quote. Cancel"] = "该报价所需金币不足。Cancel",
+  ["not enough gold for this quote. Cancel"] = "该报价所需金币不足。取消",
   ["not enough gold on this character: you need %s"] = "此角色金币不足：需要 %s",
   ["not enough units left for that quantity, re-checking what remains..."] =
     "剩余数量不足以买这么多，正在重新检查还剩多少...",
@@ -789,7 +789,7 @@ GC.Locales.zhCN = {
   ["previous commodity purchase settled. %s to re-check the price"] = "上一笔商品购买已结算。按 %s 重新检查价格",
   ["price changed after you closed the buy window: nothing was bought"] =
     "关闭购买窗口后价格变了：没有买到任何东西",
-  ["price confirmed. Click Buy to purchase"] = "价格已确认。点击 Buy 购买",
+  ["price confirmed. Click Buy to purchase"] = "价格已确认。点击购买",
   ["price rose %.1fx, still safe. Confirm"] = "价格上涨 %.1f 倍。仍然安全，请确认",
   ["price stands %d of %d"] = "价格排第 %d / %d",
   ["prices loaded are %s (%s) but you are playing in %s, so every discount and profit figure is measured against another market"] =
@@ -799,10 +799,10 @@ GC.Locales.zhCN = {
   ["purchase identity unresolved"] = "购买归属未确定",
   ["purchase pending exact cost"] = "购买等待精确成本",
   ["purchase total unavailable. Check your mail"] = "无法获取购买总额。请查看邮箱",
-  ["quote %s. Click Confirm to buy"] = "报价 %s。点击 Confirm 购买",
+  ["quote %s. Click Confirm to buy"] = "报价 %s。点击确认购买",
   ["quote %ss ago"] = "报价 %s 秒前",
-  ["quote expired. Refresh to re-check the price"] = "报价已过期。按 Refresh 重新检查价格",
-  ["quote expires in %d s. Click Confirm to buy"] = "报价将在 %d 秒后过期。按 Confirm 购买",
+  ["quote expired. Refresh to re-check the price"] = "报价已过期。按刷新重新检查价格",
+  ["quote expires in %d s. Click Confirm to buy"] = "报价将在 %d 秒后过期。按确认购买",
   ["re-checking what remains at a safe price..."] = "正在重新检查安全价位还剩多少...",
   ["recent sales (newest first):"] = "最近的销售（从新到旧）：",
   ["region %s · bundled: %d items (%s), imported: %s"] =
@@ -851,7 +851,7 @@ GC.Locales.zhCN = {
     "最坏情况下，把全部 %d 件按现在挂着的价格卖回去",
   ["worth cancelling"] = "值得取消",
   ["would sell at a loss"] = "卖出会亏损",
-  ["you have enough gold for this now. Check again"] = "现在金币已足够。点击 Check 重新检查",
+  ["you have enough gold for this now. Check again"] = "现在金币已足够。点击检查重新检查",
   ["you haven't imported realm prices yet. Install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "你还没有导入服务器价格。请安装 GoldCap Companion（/goldcap companion）或粘贴 goldcap.gg 的字符串（/goldcap import）。",
   ["you take %d"] = "买入 %d",
@@ -867,7 +867,7 @@ GC.Locales.zhCN = {
   ["~%dh to reach you"] = "约 %d 小时轮到你",
   ["×%d in bags"] = "背包 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
-    "背包 ×%d · Post 会上架其中最大的一堆 %d 件",
+    "背包 ×%d · 按上架会上架其中最大的一堆 %d 件",
   ["×%d in your bags · no stack GoldCap can identify exactly"] =
     "背包 ×%d · 没有 GoldCap 能精确识别的堆叠",
   ["×%d in your bags, ready to list"] = "背包 ×%d，可以上架",
@@ -961,9 +961,9 @@ GC.Locales.zhCN = {
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
     "以 %s 或更低购买：拍卖行估价（上架数量中最便宜的十分之一的要价）为 %s。转售速度未知，因此比商人交易更冒险。扣除 5%% 手续费和押金后，此次购买可赚约 %s。",
   ["under the vendor price. Click Buy to purchase"] =
-    "低于商人收购价。点击 Buy 购买",
+    "低于商人收购价。点击购买",
   ["far under the market, resale speed unknown. Click Buy to purchase"] =
-    "远低于市场价，转售速度未知。点击 Buy 购买",
+    "远低于市场价，转售速度未知。点击购买",
   ["No deals in your last scan."] =
     "上次扫描没有交易。",
   ["Deals appear as soon as the scan finds them."] =
@@ -989,7 +989,7 @@ GC.Locales.zhCN = {
   ["resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day"] =
     "按近期成交价每件 %s 转售，扣除 5%% 手续费和押金；每天约卖出 %s 件",
   ["far under what it sells for, about %s sell a day. Click Buy to purchase"] =
-    "远低于成交价，每天约卖出 %s 件。点击 Buy 购买",
+    "远低于成交价，每天约卖出 %s 件。点击购买",
   ["Shared with goldcap.gg on your next /reload"] = "将在你下次 /reload 时分享到 goldcap.gg",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "你的扫描结果保存在这台电脑上。GoldCap Companion 会把它们分享到 goldcap.gg，并带回所有人的价格。",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion 会在每次 /reload 后把你的扫描分享到 goldcap.gg，并带回所有人的价格。",
@@ -1589,7 +1589,7 @@ GC.Locales.zhCN = {
   ["From a group you follow on goldcap.gg. Whether it resells is yours to judge."] = "来自你在 goldcap.gg 关注的分组。能否转卖由你判断。",
   ["Region price"] = "区域价格",
   ["Group's price"] = "分组价格",
-  ["at or under the group's price. Click Buy to purchase"] = "不高于分组价格。点击 Buy 购买",
+  ["at or under the group's price. Click Buy to purchase"] = "不高于分组价格。点击购买",
   ["price checked a moment ago. Whether it sells is your call"] = "价格刚刚核对过。能否卖掉由你决定",
   ["GoldCap is checking prices here"] = "GoldCap 正在这里查价",
   ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."] =
