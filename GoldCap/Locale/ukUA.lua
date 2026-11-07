@@ -58,7 +58,7 @@ GC.Locales.ukUA = {
   ["%d caps · %s"] = "%d стель · %s",
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan. Full Scan to refresh"] =
-    "%d угод з останнього сканування. Скан, щоб оновити",
+    "%d угод з останнього сканування. Натисніть «Скан», щоб оновити",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d відсіяно: важко перепродати або нижче вашого мінімального прибутку з купівлі",
   ["%d held back"] = "%d притримано",
   ["%d hidden: the live check refused them"] = "%d приховано: жива перевірка їх відхилила",
@@ -173,7 +173,7 @@ GC.Locales.ukUA = {
   ["Checking this item's price…"] = "Перевіряємо ціну цього предмета…",
   ["Checking..."] = "Перевіряю...",
   ["Clear to buy"] = "Можна купувати",
-  ["Click Confirm to post"] = "Натисніть Підтвердити, щоб виставити",
+  ["Click Confirm to post"] = "Натисніть «Підтвердити», щоб виставити",
   ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
     "Ще один клік скасує активний лот. Заново він не виставляється: застава втрачається, а предмети прийдуть поштою, а не одразу в сумки.",
   ["Clicking again deletes this hand-entered cost for good."] =
@@ -266,9 +266,9 @@ GC.Locales.ukUA = {
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Усе інше гаразд. Було б на цьому персонажі більше золота, це була б купівля.",
   ["FIFO allocations"] = "Розподіл FIFO",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
-    "Отримуємо свіжу ціну для цього предмета. Натисніть Виставити ще раз за мить",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
-    "Отримуємо свіжу ціну для цього лота. Натисніть Repost ще раз за мить",
+    "Отримуємо свіжу ціну для цього предмета. Натисніть «Виставити» ще раз за мить",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] =
+    "Отримуємо свіжу ціну для цього лота. Натисніть «Скасувати» ще раз за мить",
   ["Finish the pending post first"] = "Спершу завершіть виставлення, що триває",
   ["Finish the pending post or repost first"] =
     "Спершу завершіть виставлення або перевиставлення, що триває",
@@ -294,7 +294,7 @@ GC.Locales.ukUA = {
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ще не перевірено на живому аукціоні",
   ["Gone"] = "Зник",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
-    "Сірий колір означає, що котирування застаріло; Виставити і Repost оновлять його перед дією.",
+    "Сірий колір означає, що котирування застаріло; «Виставити» і перевиставлення оновлять його перед дією.",
   ["HIDDEN 0"] = "ПРИХОВАНО 0",
   ["HOLDING %d"] = "ТРИМАЄМО %d",
   ["Held back from cancelling"] = "Притримано від скасування",
@@ -448,9 +448,9 @@ GC.Locales.ukUA = {
   ["Posting failed"] = "Виставлення не вдалося",
   ["Posting unavailable"] = "Виставлення недоступне",
   ["Posting…"] = "Ставимо…",
-  ["Press Full Scan to find deals."] = "Натисніть Скан, щоб знайти угоди.",
+  ["Press Full Scan to find deals."] = "Натисніть «Скан», щоб знайти угоди.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
-    "Натисніть Скан, щоб один раз обійти весь аукціон, або Авто, щоб сканувати постійно.",
+    "Натисніть «Скан», щоб один раз обійти весь аукціон, або «Авто», щоб сканувати постійно.",
   ["Previous removal selection cleared"] = "Попередній вибір для видалення скинуто",
   ["Previous repost selection cleared"] = "Попередній вибір для перевиставлення скинуто",
   ["Price"] = "Ціна",
@@ -698,7 +698,7 @@ GC.Locales.ukUA = {
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["at or under your price. Click Buy to purchase"] =
-    "за вашою ціною або дешевше. Натисніть Купити, щоб купити",
+    "за вашою ціною або дешевше. Натисніть «Купити»",
   ["auto off"] = "авто вимкнено",
   ["auto-synced %dh ago"] = "автосинхронізація %dг тому",
   ["auto-synced data for %s loaded (%s old)"] =
@@ -736,7 +736,7 @@ GC.Locales.ukUA = {
   ["full scan interrupted. Confirm your purchase"] =
     "повне сканування перервано. Підтвердіть купівлю",
   ["full scan stalled. Press Full Scan to retry"] =
-    "повне сканування зупинилося. Натисніть Скан ще раз",
+    "повне сканування зупинилося. Натисніть «Скан» ще раз",
   ["full scan stalled, retrying shortly"] = "повне сканування зупинилося, скоро повторимо",
   ["full scan stopped. Press %s to run it again"] =
     "повне сканування зупинено. Натисніть %s, щоб запустити його знову",
@@ -774,7 +774,7 @@ GC.Locales.ukUA = {
     "лот зник: уже викуплений або ціна змінилася",
   ["listing gone: bought out or repriced"] = "лот зник: викуплений або переставлений за ціною",
   ["live safety confirmed. Click Buy to purchase"] =
-    "безпеку підтверджено наживо. Натисніть Купити, щоб купити",
+    "безпеку підтверджено наживо. Натисніть «Купити»",
   ["live verification required"] = "потрібна жива перевірка",
   ["the cheapest is %s, your cap is %s"] = "найдешевше: %s, ваша стеля: %s",
   ["the run changed. Start again"] = "список змінився. Почніть знову",
@@ -800,14 +800,14 @@ GC.Locales.ukUA = {
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "цін ще немає: /goldcap companion або /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] =
-    "підтвердження купівлі не отримано. Скасувати і спробуйте ще раз",
+    "підтвердження купівлі не отримано. Натисніть «Скасувати» і спробуйте ще раз",
   ["no sales recorded yet. Open your mailbox with GoldCap loaded and they will be read from the invoices"] =
     "продажів ще не записано. Відкрийте пошту з увімкненим GoldCap, і їх буде зчитано з рахунків",
   ["no stock in bags or listed, nothing to price for"] =
     "немає запасу в сумках і на аукціоні, нема для чого рахувати ціну",
   ["none"] = "немає",
   ["not enough gold: total %s, you have %s"] = "недостатньо золота: разом %s, у вас %s",
-  ["not enough gold for this quote. Cancel"] = "недостатньо золота за цією ціною. Скасувати",
+  ["not enough gold for this quote. Cancel"] = "недостатньо золота за цією ціною. Натисніть «Скасувати»",
   ["not enough gold on this character: you need %s"] = "недостатньо золота на цьому персонажі: потрібно %s",
   ["not enough units left for that quantity, re-checking what remains..."] =
     "для такої кількості одиниць уже не вистачає, перевіряємо ще раз, що лишилося...",
@@ -832,7 +832,7 @@ GC.Locales.ukUA = {
   ["price changed after you closed the buy window: nothing was bought"] =
     "ціна змінилася після закриття вікна купівлі: нічого не куплено",
   ["price confirmed. Click Buy to purchase"] =
-    "ціну підтверджено. Натисніть Купити, щоб купити",
+    "ціну підтверджено. Натисніть «Купити»",
   ["price rose %.1fx, still safe. Confirm"] = "ціна зросла в %.1fx, усе ще безпечно. Підтвердіть",
   ["price stands %d of %d"] = "ваша ціна: %d з %d",
   ["prices loaded are %s (%s) but you are playing in %s, so every discount and profit figure is measured against another market"] =
@@ -843,12 +843,12 @@ GC.Locales.ukUA = {
   ["purchase pending exact cost"] = "купівля очікує точної собівартості",
   ["purchase total unavailable. Check your mail"] =
     "загальна сума купівлі недоступна. Перевірте пошту",
-  ["quote %s. Click Confirm to buy"] = "котирування %s. Натисніть Підтвердити, щоб купити",
+  ["quote %s. Click Confirm to buy"] = "котирування %s. Натисніть «Підтвердити», щоб купити",
   ["quote %ss ago"] = "котирування %sс тому",
   ["quote expired. Refresh to re-check the price"] =
-    "котирування протерміновано. Натисніть Оновити, щоб перевірити ціну ще раз",
+    "котирування протерміновано. Натисніть «Оновити», щоб перевірити ціну ще раз",
   ["quote expires in %d s. Click Confirm to buy"] =
-    "котирування спливає за %d с. Натисніть Підтвердити, щоб купити",
+    "котирування спливає за %d с. Натисніть «Підтвердити», щоб купити",
   ["re-checking what remains at a safe price..."] =
     "перевіряємо ще раз, що лишилося за безпечною ціною...",
   ["recent sales (newest first):"] = "останні продажі (найновіші зверху):",
@@ -904,7 +904,7 @@ GC.Locales.ukUA = {
     "у найгіршому разі, якщо продати всі %d за ціною, що стоїть там зараз",
   ["worth cancelling"] = "варто скасувати",
   ["would sell at a loss"] = "продалося б у збиток",
-  ["you have enough gold for this now. Check again"] = "тепер золота вистачає. Натисніть Перевір, щоб перевірити знову",
+  ["you have enough gold for this now. Check again"] = "тепер золота вистачає. Натисніть «Перевір» ще раз",
   ["you haven't imported realm prices yet. Install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "ви ще не імпортували ціни реалму. Встановіть GoldCap Companion (/goldcap companion) або вставте рядок з goldcap.gg (/goldcap import).",
   ["you take %d"] = "берете %d",
@@ -920,7 +920,7 @@ GC.Locales.ukUA = {
   ["~%dh to reach you"] = "~%d год до вас",
   ["×%d in bags"] = "×%d у сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
-    "×%d у ваших сумках · за кнопкою Виставити піде %d із них, найбільший стек",
+    "×%d у ваших сумках · за кнопкою «Виставити» піде %d із них, найбільший стек",
   ["×%d in your bags · no stack GoldCap can identify exactly"] =
     "×%d у ваших сумках · немає стека, який GoldCap може точно визначити",
   ["×%d in your bags, ready to list"] = "×%d у ваших сумках, готові до виставлення",
@@ -1018,9 +1018,9 @@ GC.Locales.ukUA = {
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
     "Купити за %s або менше: оцінка на аукціоні (ціна, яку просить найдешевша десята частина виставлених одиниць) становить %s. Швидкість перепродажу невідома, тож це ризикованіше за угоду з торговцем. Ця покупка приносить приблизно %s після комісії 5%% і застави.",
   ["under the vendor price. Click Buy to purchase"] =
-    "нижче за ціну торговця. Натисніть Купити, щоб купити",
+    "нижче за ціну торговця. Натисніть «Купити»",
   ["far under the market, resale speed unknown. Click Buy to purchase"] =
-    "набагато нижче за ринок, швидкість перепродажу невідома. Натисніть Купити, щоб купити",
+    "набагато нижче за ринок, швидкість перепродажу невідома. Натисніть «Купити»",
   ["No deals in your last scan."] =
     "Немає угод в останньому скані.",
   ["Deals appear as soon as the scan finds them."] =
@@ -1046,7 +1046,7 @@ GC.Locales.ukUA = {
   ["resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day"] =
     "перепродаж за ціною недавніх продажів, %s/шт., мінус 5%% комісії та застава; продається близько %s на день",
   ["far under what it sells for, about %s sell a day. Click Buy to purchase"] =
-    "набагато нижче за ціну продажів, продається близько %s на день. Натисніть Купити, щоб купити",
+    "набагато нижче за ціну продажів, продається близько %s на день. Натисніть «Купити»",
   ["Shared with goldcap.gg on your next /reload"] = "Буде передано на goldcap.gg під час наступного /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Ваші скани залишаються на цьому комп'ютері. GoldCap Companion передає їх на goldcap.gg і повертає ціни всіх гравців.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion передає ваші скани на goldcap.gg після кожного /reload і повертає ціни всіх гравців.",
@@ -1754,7 +1754,7 @@ GC.Locales.ukUA = {
   ["From a group you follow on goldcap.gg. Whether it resells is yours to judge."] = "З групи, на яку ви підписані на goldcap.gg. Чи перепродасться, вирішувати вам.",
   ["Region price"] = "Ціна регіону",
   ["Group's price"] = "Ціна групи",
-  ["at or under the group's price. Click Buy to purchase"] = "за ціною групи або дешевше. Натисніть Купити, щоб купити",
+  ["at or under the group's price. Click Buy to purchase"] = "за ціною групи або дешевше. Натисніть «Купити»",
   ["price checked a moment ago. Whether it sells is your call"] = "ціну щойно перевірено. Чи продасться, вирішувати вам",
   ["GoldCap is checking prices here"] = "GoldCap перевіряє тут ціни",
   ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."] =

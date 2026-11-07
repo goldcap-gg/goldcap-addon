@@ -276,8 +276,8 @@ GC.Locales.frFR = {
   ["FIFO allocations"] = "Affectations FIFO",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
     "Récupération d'un prix frais pour cet objet. Réappuie sur Vendre dans un instant",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
-    "Récupération d'un prix frais pour ce lot. Réappuie sur Repost dans un instant",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] =
+    "Récupération d'un prix frais pour ce lot. Réappuie sur Annuler dans un instant",
   ["Finish the pending post first"] = "Termine d'abord la mise en vente en cours",
   ["Finish the pending post or repost first"] =
     "Termine d'abord la mise en vente ou la remise en vente en cours",

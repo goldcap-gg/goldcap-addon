@@ -276,8 +276,8 @@ GC.Locales.ptBR = {
   ["FIFO allocations"] = "Alocações FIFO",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
     "Buscando um preço novo para este item. Clique em Anunciar de novo daqui a pouco",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
-    "Buscando um preço novo para este lote. Clique em Repost de novo daqui a pouco",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] =
+    "Buscando um preço novo para este lote. Clique em Cancelar de novo daqui a pouco",
   ["Finish the pending post first"] = "Termine primeiro o anúncio pendente",
   ["Finish the pending post or repost first"] =
     "Termine primeiro o anúncio ou reanúncio pendente",

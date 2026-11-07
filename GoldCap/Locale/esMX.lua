@@ -280,8 +280,8 @@ GC.Locales.esMX = {
   ["FIFO allocations"] = "Asignaciones FIFO",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
     "Obteniendo un precio nuevo para este objeto. Vuelve a pulsar Publicar en un momento",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
-    "Obteniendo un precio nuevo para este lote. Vuelve a pulsar Repost en un momento",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] =
+    "Obteniendo un precio nuevo para este lote. Vuelve a pulsar Cancelar en un momento",
   ["Finish the pending post first"] = "Termina antes la publicación pendiente",
   ["Finish the pending post or repost first"] =
     "Termina antes la publicación o republicación pendiente",

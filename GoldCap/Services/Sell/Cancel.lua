@@ -92,7 +92,7 @@ function Post.PrepareCancel(row, auctionID, now)
     if S.repostingRow == row then Post.DisarmRepost() end
     -- Previously this refreshed the quote and returned in silence, so a first click looked like
     -- a dead button. Say what is happening; the click that follows is the one that arms.
-    View.status(GC.L["Fetching a fresh price for this lot. Press Repost again in a moment"])
+    View.status(GC.L["Fetching a fresh price for this lot. Press Cancel lot again in a moment"])
     Walk.RefreshFor(position); return
   end
   if row.repostStage == "armed" and not now then

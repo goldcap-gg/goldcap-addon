@@ -270,8 +270,8 @@ GC.Locales.koKR = {
   ["FIFO allocations"] = "선입선출 배분",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
     "이 아이템의 최신 가격을 가져오는 중. 잠시 후 등록을 다시 누르세요",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
-    "이 물량의 최신 가격을 가져오는 중. 잠시 후 Repost를 다시 누르세요",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] =
+    "이 물량의 최신 가격을 가져오는 중. 잠시 후 물량 취소를 다시 누르세요",
   ["Finish the pending post first"] = "진행 중인 등록을 먼저 끝내세요",
   ["Finish the pending post or repost first"] = "진행 중인 등록 또는 재등록을 먼저 끝내세요",
   ["Font scale"] = "글꼴 크기",

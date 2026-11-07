@@ -268,8 +268,8 @@ GC.Locales.zhCN = {
   ["FIFO allocations"] = "先进先出分配",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
     "正在获取该物品的最新价格。稍后再按上架",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
-    "正在获取该批的最新价格。稍后再按 Repost",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] =
+    "正在获取该批的最新价格。稍后再按“取消该批”",
   ["Finish the pending post first"] = "请先完成进行中的上架",
   ["Finish the pending post or repost first"] = "请先完成进行中的上架或重新上架",
   ["Font scale"] = "字体缩放",

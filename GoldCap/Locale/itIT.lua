@@ -276,8 +276,8 @@ GC.Locales.itIT = {
   ["FIFO allocations"] = "Allocazioni FIFO",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
     "Sto recuperando un prezzo aggiornato per questo oggetto. Ripremi Vendi tra un istante",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
-    "Sto recuperando un prezzo aggiornato per questo lotto. Ripremi Repost tra un istante",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] =
+    "Sto recuperando un prezzo aggiornato per questo lotto. Ripremi Annulla tra un istante",
   ["Finish the pending post first"] = "Completa prima la vendita in corso",
   ["Finish the pending post or repost first"] =
     "Completa prima la vendita o la rimessa in vendita in corso",

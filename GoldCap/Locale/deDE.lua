@@ -276,8 +276,8 @@ GC.Locales.deDE = {
   ["FIFO allocations"] = "FIFO-Zuordnung",
   ["Fetching a fresh price for this item. Press Post again in a moment"] =
     "Neuer Preis für diesen Gegenstand wird geholt. Gleich nochmal Einstellen drücken",
-  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
-    "Neuer Preis für diesen Posten wird geholt. Gleich nochmal Repost drücken",
+  ["Fetching a fresh price for this lot. Press Cancel lot again in a moment"] =
+    "Neuer Preis für diesen Posten wird geholt. Gleich nochmal Abbrechen drücken",
   ["Finish the pending post first"] = "Zuerst das laufende Einstellen abschließen",
   ["Finish the pending post or repost first"] =
     "Zuerst das laufende Einstellen oder Neueinstellen abschließen",
