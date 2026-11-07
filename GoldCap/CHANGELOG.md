@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.25.0 (unreleased)
+
+- WoW: Forever: the groups you follow on goldcap.gg now work on the SELL tab. Each group's price
+  floor, how long it lists for and posting one at a time apply to its items, and the GROUPS row
+  above the list lets you post one group at a time. The Companion brings the groups in.
+- WoW: Forever, DEALS: an item of a group you follow is marked GROUP with the group's name, and a
+  commodity of the group listed under the group's price shows up as a deal, measured against the
+  group's usual price.
+
 ## 0.24.2 (2026-11-07)
 
 - WoW: Forever, DEALS: grey items are no longer offered as "Under market" buys. Their listings sit
