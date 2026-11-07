@@ -5,7 +5,7 @@ local helper = require("spec.spec_helper")
 -- each other, which is the class of bug that survives a green unit suite and
 -- then greets the player as an empty tab.
 describe("Sell pricing walk order", function()
-  local GC, root, rows, render
+  local GC, root, render
 
   local function region(kind, parent)
     local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
@@ -92,7 +92,7 @@ describe("Sell pricing walk order", function()
     helper.loadModule("UI/SellViewModel.lua", GC)
     GC.Sniper = {
       IsAHOpen = function() return true end, IsBusy = function() return false end, CurrentView = function() return "sell" end,
-      _TrySendKeysBatchFor = function(poll, who, wants)
+      _TrySendKeysBatchFor = function(_, who)
         GC.Sniper._keysOwner, GC.Sniper._keysAwaiting = who, 100
         return true
       end,
