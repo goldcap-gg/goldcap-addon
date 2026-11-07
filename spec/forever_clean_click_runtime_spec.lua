@@ -806,6 +806,23 @@ describe("Clean click ordering, driven end to end", function()
       assert.equal(105, live.decision.stressProfit)
     end)
 
+    -- ClickUp 869fpab6a: a row measured against what sold names the units its sales allow
+    -- (GC.ForeverDeals.CeilingFor's maxUnits), and the live Check buys no more than that.
+    it("holds a Forever buy to the units the item's sales allow", function()
+      local GC = loadSniper()
+      local evaluate = getUpvalue(GC.Sniper.OnCommoditySearchResults, "evaluateLiveCommodityDeal")
+      books[42] = FOREVER_BOOK
+      foreverCeiling(GC, 42, 12, 13)
+      local plain = GC.ForeverDeals.CeilingFor
+      GC.ForeverDeals.CeilingFor = function(id)
+        local c = plain(id)
+        if c then c.maxUnits = 15 end
+        return c
+      end
+      local live = evaluate(42, FOREVER_BOOK)
+      assert.equal(15, live.decision.quantity) -- the 8c and 9c levels, not the 12c one's 40 more
+    end)
+
     it("Start (StartCommoditiesPurchase), on a Forever row armed by its ceiling", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 12, 13)

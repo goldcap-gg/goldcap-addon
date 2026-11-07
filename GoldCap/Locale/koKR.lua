@@ -1010,6 +1010,10 @@ GC.Locales.koKR = {
   ["1 scanner, %s ago"] = "스캐너 1명, %s 전",
   ["%d scanners, %s ago"] = "스캐너 %d명, %s 전",
   ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "플레이어 검색 경매장 시세 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 판매 속도 알 수 없음",
+  ["resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day"] =
+    "최근 판매가 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 하루 약 %s개 판매",
+  ["far under what it sells for, about %s sell a day. Click Buy to purchase"] =
+    "판매가보다 훨씬 낮음, 하루 약 %s개 판매. Buy를 눌러 구매하세요",
   ["Shared with goldcap.gg on your next /reload"] = "다음 /reload 때 goldcap.gg와 공유됩니다",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "검색 결과는 이 컴퓨터에만 저장됩니다. GoldCap Companion이 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion이 /reload할 때마다 검색 결과를 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",

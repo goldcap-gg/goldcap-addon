@@ -36,6 +36,8 @@ local C = {
   MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the AH value
   MARKET_MIN_UNITS = 20,             -- thin-market guard: units listed
   MARKET_MIN_LEVELS = 3,             -- thin-market guard: distinct prices listed
+  SOLD_MIN_LOTS = 3,                 -- lots sold in the sales window, for a sold reference
+  SOLD_DAYS = 2,                     -- a buy takes at most this many days of what sells
   -- A floor-only entry (below) is measured against the crowd's AH value only when the crowd saw
   -- the item no more than this long before the scan did.
   FLOOR_CROWD_MAX_AGE_SECONDS = 6 * 3600,
@@ -112,15 +114,11 @@ end
 -- `isCommodity` is a function: for an item key the client has not cached, its answer is a server
 -- request, so it is asked only once the cheapest lot sits under the ceiling a zero deposit would
 -- allow. Nothing under that, no row, whatever the item is.
-local function underMarket(itemID, e, ctx, isCommodity)
+-- The reference while the listings are all there is: the AH value (the cheapest tenth of the
+-- units listed), the crowd's or the scan's, from a book deep enough to mean something.
+local function listedReference(itemID, e, ctx)
   if not e.qty or e.qty < C.MARKET_MIN_UNITS then return nil end
   if not e.floorOnly and not (e.levels and e.levels >= C.MARKET_MIN_LEVELS) then return nil end
-  -- Grey, or not loaded yet: the client loads an item's quality with its vendor price, which Build
-  -- has already asked for, and the rebuild that picks the price up picks the quality up too.
-  if ctx.qualityFor then
-    local quality = ctx.qualityFor(itemID)
-    if type(quality) ~= "number" or quality < 1 then return nil end
-  end
   local ref = ctx.referenceFor and ctx.referenceFor(itemID, e)
   if not ref or (ref.source == "crowd" and type(ref.qty) == "number" and ref.qty < C.MARKET_MIN_UNITS) then
     ref = { value = e.value, p50 = e.p50, source = "own" }
@@ -131,6 +129,41 @@ local function underMarket(itemID, e, ctx, isCommodity)
       and e.foldAt - ref.at > C.FLOOR_CROWD_MAX_AGE_SECONDS)) then
     return nil
   end
+  return ref
+end
+
+-- The reference once goldcap.gg reads what this auction house sold (ClickUp 869fpab6a): the median
+-- price the item's lots sold at, which is what a buyer pays, and how many units go a day. Measured
+-- against the cheapest tenth of what is listed, a lot holding a tenth of the units set that price
+-- itself and never read as cheap, and a price that was only falling read as a bargain: 18 rows from
+-- 3003 items (owner's scan, 2026-11-07). An item that sold fewer than SOLD_MIN_LOTS lots in the
+-- window gets no row: a resale nobody buys is no deal at any price. The listings' depth no longer
+-- matters: the sales are the proof the listings were standing in for.
+local function soldReference(sales)
+  if (sales.lots or 0) < C.SOLD_MIN_LOTS or type(sales.median) ~= "number" or sales.median <= 0 then
+    return nil
+  end
+  return { value = sales.median, source = "sold", perDay = sales.perDay }
+end
+
+local function underMarket(itemID, e, ctx, isCommodity)
+  -- Grey, or not loaded yet: the client loads an item's quality with its vendor price, which Build
+  -- has already asked for, and the rebuild that picks the price up picks the quality up too.
+  if ctx.qualityFor then
+    local quality = ctx.qualityFor(itemID)
+    if type(quality) ~= "number" or quality < 1 then return nil end
+  end
+  local sales = ctx.salesFor and ctx.salesFor(itemID) or nil
+  local ref, maxUnits
+  if sales then
+    ref = soldReference(sales)
+    -- No more than SOLD_DAYS of what sells: a buy that took a month of the item's sales would sit
+    -- on the auction house, relisted and paying a deposit each time.
+    maxUnits = ref and math.max(1, math.floor((sales.perDay or 0) * C.SOLD_DAYS))
+  else
+    ref = listedReference(itemID, e, ctx)
+  end
+  if not ref then return nil end
   local refUnit = referenceUnit(ref)
   if not refUnit then return nil end
   local net = math.floor(refUnit * KEEP)
@@ -149,7 +182,7 @@ local function underMarket(itemID, e, ctx, isCommodity)
   local units, cost = 0, 0
   local best
   for i, level in ipairs(e.ladder) do
-    if level[1] > ceiling then break end
+    if level[1] > ceiling or (maxUnits and units + level[2] > maxUnits) then break end
     units = units + level[2]
     cost = cost + level[1] * level[2]
     local after = e.ladder[i + 1]
@@ -161,8 +194,10 @@ local function underMarket(itemID, e, ctx, isCommodity)
   if not best or best.profit <= 0 then return nil end
   local row = lead(itemID, e, "market", ceiling, refUnit, best.units, best.cost, best.profit)
   row.depositUnit = deposit
-  -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd).
+  -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd,
+  -- market_sold), and how much a day sells, which the live Check holds the buy to.
   row.refSource, row.refScanners = ref.source, ref.scanners
+  row.soldPerDay, row.maxUnits = ref.perDay, maxUnits
   return row
 end
 
@@ -328,6 +363,7 @@ local function rebuild(fold, now)
   local rows, missing, unsure, floorOnly = GC.ForeverDeals.Build(fold, {
     vendorFor = GC.ForeverValue.VendorUnit,
     qualityFor = GC.ForeverValue.Quality,
+    salesFor = GC.Data and GC.Data.ForeverSales,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
     -- its deposit -- not only those the Sell tab once saw in the bags (final review I2).
@@ -462,7 +498,8 @@ function GC.ForeverDeals.CeilingFor(itemID)
   if not row then return nil end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
   return { ceilingUnit = row.ceiling, kind = row.forever, exitUnit = row.refUnit,
-    depositUnit = row.depositUnit, minimumProfit = GC.ForeverDeals.MinimumProfit(settings) }
+    depositUnit = row.depositUnit, minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
+    maxUnits = row.maxUnits }
 end
 
 -- A buy from the row that took `qty` units: the row stays with what is left, through every

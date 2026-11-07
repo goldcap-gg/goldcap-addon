@@ -1060,6 +1060,10 @@ GC.Locales.ptBR = {
   ["1 scanner, %s ago"] = "1 scanner, há %s",
   ["%d scanners, %s ago"] = "%d scanners, há %s",
   ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "revenda pelo valor no leilão dos escaneamentos dos jogadores, %s cada, menos 5%% e depósito; velocidade incerta",
+  ["resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day"] =
+    "revenda pelo preço das vendas recentes, %s cada, menos 5%% e depósito; vendem cerca de %s por dia",
+  ["far under what it sells for, about %s sell a day. Click Buy to purchase"] =
+    "bem abaixo do preço de venda, vendem cerca de %s por dia. Clique em Buy para comprar",
   ["Shared with goldcap.gg on your next /reload"] = "Compartilhado com o goldcap.gg no seu próximo /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Seus escaneamentos ficam neste computador. O GoldCap Companion os compartilha com o goldcap.gg e traz de volta os preços de todos.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "O GoldCap Companion compartilha seus escaneamentos com o goldcap.gg após cada /reload e traz de volta os preços de todos.",

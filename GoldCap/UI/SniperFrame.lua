@@ -2759,10 +2759,22 @@ function GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
     return { status = "WATCH", buyable = false, reasons = { "live_verification_required" } }
   end
   local settings = GC.db.settings.sniper
+  -- A row measured against what sold takes no more units than its sales allow
+  -- (GC.ForeverDeals.CeilingFor's maxUnits, ClickUp 869fpab6a): the per-buy limit's units, lowered.
+  local function limitsAt(wallet)
+    local limits = GC.ForeverDeals.BuyLimits(settings, wallet, ceiling.kind)
+    if not (limits and type(ceiling.maxUnits) == "number" and ceiling.maxUnits < limits.maxQuantity) then
+      return limits
+    end
+    local held = {}
+    for k, v in pairs(limits) do held[k] = v end
+    held.maxQuantity = ceiling.maxUnits
+    return held
+  end
   return GC.SniperDecision.EvaluateCeiling({
     ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind, exitUnit = ceiling.exitUnit,
-    levels = levels, limits = GC.ForeverDeals.BuyLimits(settings, GetMoney(), ceiling.kind),
-    limitsFor = function(wallet) return GC.ForeverDeals.BuyLimits(settings, wallet, ceiling.kind) end,
+    levels = levels, limits = limitsAt(GetMoney()),
+    limitsFor = limitsAt,
     fixedQuantity = fixedQuantity, quotedTotal = quotedTotal,
     depositForQuantity = function(quantity) return depositFor(itemID, quantity) end,
     minimumProfit = ceiling.minimumProfit,
@@ -2777,9 +2789,22 @@ function GC.Sniper._DecideCeilingLot(itemID, lots)
     minimumProfit = ceiling.minimumProfit })
 end
 
+-- Units a day, as the check panel and the buy line print it: under one a day is "<1", never "0"
+-- (three lots in a week is a sale every other day, not none).
+function GC.Sniper._PerDayText(perDay)
+  if type(perDay) ~= "number" or perDay ~= perDay or perDay <= 0 then return nil end
+  if perDay < 1 then return "<1" end
+  return GC.Util.FormatCount(perDay)
+end
+
 -- What the buy window says once a Forever row's Check armed Buy.
-function GC.Sniper._ForeverArmText(decision)
+function GC.Sniper._ForeverArmText(decision, deal)
   if decision and decision.forever == "market" then
+    -- A row measured against what the house sold knows how fast it goes (ClickUp 869fpab6a).
+    local perDay = deal and GC.Sniper._PerDayText(deal.soldPerDay)
+    if perDay then
+      return (GC.L["far under what it sells for, about %s sell a day. Click Buy to purchase"]):format(perDay)
+    end
     return GC.L["far under the market, resale speed unknown. Click Buy to purchase"]
   end
   return GC.L["under the vendor price. Click Buy to purchase"]
@@ -5189,6 +5214,7 @@ local function drawVerdict(deal, decision, market)
   -- came from, named when the player follows it.
   local realm = deal.isCommodity == false
   local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever, refSource = deal.refSource,
+    soldPerDay = deal.soldPerDay,
     route = GC.Sniper._CheckRoute(deal.itemID, decision), realm = realm,
     sold = realm and GC.Data.FlipFacts and GC.Data.FlipFacts(deal.itemID) or nil, group = deal.capGroup })
   local tone = verdict.tone
@@ -5234,9 +5260,11 @@ local function drawVerdict(deal, decision, market)
     local up = hero.copper >= 0
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
     figureColor = hero.refused and Theme.color.fgDim or up and Theme.color.green or Theme.color.red
+    local key = hero.forever ~= "market" and "vendor" or hero.refSource == "sold" and "market_sold"
+      or hero.refSource == "crowd" and "market_crowd" or "market"
     caption = (hero.refused or hero.liveExit) and ""
-      or (GC.L[CV.HERO_CAPTION[hero.forever == "market" and (hero.refSource == "crowd" and "market_crowd" or "market") or "vendor"]])
-        :format(displayDecisionAmount(hero.ref))
+      or (GC.L[CV.HERO_CAPTION[key]]):format(displayDecisionAmount(hero.ref),
+        GC.Sniper._PerDayText(hero.soldPerDay) or "-")
   elseif hero.kind == "days" then
     figure = (GC.L["%d days"]):format(hero.days)
     figureColor = Theme.color.gold
@@ -6612,7 +6640,7 @@ local function applyRequeryResult(row, itemID, live)
       -- confirmed purchase still owed its answer says "waiting" there too (GC.Sniper._HoldWhileOwed).
       if frame then
         frame.status:SetText(decision.cap and GC.Sniper._CapArmText(decision)
-          or decision.ceiling and GC.Sniper._ForeverArmText(decision)
+          or decision.ceiling and GC.Sniper._ForeverArmText(decision, deal)
           or GC.L["live safety confirmed. Click Buy to purchase"])
       end
       armReady(row, deal, decision, live.levels, hold)
@@ -6683,14 +6711,14 @@ local function applyRequeryResult(row, itemID, live)
           elseif hold then
             armLoudConfirm(row, label, true)
             setDialogStatus(capLot and GC.Sniper._CapArmText(decision)
-              or ceilingLot and GC.Sniper._ForeverArmText(decision)
+              or ceilingLot and GC.Sniper._ForeverArmText(decision, deal)
               or GC.L["price checked a moment ago. Whether it sells is your call"])
           elseif capLot then
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.Sniper._CapArmText(decision), 0.25, 0.85, 0.25)
           elseif ceilingLot then
             dialog.primaryBtn:Enable()
-            setDialogStatus(GC.Sniper._ForeverArmText(decision), 0.25, 0.85, 0.25)
+            setDialogStatus(GC.Sniper._ForeverArmText(decision, deal), 0.25, 0.85, 0.25)
           else
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.L["price checked a moment ago. Whether it sells is your call"], 1, 0.82, 0)

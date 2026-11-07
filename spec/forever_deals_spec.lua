@@ -54,6 +54,46 @@ describe("ForeverDeals", function()
     end)
   end)
 
+  -- ClickUp 869fpab6a: once goldcap.gg reads what the house sold, a market row is measured against
+  -- the price lots sold at, only for what sells, and takes no more than two days of it.
+  describe("Build, measured against what sold", function()
+    -- 30 units at 50c under 170 at 100c: the cheap lot holds over a tenth of the units, so it IS
+    -- the AH value, and two prices are under the thin-market guard's three (review 2026-11-07).
+    local UNDERCUT = "50,200,10,;0x30 50x170|50,50,2"
+    local function sold(lots, perDay, median)
+      return function() return { units = perDay * 7, lots = lots, median = median or 100, p25 = 95, perDay = perDay } end
+    end
+
+    it("finds a big undercut the listings alone never show", function()
+      commodity[1] = true
+      assert.equal(0, #D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = function() return 0 end })))
+      local rows = D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = function() return 0 end, salesFor = sold(20, 20) }))
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.same({ "market", 30, 1500, 100, "sold", 20, 40 },
+        { r.forever, r.qty, r.capTotal, r.refUnit, r.refSource, r.soldPerDay, r.maxUnits })
+      assert.equal(1321, r.profit) -- resold at 99c, under the 100c level left: 2970 - 149 cut - 1500
+    end)
+
+    it("lists nothing that sold under three lots, however cheap", function()
+      commodity[765] = true
+      local silverleaf = { [765] = "10,4062,200,;0x165 5x100 8x3797|0,8,15" }
+      local zero = function() return 0 end
+      assert.equal(1, #D.Build(fold(silverleaf), ctx({ depositFor = zero })))  -- no tape: the listings
+      assert.equal(0, #D.Build(fold(silverleaf), ctx({ depositFor = zero, salesFor = sold(2, 50, 30) })))
+      assert.equal(0, #D.Build(fold(silverleaf), ctx({ depositFor = zero,
+        salesFor = function() return { units = 0, lots = 0, perDay = 0 } end })))
+    end)
+
+    it("takes no more than two days of what sells", function()
+      commodity[1] = true
+      local zero = function() return 0 end
+      -- 5 a day: 10 units at most, and the cheapest level alone holds 30.
+      assert.equal(0, #D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = zero, salesFor = sold(20, 5) })))
+      assert.equal(1, #D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = zero, salesFor = sold(20, 15) })))
+    end)
+  end)
+
   -- Owner's evening of 2026-11-06: every full dump came back cut at 1023 rows, the browse pass
   -- priced 1525 items by their lowest price alone, and the board said "deals 0".
   describe("Build, floor-only entries (the server cut the full dump short)", function()
@@ -636,6 +676,15 @@ describe("ForeverDeals", function()
       t = t + 1200
       scan(110, true)
       assert.equal(110, D.Rows(t)[1].unitPrice)
+    end)
+
+    it("names the units a day's sales allow, for the live Check to hold its buy to", function()
+      GC.Data = { ForeverSales = function() return { units = 140, lots = 30, median = 20, p25 = 18, perDay = 20 } end }
+      GC.ForeverValue.CommodityDepositUnit = function() return 0 end
+      local ceiling = (function() D.Rows(clock); return D.CeilingFor(2589) end)()
+      assert.equal("market", ceiling.kind)
+      assert.equal(40, ceiling.maxUnits)
+      assert.equal(20, ceiling.exitUnit)
     end)
 
     it("names the ceiling a live Check is held to, and drops a row until the next fold", function()

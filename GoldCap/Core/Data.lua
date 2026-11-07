@@ -631,6 +631,22 @@ function GC.Data.ForeverReference(itemID, ownAt, ownValue, ownP50)
   return { value = ownValue, p50 = ownP50, source = "own" }
 end
 
+-- WoW: Forever: what an item sold for lately in this character's auction house, from Blizzard's
+-- hourly snapshots as goldcap.gg reads them (GCF1's H and S sections). nil while the payload has
+-- under a day of tape: a listing runs up to a day, so less says nothing about what does not sell.
+-- An item the tape covered and S does not list sold nothing: `lots` 0. `perDay` is units a day.
+GC.Data.FOREVER_SALES_MIN_HOURS = 24
+
+function GC.Data.ForeverSales(itemID)
+  local p = adoptedPayload()
+  local hours = p and p.salesHours
+  if type(hours) ~= "number" or hours < GC.Data.FOREVER_SALES_MIN_HOURS then return nil end
+  local s = p.sales and p.sales[itemID]
+  if not s then return { units = 0, lots = 0, perDay = 0, hours = hours } end
+  return { units = s.units, lots = s.lots, median = s.median, p25 = s.p25,
+    perDay = s.units * 24 / hours, hours = hours }
+end
+
 function GC.Data.GetItemValue(itemID)
   -- 1. The region payload (GCM1): every commodity of the region at its latest snapshot, facts
   -- where it sold in the last day, p25 and reach where it has them. Ahead of the import on

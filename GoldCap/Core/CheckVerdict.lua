@@ -97,6 +97,8 @@ GC.CheckVerdict.HERO_CAPTION = {
   vendor = "sure profit: a vendor pays %s each",
   market = "resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown",
   market_crowd = "resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown",
+  -- Measured against what the house sold (ClickUp 869fpab6a): the price and how many go a day.
+  market_sold = "resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day",
   needs = "Costs %s. With your %d%% per-buy limit you need %s on this character.",
 }
 
@@ -376,7 +378,7 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- would call that price the AH value, so the panel leaves it out, as for a refusal; the
     -- figure and what comes back are the live book's.
     hero = { kind = "forever", forever = forever, copper = decision.stressProfit, ref = decision.exitUnit,
-      refused = tone == "refuse" or nil, refSource = context.refSource,
+      refused = tone == "refuse" or nil, refSource = context.refSource, soldPerDay = context.soldPerDay,
       liveExit = positive(decision.refUnit) and decision.exitUnit < decision.refUnit or nil }
   elseif tone == "adjust" then
     hero = positive(decision.quantity) and { kind = "units", quantity = decision.quantity }

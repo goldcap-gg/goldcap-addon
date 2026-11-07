@@ -986,6 +986,10 @@ GC.Locales.zhCN = {
   ["1 scanner, %s ago"] = "1 位扫描者，%s前",
   ["%d scanners, %s ago"] = "%d 位扫描者，%s前",
   ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "按玩家扫描的拍卖行估价每件 %s 转售，扣除 5%% 手续费和押金；速度未知",
+  ["resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day"] =
+    "按近期成交价每件 %s 转售，扣除 5%% 手续费和押金；每天约卖出 %s 件",
+  ["far under what it sells for, about %s sell a day. Click Buy to purchase"] =
+    "远低于成交价，每天约卖出 %s 件。点击 Buy 购买",
   ["Shared with goldcap.gg on your next /reload"] = "将在你下次 /reload 时分享到 goldcap.gg",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "你的扫描结果保存在这台电脑上。GoldCap Companion 会把它们分享到 goldcap.gg，并带回所有人的价格。",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion 会在每次 /reload 后把你的扫描分享到 goldcap.gg，并带回所有人的价格。",

@@ -15,6 +15,10 @@
   of the whole amount coming back a few seconds later.
 - WoW: Forever: "Min profit per buy" no longer takes the retail figure (in gold) when you changed
   it there. Forever starts at 20c until you set its own field.
+- WoW: Forever, DEALS: with the Companion, "Under market" deals are now measured against the
+  price your auction house actually sold the item for this week, not against the cheapest
+  listings. Only items that sell are offered, a buy takes no more than about two days of what
+  sells, and the buy window says how many sell a day instead of "resale speed unknown".
 - WoW: Forever, DEALS: when nothing on the board fits your gold, the line at the top also says
   what your bags would fetch on the auction house and to post them on SELL.
 

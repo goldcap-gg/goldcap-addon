@@ -1043,6 +1043,10 @@ GC.Locales.ukUA = {
   ["1 scanner, %s ago"] = "1 сканер, %s тому",
   ["%d scanners, %s ago"] = "сканерів: %d, %s тому",
   ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "перепродаж за оцінкою на аукціоні зі сканувань гравців, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
+  ["resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day"] =
+    "перепродаж за ціною недавніх продажів, %s/шт., мінус 5%% комісії та застава; продається близько %s на день",
+  ["far under what it sells for, about %s sell a day. Click Buy to purchase"] =
+    "набагато нижче за ціну продажів, продається близько %s на день. Натисніть Buy, щоб купити",
   ["Shared with goldcap.gg on your next /reload"] = "Буде передано на goldcap.gg під час наступного /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Ваші скани залишаються на цьому комп'ютері. GoldCap Companion передає їх на goldcap.gg і повертає ціни всіх гравців.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion передає ваші скани на goldcap.gg після кожного /reload і повертає ціни всіх гравців.",

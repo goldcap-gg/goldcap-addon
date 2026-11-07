@@ -384,7 +384,13 @@ end
 -- install's GoldCap_AppData.foreverString. The site's grammar (plan 2a, Task 9):
 --   GCF1;<slug>;<regionId>;<realm>;<faction or ->;<ts>;I:<id>=<min>=<ah>=<mv>=<p50>=<qty>=<scanners>=<age>[=g],...
 -- The realm has % ; , = : | percent-escaped. mv and p50 may be empty. age is minutes before ts.
--- Every token is matched whole and anchored: a malformed one drops itself, never the payload.
+-- Every token is matched whole and anchored: a malformed one drops itself, never the payload. So
+-- an I token never gains a field (an older addon would drop every item); what the site adds comes
+-- as a section of its own, which an older addon skips. A market goldcap.gg reads Blizzard's sales
+-- for (ClickUp 869fpab6a) also carries
+--   H:<hours>   hours of that house's sales tape, inside the last 168
+--   S:<id>=<units>=<lots>=<median>=<p25>,...   what sold in them: units, lots, and the median and
+--                                              quarter-way unit price of the lots that sold
 GC.ImportString.FOREVER_MAX_LEN = 2000000
 
 local function unescapeField(s)
@@ -409,6 +415,21 @@ function GC.ImportString.ParseForever(str)
             p50 = tonumber(p50), qty = tonumber(qty), w = tonumber(w), age = tonumber(age),
             gear = g == "g" or nil }
           result.count = result.count + 1
+        end
+      end
+    elseif kind == "H" then
+      -- Hours of the house's sales tape the S section covers (goldcap.gg, the last 168 at most).
+      local hours = body:match("^(%d+)$")
+      if hours then result.salesHours = tonumber(hours) end
+    elseif kind == "S" then
+      -- What sold in those hours, per item: units, lots, and the median and quarter-way unit
+      -- price of the lots that sold. An item the tape covered but S does not list sold nothing.
+      result.sales = result.sales or {}
+      for token in body:gmatch("[^,]+") do
+        local id, units, lots, median, p25 = token:match("^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$")
+        if id then
+          result.sales[tonumber(id)] = { units = tonumber(units), lots = tonumber(lots),
+            median = tonumber(median), p25 = tonumber(p25) }
         end
       end
     end

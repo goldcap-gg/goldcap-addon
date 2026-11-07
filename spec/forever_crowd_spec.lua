@@ -37,6 +37,20 @@ describe("GCF1, the WoW: Forever crowd payload", function()
     assert.is_not_nil(p.items[1])
   end)
 
+  -- ClickUp 869fpab6a: what sold, as sections of their own. An I token never gains a field: an
+  -- older addon anchors on its exact count and would drop every item.
+  it("reads the sales tape's hours and what sold, and skips a malformed sales token alone", function()
+    local p = GC.ImportString.ParseForever(BODY .. ";H:72;S:2589=300=41=75=71,oops,2592=4=2=260=255")
+    assert.equal(2, p.count)
+    assert.equal(72, p.salesHours)
+    assert.same({ units = 300, lots = 41, median = 75, p25 = 71 }, p.sales[2589])
+    assert.same({ units = 4, lots = 2, median = 260, p25 = 255 }, p.sales[2592])
+    assert.same({ min = 68, ah = 70, mv = 69, p50 = 79, qty = 7000, w = 2, age = 0, gear = true }, p.items[2589])
+    local none = GC.ImportString.ParseForever(BODY)
+    assert.is_nil(none.salesHours)
+    assert.is_nil(none.sales)
+  end)
+
   it("refuses what is not a Forever payload", function()
     assert.same({ nil, "empty" }, { GC.ImportString.ParseForever(nil) })
     assert.same({ nil, "bad_header" }, { GC.ImportString.ParseForever("GCM1;eu;1;I:1=2") })
@@ -80,6 +94,20 @@ describe("adopting the crowd payload", function()
     assert.equal(1, GC.Data.ForeverPayload().count)
     assert.is_nil(_G.GoldCap_AppData.foreverString)
     assert.is_true(GC.Data.CompanionShares())
+  end)
+
+  it("says what an item sold for with a day of tape or more, and nothing with less", function()
+    load(16001)
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71" }
+    GC.Data.AdoptAppData()
+    assert.same({ units = 300, lots = 41, median = 75, p25 = 71, perDay = 150, hours = 48 }, GC.Data.ForeverSales(2589))
+    assert.same({ units = 0, lots = 0, perDay = 0, hours = 48 }, GC.Data.ForeverSales(2592)) -- sold nothing
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:23;S:2589=300=41=75=71" }
+    GC.Data.AdoptAppData()
+    assert.is_nil(GC.Data.ForeverSales(2589))
+    _G.GoldCap_AppData = { foreverString = body() }
+    GC.Data.AdoptAppData()
+    assert.is_nil(GC.Data.ForeverSales(2589))
   end)
 
   it("never adopts another market's prices as this character's", function()

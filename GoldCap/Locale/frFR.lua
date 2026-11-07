@@ -1063,6 +1063,10 @@ GC.Locales.frFR = {
   ["1 scanner, %s ago"] = "1 scanner, il y a %s",
   ["%d scanners, %s ago"] = "%d scanners, il y a %s",
   ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "revente à la valeur HV des scans des joueurs, %s l'unité, moins 5%% et caution ; vitesse inconnue",
+  ["resale at what it sold for lately, %s each, after the 5%% cut and deposit; about %s sell a day"] =
+    "revente au prix des ventes récentes, %s l'unité, moins 5%% et caution ; environ %s ventes par jour",
+  ["far under what it sells for, about %s sell a day. Click Buy to purchase"] =
+    "bien sous le prix de vente, environ %s ventes par jour. Clique sur Buy pour acheter",
   ["Shared with goldcap.gg on your next /reload"] = "Partagé avec goldcap.gg au prochain /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Vos scans restent sur cet ordinateur. Le GoldCap Companion les partage avec goldcap.gg et vous rapporte les prix de tous.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "Le GoldCap Companion partage vos scans avec goldcap.gg après chaque /reload et vous rapporte les prix de tous.",
