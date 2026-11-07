@@ -5,8 +5,13 @@
 -- round, and for a subgroup only pi = its parent group's slug, pn = the parent's name, cn = the
 -- subgroup's own short label }. The cap itself carries the usual price `u` and, for a craft group, the cost to craft `f`.
 -- The Companion writes all of it into GoldCap_AppRuns (Core/Caps.lua reads the same caps for
--- DEALS). Retail only: GoldCap_Camelot.toc does not load this file, so every caller asks
--- `if GC.GroupRules`.
+-- DEALS). Both games load it (WoW: Forever too); SellRounds, the mail, bank and Hoard files that
+-- read it stay retail only, so a caller of those asks `if GC.SellRounds` and the like.
+--
+-- `d` is the rule's duration in HOURS OF THE GAME IT IS FOR: 12, 24 or 48 on retail, 2, 8 or 24 on
+-- WoW: Forever, whose auction house offers those three (AUCTION_DURATION_ONE to THREE, index 1 to
+-- 3). The one place that turns hours into the index the posting calls take is `hoursFor` below;
+-- an hour count the game does not offer makes the rule unreadable, as any other bad field does.
 --
 -- The name is the group's in the language of the player's newest follow, so it can change; the id
 -- (lowercase letters, digits, `_` and `-`, 1 to 80 of them; anything else is read as no id) does
@@ -27,13 +32,34 @@ local _, GC = ...
 GC.GroupRules = {}
 local M = GC.GroupRules
 
-M.HOURS_TO_INDEX = { [12] = 1, [24] = 2, [48] = 3 }
 M.durationByItem = {}
 
 local PLAYS = { flip = true, gather = true, craft = true, stock = true }
-local INDEX_TO_HOURS = { 12, 24, 48 }
+local RETAIL_HOURS = { 12, 24, 48 }
+local FOREVER_HOURS = { 2, 8, 24 }
+local HOURS_TO_INDEX = {
+  [RETAIL_HOURS] = { [12] = 1, [24] = 2, [48] = 3 },
+  [FOREVER_HOURS] = { [2] = 1, [8] = 2, [24] = 3 },
+}
+M.RETAIL_HOURS, M.FOREVER_HOURS = RETAIL_HOURS, FOREVER_HOURS
+
+-- The three hour counts this client's auction house offers, shortest first. Read at the call, as
+-- every game gate in the addon is (GC.Game.IsForever on the passport).
+local function hoursFor()
+  local game = GC.Game
+  if game and game.IsForever and game.IsForever(game.Passport and game.Passport()) then return FOREVER_HOURS end
+  return RETAIL_HOURS
+end
+
+-- The posting index (1 to 3) for a rule's hours on this client, or nil.
+function M.IndexOfHours(hours)
+  return HOURS_TO_INDEX[hoursFor()][hours]
+end
 -- itemID -> { rule = the readable rule as the file has it, l, u, f }, rebuilt by Adopt.
 local byItem = {}
+-- Counts the Adopts that changed something, for a reader that caches what it built from the groups
+-- (Core/ForeverDeals.lua).
+M.rev = 0
 
 -- A finite number, or nil: the same guard Core/Caps.lua reads every cap field with.
 local function num(v)
@@ -61,11 +87,11 @@ end
 
 local function readableRule(rule)
   return type(rule) == "table" and type(rule.n) == "string" and rule.n ~= ""
-    and PLAYS[rule.p] == true and M.HOURS_TO_INDEX[rule.d] ~= nil
+    and PLAYS[rule.p] == true and M.IndexOfHours(rule.d) ~= nil
 end
 
 local function sameEntry(a, b)
-  if a.l ~= b.l or a.u ~= b.u or a.f ~= b.f then return false end
+  if a.l ~= b.l or a.u ~= b.u or a.f ~= b.f or a.c ~= b.c then return false end
   local x, y = a.rule, b.rule
   return x.n == y.n and x.id == y.id and x.p == y.p and x.d == y.d and x.q == y.q and x.fp == y.fp and x.s == y.s
     and x.pi == y.pi and x.pn == y.pn and x.cn == y.cn
@@ -91,6 +117,9 @@ function M.Adopt(raw)
               rule = { n = rule.n, id = groupId(rule.id), p = rule.p, d = rule.d, q = rule.q, fp = rule.fp,
                 s = rule.s, pi = groupId(rule.pi), pn = label(rule.pn), cn = label(rule.cn) },
               l = math.max(0, math.floor(l)),
+              -- The group's own price for the item, which WoW: Forever's board holds a lot to
+              -- (Followed below).
+              c = math.floor(c),
               u = u and u > 0 and math.floor(u) or nil,
               f = f and f > 0 and math.floor(f) or nil,
             }
@@ -109,9 +138,10 @@ function M.Adopt(raw)
     end
   end
   byItem = nextByItem
+  if changed then M.rev = M.rev + 1 end
   local durations = M.durationByItem
   for id in pairs(durations) do durations[id] = nil end
-  for id, entry in pairs(byItem) do durations[id] = M.HOURS_TO_INDEX[entry.rule.d] end
+  for id, entry in pairs(byItem) do durations[id] = M.IndexOfHours(entry.rule.d) end
   return changed
 end
 
@@ -125,7 +155,7 @@ function M.RuleFor(itemID, itemLevel)
   local rule = {
     name = raw.n,
     play = raw.p,
-    durationIndex = M.HOURS_TO_INDEX[raw.d],
+    durationIndex = M.IndexOfHours(raw.d),
     perItem = raw.q == 1 and 1 or nil,
     stepPct = wholePct(raw.s),
     floorPct = wholePct(raw.fp),
@@ -161,6 +191,15 @@ function M.GroupOf(itemID)
   return key, name
 end
 
+-- The followed group's own offer for an item: its name, the group's price per unit and the usual
+-- price the site worked it out from (nil without one). nil when no followed group holds the item.
+-- WoW: Forever's board marks a row of such an item and measures it against `usual` (Core/ForeverDeals.lua).
+function M.Followed(itemID)
+  local entry = byItem[itemID]
+  if not entry then return nil end
+  return entry.rule.n, entry.c, entry.u
+end
+
 -- Whether any followed group reached the addon: false with no Companion file, an old one, or no
 -- follow on goldcap.gg.
 function M.HasGroups()
@@ -173,7 +212,7 @@ function M.Describe(rule)
   if type(rule) ~= "table" then return nil end
   local parts = {}
   parts[#parts + 1] = rule.perItem == 1 and GC.L["1 at a time"] or GC.L["all you have"]
-  local hours = INDEX_TO_HOURS[rule.durationIndex]
+  local hours = hoursFor()[rule.durationIndex]
   if hours then parts[#parts + 1] = (GC.L["%d h"]):format(hours) end
   if rule.floorUnit and rule.craftFloor then
     parts[#parts + 1] = GC.L["not under the cost to craft"]

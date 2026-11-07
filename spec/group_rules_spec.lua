@@ -27,7 +27,7 @@ describe("GroupRules", function()
     assert.same({ name = "Transmog: Plate", play = "flip", durationIndex = 3, perItem = 1, stepPct = 5,
       floorPct = 70, floorUnit = 700, usualUnit = 1000 }, GC.GroupRules.RuleFor(10, 610))
     assert.equal(3, GC.GroupRules.durationByItem[10])
-    assert.equal(3, GC.GroupRules.HOURS_TO_INDEX[48])
+    assert.equal(3, GC.GroupRules.IndexOfHours(48))
   end)
 
   it("hands out a fresh table every time", function()
@@ -249,6 +249,74 @@ describe("GroupRules", function()
     it("names no floor that does not apply", function()
       adopt({ { i = 10, c = 700, l = 610, u = 1000, r = 1 } }, { FLIP })
       assert.equal("1 at a time, 48 h", GC.GroupRules.Describe(GC.GroupRules.RuleFor(10, 600)))
+    end)
+  end)
+
+  -- WoW: Forever offers 2, 8 and 24 hours (AUCTION_DURATION_ONE to THREE, index 1 to 3), and the
+  -- site sends `d` in the hours of the game the file is for: 24 is the longest there, index 3,
+  -- where on retail it is the middle one.
+  describe("on WoW: Forever", function()
+    local function forever(interface)
+      GC.Game = {
+        Passport = function() return { interface = interface } end,
+        IsForever = function(passport) return passport.interface >= 16000 and passport.interface <= 16999 end,
+      }
+    end
+
+    it("turns the hours its auction house offers into the posting index", function()
+      forever(16001)
+      for hours, index in pairs({ [2] = 1, [8] = 2, [24] = 3 }) do
+        assert.is_true(adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", p = "gather", d = hours } }))
+        assert.equal(index, GC.GroupRules.RuleFor(10, 0).durationIndex)
+        assert.equal(index, GC.GroupRules.durationByItem[10])
+      end
+    end)
+
+    it("reads a retail-only hour count as no rule at all", function()
+      forever(16001)
+      for _, hours in ipairs({ 12, 48 }) do
+        adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", p = "gather", d = hours } })
+        assert.is_nil(GC.GroupRules.RuleFor(10, 0))
+        assert.is_nil(GC.GroupRules.durationByItem[10])
+      end
+    end)
+
+    it("says the rule in the hours it posts at", function()
+      forever(16001)
+      adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", p = "gather", d = 24, fp = 80 } })
+      assert.equal("all you have, 24 h, not under 80% of usual", GC.GroupRules.Describe(GC.GroupRules.RuleFor(10, 0)))
+      adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", p = "gather", d = 8 } })
+      assert.equal("all you have, 8 h", GC.GroupRules.Describe(GC.GroupRules.RuleFor(10, 0)))
+    end)
+
+    it("keeps retail's hours on a retail client", function()
+      GC.Game = {
+        Passport = function() return { interface = 120105 } end,
+        IsForever = function() return false end,
+      }
+      adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", p = "gather", d = 24 } })
+      assert.equal(2, GC.GroupRules.RuleFor(10, 0).durationIndex)
+      adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", p = "gather", d = 8 } })
+      assert.is_nil(GC.GroupRules.RuleFor(10, 0))
+    end)
+  end)
+
+  describe("Followed", function()
+    it("answers the group's name, its price and the usual price", function()
+      adopt({ { i = 10, c = 700, u = 1000, r = 1, k = 1 }, { i = 11, c = 50, r = 1 } }, { GATHER })
+      assert.same({ "Herbs", 700, 1000 }, { GC.GroupRules.Followed(10) })
+      assert.same({ "Herbs", 50, nil }, { GC.GroupRules.Followed(11) })
+      assert.is_nil(GC.GroupRules.Followed(12))
+    end)
+
+    it("counts a change, and only a change", function()
+      local before = GC.GroupRules.rev
+      adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { GATHER })
+      assert.equal(before + 1, GC.GroupRules.rev)
+      adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { GATHER })
+      assert.equal(before + 1, GC.GroupRules.rev)
+      adopt({ { i = 10, c = 650, u = 1000, r = 1 } }, { GATHER })
+      assert.equal(before + 2, GC.GroupRules.rev)
     end)
   end)
 end)

@@ -163,4 +163,20 @@ describe("Caps.Adopt", function()
     GC.Caps.Adopt()
     assert.equals(0, GC.Caps.Count())
   end)
+
+  -- WoW: Forever's board is its own scan's rows alone, so a cap row found there would never be
+  -- drawn, while its poll and its ring would run: Forever holds no caps, and a followed group's
+  -- items are marked on its own rows (Core/GroupRules.lua, Core/ForeverDeals.lua).
+  it("holds no caps on WoW: Forever, and all of them on retail", function()
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "G" },
+      caps = { { i = 7, c = 10, g = 1, k = 1, u = 40 } } }
+    GC.Game = { Passport = function() return { interface = 16001 } end,
+      IsForever = function(p) return p.interface >= 16000 and p.interface <= 16999 end }
+    GC.Caps.Adopt()
+    assert.equals(0, GC.Caps.Count())
+    assert.is_nil(GC.Caps.For(7))
+    GC.Game = { Passport = function() return { interface = 120105 } end, IsForever = function() return false end }
+    assert.is_true(GC.Caps.Adopt())
+    assert.same({ 7 }, GC.Caps.Targets())
+  end)
 end)

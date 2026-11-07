@@ -43,8 +43,18 @@ local function marketOf(itemID)
   return GC.DealMath.Measure(1, 1, value) and value.mv or nil
 end
 
+-- WoW: Forever holds no caps. Its Deals board is the player's own scan's rows alone
+-- (Core/ForeverDeals.lua), so a cap row the poll found would never be drawn there, yet its ring
+-- and its searches would still run, and a Check on a followed item would answer with a cap
+-- decision into a board nobody sees. A followed group's items are marked on Forever's own rows
+-- from Core/GroupRules.lua instead. Read at the call, as every game gate is.
+local function onForever()
+  local game = GC.Game
+  return game and game.IsForever and game.IsForever(game.Passport and game.Passport()) or false
+end
+
 function GC.Caps.Adopt()
-  local raw = _G.GoldCap_AppRuns
+  local raw = not onForever() and _G.GoldCap_AppRuns or nil
   local next_caps, next_order = {}, {}
   local next_dropped = { malformed = 0, duplicate = 0 }
   local changed = false
