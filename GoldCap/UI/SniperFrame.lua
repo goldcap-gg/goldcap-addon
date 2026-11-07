@@ -1402,7 +1402,9 @@ local function setRowDeal(row, deal)
   -- buyable, and the PROFIT cell carries the figure.
   local chip = GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID])
   if deal.forever and (not verdict or verdict.buyable) then
-    chip = GC.Sniper._ForeverLabel(deal.forever)
+    -- A row of an item in a group the player follows says so (GC.Sniper._GroupNote has the rest);
+    -- its kind is in the tooltip.
+    chip = deal.capFollowed and GC.L["GROUP"] or GC.Sniper._ForeverLabel(deal.forever)
     verdictColor = deal.forever == "market" and Theme.color.gold or Theme.color.green
   end
   row.tierChip:SetLabel(chip, verdictColor)
@@ -5276,7 +5278,8 @@ local function drawVerdict(deal, decision, market)
     figureColor = hero.refused and Theme.color.fgDim or up and Theme.color.green or Theme.color.red
     local key = hero.forever ~= "market" and "vendor" or hero.refSource == "sold" and "market_sold"
       or hero.refSource == "crowd" and "market_crowd" or "market"
-    caption = (hero.refused or hero.liveExit) and ""
+    -- A row measured against a followed group's usual price has no AH value to name either.
+    caption = (hero.refused or hero.liveExit or hero.refSource == "group") and ""
       or (GC.L[CV.HERO_CAPTION[key]]):format(displayDecisionAmount(hero.ref),
         GC.Sniper._PerDayText(hero.soldPerDay) or "-")
   elseif hero.kind == "days" then
@@ -5474,8 +5477,9 @@ local function stampDialogFromDecision(deal, decision)
   dialog.reasonText:SetText(decision.cap
     and (decision.followed and GC.Sniper._CapNote(deal)
       or GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."])
-    or foreverPass and GC.Sniper._ForeverNote(decision.forever, decision.ceiling,
-      decision.refUnit or decision.exitUnit, decision.stressProfit)
+    or foreverPass and (deal.refSource == "group" and GC.Sniper._GroupNote(deal)
+      or GC.Sniper._ForeverNote(decision.forever, decision.ceiling,
+        decision.refUnit or decision.exitUnit, decision.stressProfit))
     or GC.SniperDecision.ReasonText(firstReason))
 
   -- The verdict block is drawn by drawVerdict (above), off Core/CheckVerdict.lua. The item's
@@ -6451,6 +6455,14 @@ function GC.Sniper._CapNote(deal)
     return (GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format(deal.capGroup)
   end
   return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+end
+
+-- WoW: Forever: the sentence on a scan row of an item in a group the player follows (Core/ForeverDeals.lua
+-- marks it capGroup/capFollowed), which a cap row's note says on retail. Only for a row priced by the
+-- group (refSource "group"); nil for any other row.
+function GC.Sniper._GroupNote(deal)
+  if not (deal and deal.forever and deal.refSource == "group" and deal.capGroup) then return nil end
+  return (GC.L["Listed at or under the deal price of a group you follow (%s)"]):format(deal.capGroup)
 end
 
 -- The status line over Buy once a cap lot is armed: at or under the player's own price, or the
@@ -11501,9 +11513,15 @@ createRow = function(parent, index)
       GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: not checked against the live auction house yet"]), 0.7, 0.7, 0.7)
     end
     if self.deal.forever then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
-        self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
-        self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
+      -- A row measured against a followed group's usual price has no AH value for the note to name:
+      -- the group's sentence stands in for it.
+      if self.deal.refSource ~= "group" then
+        GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling,
+          self.deal.refUnit, self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
+          self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
+      end
+      local groupNote = GC.Sniper._GroupNote(self.deal)
+      if groupNote then GameTooltip:AddLine(GC.Util.ClientText(groupNote), 0.25, 0.85, 0.25, true) end
     end
     -- A realm row priced against the region says nothing more about it here: the verdict line
     -- above says it is a realm item, and GoldCap's price block under the item names the region's

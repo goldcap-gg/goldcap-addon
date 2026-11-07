@@ -298,6 +298,28 @@ describe("WoW: Forever", function()
     assert.equal("", row._nameParts[2])
   end)
 
+  -- Followed groups on WoW: Forever (Core/ForeverDeals.lua marks the row): the chip says GROUP, the
+  -- group's name follows the item's, and the tooltip's sentence is the group's when the group's
+  -- price made the row. A row of no group is as it was, and so is retail's.
+  it("marks a row of a followed group's item with GROUP and the group's name", function()
+    local api = loadSniper()
+    local setRowDeal = upvalue(api.refreshRows, "setRowDeal")
+    local row = fakeRow()
+    local plain = foreverRow(2589, "commodities")
+    local marked = foreverRow(2592, "commodities", "market")
+    marked.capGroup, marked.capFollowed, marked.refSource = "Herbs", true, "group"
+    setRowDeal(row, marked)
+    assert.equal("GROUP", row.tierChip.label)
+    assert.is_truthy(row._nameParts[2]:find("Herbs", 1, true))
+    setRowDeal(row, plain)
+    assert.equal("Below vendor", row.tierChip.label)
+    assert.equal("", row._nameParts[2])
+    assert.equal("Listed at or under the deal price of a group you follow (Herbs)", api.GC.Sniper._GroupNote(marked))
+    assert.is_nil(api.GC.Sniper._GroupNote(plain))
+    marked.refSource = nil -- marked by its scan kind, not priced by the group
+    assert.is_nil(api.GC.Sniper._GroupNote(marked))
+  end)
+
   it("keeps the kind on the chip once a live Check says SAFE; a refusal still speaks", function()
     local api = loadSniper()
     local setRowDeal = upvalue(api.refreshRows, "setRowDeal")
