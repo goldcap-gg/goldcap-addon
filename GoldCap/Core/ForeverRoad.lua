@@ -5,8 +5,9 @@ local _, GC = ...
 -- vendor and the auction house after its cut, Core/ForeverValue.lua) -- against the cost the
 -- player set, and the level it gets there at the pace it has been playing.
 --
--- The riding cost is the player's own setting (GoldCapDB.forever.mountCost, /gc mount): Blizzard
--- has not published it, and GoldCap does not guess it (growth spec, honesty guards).
+-- The riding cost is the trainer's price for Apprentice Riding at level 40, 100g before any
+-- reputation discount (owner in game and the launch guides, 2026-11-07), unless the player set
+-- their own (GoldCapDB.forever.mountCost, /gc mount): a discount, or a mount bought on top.
 --
 -- Pace: each character keeps its own played-time clock and a few samples of its gold and level
 -- progress (GoldCapDB.forever.road[<character GUID>]); the rate is measured over the last
@@ -21,6 +22,7 @@ local C = {
   MIN_RATE_SECONDS = 20 * 60, -- and not before twenty minutes of it
   GAP_SECONDS = 180,          -- a longer silence between two ticks is time away, never play
   TICK_SECONDS = 60,          -- the clock's own ticker, so a quiet stretch of play still counts
+  RIDING_COST = 1000000,      -- Apprentice Riding at the trainer, 100g in copper
 }
 GC.ForeverRoad.C = C
 
@@ -199,7 +201,7 @@ function GC.ForeverRoad.Snapshot()
   local moneyRate, levelRate
   if c then moneyRate, levelRate = GC.ForeverRoad.Rate(c) end
   return { money = money(), bags = bags.best or 0, gain = bags.gain or 0, gainItems = bags.gainItems or 0,
-    cost = (type(p.mountCost) == "number" and p.mountCost > 0) and p.mountCost or nil,
+    cost = (type(p.mountCost) == "number" and p.mountCost > 0) and p.mountCost or C.RIDING_COST,
     level = level, progress = progress, moneyRate = moneyRate, levelRate = levelRate }
 end
 
@@ -247,8 +249,7 @@ function GC.ForeverRoad.Slash(rest)
   if word == "clear" then
     p.mountCost = nil
     GC.Print(GC.L["Mount cost cleared."])
-    if GC.Sold and GC.Sold.RefreshIfShown then GC.Sold.RefreshIfShown() end
-    return
+    rest = ""
   end
   if word == "share" then
     local text = GC.ForeverRoad.ShareText(GC.ForeverRoad.Snapshot())
@@ -261,7 +262,7 @@ function GC.ForeverRoad.Slash(rest)
     end
     return
   end
-  if word ~= "" then
+  if rest ~= "" then
     local copper = GC.ForeverRoad.ParseMoney(rest)
     if not copper then
       GC.Print(GC.L["Could not read that amount. Type it like 12g 50s."])

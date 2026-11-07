@@ -170,7 +170,22 @@ describe("ForeverRoad", function()
     assert.equal("Road to 40 with GoldCap: 1g 50s of 12g 50s for my mount (12%).", opened)
     R.Slash("clear")
     assert.is_nil(db.forever.mountCost)
-    assert.equal("Mount cost cleared.", printed[#printed])
+    assert.equal("Mount cost cleared.", printed[#printed - 2])
+    assert.equal("Road to 40: 15000c of 1000000c (gold 10000c, bags 5000c).", printed[#printed - 1])
+  end)
+
+  -- Apprentice Riding is 100g at the trainer (owner in game, 2026-11-07): with no cost of the
+  -- player's own the road runs to it, and clearing one goes back to it.
+  it("runs to the trainer's 100g until the player sets a cost of their own", function()
+    init(16001)
+    assert.equal(1000000, R.Snapshot().cost)
+    R.Slash("")
+    assert.equal("Road to 40: 15000c of 1000000c (gold 10000c, bags 5000c).", printed[1])
+    R.Slash("90g")
+    assert.equal(900000, R.Snapshot().cost)
+    R.Slash("clear")
+    assert.equal(1000000, R.Snapshot().cost)
+    assert.equal("Road to 40: 15000c of 1000000c (gold 10000c, bags 5000c).", printed[#printed - 1])
   end)
 
   it("keeps each character's clock under its GUID; a ticker's own argument is not a time", function()
