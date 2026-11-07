@@ -17,8 +17,9 @@ local _, GC = ...
 --   { v = 1, items = { [itemID] = { u = <copper for one>, at = <epoch seconds> } } }
 -- `u` is whole copper: a merchant's price buys a stack (`price` for `stack` units, the 2026-10-01
 -- probe in Core/BuyVendor.lua), and a price that does not split evenly is rounded up, so a cost
--- said is never under the cost paid. The price is this character's at that merchant (reputation
--- can lower it): the newest visit wins.
+-- said is never under the cost paid. The store is the account's (GoldCapDB), not one character's:
+-- the newest visit wins, whichever character made it, at the price that character was asked
+-- (reputation can lower it).
 GC.ForeverVendorPrices = GC.ForeverVendorPrices or {}
 local V = GC.ForeverVendorPrices
 

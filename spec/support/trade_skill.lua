@@ -391,7 +391,8 @@ function TS.craftGCForever()
   local helper = require("spec.spec_helper")
   local GC = helper.loadModule("Core/Util.lua")
   for _, path in ipairs({ "Core/Trigger.lua", "Core/CraftCapture.lua", "Core/BuyVendor.lua", "Core/VendorBuys.lua",
-    "Core/CraftMath.lua", "Core/CraftQueue.lua", "Core/ForeverVendorPrices.lua", "Services/CraftClient.lua",
+    "Core/CraftMath.lua", "Core/CraftQueue.lua", "Core/ForeverVendorPrices.lua", "Core/ForeverDeals.lua",
+    "Services/CraftClient.lua",
     "Services/CraftClient_Camelot.lua", "UI/Theme.lua", "UI/Kit/Bar.lua", "UI/Tooltip.lua", "UI/CraftStrip.lua" }) do
     helper.loadModule(path, GC)
   end

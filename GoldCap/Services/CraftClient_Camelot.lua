@@ -14,10 +14,14 @@ local _, GC = ...
 --   file's own event frame, each registered under pcall: Core/Init.lua is not touched).
 -- - No sales a day: Forever's prices are scans of what is listed (Core/Data.lua's ForeverValueFor)
 --   and say nothing of what sells, so the Worth crafting list shows no pace and no "Slow seller".
--- - Where a merchant visit could fill a missing price, the result says so (`vendorHint`), and the
---   panel's This recipe adds how (UI/CraftPanel_Camelot.lua).
+-- - A scan of a thin book prices nothing: under the 20 units listed the Deals board asks for a
+--   market (Core/ForeverDeals.lua's MARKET_MIN_UNITS), the cheapest units are often asks nobody
+--   pays (a crowd value of 79s98 from two units, owner 2026-11-07), and the Worth crafting list,
+--   sorted by profit, would put that item first. Its recipe counts as having no price.
+-- - Where a merchant visit could fill a missing price, or the book was too thin, the result says
+--   so (`vendorHint`, `thin`), and the panel's This recipe adds how (UI/CraftPanel_Camelot.lua).
 local CC = GC.CraftClient
-local retail = { VendorOf = CC.VendorOf, SellOf = CC.SellOf, ProfitOf = CC.ProfitOf }
+local retail = { VendorOf = CC.VendorOf, ProfitOf = CC.ProfitOf }
 
 local function root()
   local F = GC.ForeverScan
@@ -31,23 +35,42 @@ function CC.VendorOf(itemID)
   return GC.ForeverVendorPrices.UnitFor(root(), itemID) or retail.VendorOf(itemID)
 end
 
---- What one of a crafted item sells for on Forever's auction house, and no daily sales: nothing
---- Forever's scans hold says how many sell.
+-- The scan's price for one, and whether the book it came from was too thin to give one.
+local function scanned(itemID)
+  local v = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID) or nil
+  local unit = GC.Tooltip.TrustedHeadline(v)
+  if type(unit) ~= "number" then return nil, false end
+  if type(v.currentQty) ~= "number" or v.currentQty < GC.ForeverDeals.C.MARKET_MIN_UNITS then return nil, true end
+  return math.floor(unit), false
+end
+
+--- What one of a reagent costs: a vendor's price (VendorOf), else the auction house's from a book
+--- of at least 20 units.
+function CC.UnitOf(itemID)
+  if type(itemID) ~= "number" then return nil end
+  return CC.VendorOf(itemID) or (scanned(itemID))
+end
+
+--- What one of a crafted item sells for on Forever's auction house, from a book of at least 20
+--- units, and no daily sales: nothing Forever's scans hold says how many sell.
 function CC.SellOf(itemID)
-  return (retail.SellOf(itemID))
+  if type(itemID) ~= "number" then return nil end
+  return (scanned(itemID))
 end
 
 --- Core/CraftMath.lua's Profit at these prices, as on retail. A result missing a price carries
---- `vendorHint` when one of the missing items is a crafting reagent of the recipe (not the item it
---- makes): a merchant that sells it would give it a price.
+--- `thin` when one of the missing items has a scan from a book too thin to price, and `vendorHint`
+--- when one is a crafting reagent of the recipe (not the item it makes) no vendor price is known
+--- for: a merchant that sells it would give it a price.
 function CC.ProfitOf(recipe, open)
   local result = retail.ProfitOf(recipe, open)
   if type(result) ~= "table" or type(result.missing) ~= "table" or type(recipe) ~= "table" then return result end
   local mine = type(open) == "table" and (open.recipeID == nil or open.recipeID == recipe.recipeID)
   local output = (mine and open.output) or recipe.output
   for _, m in ipairs(result.missing) do
-    if m.currencyID == nil and type(m.itemID) == "number" and m.itemID ~= output and GC.VendorBuys.IsReagent(m.itemID) then
-      result.vendorHint = true
+    if m.currencyID == nil and type(m.itemID) == "number" then
+      if select(2, scanned(m.itemID)) then result.thin = true end
+      if m.itemID ~= output and GC.VendorBuys.IsReagent(m.itemID) then result.vendorHint = true end
     end
   end
   return result

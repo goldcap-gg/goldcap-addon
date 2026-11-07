@@ -28,7 +28,8 @@
   come from your auction house scans and, with GoldCap Companion, every player's.
   A reagent a vendor sells, such as thread, vials or flux, gets its price the first time you open
   a vendor that sells it; until then a recipe that needs it shows which price is missing instead of
-  a guess. The panel does not show how many of an item sell a day on Forever yet.
+  a guess. An auction house price needs at least 20 units listed, as in DEALS. The panel does not
+  show how many of an item sell a day on Forever yet.
 
 ## 0.24.1 (2026-11-06)
 

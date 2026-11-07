@@ -1925,4 +1925,6 @@ GC.Locales.ruRU = {
   ["Prices from your scan %s ago"] = "Цены из твоего сканирования, %s назад",
   ["A reagent a vendor sells gets its price once you open that vendor."] =
     "Реагент, который продаёт торговец, получит цену, как только ты откроешь этого торговца.",
+  ["An auction house price needs at least %d listed."] =
+    "Для цены аукциона нужно не меньше %d шт. в продаже.",
 }

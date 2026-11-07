@@ -17,8 +17,8 @@ local _, GC = ...
 -- - No strip under the reagents: Forever's form is narrower and keeps its Track Recipe checkbox
 --   at its bottom right (Blizzard_Professions/Camelot/Blizzard_ProfessionsCrafting.lua's
 --   OverrideArt), where the strip would end. This recipe shows the same three figures.
--- - A missing reagent price that a merchant visit can fill says so in This recipe
---   (Services/CraftClient_Camelot.lua's vendorHint).
+-- - A missing reagent price that a merchant visit can fill says so in This recipe, and so does one
+--   a scan saw too few listed to price (Services/CraftClient_Camelot.lua's vendorHint and thin).
 local P, S = GC.CraftPanel, GC.CraftStrip
 
 -- How long prices count as fresh, as the Hoard's footer has it for the Companion's (two hours).
@@ -66,11 +66,16 @@ function S.Attach() end
 local retailLines = S.Lines
 
 --- The strip's lines, as This recipe shows the first: "No GoldCap price for ...", and on Forever how
---- a merchant gives a vendor's reagent its price.
+--- a merchant gives a vendor's reagent its price and how many listed an auction house price needs.
 function S.Lines(result)
   local lines = retailLines(result)
-  if type(result) == "table" and result.vendorHint and lines[1] then
+  if type(result) ~= "table" or not lines[1] then return lines end
+  if result.vendorHint then
     lines[1].text = lines[1].text .. " " .. GC.L["A reagent a vendor sells gets its price once you open that vendor."]
+  end
+  if result.thin then
+    lines[1].text = lines[1].text .. " "
+      .. GC.L["An auction house price needs at least %d listed."]:format(GC.ForeverDeals.C.MARKET_MIN_UNITS)
   end
   return lines
 end

@@ -1853,4 +1853,6 @@ GC.Locales.ptBR = {
   ["Prices from your scan %s ago"] = "Preços da sua varredura, há %s",
   ["A reagent a vendor sells gets its price once you open that vendor."] =
     "Um reagente vendido por um vendedor recebe o preço assim que você abre esse vendedor.",
+  ["An auction house price needs at least %d listed."] =
+    "Um preço da casa de leilões precisa de pelo menos %d unidades à venda.",
 }

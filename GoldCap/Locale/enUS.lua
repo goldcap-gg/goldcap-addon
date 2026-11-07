@@ -1845,4 +1845,6 @@ GC.Locales.enUS = {
   ["Prices from your scan %s ago"] = "Prices from your scan %s ago",
   ["A reagent a vendor sells gets its price once you open that vendor."] =
     "A reagent a vendor sells gets its price once you open that vendor.",
+  ["An auction house price needs at least %d listed."] =
+    "An auction house price needs at least %d listed.",
 }

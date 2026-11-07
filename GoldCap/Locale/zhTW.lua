@@ -1751,4 +1751,6 @@ GC.Locales.zhTW = {
   ["Prices from your scan %s ago"] = "價格來自你%s前的掃描",
   ["A reagent a vendor sells gets its price once you open that vendor."] =
     "商人出售的材料，在你打開該商人後就會有價格。",
+  ["An auction house price needs at least %d listed."] =
+    "拍賣場價格需要至少 %d 件在售。",
 }

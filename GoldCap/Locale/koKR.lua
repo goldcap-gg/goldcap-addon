@@ -1785,4 +1785,6 @@ GC.Locales.koKR = {
   ["Prices from your scan %s ago"] = "내 검색 가격, %s 전",
   ["A reagent a vendor sells gets its price once you open that vendor."] =
     "상인이 판매하는 재료는 그 상인 창을 열면 가격이 생깁니다.",
+  ["An auction house price needs at least %d listed."] =
+    "경매장 가격은 최소 %d개가 등록되어 있어야 합니다.",
 }

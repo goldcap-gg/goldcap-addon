@@ -1861,4 +1861,6 @@ GC.Locales.esMX = {
   ["Prices from your scan %s ago"] = "Precios de tu escaneo de hace %s",
   ["A reagent a vendor sells gets its price once you open that vendor."] =
     "Un componente que vende un vendedor recibe su precio en cuanto abres ese vendedor.",
+  ["An auction house price needs at least %d listed."] =
+    "Un precio de la casa de subastas necesita al menos %d unidades en venta.",
 }

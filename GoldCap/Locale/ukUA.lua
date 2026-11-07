@@ -1927,4 +1927,6 @@ GC.Locales.ukUA = {
   ["Prices from your scan %s ago"] = "Ціни з твого сканування, %s тому",
   ["A reagent a vendor sells gets its price once you open that vendor."] =
     "Реагент, який продає торговець, отримає ціну, щойно ти відкриєш цього торговця.",
+  ["An auction house price needs at least %d listed."] =
+    "Для ціни аукціону потрібно щонайменше %d шт. у продажу.",
 }

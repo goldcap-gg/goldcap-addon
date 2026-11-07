@@ -1855,4 +1855,6 @@ GC.Locales.itIT = {
   ["Prices from your scan %s ago"] = "Prezzi dalla tua scansione di %s fa",
   ["A reagent a vendor sells gets its price once you open that vendor."] =
     "Un reagente venduto da un mercante riceve il suo prezzo appena apri quel mercante.",
+  ["An auction house price needs at least %d listed."] =
+    "Un prezzo della casa d'aste richiede almeno %d unità in vendita.",
 }

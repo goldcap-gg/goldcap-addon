@@ -7,13 +7,15 @@ local Merchant = require("spec.support.merchant")
 -- the Hoard's files) with Forever's two files after the ones they change
 -- (Services/CraftClient_Camelot.lua, UI/CraftPanel_Camelot.lua). Prices are Forever's scans
 -- (GC.Data.GetItemValue answers source "scan"), a vendor's reagent is priced at what a merchant asked
--- the player (Core/ForeverVendorPrices.lua), and nothing says how many sell a day.
+-- the player (Core/ForeverVendorPrices.lua), a book under 20 units prices nothing, and nothing says
+-- how many sell a day.
 describe("Forever craft panel", function()
   local GC, P, CC, restore, restoreMerchant, VALUES, ROOT, FOLD, PAYLOAD, BUY_LIST
 
-  -- A Forever price: a scan of what is listed, the player's own or every player's.
+  -- A Forever price: a scan of what is listed, the player's own or every player's, of 40 units
+  -- unless `extra` says otherwise.
   local function scan(mv, extra)
-    local v = { mv = mv, ts = 0, source = "scan", kind = "own_scan" }
+    local v = { mv = mv, ts = 0, source = "scan", kind = "own_scan", currentQty = 40 }
     for k, x in pairs(extra or {}) do v[k] = x end
     return v
   end
@@ -102,13 +104,15 @@ describe("Forever craft panel", function()
       { name = "a BUY list's vendor price with no merchant seen", list = 12, ah = 40, unit = 12 },
       { name = "the auction house with neither", ah = 40, unit = 40 },
       { name = "no price at all with none of them", unit = nil },
+      { name = "a merchant's price over a book of two units", merchant = 10, ah = 40, qty = 2, unit = 10 },
+      { name = "no price from a book of two units with no vendor's", ah = 40, qty = 2, unit = nil },
     }
     for _, case in ipairs(ORDER) do
       it("costs " .. case.name, function()
         load()
         if case.merchant then ROOT.foreverVendor = { v = 1, items = { [2320] = { u = case.merchant, at = 1 } } } end
         BUY_LIST[2320] = case.list
-        VALUES[2320] = case.ah and scan(case.ah) or nil
+        VALUES[2320] = case.ah and scan(case.ah, { currentQty = case.qty }) or nil
         assert.equal(case.unit, CC.UnitOf(2320))
         assert.equal(case.merchant or case.list, CC.VendorOf(2320))
       end)
@@ -173,6 +177,73 @@ describe("Forever craft panel", function()
       ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
       local card = show().card
       assert.equal(GC.L["No GoldCap price for %s"]:format("Linen Bag"), card.missing:GetText())
+    end)
+  end)
+
+  -- Under 20 units listed (Core/ForeverDeals.lua's MARKET_MIN_UNITS), the cheapest units are often
+  -- asks nobody pays: a crowd value of 79s98 came from two units (owner, 2026-11-07).
+  describe("a thin book", function()
+    local LISTED = {
+      { name = "prices from 20 units listed", qty = 20, cost = 50, sells = 2000 },
+      { name = "prices nothing from 19", qty = 19 },
+      { name = "prices nothing from a scan that counted no units", qty = "none" },
+    }
+    for _, case in ipairs(LISTED) do
+      it(case.name .. ", for a reagent and for what a recipe makes", function()
+        load()
+        VALUES[2589], VALUES[901] = scan(50), scan(2000)
+        local qty = case.qty ~= "none" and case.qty or nil
+        VALUES[2589].currentQty, VALUES[901].currentQty = qty, qty
+        assert.equal(case.cost, CC.UnitOf(2589))
+        assert.equal(case.sells, CC.SellOf(901))
+      end)
+    end
+  end)
+
+  describe("a missing price in This recipe", function()
+    -- Each case after Linen Cloth at 50c, the bag at 2,000c and thread seen at a merchant for 10c:
+    -- what it changes, and whether the result names a merchant visit and a thin book.
+    local CASES = {
+      { name = "names a merchant for a trade good the recipe uses that no merchant was seen selling",
+        set = function() ROOT.foreverVendor = nil end, vendorHint = true },
+      { name = "names no merchant when only what it makes is missing, a trade good itself",
+        classes = { [901] = 7 }, set = function() VALUES[901] = nil end },
+      { name = "names no merchant for a missing reagent that is no crafting reagent",
+        slots = { TS.slot(1, 3, TS.items(2589)), TS.slot(2, 1, TS.items(159)) } },
+      { name = "names no merchant for the item the window shows it making, a trade good",
+        classes = { [905] = 7 }, open = { recipeID = 1, output = 905, allocations = {} } },
+      { name = "names no merchant for the recipe's own item while the window shows another recipe",
+        classes = { [901] = 7 }, open = { recipeID = 2, output = 905, allocations = {} },
+        set = function() VALUES[901] = nil end },
+      { name = "names a thin book and a merchant for a trade good from too few units",
+        set = function() VALUES[2589].currentQty = 5 end, thin = true, vendorHint = true },
+      { name = "names a thin book alone for what it makes from too few units",
+        set = function() VALUES[901].currentQty = 5 end, thin = true },
+    }
+    for _, case in ipairs(CASES) do
+      it(case.name, function()
+        local classes = { [2320] = 7, [2324] = 7, [2589] = 7, [159] = 0, [901] = 1, [905] = 1 }
+        for id, class in pairs(case.classes or {}) do classes[id] = class end
+        load({ classes = classes,
+          recipes = case.slots and { [1] = recipe(1, "Linen Bag", case.slots) } or nil })
+        prices()
+        ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+        if case.set then case.set() end
+        local result = CC.ProfitOf(CC.Snapshot(1), case.open)
+        assert.is_table(result.missing)
+        assert.equal(case.vendorHint, result.vendorHint)
+        assert.equal(case.thin, result.thin)
+      end)
+    end
+
+    it("says how many listed a price needs when the book was too thin", function()
+      load({ open = { recipeID = 1, allocations = {} } })
+      prices()
+      VALUES[901].currentQty = 5
+      ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+      local card = show().card
+      assert.equal(GC.L["No GoldCap price for %s"]:format("Linen Bag") .. " "
+        .. GC.L["An auction house price needs at least %d listed."]:format(20), card.missing:GetText())
     end)
   end)
 
