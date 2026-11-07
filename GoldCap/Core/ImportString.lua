@@ -389,8 +389,8 @@ end
 -- as a section of its own, which an older addon skips. A market goldcap.gg reads Blizzard's sales
 -- for (ClickUp 869fpab6a) also carries
 --   H:<hours>   hours of that house's sales tape, inside the last 168
---   S:<id>=<units>=<lots>=<median>=<p25>,...   what sold in them: units, lots, and the median and
---                                              quarter-way unit price of the lots that sold
+--   S:<id>=<units>=<sales>=<median>=<p25>,...  what sold in them: units, sales (a partial fill is
+--                                              one), and the median and quarter-way unit price
 GC.ImportString.FOREVER_MAX_LEN = 2000000
 
 local function unescapeField(s)
@@ -422,13 +422,14 @@ function GC.ImportString.ParseForever(str)
       local hours = body:match("^(%d+)$")
       if hours then result.salesHours = tonumber(hours) end
     elseif kind == "S" then
-      -- What sold in those hours, per item: units, lots, and the median and quarter-way unit
-      -- price of the lots that sold. An item the tape covered but S does not list sold nothing.
+      -- What sold in those hours, per item: units, sales (a partial fill is one), and the median
+      -- and quarter-way unit price of the sales. An item the tape covered but S does not list
+      -- sold nothing.
       result.sales = result.sales or {}
       for token in body:gmatch("[^,]+") do
-        local id, units, lots, median, p25 = token:match("^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$")
+        local id, units, count, median, p25 = token:match("^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$")
         if id then
-          result.sales[tonumber(id)] = { units = tonumber(units), lots = tonumber(lots),
+          result.sales[tonumber(id)] = { units = tonumber(units), sales = tonumber(count),
             median = tonumber(median), p25 = tonumber(p25) }
         end
       end

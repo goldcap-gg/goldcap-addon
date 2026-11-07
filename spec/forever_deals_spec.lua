@@ -60,8 +60,8 @@ describe("ForeverDeals", function()
     -- 30 units at 50c under 170 at 100c: the cheap lot holds over a tenth of the units, so it IS
     -- the AH value, and two prices are under the thin-market guard's three (review 2026-11-07).
     local UNDERCUT = "50,200,10,;0x30 50x170|50,50,2"
-    local function sold(lots, perDay, median)
-      return function() return { units = perDay * 7, lots = lots, median = median or 100, p25 = 95, perDay = perDay } end
+    local function sold(sales, perDay, median)
+      return function() return { units = perDay * 7, sales = sales, median = median or 100, p25 = 95, perDay = perDay } end
     end
 
     it("finds a big undercut the listings alone never show", function()
@@ -75,14 +75,14 @@ describe("ForeverDeals", function()
       assert.equal(1321, r.profit) -- resold at 99c, under the 100c level left: 2970 - 149 cut - 1500
     end)
 
-    it("lists nothing that sold under three lots, however cheap", function()
+    it("lists nothing sold under three times, however cheap", function()
       commodity[765] = true
       local silverleaf = { [765] = "10,4062,200,;0x165 5x100 8x3797|0,8,15" }
       local zero = function() return 0 end
       assert.equal(1, #D.Build(fold(silverleaf), ctx({ depositFor = zero })))  -- no tape: the listings
       assert.equal(0, #D.Build(fold(silverleaf), ctx({ depositFor = zero, salesFor = sold(2, 50, 30) })))
       assert.equal(0, #D.Build(fold(silverleaf), ctx({ depositFor = zero,
-        salesFor = function() return { units = 0, lots = 0, perDay = 0 } end })))
+        salesFor = function() return { units = 0, sales = 0, perDay = 0 } end })))
     end)
 
     it("takes no more than two days of what sells", function()
@@ -679,7 +679,7 @@ describe("ForeverDeals", function()
     end)
 
     it("names the units a day's sales allow, for the live Check to hold its buy to", function()
-      GC.Data = { ForeverSales = function() return { units = 140, lots = 30, median = 20, p25 = 18, perDay = 20 } end }
+      GC.Data = { ForeverSales = function() return { units = 140, sales = 30, median = 20, p25 = 18, perDay = 20 } end }
       GC.ForeverValue.CommodityDepositUnit = function() return 0 end
       local ceiling = (function() D.Rows(clock); return D.CeilingFor(2589) end)()
       assert.equal("market", ceiling.kind)

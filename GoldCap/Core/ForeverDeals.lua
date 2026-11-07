@@ -36,7 +36,7 @@ local C = {
   MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the AH value
   MARKET_MIN_UNITS = 20,             -- thin-market guard: units listed
   MARKET_MIN_LEVELS = 3,             -- thin-market guard: distinct prices listed
-  SOLD_MIN_LOTS = 3,                 -- lots sold in the sales window, for a sold reference
+  SOLD_MIN_SALES = 3,                -- sales in the sales window, for a sold reference
   SOLD_DAYS = 2,                     -- a buy takes at most this many days of what sells
   -- A floor-only entry (below) is measured against the crowd's AH value only when the crowd saw
   -- the item no more than this long before the scan did.
@@ -133,17 +133,18 @@ local function listedReference(itemID, e, ctx)
 end
 
 -- The reference once goldcap.gg reads what this auction house sold (ClickUp 869fpab6a): the median
--- price the item's lots sold at, which is what a buyer pays, and how many units go a day. Measured
+-- price the item sold at, which is what a buyer pays, and how many units go a day. Measured
 -- against the cheapest tenth of what is listed, a lot holding a tenth of the units set that price
 -- itself and never read as cheap, and a price that was only falling read as a bargain: 18 rows from
--- 3003 items (owner's scan, 2026-11-07). An item that sold fewer than SOLD_MIN_LOTS lots in the
--- window gets no row: a resale nobody buys is no deal at any price. The listings' depth no longer
+-- 3003 items (owner's scan, 2026-11-07). An item sold fewer than SOLD_MIN_SALES times in the
+-- window (a partial fill of a lot is one sale) gets no row: a resale nobody buys is no deal at any
+-- price. The listings' depth no longer
 -- matters: the sales are the proof the listings were standing in for.
-local function soldReference(sales)
-  if (sales.lots or 0) < C.SOLD_MIN_LOTS or type(sales.median) ~= "number" or sales.median <= 0 then
+local function soldReference(sold)
+  if (sold.sales or 0) < C.SOLD_MIN_SALES or type(sold.median) ~= "number" or sold.median <= 0 then
     return nil
   end
-  return { value = sales.median, source = "sold", perDay = sales.perDay }
+  return { value = sold.median, source = "sold", perDay = sold.perDay }
 end
 
 local function underMarket(itemID, e, ctx, isCommodity)
@@ -153,13 +154,13 @@ local function underMarket(itemID, e, ctx, isCommodity)
     local quality = ctx.qualityFor(itemID)
     if type(quality) ~= "number" or quality < 1 then return nil end
   end
-  local sales = ctx.salesFor and ctx.salesFor(itemID) or nil
+  local sold = ctx.salesFor and ctx.salesFor(itemID) or nil
   local ref, maxUnits
-  if sales then
-    ref = soldReference(sales)
+  if sold then
+    ref = soldReference(sold)
     -- No more than SOLD_DAYS of what sells: a buy that took a month of the item's sales would sit
     -- on the auction house, relisted and paying a deposit each time.
-    maxUnits = ref and math.max(1, math.floor((sales.perDay or 0) * C.SOLD_DAYS))
+    maxUnits = ref and math.max(1, math.floor((sold.perDay or 0) * C.SOLD_DAYS))
   else
     ref = listedReference(itemID, e, ctx)
   end

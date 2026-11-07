@@ -634,7 +634,7 @@ end
 -- WoW: Forever: what an item sold for lately in this character's auction house, from Blizzard's
 -- hourly snapshots as goldcap.gg reads them (GCF1's H and S sections). nil while the payload has
 -- under a day of tape: a listing runs up to a day, so less says nothing about what does not sell.
--- An item the tape covered and S does not list sold nothing: `lots` 0. `perDay` is units a day.
+-- An item the tape covered and S does not list sold nothing: `sales` 0. `perDay` is units a day.
 GC.Data.FOREVER_SALES_MIN_HOURS = 24
 
 function GC.Data.ForeverSales(itemID)
@@ -642,8 +642,8 @@ function GC.Data.ForeverSales(itemID)
   local hours = p and p.salesHours
   if type(hours) ~= "number" or hours < GC.Data.FOREVER_SALES_MIN_HOURS then return nil end
   local s = p.sales and p.sales[itemID]
-  if not s then return { units = 0, lots = 0, perDay = 0, hours = hours } end
-  return { units = s.units, lots = s.lots, median = s.median, p25 = s.p25,
+  if not s then return { units = 0, sales = 0, perDay = 0, hours = hours } end
+  return { units = s.units, sales = s.sales, median = s.median, p25 = s.p25,
     perDay = s.units * 24 / hours, hours = hours }
 end
 

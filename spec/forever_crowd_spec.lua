@@ -43,8 +43,8 @@ describe("GCF1, the WoW: Forever crowd payload", function()
     local p = GC.ImportString.ParseForever(BODY .. ";H:72;S:2589=300=41=75=71,oops,2592=4=2=260=255")
     assert.equal(2, p.count)
     assert.equal(72, p.salesHours)
-    assert.same({ units = 300, lots = 41, median = 75, p25 = 71 }, p.sales[2589])
-    assert.same({ units = 4, lots = 2, median = 260, p25 = 255 }, p.sales[2592])
+    assert.same({ units = 300, sales = 41, median = 75, p25 = 71 }, p.sales[2589])
+    assert.same({ units = 4, sales = 2, median = 260, p25 = 255 }, p.sales[2592])
     assert.same({ min = 68, ah = 70, mv = 69, p50 = 79, qty = 7000, w = 2, age = 0, gear = true }, p.items[2589])
     local none = GC.ImportString.ParseForever(BODY)
     assert.is_nil(none.salesHours)
@@ -100,8 +100,8 @@ describe("adopting the crowd payload", function()
     load(16001)
     _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71" }
     GC.Data.AdoptAppData()
-    assert.same({ units = 300, lots = 41, median = 75, p25 = 71, perDay = 150, hours = 48 }, GC.Data.ForeverSales(2589))
-    assert.same({ units = 0, lots = 0, perDay = 0, hours = 48 }, GC.Data.ForeverSales(2592)) -- sold nothing
+    assert.same({ units = 300, sales = 41, median = 75, p25 = 71, perDay = 150, hours = 48 }, GC.Data.ForeverSales(2589))
+    assert.same({ units = 0, sales = 0, perDay = 0, hours = 48 }, GC.Data.ForeverSales(2592)) -- sold nothing
     _G.GoldCap_AppData = { foreverString = body() .. ";H:23;S:2589=300=41=75=71" }
     GC.Data.AdoptAppData()
     assert.is_nil(GC.Data.ForeverSales(2589))
