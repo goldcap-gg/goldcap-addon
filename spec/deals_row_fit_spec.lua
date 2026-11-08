@@ -91,6 +91,20 @@ describe("Deals rows as tall as their words", function()
     assert.equal(32 + 32 + rows[3].height, content.height) -- the list covers the rows as they stand
   end)
 
+  it("holds the row the cursor is on when it rests on the row's button, not its body", function()
+    local rows = { row(1), row(1), row(1) }
+    for _, r in ipairs(rows) do r.IsMouseOver = function() return false end end
+    -- On the button the row has had its OnLeave: no hovered row, but the cursor is over it.
+    rows[2].IsMouseOver = function() return true end
+    assert.equal(2, GC.Sniper._RowUnderCursor(rows, nil))
+    assert.equal(3, GC.Sniper._RowUnderCursor(rows, rows[3]))
+    rows[2].IsMouseOver = function() return false end
+    assert.is_nil(GC.Sniper._RowUnderCursor(rows, nil))
+    rows[1].shown = false
+    rows[1].IsMouseOver = function() return true end
+    assert.is_nil(GC.Sniper._RowUnderCursor(rows, nil), "a hidden row is under nothing")
+  end)
+
   it("fits every row once the cursor is off the board", function()
     local rows, content = { row(3), row(3) }, child()
     GC.Sniper._FitRowHeights(rows, content, 2)

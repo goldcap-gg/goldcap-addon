@@ -1982,11 +1982,7 @@ local function refreshRows()
   -- the rows below it fit, since they cannot move it. A purchase holds nothing: its clicks are in
   -- the buy window, and holding every row while the window stood open left the names the window's
   -- narrower item cell wraps drawn over the rows under them (owner, 2026-11-08).
-  local heldThrough = nil
-  for i = 1, #rows do
-    if rows[i] == hoveredRow then heldThrough = i end
-  end
-  GC.Sniper._FitRowHeights(rows, content, heldThrough)
+  GC.Sniper._FitRowHeights(rows, content, GC.Sniper._RowUnderCursor(rows, hoveredRow))
   -- The empty-state panel describes THIS render, so it is driven from here.
   if GC.Sniper._UpdateEmptyState then GC.Sniper._UpdateEmptyState(shown) end
   GC.Sniper._PaintGoldLine(list)
@@ -2104,6 +2100,21 @@ function GC.Sniper._FitRowHeights(list, child, heldThrough)
     end
   end
   if child and child.SetHeight then child:SetHeight(math.max(bottom, WIN.ROW_HEIGHT)) end
+end
+
+-- The index of the row the cursor is on, its CHECK/BUY button included, or nil. `hovered` alone
+-- misses the button: the cursor moving onto it is the row's OnLeave (the button takes the mouse),
+-- and clicking CHECK narrows the item cell (the buy window opens) right under the cursor
+-- (review 2026-11-08). IsMouseOver asks where the cursor is, whoever holds the mouse.
+function GC.Sniper._RowUnderCursor(list, hovered)
+  local under = nil
+  for i = 1, #list do
+    local row = list[i]
+    if row == hovered or (row.IsShown and row:IsShown() and row.IsMouseOver and row:IsMouseOver()) then
+      under = i
+    end
+  end
+  return under
 end
 
 -- A row's width changed (the window resized, a column dropped): its words may wrap differently,
