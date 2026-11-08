@@ -12,6 +12,9 @@
   back.
 - WoW: Forever, BUY: items on your list that are not commodities, such as recipes and book pages,
   now get their price and can be bought. The button no longer waits ten seconds and starts over.
+- WoW: Forever, DEALS: gear that comes in versions, such as "of the Eagle" or "of Healing", is now
+  checked against the version that is on sale. The live check used to find none of it and hid
+  every such deal as gone the moment it appeared.
 
 ## 0.24.2 (2026-11-07)
 
