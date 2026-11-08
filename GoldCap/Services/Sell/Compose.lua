@@ -115,8 +115,8 @@ function Compose.Positions(skipPaint)
     -- and the item's own market figures apply (Core/SellPositions.lua's decoratePosition).
     oneLevelPerItem = GC.Sell.OnForever and GC.Sell.OnForever() or nil,
     -- Followed groups: each item's selling rule and its unsold rounds (Core/GroupRules.lua,
-    -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. Retail only: on
-    -- WoW: Forever neither module loads and no position has a rule.
+    -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. On WoW: Forever
+    -- only GroupRules loads (no step-down there yet), so every position reads zero rounds.
     rules = GC.GroupRules and { ruleFor = GC.GroupRules.RuleFor,
       roundsFor = GC.SellRounds and GC.SellRounds.Rounds or function() return 0 end } or nil,
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })

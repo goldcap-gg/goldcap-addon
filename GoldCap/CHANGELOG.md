@@ -1,5 +1,21 @@
 # GoldCap
 
+## 0.25.0 (2026-11-08)
+
+- WoW: Forever: the groups you follow on goldcap.gg now work on the SELL tab. Each group's price
+  floor, how long it lists for and posting one at a time apply to its items, and the GROUPS row
+  above the list lets you post one group at a time. The Companion brings the groups in.
+- WoW: Forever, DEALS: an item of a group you follow is marked GROUP with the group's name, and a
+  commodity of the group listed under the group's price shows up as a deal, measured against the
+  group's usual price.
+- SELL: while REFRESH runs, items in your bags no longer drop off the list for a moment and come
+  back.
+- WoW: Forever, BUY: items on your list that are not commodities, such as recipes and book pages,
+  now get their price and can be bought. The button no longer waits ten seconds and starts over.
+- WoW: Forever, DEALS: gear that comes in versions, such as "of the Eagle" or "of Healing", is now
+  checked against the version that is on sale. The live check used to find none of it and hid
+  every such deal as gone the moment it appeared.
+
 ## 0.24.2 (2026-11-07)
 
 - WoW: Forever, DEALS: grey items are no longer offered as "Under market" buys. Their listings sit

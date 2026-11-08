@@ -337,5 +337,54 @@ describe("Sell tab with followed groups' rules", function()
       assert.is_nil(GC.SellUI.Dock.HeldBackText("item:8")) -- unmarked, but nothing holds it
       S.queueSkipped, S.notSelling = saved.skipped, saved.rest
     end)
+
+    -- WoW: Forever loads GroupRules and not SellRounds (spec/camelot_toc_spec.lua): the rules'
+    -- floor, duration and one at a time hold there, with no step-down rounds. The file's `d` is in
+    -- that game's hours, so 24 is its longest auction (index 3), and the GROUPS row shows.
+    describe("on WoW: Forever, GroupRules loaded and SellRounds not", function()
+      before_each(function()
+        GC.Game = { Passport = function() return { interface = 16001 } end,
+          IsForever = function(p) return p.interface >= 16000 and p.interface <= 16999 end }
+        assert.is_nil(GC.SellRounds)
+        GC.GroupRules.Adopt({ v = 3, groups = { "Herbs" },
+          caps = { { i = 10, c = 8000, g = 1, u = 10000, r = 1, k = true } },
+          rules = { { n = "Herbs", p = "gather", d = 24, q = 1, fp = 80, s = 5 } } })
+      end)
+
+      it("posts at the rule's longest auction, one at a time, and counts no rounds", function()
+        ready(12000)
+        assert.equal(0, GC.SellState.positions[1].sellRounds)
+        container.queueButton.scripts.OnClick(container.queueButton)
+        assert.equal(1, #posted)
+        assert.equal(3, posted[1].duration) -- 24 h is the third of Forever's 2, 8 and 24, not retail's second
+        assert.equal(1, posted[1].quantity)
+        assert.equal(3, GC.SellState.postingPin.duration)
+      end)
+
+      it("holds a post whose market is under the rule's floor", function()
+        ready(6000)
+        assert.equal("below_rule_floor", GC.SellState.queueSkipped[1].reason)
+      end)
+
+      it("shows the GROUPS row with the group's chip", function()
+        ready(12000)
+        GC.SellUI.Toolbar.PaintGroups()
+        assert.is_true(container.groupsLabel.shown)
+        local labels = {}
+        for _, button in ipairs(container.groupChips) do
+          if button.shown then labels[#labels + 1] = button.label end
+        end
+        assert.is_true(#labels >= 3) -- ALL, MY GROUPS, HERBS
+        assert.is_truthy(labels[3]:find("HERBS", 1, true))
+      end)
+
+      it("names the rule in Forever's hours", function()
+        ready(12000)
+        local row = herbRow()
+        row.scripts.OnEnter(row)
+        local joined = table.concat(tooltip, "\n")
+        assert.is_truthy(joined:find("1 at a time, 24 h, not under 80% of usual", 1, true))
+      end)
+    end)
   end)
 end)

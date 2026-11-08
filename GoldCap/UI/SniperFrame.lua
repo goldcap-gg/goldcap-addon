@@ -177,6 +177,11 @@ LIM.STRANDED_RELEASE_SECONDS = 35
 -- Task 8 hover pre-warm: how long a cached deal.prewarm result stays consumable by openDialog
 -- before it's treated as expired (falls back to today's requery-then-arm flow instead).
 LIM.PREWARM_TTL_SECONDS = 10
+-- An item's variant keys learnt from a browse by its name (GC.Sniper._SendNaming): how long they
+-- stand for the searches that follow, and how long such a browse may go unanswered before an answer
+-- is no longer taken for it.
+LIM.NAMED_TTL_SECONDS = 60
+LIM.NAMING_SECONDS = 10
 -- If no browse event arrives within this long after a send (initial query or page
 -- request), the paging chain is presumed stalled -- see armScanWatchdog.
 LIM.SCAN_WATCHDOG_SECONDS = 15
@@ -1402,7 +1407,9 @@ local function setRowDeal(row, deal)
   -- buyable, and the PROFIT cell carries the figure.
   local chip = GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID])
   if deal.forever and (not verdict or verdict.buyable) then
-    chip = GC.Sniper._ForeverLabel(deal.forever)
+    -- A row of an item in a group the player follows says so (GC.Sniper._GroupNote has the rest);
+    -- its kind is in the tooltip.
+    chip = deal.capFollowed and GC.L["GROUP"] or GC.Sniper._ForeverLabel(deal.forever)
     verdictColor = deal.forever == "market" and Theme.color.gold or Theme.color.green
   end
   row.tierChip:SetLabel(chip, verdictColor)
@@ -2968,7 +2975,10 @@ driver = {
   -- never queues a drill for one. Both Items-board writers are this poll and this drill.
   variantKey = function(itemID)
     if not (GC.KeyPoll and GC.KeyPoll.VariantKeyFor and GC.Sniper._keyPoll) then return nil end
-    local entry = GC.Sniper._PolledEntry(itemID)
+    -- What the polls saw, else what a browse by the item's name just said (GC.Sniper._SendNaming):
+    -- on WoW: Forever an item with random suffixes is filed under one key per suffix, and its
+    -- bare key answers no lots at all.
+    local entry = GC.Sniper._PolledEntry(itemID) or GC.Sniper._NamedEntry(itemID)
     if not entry then return nil end
     -- A commodity has one key -- the bare one -- whatever its browse row carried: the caps' poll
     -- folds commodities too, and nothing here is gained by naming anything else.
@@ -5276,7 +5286,8 @@ local function drawVerdict(deal, decision, market)
     figureColor = hero.refused and Theme.color.fgDim or up and Theme.color.green or Theme.color.red
     local key = hero.forever ~= "market" and "vendor" or hero.refSource == "sold" and "market_sold"
       or hero.refSource == "crowd" and "market_crowd" or "market"
-    caption = (hero.refused or hero.liveExit) and ""
+    -- A row measured against a followed group's usual price has no AH value to name either.
+    caption = (hero.refused or hero.liveExit or hero.refSource == "group") and ""
       or (GC.L[CV.HERO_CAPTION[key]]):format(displayDecisionAmount(hero.ref),
         GC.Sniper._PerDayText(hero.soldPerDay) or "-")
   elseif hero.kind == "days" then
@@ -5474,8 +5485,9 @@ local function stampDialogFromDecision(deal, decision)
   dialog.reasonText:SetText(decision.cap
     and (decision.followed and GC.Sniper._CapNote(deal)
       or GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."])
-    or foreverPass and GC.Sniper._ForeverNote(decision.forever, decision.ceiling,
-      decision.refUnit or decision.exitUnit, decision.stressProfit)
+    or foreverPass and (deal.refSource == "group" and GC.Sniper._GroupNote(deal)
+      or GC.Sniper._ForeverNote(decision.forever, decision.ceiling,
+        decision.refUnit or decision.exitUnit, decision.stressProfit))
     or GC.SniperDecision.ReasonText(firstReason))
 
   -- The verdict block is drawn by drawVerdict (above), off Core/CheckVerdict.lua. The item's
@@ -6453,6 +6465,14 @@ function GC.Sniper._CapNote(deal)
   return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
 end
 
+-- WoW: Forever: the sentence on a scan row of an item in a group the player follows (Core/ForeverDeals.lua
+-- marks it capGroup/capFollowed), which a cap row's note says on retail. Only for a row priced by the
+-- group (refSource "group"); nil for any other row.
+function GC.Sniper._GroupNote(deal)
+  if not (deal and deal.forever and deal.refSource == "group" and deal.capGroup) then return nil end
+  return (GC.L["Listed at or under the deal price of a group you follow (%s)"]):format(deal.capGroup)
+end
+
 -- The status line over Buy once a cap lot is armed: at or under the player's own price, or the
 -- price of a group they follow (decision.followed, Core/Caps.lua), which is not theirs.
 function GC.Sniper._CapArmText(decision)
@@ -6888,6 +6908,10 @@ local function issueRequerySearch(attempt)
   if not isCurrentRequeryAttempt(attempt) then return end
   local held = GC.Sniper._KeysOutstanding()
   if driver.isReady() and not held then
+    -- The item's variant keys first, where they are owed: the search goes once they are in.
+    local naming = GC.Sniper._VariantsOwed(attempt.itemID) and GC.Sniper._SendNaming(attempt.itemID, attempt)
+    if naming == "sent" then return end
+    if naming == "wait" then pendingRequerySend[attempt.itemID] = attempt return end
     attempt.sent = true
     attempt.overBatch = GC.Sniper._OrphanLive()
     driver.sendSearch(attempt.itemID)
@@ -6895,6 +6919,141 @@ local function issueRequerySearch(attempt)
   end
   pendingRequerySend[attempt.itemID] = attempt
   if held then GC.Sniper._HoldCheck(attempt) end
+end
+
+-- An item's variant keys, learnt by its name. WoW: Forever files an item with random suffixes
+-- ("... of the Eagle") under one key per suffix, and its bare key answers no lots at all: a Check
+-- of Carving Knife asked 2140/11/0/0 three times and was told 0 lots each time, while Blizzard's
+-- own pane asked 2140/11/14315/0 and got 119 (probe 08.11). A keys batch on the bare key names no
+-- suffix either; a browse by the item's name names every one of them, with its cheapest price and
+-- how many are up. So where the variants are owed (GC.Sniper._VariantsOwed: never on retail, see
+-- UI/SniperFrame_Camelot.lua) the name goes first, and the search after it asks the cheapest
+-- variant's own key (driver.variantKey, off GC.Sniper._NamedEntry).
+GC.Sniper._named = GC.Sniper._named or {}
+
+function GC.Sniper._VariantsOwed() return false end
+
+-- What the last browse by this item's name said, while it stands: an entry shaped like the key
+-- polls' ({ itemID, variants = { { itemLevel, itemSuffix, battlePetSpeciesID, floor } } }), or nil
+-- -- also when that browse found no lots of the item at all.
+function GC.Sniper._NamedEntry(itemID)
+  local named = GC.Sniper._named[itemID]
+  if not named or GetTime() - named.at > LIM.NAMED_TTL_SECONDS then return nil end
+  return named.entry
+end
+
+-- Whether a browse by this item's name has answered lately, lots or none.
+function GC.Sniper._NamedFresh(itemID)
+  local named = GC.Sniper._named[itemID]
+  return named ~= nil and GetTime() - named.at <= LIM.NAMED_TTL_SECONDS
+end
+
+-- The item's name in the client's own language, the words its auction house is searched by.
+function GC.Sniper._NameOf(itemID)
+  local info = driver.getKeyInfo(itemID)
+  local name = type(info) == "table" and info.itemName or nil
+  if (type(name) ~= "string" or name == "") and C_Item and C_Item.GetItemNameByID then
+    name = C_Item.GetItemNameByID(itemID)
+  end
+  return type(name) == "string" and name ~= "" and name or nil
+end
+
+-- A browse by name of ours is out and not yet answered.
+function GC.Sniper._NamingBusy()
+  local out = GC.Sniper._naming
+  return out ~= nil and GetTime() - out.at <= LIM.NAMING_SECONDS
+end
+
+-- Sends the browse by the item's name, under the rules every browse of ours keeps. `attempt` is a
+-- Check waiting on the answer, parked again once it lands (GC.Sniper._TakeNaming); a browse for
+-- this same item already out takes it along. Answers:
+--   "sent"  a browse for the item is out, and the Check waits on it;
+--   "wait"  one cannot go yet -- the throttle, a keys batch, a scan paging, a browse still on the
+--           wire (an abandoned pass's last page), another item's browse by name -- and every one of
+--           those ends with an answer that brings the next turn;
+--   nil     none will: the item has no name the client knows, or the list is the player's own
+--           search, which nothing of ours writes over. The bare key is all there is then.
+function GC.Sniper._SendNaming(itemID, attempt)
+  if GC.Sniper._NamingBusy() then
+    local out = GC.Sniper._naming
+    if out.itemID ~= itemID then return "wait" end
+    if attempt then out.attempt = attempt end
+    return "sent"
+  end
+  local name = GC.Sniper._NameOf(itemID)
+  if not name or GC.Sniper._BrowseOwned() then return nil end
+  if GC.Sniper._browseOutAt and time() - GC.Sniper._browseOutAt <= LIM.SCAN_WATCHDOG_SECONDS then
+    GC.Sniper._namingAfterBrowse = true -- its answer asks for the turn (GC.Sniper.OnBrowseResults)
+    return "wait"
+  end
+  if not driver.isReady() or GC.Sniper._KeysOutstanding() or GC.Sniper._bookPass:IsPaging() then
+    return "wait"
+  end
+  GC.Sniper._naming = { itemID = itemID, attempt = attempt, at = GetTime() }
+  trace("naming: item " .. tostring(itemID))
+  -- GoldCap's, not the player's: UI/AuctionHouseTab.lua's hook leaves Blizzard's pane alone for it.
+  local tab = GC.AuctionHouseTab
+  if tab then tab.addonBrowse = true end
+  local order = Enum and Enum.AuctionHouseSortOrder
+  C_AuctionHouse.SendBrowseQuery({ searchString = name, filters = {}, itemClassFilters = {},
+    sorts = order and { { sortOrder = order.Price, reverseSort = false } } or {} })
+  if tab then tab.addonBrowse = false end
+  GC.Sniper._browseOutAt = time()
+  return "sent"
+end
+
+-- Lets go of the browse by name out, and parks the Check that waited on it to be asked again: a
+-- message dropped (it may have been this one), the player's own search on the list.
+function GC.Sniper._DropNaming()
+  local out = GC.Sniper._naming
+  if not out then return end
+  GC.Sniper._naming = nil
+  -- The browse marked out was this one (nothing else of ours browses while it is out).
+  GC.Sniper._browseOutAt = nil
+  local attempt = out.attempt
+  if attempt and not attempt.sent and isCurrentRequeryAttempt(attempt) then
+    pendingRequerySend[attempt.itemID] = attempt
+  end
+end
+
+-- The answer to that browse: every key of the item with lots up, with its cheapest price, kept as
+-- the variants driver.variantKey chooses from. A Check that waited on it is parked to search the
+-- variant on the next ready turn. Returns whether the answer was taken.
+function GC.Sniper._TakeNaming()
+  local out = GC.Sniper._naming
+  if not out then return false end
+  if not GC.Sniper._NamingBusy() then
+    GC.Sniper._naming = nil
+    return false
+  end
+  -- A scan paging the list owns what lands on it: no browse by name goes while one pages, and the
+  -- pass waits for one that is out (OnThrottleReady's passWants), so this is the pass's page.
+  if GC.Sniper._bookPass:IsPaging() then return false end
+  local browsed = C_AuctionHouse.GetBrowseResults() or {}
+  -- A keys batch written off just before this browse went (the arbiter does that for a held Check)
+  -- may answer first: its late answer is dropped, and this browse's own is still to come.
+  if GC.Sniper._IsOrphanAnswer(browsed) then return true end
+  local variants = {}
+  for _, row in ipairs(browsed) do
+    local key = type(row) == "table" and row.itemKey or nil
+    if type(key) == "table" and key.itemID == out.itemID and (row.totalQuantity or 0) > 0
+        and type(row.minPrice) == "number" then
+      variants[#variants + 1] = { itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0,
+        battlePetSpeciesID = key.battlePetSpeciesID or 0, floor = row.minPrice }
+    end
+  end
+  GC.Sniper._naming = nil
+  GC.Sniper._named[out.itemID] = { at = GetTime(),
+    entry = #variants > 0 and { itemID = out.itemID, variants = variants } or nil }
+  trace(("naming: item %s, %d keys with lots"):format(tostring(out.itemID), #variants))
+  local attempt = out.attempt
+  if attempt and not attempt.sent and isCurrentRequeryAttempt(attempt) then
+    pendingRequerySend[attempt.itemID] = attempt
+  end
+  -- The ready tick may well have come before this answer did, and the quiet zone a Check opens
+  -- holds back every other caller of the arbiter: the turn that sends the Check is asked for here.
+  GC.Sniper._DeferTurn()
+  return true
 end
 
 -- Final review S2 (ii): the deadline belongs to the ask that is out. A Check asked a second time
@@ -7084,6 +7243,10 @@ local function maybeStartPrewarm(deal, auto)
   -- and the Sell tab's pricing walk gets its own. Asked HERE rather than beside the isReady
   -- read above so a decline further up (a cached warm, an uncached key) never spends it.
   if driver.claimSend and not driver.claimSend() then return end
+  -- The item's variant keys first, where they are owed (GC.Sniper._VariantsOwed): this turn is the
+  -- browse by its name, and the next one searches the variant it names. Searched on its bare key,
+  -- an item filed under one key per suffix comes back with no lots, and the row reads "gone".
+  if GC.Sniper._VariantsOwed(itemID) then return GC.Sniper._SendNaming(itemID) == "sent" end
 
   prewarmToken = prewarmToken + 1
   local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true }
@@ -7700,6 +7863,7 @@ end
 -- scan keeps what it had already streamed in.
 function GC.Sniper._OnPlayerBrowse()
   if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("player search") end
+  GC.Sniper._DropNaming() -- the player's search replaces it on the list
   if GC.Sniper._bookPass:IsPaging() then
     trace("pass: abandoned for the player's own search")
     abortFullScan()
@@ -7804,6 +7968,7 @@ end
 function GC.Sniper.OnThrottledMessageDropped()
   if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("dropped") end
   prewarmAttempt = nil
+  GC.Sniper._DropNaming()
   -- Re-arm whoever is next rather than waiting for a readiness event that may not come: the
   -- arbiter sends at most one message and refuses on its own if the system is genuinely busy.
   -- Claimed like any other send this addon makes off its own clock -- a client that is dropping
@@ -7861,7 +8026,13 @@ end
 
 function GC.Sniper.OnBrowseResults()
   GC.Sniper._browseOutAt = nil
+  -- A Check that waited for this browse to land before browsing its item's name goes next turn.
+  if GC.Sniper._namingAfterBrowse then
+    GC.Sniper._namingAfterBrowse = nil
+    GC.Sniper._DeferTurn()
+  end
   if GC.Sniper._FoldKeysBatch() then return end
+  if GC.Sniper._TakeNaming() then return end
   -- The BUY tab's search, once no keys batch has claimed the answer (nothing of ours sends one
   -- over the other): its own answer, or the late one of a request it gave up.
   if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end
@@ -7879,6 +8050,7 @@ end
 function GC.Sniper.OnBrowseResultsAdded()
   GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
+  if GC.Sniper._TakeNaming() then return end
   if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end -- see OnBrowseResults
   if not GC.Sniper._bookPass:IsPaging() then return end
   if GC.Sniper._bookPass:PendingStart() then return end -- see OnBrowseResults
@@ -7997,6 +8169,8 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   if GC.Sniper.IsPurchaseQuiet() or next(pendingRequerySend) ~= nil or prewarmAttempt then
     return false
   end
+  -- A browse by an item's name is out (GC.Sniper._SendNaming): a batch answers into the same list.
+  if GC.Sniper._NamingBusy() then return false end
   -- ...and the watch loop's search, the one search of ours the pre-warm slot does not cover.
   local scanner = GC.Sniper.scanner
   if scanner and scanner.Awaiting and scanner:Awaiting() then return false end
@@ -8188,6 +8362,9 @@ function GC.Sniper.OnThrottleReady()
       if not driver.isReady() then return end
       if held then GC.Sniper._WriteOffKeys("check") end
       pendingRequerySend[itemID] = nil
+      local naming = GC.Sniper._VariantsOwed(itemID) and GC.Sniper._SendNaming(itemID, attempt)
+      if naming == "sent" then return end
+      if naming == "wait" then pendingRequerySend[itemID] = attempt return end
       attempt.sent = true
       attempt.overBatch = GC.Sniper._OrphanLive()
       driver.sendSearch(itemID)
@@ -8252,6 +8429,7 @@ function GC.Sniper.OnThrottleReady()
   local share = GC.Sniper._drillShare
   local passWants = GC.Sniper._bookPass:Wants() and not playerBusy
     and not GC.Sniper._KeysOutstanding() and not GC.Sniper._BrowseOwned()
+    and not GC.Sniper._NamingBusy() -- a page sent now would be read as that browse's answer
   local drillsYield = passWants and share.run >= LIM.DRILL_SHARE
   local drillStoodAside = false
   for _ = 1, 2 do
@@ -11501,9 +11679,15 @@ createRow = function(parent, index)
       GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: not checked against the live auction house yet"]), 0.7, 0.7, 0.7)
     end
     if self.deal.forever then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
-        self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
-        self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
+      -- A row measured against a followed group's usual price has no AH value for the note to name:
+      -- the group's sentence stands in for it.
+      if self.deal.refSource ~= "group" then
+        GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling,
+          self.deal.refUnit, self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
+          self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
+      end
+      local groupNote = GC.Sniper._GroupNote(self.deal)
+      if groupNote then GameTooltip:AddLine(GC.Util.ClientText(groupNote), 0.25, 0.85, 0.25, true) end
     end
     -- A realm row priced against the region says nothing more about it here: the verdict line
     -- above says it is a realm item, and GoldCap's price block under the item names the region's
@@ -12946,6 +13130,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- open" read.
   ahOpen = false
   GC.Sniper._browseOutAt, GC.Sniper._searchesOut = nil, {} -- nothing is answered once the auction house has closed
+  GC.Sniper._naming = nil -- nor a browse by an item's name (GC.Sniper._SendNaming)
 
   -- Undock the window from the auction house before anything else tears down: the dock host
   -- is a child of the AH frame and is about to vanish with it. Idempotent (SetDocked(nil)

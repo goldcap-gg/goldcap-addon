@@ -96,6 +96,7 @@ Core/PurchaseCall.lua
 Core/ListStrings.lua
 Core/AppRuns.lua
 Core/Caps.lua
+Core/GroupRules.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
@@ -131,6 +132,7 @@ UI/ImportDialog.lua
 UI/WelcomeFrame.lua
 UI/VendorListDialog.lua
 UI/SniperFrame.lua
+UI/SniperFrame_Camelot.lua
 UI/AuctionHouseTab.lua
 UI/SellViewModel.lua
 UI/Sell/Frame.lua
@@ -147,6 +149,7 @@ UI/SoldFrame.lua
 UI/ForeverUpgradesFrame.lua
 UI/BuyCapEditor.lua
 UI/BuyFrame.lua
+UI/BuyFrame_Camelot.lua
 UI/BuyLists.lua
 UI/BuyAddBox.lua
 UI/BuySearch.lua

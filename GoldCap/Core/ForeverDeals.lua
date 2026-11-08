@@ -147,34 +147,17 @@ local function soldReference(sold)
   return { value = sold.median, source = "sold", perDay = sold.perDay }
 end
 
-local function underMarket(itemID, e, ctx, isCommodity)
-  -- Grey, or not loaded yet: the client loads an item's quality with its vendor price, which Build
-  -- has already asked for, and the rebuild that picks the price up picks the quality up too.
-  if ctx.qualityFor then
-    local quality = ctx.qualityFor(itemID)
-    if type(quality) ~= "number" or quality < 1 then return nil end
-  end
-  local sold = ctx.salesFor and ctx.salesFor(itemID) or nil
-  local ref, maxUnits
-  if sold then
-    ref = soldReference(sold)
-    -- No more than SOLD_DAYS of what sells: a buy that took a month of the item's sales would sit
-    -- on the auction house, relisted and paying a deposit each time.
-    maxUnits = ref and math.max(1, math.floor((sold.perDay or 0) * C.SOLD_DAYS))
-  else
-    ref = listedReference(itemID, e, ctx)
-  end
-  if not ref then return nil end
-  local refUnit = referenceUnit(ref)
-  if not refUnit then return nil end
-  local net = math.floor(refUnit * KEEP)
-  if e.ladder[1][1] > math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1) then return nil end
+-- The buy that makes the most out of the ladder's levels at or under `limit` a unit, resold at
+-- `refUnit` after the 5% cut and the deposit, as a "market" lead; nil when no level is under the
+-- limit, the item is not a commodity, or no buy pays.
+local function resaleRow(itemID, e, ctx, isCommodity, refUnit, limit, maxUnits)
+  if e.ladder[1][1] > limit then return nil end
   if isCommodity() ~= true then return nil end
   -- The deposit is the post's, not a unit's: the client's quote for posting what the buy took
   -- (GC.ForeverValue.CommodityDeposit). It used to be the 1-unit quote, which on WoW: Forever is a
   -- post's 1s floor, taken once per unit and off the most a unit may cost: no cheap commodity ever
   -- made a row (owner's client, 2026-11-07: 1s on every item under 5c a unit at a vendor).
-  local ceiling = math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1)
+  local ceiling = limit
   if ceiling < 1 then return nil end
   -- Priced as the Check prices it (GC.SniperDecision.EvaluateCeiling): resold one copper under the
   -- cheapest ask the buy leaves on the book, never above the AH value, and of the buys that take
@@ -201,10 +184,50 @@ local function underMarket(itemID, e, ctx, isCommodity)
   if not best or best.profit <= 0 then return nil end
   local row = lead(itemID, e, "market", ceiling, refUnit, best.units, best.cost, best.profit)
   row.depositUnit = math.ceil(best.deposit / best.units)
+  return row
+end
+
+local function underMarket(itemID, e, ctx, isCommodity)
+  -- Grey, or not loaded yet: the client loads an item's quality with its vendor price, which Build
+  -- has already asked for, and the rebuild that picks the price up picks the quality up too.
+  if ctx.qualityFor then
+    local quality = ctx.qualityFor(itemID)
+    if type(quality) ~= "number" or quality < 1 then return nil end
+  end
+  local sold = ctx.salesFor and ctx.salesFor(itemID) or nil
+  local ref, maxUnits
+  if sold then
+    ref = soldReference(sold)
+    -- No more than SOLD_DAYS of what sells: a buy that took a month of the item's sales would sit
+    -- on the auction house, relisted and paying a deposit each time.
+    maxUnits = ref and math.max(1, math.floor((sold.perDay or 0) * C.SOLD_DAYS))
+  else
+    ref = listedReference(itemID, e, ctx)
+  end
+  if not ref then return nil end
+  local refUnit = referenceUnit(ref)
+  if not refUnit then return nil end
+  local net = math.floor(refUnit * KEEP)
+  local row = resaleRow(itemID, e, ctx, isCommodity, refUnit, math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1),
+    maxUnits)
+  if not row then return nil end
   -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd,
   -- market_sold), and how much a day sells, which the live Check holds the buy to.
   row.refSource, row.refScanners = ref.source, ref.scanners
   row.soldPerDay, row.maxUnits = ref.perDay, maxUnits
+  return row
+end
+
+-- A followed group's item (Core/GroupRules.lua's Followed): the group's price held to a resale
+-- that pays (GC.Caps.DealLimit, as retail's cap rows are), measured against the usual price the
+-- site worked the group out from. The player picked the group, so the thin-book, grey and
+-- sales-window guards of an "Under market" row do not apply: the Check still holds the live book
+-- to the ceiling. Commodities only, for the reason underMarket gives. A row of the kind "market"
+-- (its buy limit, its Check), whose reference is the group's.
+local function underGroup(itemID, e, group, ctx, isCommodity)
+  if not (group and group.usual and group.usual > 0 and group.price and group.price > 0) then return nil end
+  local row = resaleRow(itemID, e, ctx, isCommodity, group.usual, GC.Caps.DealLimit(group.price, group.usual))
+  if row then row.refSource = "group" end
   return row
 end
 
@@ -264,14 +287,23 @@ function GC.ForeverDeals.Build(fold, ctx)
         end
         return commodity
       end
+      -- A followed group's item (ctx.groupFor): its own row comes before an "Under market" one,
+      -- and a row of the item of any kind carries the group's name.
+      local groupName, groupPrice, groupUsual
+      if ctx.groupFor then groupName, groupPrice, groupUsual = ctx.groupFor(itemID) end
+      local groupRow = groupName and underGroup(itemID, e,
+        { price = groupPrice, usual = groupUsual }, ctx, isCommodity) or nil
       local marketRow = underMarket(itemID, e, ctx, isCommodity)
       local row
       if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) and oneBuyAdmits(vendorRow, isCommodity, admit) then
         row = vendorRow
+      elseif groupRow and GC.DealMath.BoardAdmits(groupRow, admit) then
+        row = groupRow
       elseif marketRow and GC.DealMath.BoardAdmits(marketRow, admit) then
         row = marketRow
       end
       if row then
+        if groupName then row.capGroup, row.capFollowed = groupName, true end
         isCommodity()
         row.isCommodity = commodity == true
         row.board = commodity == false and "items" or "commodities"
@@ -312,7 +344,7 @@ end
 -- `reask`: the auction house opened since (GC.ForeverDeals.OnAuctionHouseShow), so they are asked
 -- again at the next Refresh.
 -- `from`: the fold table the rows were built from (Drop reads the entry a row came from).
-local cache = { at = nil, itemCount = nil, rev = nil, from = nil, builtAt = 0, waitUntil = 0,
+local cache = { at = nil, itemCount = nil, rev = nil, from = nil, groups = nil, builtAt = 0, waitUntil = 0,
   rows = {}, byItem = {}, unsure = 0, reask = false, floorOnly = 0, entries = 0 }
 -- keyAsked: when each unsure item's key was first asked, for this fold only (rebuild wipes it when
 -- the fold changes, OnAuctionHouseShow when the auction house opens).
@@ -330,8 +362,14 @@ local bought = {}
 -- overwrote entries moves neither, and the board never rebuilt for it (review, 2026-11-06):
 -- `rev`, bumped on every write, does. A fold saved before `rev` existed has none, and the first
 -- two still tell it apart.
+local function groupsRev()
+  return GC.GroupRules and GC.GroupRules.rev or 0
+end
+
 local function foldChanged(fold)
   return cache.at ~= fold.at or cache.itemCount ~= fold.itemCount or cache.rev ~= fold.rev
+    -- A group followed or let go since: its items are marked, or measured against it, differently.
+    or cache.groups ~= groupsRev()
 end
 
 -- A dropped row stays off while the fold still holds the very entry it was built from, under the
@@ -376,6 +414,8 @@ local function rebuild(fold, now)
     -- its deposit -- not only those the Sell tab once saw in the bags (final review I2). The
     -- deposit for one post of the units a buy takes.
     depositFor = GC.ForeverValue.CommodityDeposit,
+    -- The followed groups the player follows on goldcap.gg (Core/GroupRules.lua).
+    groupFor = GC.GroupRules and GC.GroupRules.Followed or nil,
     minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     watchPins = settings.watchPins,
     referenceFor = function(itemID, e)
@@ -419,6 +459,7 @@ local function rebuild(fold, now)
     waitUntil = math.max(waitUntil, keyAsked[itemID] + C.REQUEST_WAIT_SECONDS)
   end
   cache.at, cache.itemCount, cache.rev, cache.from = fold.at, fold.itemCount, fold.rev, fold
+  cache.groups = groupsRev()
   cache.builtAt, cache.waitUntil, cache.rows, cache.byItem = now, waitUntil, kept, byItem
   cache.unsure, cache.reask = #unsure, false
   local entries = fold.itemCount

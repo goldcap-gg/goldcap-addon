@@ -124,12 +124,11 @@ function Walk.Queue()
       actionable[#actionable + 1] = position
     end
   end
-  -- Ordered by NEED, not by value. Ordering by value starved the tail: a row
-  -- that had just been priced sorted to the front of the very next pass, ahead
-  -- of rows that had never been priced at all, so the bottom of a long list
-  -- never got asked about. Never-priced first, then oldest quote first, and only
-  -- then by value -- which still decides between two equally stale rows, because
-  -- a stale price on a 200-unit stack of ore costs more than one on a lone flask.
+  -- Ordered as the player reads the tab. Ordering by value starved the tail: a row that had just
+  -- been priced sorted to the front of the very next pass, ahead of rows never priced at all, so
+  -- the bottom of a long list never got asked about. Membership (above) is what keeps the tail
+  -- fed now -- only DUE rows are in the pass, so a row just answered is not asked again -- and
+  -- what is left is walked top to bottom. Need and value only order rows with no place on screen.
   -- The deck on screen first, in the order it is drawn. The queue covers BOTH decks -- stock
   -- in the bags and every live lot -- so a walk of twenty-seven over a deck showing ten spent
   -- its first seconds on rows of the other deck while the ones being looked at waited.

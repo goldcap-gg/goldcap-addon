@@ -17,6 +17,18 @@ local function split(lines)
 end
 
 describe("GoldCap_Camelot.toc (WoW: Forever)", function()
+  it("loads the followed groups' rules but not what steps a price down or reads the mail", function()
+    local _, files = split(read("GoldCap/GoldCap_Camelot.toc"))
+    local at = {}
+    for i, f in ipairs(files) do at[f] = i end
+    assert.is_not_nil(at["Core/GroupRules.lua"])
+    assert.is_true(at["Core/Caps.lua"] < at["Core/GroupRules.lua"])
+    for _, f in ipairs({ "Core/SellRounds.lua", "Core/MailReturns.lua", "Core/CancelRun.lua", "Core/Hoard.lua",
+      "Core/BankGroups.lua", "Core/MailGroups.lua", "Core/Alts.lua" }) do
+      assert.is_nil(at[f], f)
+    end
+  end)
+
   local retailD, retailF = split(read("GoldCap/GoldCap.toc"))
   local foreverD, foreverF = split(read("GoldCap/GoldCap_Camelot.toc"))
 
@@ -34,13 +46,14 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   end)
 
   -- Minus retail's price snapshot, and the carry list at the Warband Bank (UI/BankRoute.lua):
-  -- goldcap.gg works out where flips sell for retail realms alone. Minus the followed groups'
-  -- selling rules too: groups are retail only (plan 2026-10-22). The mail files
+  -- goldcap.gg works out where flips sell for retail realms alone. The followed groups' selling
+  -- rules (Core/GroupRules.lua) load in both games; their step-down rounds (Core/SellRounds.lua)
+  -- and the mail, bank and Hoard files stay retail only. The mail files
   -- (Core/Mail*.lua) and the vendor sell files are retail only in this wave:
   -- WoW: Forever must not change. Crafting in the profession window loads in both games, with
   -- Forever's differences in files of its own (FOREVER_ONLY below).
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
-    ["Core/GroupRules.lua"] = true, ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true,
+    ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true,
     ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true,
     ["Core/MailStock.lua"] = true,
     ["Core/VendorSelect.lua"] = true, ["Data/NoDisenchant.lua"] = true, ["Core/Disenchant.lua"] = true,
@@ -73,6 +86,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["Core/ForeverVendorPrices.lua"] = "Core/CraftQueue.lua",
     ["Services/CraftClient_Camelot.lua"] = "Services/CraftClient.lua",
     ["UI/CraftPanel_Camelot.lua"] = "UI/CraftQueueView.lua",
+    ["UI/BuyFrame_Camelot.lua"] = "UI/BuyFrame.lua",
+    ["UI/SniperFrame_Camelot.lua"] = "UI/SniperFrame.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()
