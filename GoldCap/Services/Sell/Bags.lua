@@ -73,6 +73,10 @@ function Bags.CommodityKinds()
   return sessionCommodityKind
 end
 
+-- The auction house's last answer, per item, on whether it takes a stack of it (true: it does
+-- not), from a stack whose item data the client had loaded. This session only.
+local refusedByItem = {}
+
 local function classifyBagItem(itemID, link, bag, slot)
   local cache = Bags.CommodityKinds()
   local isCommodity = cache[itemID]
@@ -92,12 +96,21 @@ local function classifyBagItem(itemID, link, bag, slot)
   -- answer, so the dock listened for a minute and then held the item (probe 21.10).
   if bag and slot and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
       and C_AuctionHouse and C_AuctionHouse.IsSellItemValid and ItemLocation and ItemLocation.CreateFromBagAndSlot then
-    local ok, valid = pcall(function()
+    local ok, valid, loaded = pcall(function()
+      local location = ItemLocation:CreateFromBagAndSlot(bag, slot)
       -- displayError false, as Auctionator's own bag scan asks: with it on, every compose at the
       -- auction house put the red "can't auction" error and its sound on screen (review N1).
-      return C_AuctionHouse.IsSellItemValid(ItemLocation:CreateFromBagAndSlot(bag, slot), false)
+      return C_AuctionHouse.IsSellItemValid(location, false),
+        not (C_Item and C_Item.IsItemDataCached) or C_Item.IsItemDataCached(location) == true
     end)
-    if ok and valid == false then return nil, false, nil, true end
+    -- Its no counts only for a stack whose item data the client has loaded. The client drops that
+    -- data for a moment now and then, and says no meanwhile: in a SELL refresh on WoW: Forever a
+    -- few composes read up to 18 of 20 bag stacks with no name, not cached, commodity status
+    -- unknown and not valid, and the next one read them whole again, so their rows left the list
+    -- and came back (probe 08.11). Such a stack keeps the last loaded answer for its item, and stays
+    -- when there is none.
+    if ok and loaded then refusedByItem[itemID] = valid == false end
+    if refusedByItem[itemID] then return nil, false, nil, true end
   end
   if isCommodity == true then return ("commodity:%d"):format(itemID), true end
   local positionKey, quoteKey = GC.Sell._SlotKey(itemID, link, bag, slot)

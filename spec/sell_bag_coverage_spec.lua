@@ -325,6 +325,35 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     for _, displayError in ipairs(displayErrors) do assert.is_false(displayError) end
   end)
 
+  -- The client drops a bag item's data for a moment now and then, and while it is gone it says the
+  -- auction house cannot take the stack. In a SELL refresh on WoW: Forever that took most rows off
+  -- the list for one compose, and the next put them back (probe 08.11).
+  it("keeps a stack whose item data the client has dropped for a moment", function()
+    GC.Sniper.IsAHOpen = function() return true end
+    kinds[2589], kinds[2947], kinds[774] = true, false, true
+    stack(1, 2589, 20, PLAIN, { itemName = "Linen Cloth" })
+    stack(2, 2947, 1, PLAIN, { itemName = "Small Throwing Knife" })
+    local loaded = true
+    _G.C_Item.IsItemDataCached = function() return loaded end
+    _G.C_AuctionHouse.IsSellItemValid = function(location) return loaded and location.slot ~= 2 end
+    compose()
+    assert.is_truthy(positionOf("commodity:2589"))
+    assert.is_nil(positionOf("item:2947:100:7:0"))
+
+    loaded = false
+    stack(3, 774, 2, PLAIN, { itemName = "Malachite" })
+    compose()
+    assert.is_truthy(positionOf("commodity:2589"), "a stack the auction house took stays")
+    assert.is_nil(positionOf("item:2947:100:7:0"), "a stack it refused stays out")
+    assert.is_truthy(positionOf("commodity:774"), "a stack never answered while loaded stays")
+
+    loaded = true
+    compose()
+    assert.is_truthy(positionOf("commodity:2589"))
+    assert.is_truthy(positionOf("commodity:774"))
+    assert.is_nil(positionOf("item:2947:100:7:0"))
+  end)
+
   -- /gc sellstate names a variant by its exact key: two item levels of one piece read as the same
   -- line by item ID alone (final review M7).
   it("names an unpriced variant by its exact key in /gc sellstate", function()
