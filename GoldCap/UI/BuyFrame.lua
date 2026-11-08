@@ -1943,6 +1943,13 @@ function GC.Buy.OnItemResults(itemKey)
   GC.Buy.RefreshIfShown()
 end
 
+-- A gear line's first read: a sell search on the bare key, which answers with every variant's lots,
+-- the player's own in rows of their own (see "A gear line's read" above). A field, so WoW: Forever,
+-- whose server answers no sell search, can read it its own way (UI/BuyFrame_Camelot.lua).
+function GC.Buy._SendLotRead(key, sorts)
+  C_AuctionHouse.SendSellSearchQuery(key, sorts, true)
+end
+
 -- Asks the auction house for this line's book. One SendSearchQuery, under the addon's own
 -- throttle claim, and only when there is nothing better already in hand: a quote younger than
 -- BD.QUOTE_SECONDS for this same line is what the next click will spend, and a purchase in
@@ -2003,7 +2010,7 @@ local function quote(line, clicked)
   if exact then
     C_AuctionHouse.SendSearchQuery(key, lotSorts(), true)
   elseif lotLine then
-    C_AuctionHouse.SendSellSearchQuery(key, lotSorts(), true)
+    GC.Buy._SendLotRead(key, lotSorts())
   else
     C_AuctionHouse.SendSearchQuery(key, {}, false)
   end

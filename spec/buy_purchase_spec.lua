@@ -2040,6 +2040,28 @@ describe("BUY purchase", function()
       assert.equal("quoting", GC.Buy._attempt.stage)
     end)
 
+    -- WoW: Forever's server answers no sell search (UI/BuyFrame_Camelot.lua, probe 08.11): there the
+    -- first read is a buy search on the item's key, and the line gets to a lot all the same.
+    it("on WoW: Forever reads the lots with a buy search on the item's key", function()
+      helper.loadModule("UI/BuyFrame_Camelot.lua", GC)
+      -- Forever's MakeItemKey fills in the item's own level (probe 08.11: 16651 gave 16651/1/0/0).
+      local make = _G.C_AuctionHouse.MakeItemKey
+      _G.C_AuctionHouse.MakeItemKey = function(itemID, level, suffix, species)
+        return make(itemID, level or 20, suffix, species)
+      end
+      pick(rowWithText("Dark Leather Boots"))
+      assert.equal(0, #sellSent)
+      assert.same(AT20, sent[1].key)
+      assert.same({ { sortOrder = 4, reverseSort = false } }, sent[1].sorts)
+      assert.is_true(sent[1].separate)
+      assert.is_true(GC.Buy._attempt.lots)
+      GC.Buy.OnItemResults(AT20)
+      assert.same(AT20, sent[#sent].key) -- the cheapest lot's own key, armed
+      GC.Buy.OnItemResults(AT20)
+      assert.equal("quoted", GC.Buy._attempt.stage)
+      assert.equal(11, GC.Buy._attempt.lot.auctionID)
+    end)
+
     it("then searches the cheapest lot's own key, and offers that lot", function()
       pick(rowWithText("Dark Leather Boots"))
       GC.Buy.OnItemResults(BARE)
