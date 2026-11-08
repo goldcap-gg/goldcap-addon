@@ -132,6 +132,7 @@ UI/ImportDialog.lua
 UI/WelcomeFrame.lua
 UI/VendorListDialog.lua
 UI/SniperFrame.lua
+UI/SniperFrame_Camelot.lua
 UI/AuctionHouseTab.lua
 UI/SellViewModel.lua
 UI/Sell/Frame.lua

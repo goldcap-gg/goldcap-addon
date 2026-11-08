@@ -87,6 +87,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["Services/CraftClient_Camelot.lua"] = "Services/CraftClient.lua",
     ["UI/CraftPanel_Camelot.lua"] = "UI/CraftQueueView.lua",
     ["UI/BuyFrame_Camelot.lua"] = "UI/BuyFrame.lua",
+    ["UI/SniperFrame_Camelot.lua"] = "UI/SniperFrame.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()
