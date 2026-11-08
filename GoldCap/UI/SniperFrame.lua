@@ -6909,11 +6909,9 @@ local function issueRequerySearch(attempt)
   local held = GC.Sniper._KeysOutstanding()
   if driver.isReady() and not held then
     -- The item's variant keys first, where they are owed: the search goes once they are in.
-    if GC.Sniper._VariantsOwed(attempt.itemID) then
-      if GC.Sniper._SendNaming(attempt.itemID, attempt) then return end
-      -- Another item's browse by name is out: this one goes once it has answered.
-      if GC.Sniper._NamingBusy() then pendingRequerySend[attempt.itemID] = attempt return end
-    end
+    local naming = GC.Sniper._VariantsOwed(attempt.itemID) and GC.Sniper._SendNaming(attempt.itemID, attempt)
+    if naming == "sent" then return end
+    if naming == "wait" then pendingRequerySend[attempt.itemID] = attempt return end
     attempt.sent = true
     attempt.overBatch = GC.Sniper._OrphanLive()
     driver.sendSearch(attempt.itemID)
@@ -6966,22 +6964,30 @@ function GC.Sniper._NamingBusy()
   return out ~= nil and GetTime() - out.at <= LIM.NAMING_SECONDS
 end
 
--- Sends the browse by the item's name, under the rules every browse of ours keeps: the throttle
--- ready, no keys batch out, nobody's own search on the list, no scan paging it. `attempt` is a
+-- Sends the browse by the item's name, under the rules every browse of ours keeps. `attempt` is a
 -- Check waiting on the answer, parked again once it lands (GC.Sniper._TakeNaming); a browse for
--- this same item already out takes it along. Returns whether there is now a browse to wait on.
+-- this same item already out takes it along. Answers:
+--   "sent"  a browse for the item is out, and the Check waits on it;
+--   "wait"  one cannot go yet -- the throttle, a keys batch, a scan paging, a browse still on the
+--           wire (an abandoned pass's last page), another item's browse by name -- and every one of
+--           those ends with an answer that brings the next turn;
+--   nil     none will: the item has no name the client knows, or the list is the player's own
+--           search, which nothing of ours writes over. The bare key is all there is then.
 function GC.Sniper._SendNaming(itemID, attempt)
   if GC.Sniper._NamingBusy() then
     local out = GC.Sniper._naming
-    if out.itemID ~= itemID then return false end
+    if out.itemID ~= itemID then return "wait" end
     if attempt then out.attempt = attempt end
-    return true
+    return "sent"
   end
   local name = GC.Sniper._NameOf(itemID)
-  if not name then return false end
-  if not driver.isReady() or GC.Sniper._KeysOutstanding() or GC.Sniper._BrowseOwned()
-      or GC.Sniper._bookPass:IsPaging() then
-    return false
+  if not name or GC.Sniper._BrowseOwned() then return nil end
+  if GC.Sniper._browseOutAt and time() - GC.Sniper._browseOutAt <= LIM.SCAN_WATCHDOG_SECONDS then
+    GC.Sniper._namingAfterBrowse = true -- its answer asks for the turn (GC.Sniper.OnBrowseResults)
+    return "wait"
+  end
+  if not driver.isReady() or GC.Sniper._KeysOutstanding() or GC.Sniper._bookPass:IsPaging() then
+    return "wait"
   end
   GC.Sniper._naming = { itemID = itemID, attempt = attempt, at = GetTime() }
   trace("naming: item " .. tostring(itemID))
@@ -6993,7 +6999,21 @@ function GC.Sniper._SendNaming(itemID, attempt)
     sorts = order and { { sortOrder = order.Price, reverseSort = false } } or {} })
   if tab then tab.addonBrowse = false end
   GC.Sniper._browseOutAt = time()
-  return true
+  return "sent"
+end
+
+-- Lets go of the browse by name out, and parks the Check that waited on it to be asked again: a
+-- message dropped (it may have been this one), the player's own search on the list.
+function GC.Sniper._DropNaming()
+  local out = GC.Sniper._naming
+  if not out then return end
+  GC.Sniper._naming = nil
+  -- The browse marked out was this one (nothing else of ours browses while it is out).
+  GC.Sniper._browseOutAt = nil
+  local attempt = out.attempt
+  if attempt and not attempt.sent and isCurrentRequeryAttempt(attempt) then
+    pendingRequerySend[attempt.itemID] = attempt
+  end
 end
 
 -- The answer to that browse: every key of the item with lots up, with its cheapest price, kept as
@@ -7009,8 +7029,12 @@ function GC.Sniper._TakeNaming()
   -- A scan paging the list owns what lands on it: no browse by name goes while one pages, and the
   -- pass waits for one that is out (OnThrottleReady's passWants), so this is the pass's page.
   if GC.Sniper._bookPass:IsPaging() then return false end
+  local browsed = C_AuctionHouse.GetBrowseResults() or {}
+  -- A keys batch written off just before this browse went (the arbiter does that for a held Check)
+  -- may answer first: its late answer is dropped, and this browse's own is still to come.
+  if GC.Sniper._IsOrphanAnswer(browsed) then return true end
   local variants = {}
-  for _, row in ipairs(C_AuctionHouse.GetBrowseResults() or {}) do
+  for _, row in ipairs(browsed) do
     local key = type(row) == "table" and row.itemKey or nil
     if type(key) == "table" and key.itemID == out.itemID and (row.totalQuantity or 0) > 0
         and type(row.minPrice) == "number" then
@@ -7026,6 +7050,9 @@ function GC.Sniper._TakeNaming()
   if attempt and not attempt.sent and isCurrentRequeryAttempt(attempt) then
     pendingRequerySend[attempt.itemID] = attempt
   end
+  -- The ready tick may well have come before this answer did, and the quiet zone a Check opens
+  -- holds back every other caller of the arbiter: the turn that sends the Check is asked for here.
+  GC.Sniper._DeferTurn()
   return true
 end
 
@@ -7219,7 +7246,7 @@ local function maybeStartPrewarm(deal, auto)
   -- The item's variant keys first, where they are owed (GC.Sniper._VariantsOwed): this turn is the
   -- browse by its name, and the next one searches the variant it names. Searched on its bare key,
   -- an item filed under one key per suffix comes back with no lots, and the row reads "gone".
-  if GC.Sniper._VariantsOwed(itemID) then return GC.Sniper._SendNaming(itemID) end
+  if GC.Sniper._VariantsOwed(itemID) then return GC.Sniper._SendNaming(itemID) == "sent" end
 
   prewarmToken = prewarmToken + 1
   local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true }
@@ -7836,6 +7863,7 @@ end
 -- scan keeps what it had already streamed in.
 function GC.Sniper._OnPlayerBrowse()
   if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("player search") end
+  GC.Sniper._DropNaming() -- the player's search replaces it on the list
   if GC.Sniper._bookPass:IsPaging() then
     trace("pass: abandoned for the player's own search")
     abortFullScan()
@@ -7940,6 +7968,7 @@ end
 function GC.Sniper.OnThrottledMessageDropped()
   if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("dropped") end
   prewarmAttempt = nil
+  GC.Sniper._DropNaming()
   -- Re-arm whoever is next rather than waiting for a readiness event that may not come: the
   -- arbiter sends at most one message and refuses on its own if the system is genuinely busy.
   -- Claimed like any other send this addon makes off its own clock -- a client that is dropping
@@ -7997,6 +8026,11 @@ end
 
 function GC.Sniper.OnBrowseResults()
   GC.Sniper._browseOutAt = nil
+  -- A Check that waited for this browse to land before browsing its item's name goes next turn.
+  if GC.Sniper._namingAfterBrowse then
+    GC.Sniper._namingAfterBrowse = nil
+    GC.Sniper._DeferTurn()
+  end
   if GC.Sniper._FoldKeysBatch() then return end
   if GC.Sniper._TakeNaming() then return end
   -- The BUY tab's search, once no keys batch has claimed the answer (nothing of ours sends one
@@ -8328,10 +8362,9 @@ function GC.Sniper.OnThrottleReady()
       if not driver.isReady() then return end
       if held then GC.Sniper._WriteOffKeys("check") end
       pendingRequerySend[itemID] = nil
-      if GC.Sniper._VariantsOwed(itemID) then
-        if GC.Sniper._SendNaming(itemID, attempt) then return end
-        if GC.Sniper._NamingBusy() then pendingRequerySend[itemID] = attempt return end
-      end
+      local naming = GC.Sniper._VariantsOwed(itemID) and GC.Sniper._SendNaming(itemID, attempt)
+      if naming == "sent" then return end
+      if naming == "wait" then pendingRequerySend[itemID] = attempt return end
       attempt.sent = true
       attempt.overBatch = GC.Sniper._OrphanLive()
       driver.sendSearch(itemID)

@@ -6,7 +6,14 @@ local helper = require("spec.spec_helper")
 -- bare key names no suffix; a browse by the item's name names them all. So on Forever the Check and
 -- the background walk browse the name first and search the cheapest variant's key after it.
 describe("Forever Deals: an item's variant keys learnt by its name", function()
-  local searched, browsed, browseRows
+  local searched, browsed, browseRows, timers, clock
+
+  -- C_Timer.After's callbacks, run when the spec says the frame has moved on.
+  local function flush()
+    local due = timers
+    timers = {}
+    for _, fn in ipairs(due) do fn() end
+  end
 
   local function upvalue(fn, wanted)
     for i = 1, 200 do
@@ -46,7 +53,8 @@ describe("Forever Deals: an item's variant keys learnt by its name", function()
   }
 
   local function loadSniper(forever)
-    _G.GetTime = function() return 100 end
+    clock, timers = 100, {}
+    _G.GetTime = function() return clock end
     _G.time = function() return 1000 end
     _G.GetMoney = function() return 10 * 1000 * 10000 end
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
@@ -54,7 +62,11 @@ describe("Forever Deals: an item's variant keys learnt by its name", function()
     _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
     _G.PlaySound = function() end
     _G.SOUNDKIT = { READY_CHECK = 8960, MAP_PING = 3175, RAID_WARNING = 1 }
-    _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
+    _G.C_Timer = {
+      -- Only the arbiter's own next turn (GC.Sniper._DeferTurn) is run; the 8 s timeouts are not.
+      After = function(seconds, fn) if seconds == 0 then timers[#timers + 1] = fn end end,
+      NewTicker = function() return { Cancel = function() end } end,
+    }
     _G.Enum = { ItemClass = { Tradegoods = 7, Consumable = 0, Gem = 3, ItemEnhancement = 8 },
       AuctionHouseSortOrder = { Buyout = 4, Price = 0, Name = 1 } }
     searched, browsed, browseRows = {}, {}, {}
@@ -139,10 +151,76 @@ describe("Forever Deals: an item's variant keys learnt by its name", function()
 
     browseRows = KNIVES
     GC.Sniper.OnBrowseResults()
-    GC.Sniper.OnThrottleReady()
+    assert.equal(0, #searched)
+    flush() -- the answer asks for the turn that sends the Check; no ready tick is owed after it
 
     assert.equal(1, #searched)
     assert.same(key(2140, 11, 14300), searched[1])
+  end)
+
+  it("drops a written-off keys batch's late answer and waits for its own", function()
+    local GC = loadSniper(true)
+    GC.Sniper._keysOrphan = { asked = { [555] = true }, untilAt = 1000 }
+    check(GC, 2140)
+    browseRows = { browseRow(555, 10, 0, 50, 4) }
+    GC.Sniper.OnBrowseResults()
+    flush()
+    assert.equal(0, #searched)
+    assert.is_true(GC.Sniper._NamingBusy())
+
+    browseRows = KNIVES
+    GC.Sniper.OnBrowseResults()
+    flush()
+    assert.same(key(2140, 11, 14300), searched[1])
+  end)
+
+  it("waits for a page still on the wire, then browses the name", function()
+    local GC = loadSniper(true)
+    GC.Sniper._browseOutAt = 1000 -- an abandoned pass's last page
+    check(GC, 2140)
+    assert.equal(0, #browsed)
+    assert.equal(0, #searched)
+
+    browseRows = { browseRow(9999, 1, 0, 1, 1) } -- that page lands
+    GC.Sniper.OnBrowseResults()
+    flush()
+    assert.equal(1, #browsed)
+    assert.equal(0, #searched)
+  end)
+
+  it("asks again when a message was dropped, rather than holding the list for its answer", function()
+    local GC = loadSniper(true)
+    check(GC, 2140)
+    assert.equal(1, #browsed)
+    GC.Sniper.OnThrottledMessageDropped()
+    assert.equal(2, #browsed)
+  end)
+
+  it("holds a second item's Check while the first one's browse is out, and browses it after", function()
+    local GC = loadSniper(true)
+    check(GC, 2140)
+    check(GC, 2142)
+    assert.equal(1, #browsed)
+    assert.equal(0, #searched)
+
+    browseRows = KNIVES
+    GC.Sniper.OnBrowseResults()
+    flush()
+    GC.Sniper.OnThrottleReady() -- the ready tick after whichever of the two went first
+    -- One message a turn, in either order: the first item's suffix searched, the second's name browsed.
+    assert.equal(1, #searched)
+    assert.same(key(2140, 11, 14300), searched[1])
+    assert.equal(2, #browsed)
+  end)
+
+  it("browses an item again once a minute has passed", function()
+    local GC = loadSniper(true)
+    check(GC, 2140)
+    browseRows = KNIVES
+    GC.Sniper.OnBrowseResults()
+    assert.is_false(GC.Sniper._VariantsOwed(2140))
+    clock = clock + 61
+    assert.is_true(GC.Sniper._VariantsOwed(2140))
   end)
 
   it("spends the walk's turn on the name, and its next turn on the cheapest suffix", function()
@@ -172,7 +250,7 @@ describe("Forever Deals: an item's variant keys learnt by its name", function()
     check(GC, 2140)
     browseRows = { browseRow(2141, 20, 0, 1, 1) }
     GC.Sniper.OnBrowseResults()
-    GC.Sniper.OnThrottleReady()
+    flush()
 
     assert.same(key(2140), searched[1])
     assert.is_false(GC.Sniper._VariantsOwed(2140))
