@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.25.0 (unreleased)
+## 0.25.0 (2026-11-08)
 
 - WoW: Forever: the groups you follow on goldcap.gg now work on the SELL tab. Each group's price
   floor, how long it lists for and posting one at a time apply to its items, and the GROUPS row
