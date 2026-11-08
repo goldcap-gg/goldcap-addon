@@ -8,6 +8,8 @@
 - WoW: Forever, DEALS: an item of a group you follow is marked GROUP with the group's name, and a
   commodity of the group listed under the group's price shows up as a deal, measured against the
   group's usual price.
+- SELL: while REFRESH runs, items in your bags no longer drop off the list for a moment and come
+  back.
 
 ## 0.24.2 (2026-11-07)
 
