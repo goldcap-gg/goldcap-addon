@@ -848,6 +848,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     -- A BUY search result waiting for its name (UI/BuySearch.lua).
     if GC.BuySearch then GC.BuySearch.OnItemKeyInfo(itemID) end
+    -- A BUY quote held back until the client holds the item's details (UI/BuyFrame.lua).
+    if GC.Buy and GC.Buy.OnItemKeyInfo then GC.Buy.OnItemKeyInfo(itemID) end
   elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
     local itemKey = ...
     -- The payload is documented as an itemKey, and every line below reads a field off it.

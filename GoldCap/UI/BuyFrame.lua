@@ -55,6 +55,9 @@ local BD = {
   -- twenty seconds on purpose: NOW is a number to read, a quote is a number to SPEND, and the
   -- ladder a purchase is planned against goes stale the moment somebody else buys off it.
   QUOTE_SECONDS = 10,
+  -- How long a quote waits for the client to hold the item's details (keyInfoIn) before it goes
+  -- without them, as it did before it waited: a client that never sends them still gets asked.
+  DETAILS_SECONDS = 3,
   -- How long to wait for the client to answer a started purchase before giving the shared slot
   -- back. A commodity purchase that produces no terminal event would otherwise hold the slot
   -- for GC.PurchaseSlot.MAX_SECONDS with the board saying nothing.
@@ -1394,6 +1397,33 @@ local function waitNote(wait, what, detail)
   if GC.BuyWaitDiag then GC.BuyWaitDiag.Note(wait, what, detail) end
 end
 
+-- Whether the client holds the item's auction house details right now, asked for when it does not.
+-- Without them it drops a search for the item without a word: nothing is sent and nothing answers,
+-- not even a throttle event, and on WoW: Forever MakeItemKey also leaves the item level out of
+-- the key, so it names nothing on sale. There a list line sat on "..." for ten seconds a press,
+-- round and round, and nothing could be bought (probe 08.11). The client lets the details go
+-- again within seconds there, so this is asked right before a search goes, never remembered;
+-- ITEM_KEY_ITEM_INFO_RECEIVED says when they are in (GC.Buy.OnItemKeyInfo).
+local function keyInfoIn(itemID)
+  if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.MakeItemKey) then return true end
+  local ok, info = pcall(function() return C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID)) end)
+  if ok and type(info) == "table" then return true end
+  if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, itemID) end
+  return false
+end
+
+-- keyInfoIn, or its details asked for BD.DETAILS_SECONDS ago and still not in: then the search goes
+-- without them once, and the next one waits again.
+GC.Buy._detailsAskedAt = {}
+local function detailsReady(itemID)
+  local asked = GC.Buy._detailsAskedAt
+  if keyInfoIn(itemID) then asked[itemID] = nil return true end
+  if not asked[itemID] then asked[itemID] = time() return false end
+  if time() - asked[itemID] < BD.DETAILS_SECONDS then return false end
+  asked[itemID] = nil
+  return true
+end
+
 -- Whether the client says this key is a commodity.
 local function isCommodityKey(itemKey)
   if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo) then return false end
@@ -1801,6 +1831,8 @@ end
 -- voids the read (quoteFresh).
 local function sendArm(attempt)
   if not (attempt and attempt.armDue) then return false end
+  -- Held, like a quote, until the client holds the item's details (GC.Buy.OnItemKeyInfo sends it).
+  if not detailsReady(attempt.itemID) then return false end
   if not throttleReady() then return false end
   if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-arm") then return false end
   attempt.armDue, attempt.askedAt = nil, time()
@@ -1937,11 +1969,14 @@ local function quote(line, clicked)
   -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
   -- ...nor over a hover's look still out (lookLine): one question per buffer. Nor over the BUY
   -- search's browse request still unanswered (UI/BuySearch.lua), which a search would answer too.
-  if (GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) or lookPending()
-      or (GC.BuySearch and GC.BuySearch.Pending()) then
-    waitNote("quote", "parked", ("item=%s keys=%s look=%s browse=%s"):format(line.itemID,
-      tostring(GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() or false), tostring(lookPending()),
-      tostring(GC.BuySearch and GC.BuySearch.Pending() or false)))
+  -- Nor before the client holds the item's details (keyInfoIn): it would drop the search unsent.
+  -- Asked last, so the details are asked for only when nothing else holds the quote back.
+  local keys = GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() or false
+  local browsing = GC.BuySearch and GC.BuySearch.Pending() or false
+  if keys or lookPending() or browsing or not detailsReady(line.itemID) then
+    waitNote("quote", "parked", ("item=%s keys=%s look=%s browse=%s details=%s"):format(line.itemID,
+      tostring(keys), tostring(lookPending()), tostring(browsing),
+      tostring(not (keys or lookPending() or browsing) and "asked" or "-")))
     GC.Buy._quoteOwed = line.itemID
     -- A hover over the line a click is waiting on keeps the click's word (the button's "...").
     if clicked then
@@ -2007,6 +2042,10 @@ local function lookLine(line)
   if not (C_AuctionHouse and C_AuctionHouse.SendSearchQuery and C_AuctionHouse.MakeItemKey) then return end
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return end
   if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return end
+  -- An item whose details the client does not hold is no commodity yet, whatever askableItem
+  -- assumes of it, and a look at it is dropped unsent (keyInfoIn), holding the dock's quote back
+  -- for ten seconds behind a question nobody asked.
+  if not keyInfoIn(line.itemID) then return end
   if not askableItem(line.itemID) or not throttleReady() then return end
   if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-look") then return end
   local key = C_AuctionHouse.MakeItemKey(line.itemID)
@@ -4990,6 +5029,36 @@ function GC.Buy.TrySendRefresh(playerBusy)
   }, "buy", function() return GC.Sniper.CurrentView() == "buy" end, playerBusy) and true or false
 end
 
+-- A quote held back for an unanswered keys batch or a look (see quote) is asked for once they are
+-- gone, and only for the line that still has the focus -- the player has moved on otherwise. One
+-- held back for the item's details asks for them again, and goes the moment they are in.
+function GC.Buy._ReleaseOwed()
+  local owed = GC.Buy._quoteOwed
+  -- And not before the throttle lets the ask go: released into a throttle that is not ready, the
+  -- quote returns unsent and owes nothing, and the line waits for a press (often on the details'
+  -- own event, which comes whenever it comes).
+  if not owed or (GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding())
+      or lookPending() or not throttleReady() then
+    return
+  end
+  waitNote("quote", "released", ("item=%s"):format(owed))
+  local byClick = GC.Buy._owedByClick == owed
+  GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
+  local line = lineFor(owed)
+  if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line, byClick) end
+  -- The waiting look goes with the debt, whether or not the ask above went out.
+  GC.Buy.RefreshIfShown()
+end
+
+-- ITEM_KEY_ITEM_INFO_RECEIVED, routed by Core/Init.lua: the client holds an item's details now. A
+-- quote or an armed read held back for them goes at once, before the client lets them go again.
+function GC.Buy.OnItemKeyInfo(itemID)
+  if not itemID then return end
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.itemID == itemID and attempt.armDue then sendArm(attempt) end
+  if GC.Buy._quoteOwed == itemID then GC.Buy._ReleaseOwed() end
+end
+
 -- The once-a-second nudge from UI/SniperFrame.lua's auction-house ticker. A ready tick is not
 -- enough on its own: Auto is paused for as long as this tab is up, so on a quiet client
 -- nothing else sends anything and no readiness event ever fires.
@@ -5011,19 +5080,9 @@ function GC.Buy.Tick()
   end
   -- The BUY search's request: sent once nothing stands in its way, given up once it waited too long.
   if GC.BuySearch then GC.BuySearch.Tick() end
-  -- A quote held back for an unanswered keys batch (see quote): asked for once the batch is gone,
-  -- and only for the line that still has the focus -- the player has moved on otherwise. Ahead
-  -- of the refresh, which would otherwise take the moment with a batch of its own.
-  local owed = GC.Buy._quoteOwed
-  if owed and not (GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding())
-      and not lookPending() then
-    waitNote("quote", "released", ("item=%s"):format(owed))
-    GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
-    local line = lineFor(owed)
-    if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line) end
-    -- The waiting look goes with the debt, whether or not the ask above went out.
-    GC.Buy.RefreshIfShown()
-  end
+  -- A quote held back (see quote): asked for again once nothing holds it, ahead of the refresh,
+  -- which would otherwise take the moment with a batch of its own.
+  GC.Buy._ReleaseOwed()
   -- The dock's line is asked for its price once each time the dock moves onto it (a pick, a
   -- purchase moving it on, the first line of a run), so its first press can buy: two presses a
   -- line, as Blizzard's own buy page. Marked done only once the ask is on the wire or owed.
