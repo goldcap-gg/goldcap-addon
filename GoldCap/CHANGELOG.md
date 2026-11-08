@@ -10,6 +10,8 @@
   group's usual price.
 - SELL: while REFRESH runs, items in your bags no longer drop off the list for a moment and come
   back.
+- WoW: Forever, BUY: items on your list that are not commodities, such as recipes and book pages,
+  now get their price and can be bought. The button no longer waits ten seconds and starts over.
 
 ## 0.24.2 (2026-11-07)
 
