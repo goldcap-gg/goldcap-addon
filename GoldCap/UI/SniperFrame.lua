@@ -1977,11 +1977,16 @@ local function refreshRows()
     end
   end
 
-  -- Each row as tall as its item cell's words, and the list as tall as its rows. Held while the
-  -- cursor rests on a row or a purchase holds one: OnLeave renders again, and fits them then.
-  local held = hoveredRow ~= nil
-  for i = 1, #rows do held = held or rows[i].purchaseStage ~= nil end
-  GC.Sniper._FitRowHeights(rows, content, held)
+  -- Each row as tall as its item cell's words, and the list as tall as its rows. The row under the
+  -- cursor and the rows above it keep their heights (OnLeave renders again, and fits them then);
+  -- the rows below it fit, since they cannot move it. A purchase holds nothing: its clicks are in
+  -- the buy window, and holding every row while the window stood open left the names the window's
+  -- narrower item cell wraps drawn over the rows under them (owner, 2026-11-08).
+  local heldThrough = nil
+  for i = 1, #rows do
+    if rows[i] == hoveredRow then heldThrough = i end
+  end
+  GC.Sniper._FitRowHeights(rows, content, heldThrough)
   -- The empty-state panel describes THIS render, so it is driven from here.
   if GC.Sniper._UpdateEmptyState then GC.Sniper._UpdateEmptyState(shown) end
   GC.Sniper._PaintGoldLine(list)
@@ -2069,17 +2074,18 @@ end
 -- Every row as tall as its item cell needs (a name that wraps grows its row instead of ending in
 -- "…", the way the Sell tab's cards do; one line keeps WIN.ROW_HEIGHT), and `child`, the scroll
 -- child, as tall as the rows down to the last one shown. Rows hang one under another (createRow),
--- so a taller row moves the ones below it. `held`: the cursor rests on a row or a purchase holds
--- one, and no row may move out from under a click; heights stay as they stand until the next
--- render. A row is measured again only when its words or the cell's width changed: the board
+-- so a taller row moves the ones below it. `heldThrough`: the index of the row under the cursor,
+-- which must not move out from under a click, nor change its own height (its button sits in its
+-- middle); it and the rows above it stay as they stand until the next render, and the rows below
+-- it fit. A row is measured again only when its words or the cell's width changed: the board
 -- renders on every browse page.
-function GC.Sniper._FitRowHeights(list, child, held)
+function GC.Sniper._FitRowHeights(list, child, heldThrough)
   local y, bottom = 0, 0
   for i = 1, #list do
     local row = list[i]
     if row.SetHeight and row.IsShown then
       local text = row.nameText
-      if not held then
+      if not (heldThrough and i <= heldThrough) then
         local height = WIN.ROW_HEIGHT
         if row:IsShown() and text and text.GetStringHeight then
           local words, width = text:GetText() or "", text.GetWidth and text:GetWidth() or 0

@@ -2,7 +2,7 @@ local helper = require("spec.spec_helper")
 
 -- The Deals list cut a long item cell with "…" (a narrow window, a long language). The cell wraps
 -- now and its row grows to hold it, the way the Sell tab's cards do; rows stack one under another,
--- and none moves while the cursor rests on one or a purchase holds one.
+-- and the row under the cursor never moves: it and the rows above it hold, the rows below it fit.
 describe("Deals rows as tall as their words", function()
   local GC
 
@@ -82,11 +82,21 @@ describe("Deals rows as tall as their words", function()
     assert.equal(2, measured)
   end)
 
-  it("moves no row while the cursor rests on one or a purchase holds one", function()
-    local rows, content = { row(1), row(3) }, child()
-    GC.Sniper._FitRowHeights(rows, content, true)
+  it("holds the row under the cursor and the rows above it, and fits the rows below it", function()
+    local rows, content = { row(3), row(3), row(3) }, child()
+    GC.Sniper._FitRowHeights(rows, content, 2)
     assert.equal(0, rows[1].sets)
-    assert.equal(0, rows[2].sets)
-    assert.equal(64, content.height) -- the list still covers the rows as they stand
+    assert.equal(0, rows[2].sets, "the row under the cursor keeps its height")
+    assert.is_true(rows[3].height >= 45 + 2 * 4, "a row below it cannot move it, and grows")
+    assert.equal(32 + 32 + rows[3].height, content.height) -- the list covers the rows as they stand
+  end)
+
+  it("fits every row once the cursor is off the board", function()
+    local rows, content = { row(3), row(3) }, child()
+    GC.Sniper._FitRowHeights(rows, content, 2)
+    assert.equal(32, rows[1].height)
+    GC.Sniper._FitRowHeights(rows, content, nil)
+    assert.is_true(rows[1].height >= 45 + 2 * 4)
+    assert.is_true(rows[2].height >= 45 + 2 * 4)
   end)
 end)
