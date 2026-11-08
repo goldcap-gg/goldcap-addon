@@ -1914,7 +1914,19 @@ function GC.Buy.OnItemResults(itemKey)
   end
   local answer, full = readItemRows(sent)
   if #answer == 0 and not full then return end
-  local lots = GC.BuyLots.FromRows(answer)
+  -- A whole-item read answered with no rows where the game files an item's variants apart: read on
+  -- by the item's name (GC.Buy._StepByName).
+  if attempt.phase == "all" and #answer == 0 and GC.Buy._ReadByName(attempt) then
+    attempt.byName, attempt.askedAt = true, time()
+    GC.Buy._StepByName(attempt)
+    return
+  end
+  GC.Buy._SettleRead(attempt, line, GC.BuyLots.FromRows(answer), sent)
+end
+
+-- A read's lots in hand: the whole-item read's, which arm the cheapest lot's own key, or the armed
+-- key's, which a press bids on.
+function GC.Buy._SettleRead(attempt, line, lots, sent)
   if attempt.phase == "arm" then
     attempt.armLots = lots
     attempt.lotList = GC.BuyLots.Replace(attempt.lotList, lots, sent)
@@ -1941,6 +1953,40 @@ function GC.Buy.OnItemResults(itemKey)
   end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
+end
+
+-- A gear line whose bare key answered no rows, read on by the item's name where the game files an
+-- item's variants under keys of their own (GC.Buy._ReadByName: never on retail, whose sell search
+-- on the bare key answers every variant; WoW: Forever's is in UI/BuyFrame_Camelot.lua). The browse
+-- by name is GC.Sniper's, the one DEALS' Check sends (GC.Sniper._SendNaming), its answer kept a
+-- minute; each variant it names is one lot at its cheapest price (GC.BuyLots.FromVariants), and the
+-- read goes on as a whole-item read does: the cheapest variant under the cap is armed, and its own
+-- key's search reads its lots.
+function GC.Buy._ReadByName() return false end
+
+-- One step of that wait, from GC.Buy.Tick: the read goes on once the browse has answered (lots or
+-- none), waits while it cannot go yet, and goes on with no lots when none will go, or once the
+-- wait outlived BD.QUOTE_SECONDS. Returns whether it is still waiting.
+function GC.Buy._StepByName(attempt)
+  if GC.Buy._attempt ~= attempt or attempt.stage ~= "quoting" or attempt.phase ~= "all" then
+    attempt.byName = nil
+    return false
+  end
+  local id = attempt.itemID
+  local fresh = GC.Sniper._NamedFresh(id)
+  if not fresh and time() - (attempt.askedAt or 0) < BD.QUOTE_SECONDS and GC.Sniper._SendNaming(id) then
+    return true
+  end
+  attempt.byName = nil
+  local line = lineFor(id)
+  if not (current and buyable(line)) then
+    GC.Buy._attempt = nil
+    return false
+  end
+  local entry = fresh and GC.Sniper._NamedEntry(id) or nil
+  waitNote("quote", "by name", ("item=%s variants=%s"):format(id, entry and #entry.variants or 0))
+  GC.Buy._SettleRead(attempt, line, GC.BuyLots.FromVariants(entry and entry.variants), attempt.key)
+  return false
 end
 
 -- A gear line's first read: a sell search on the bare key, which answers with every variant's lots,
@@ -1978,7 +2024,9 @@ local function quote(line, clicked)
   -- search's browse request still unanswered (UI/BuySearch.lua), which a search would answer too.
   -- Nor before the client holds the item's details (keyInfoIn): it would drop the search unsent.
   -- Asked last, so the details are asked for only when nothing else holds the quote back.
-  local keys = GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() or false
+  -- ...nor over a browse by an item's name still out (GC.Buy._StepByName), for the same reason.
+  local keys = (GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding())
+    or (GC.Sniper._NamingBusy and GC.Sniper._NamingBusy()) or false
   local browsing = GC.BuySearch and GC.BuySearch.Pending() or false
   if keys or lookPending() or browsing or not detailsReady(line.itemID) then
     waitNote("quote", "parked", ("item=%s keys=%s look=%s browse=%s details=%s"):format(line.itemID,
@@ -2049,6 +2097,7 @@ local function lookLine(line)
   if not (C_AuctionHouse and C_AuctionHouse.SendSearchQuery and C_AuctionHouse.MakeItemKey) then return end
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return end
   if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return end
+  if GC.Sniper._NamingBusy and GC.Sniper._NamingBusy() then return end
   -- An item whose details the client does not hold is no commodity yet, whatever askableItem
   -- assumes of it, and a look at it is dropped unsent (keyInfoIn), holding the dock's quote back
   -- for ten seconds behind a question nobody asked.
@@ -5074,6 +5123,8 @@ function GC.Buy.Tick()
   -- would search over it.
   local arming = GC.Buy._attempt
   if arming and arming.armDue then sendArm(arming) end
+  -- A gear line's read waiting on a browse by the item's name (GC.Buy._StepByName).
+  if arming and arming.byName then GC.Buy._StepByName(arming) end
   if GC.BuyWaitDiag and GC.BuyWaitDiag.On() then
     if arming and arming.stage == "quoting" and not quotePending(arming) and not arming.timedOutNoted then
       arming.timedOutNoted = true

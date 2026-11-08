@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.25.1 (unreleased)
+
+- WoW: Forever, BUY: gear on your list that comes in versions, such as "of the Eagle", now finds
+  its lots and can be bought. It used to say nothing was on the auction house.
+- DEALS: while the buy window is open, long item names no longer run over the rows under them.
+  Each row grows to fit its name.
+
 ## 0.25.0 (2026-11-08)
 
 - WoW: Forever: the groups you follow on goldcap.gg now work on the SELL tab. Each group's price

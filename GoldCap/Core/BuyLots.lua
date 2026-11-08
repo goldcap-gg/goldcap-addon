@@ -31,6 +31,22 @@ function GC.BuyLots.FromRows(rows)
   return lots
 end
 
+-- The variants a browse by the item's name named (WoW: Forever, GC.Buy._StepByName), as lots: a
+-- browse row says a variant's cheapest price, not its lots, so each is one lot at that price,
+-- cheapest first. Never bid on -- a whole-item read only says which key to arm -- and replaced by
+-- that variant's real lots once its own key is read (GC.BuyLots.Replace).
+function GC.BuyLots.FromVariants(variants)
+  local lots = {}
+  for _, v in ipairs(variants or {}) do
+    if type(v) == "table" and type(v.floor) == "number" and v.floor > 0 then
+      lots[#lots + 1] = { auctionID = 0, buyout = v.floor, count = 1, itemLevel = v.itemLevel or 0,
+        itemSuffix = v.itemSuffix or 0, species = v.battlePetSpeciesID or 0 }
+    end
+  end
+  table.sort(lots, function(a, b) return a.buyout < b.buyout end)
+  return lots
+end
+
 -- The lots of every variant `all` holds, with one variant's lots -- those of `key`, read again by
 -- its own search -- swapped for `fresh`: after a purchase only the bought lot's variant is read
 -- again, and the others still stand as the whole-item read saw them.
