@@ -13,6 +13,7 @@ local exact, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, G
   GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
 local activeScope, exactRenderEntry, itemName = GC.SellUtil.activeScope, GC.SellUtil.exactRenderEntry,
   GC.SellUtil.itemName
+local validIndex = GC.SellUtil.validIndex
 
 -- The auction's listing duration: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration` argument
 -- the two posting calls in onPostClick (UI/Sell/Dock.lua) take -- see Core/Init.lua's own comment
@@ -288,6 +289,7 @@ function Post.PreparePost(row)
     local chosenKey = overrideKey(position)
     local sameChoice = pin and chosenKey and pin.override == S.priceOverrides[chosenKey]
       and pin.overrideQuantity == S.quantityOverrides[chosenKey]
+      and pin.pickedDuration == S.durationOverrides[chosenKey]
     if not sameChoice or not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
         or pin.positionKey ~= position.positionKey or pin.scopeKey ~= position.scopeKey
         or pin.itemID ~= position.itemID or pin.variantKey ~= position.positionKey
@@ -329,6 +331,14 @@ function Post.PreparePost(row)
   -- the choice. The override branch there skips both.
   local chosenKey = overrideKey(position)
   local chosenQty = chosenKey and S.quantityOverrides[chosenKey] or nil
+  -- The duration, decided before the plan and pinned once with it (below): GC.Sell.PostDurationFor's
+  -- order (State.lua) -- the duration the player picked for this post, a followed group's rule
+  -- (Core/GroupRules.lua's index, 1 to 3), WoW: Forever's slow sellers, then the setting -- copied
+  -- here as plain field reads, the only kind that belongs ahead of the protected call
+  -- (spec/forever_post_duration_spec.lua pins that the two agree).
+  local pickedDuration = chosenKey and S.durationOverrides[chosenKey] or nil
+  local duration = validIndex(pickedDuration) or validIndex(position.ruleDurationIndex)
+    or validIndex(position.slowDurationIndex) or postDuration()
   -- An empty book is priced by the seller alone: the number in the box, typed or recommended.
   local unit = quote.unit
   if quote.empty then
@@ -394,21 +404,21 @@ function Post.PreparePost(row)
   local location = Bags.ResolveLocation(position)
   if not location then View.status(GC.L["No exact bag stack"]); return end
   S.postingRow = row
-  -- Pinned once, here, rather than re-read at Confirm time: everything else about a post is
-  -- pinned the same way (unitPrice, quantity, ...) precisely so the two clicks of a two-click
-  -- post cannot disagree about what they are doing. A duration changed in the settings panel
-  -- between the two clicks must not let a post start at one duration and confirm at another.
-  -- A followed group's rule names its own duration (Core/GroupRules.lua's index, 1 to 3): a plain
-  -- field read off the position, like everything else pinned here.
-  local ruleDuration = position.ruleDurationIndex
-  local duration = (ruleDuration == 1 or ruleDuration == 2 or ruleDuration == 3) and ruleDuration
-    or postDuration()
+  -- The duration (decided above) is pinned once, here, rather than re-read at Confirm time:
+  -- everything else about a post is pinned the same way (unitPrice, quantity, ...) precisely so
+  -- the two clicks of a two-click post cannot disagree about what they are doing. A duration
+  -- changed in the settings panel between the two clicks must not let a post start at one
+  -- duration and confirm at another; one picked for this post lets the Confirm go (pickedDuration,
+  -- above). `deposit` is the client's quote for this very quantity and duration, made at paint or
+  -- compose (GC.SellBags.Deposit): the click cannot quote, and a quote for another quantity is none.
+  local quoted = S.depositQuotes[plan.positionKey .. "\1" .. duration]
   S.postingPin = { scopeKey = plan.scopeKey, positionKey = plan.positionKey, itemID = plan.itemID,
     variantKey = bagState.positionKey, quantity = plan.quantity, bag = bagState.bag, slot = bagState.slot,
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
-    duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty }
+    duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty,
+    pickedDuration = pickedDuration, deposit = quoted and quoted.quantity == plan.quantity and quoted.deposit or nil }
   -- Plain field write only, before the call: row.postStage = "posting" is what the re-entrancy
   -- guard at the top of this function reads. The busy look -- Disable() (runs GoldCap's own
   -- OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy() (lazily creates

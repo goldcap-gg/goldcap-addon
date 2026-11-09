@@ -329,11 +329,13 @@ function GC.Flips.SilverUp(copper, isCommodity)
 end
 
 --- The listing duration index the player posts at: settings.sniper.postDuration, 1/2/3 (12/24/48 h
--- on retail, 2/8/24 h in WoW: Forever), 2 for anything else. Services/Sell/Post.lua's
--- postDuration and
--- UI/SniperFrame.lua's depositFor keep their own copies ON PURPOSE: both run inside the Post and
--- purchase clicks, and the beta's taint log flagged exactly a GoldCap table-field call made there
--- ahead of the protected call. New code outside those clicks reads this one.
+-- on retail, 2/8/24 h in WoW: Forever), 2 for anything else. A SELL post's own duration (picked,
+-- the group's, the slow sellers', then this) is GC.Sell.PostDurationFor (Services/Sell/State.lua).
+-- Services/Sell/Post.lua's PreparePost (its postDuration and the plain-field copy of
+-- PostDurationFor's order) and UI/SniperFrame.lua's depositFor keep their own copies ON PURPOSE:
+-- both run inside the Post and purchase clicks, and the beta's taint log flagged exactly a GoldCap
+-- table-field call made there ahead of the protected call. New code outside those clicks reads
+-- this one, or GC.Sell.PostDurationFor for a SELL post.
 function GC.Flips.PostDurationIndex()
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper
   local value = settings and settings.postDuration
@@ -341,14 +343,18 @@ function GC.Flips.PostDurationIndex()
   return 2
 end
 
---- What listing `quantity` units of a commodity costs up front at the player's post duration --
--- the call UI/SniperFrame.lua's depositFor makes. nil when the client has no such API.
-function GC.Flips.CommodityDeposit(itemID, quantity)
+--- What listing `quantity` units of a commodity costs up front at `durationIndex` (1 to 3), else at
+-- the player's post duration -- the call UI/SniperFrame.lua's depositFor makes. nil when the
+-- client has no such API.
+function GC.Flips.CommodityDeposit(itemID, quantity, durationIndex)
   local ah = _G.C_AuctionHouse
   if type(ah) ~= "table" or type(ah.CalculateCommodityDeposit) ~= "function" then return nil end
-  -- A followed group's duration for the item comes first (Core/GroupRules.lua's plain table).
-  local duration = GC.GroupRules and GC.GroupRules.durationByItem[itemID]
-  if duration ~= 1 and duration ~= 2 and duration ~= 3 then duration = GC.Flips.PostDurationIndex() end
+  local duration = durationIndex
+  if duration ~= 1 and duration ~= 2 and duration ~= 3 then
+    -- A followed group's duration for the item comes first (Core/GroupRules.lua's plain table).
+    duration = GC.GroupRules and GC.GroupRules.durationByItem[itemID]
+    if duration ~= 1 and duration ~= 2 and duration ~= 3 then duration = GC.Flips.PostDurationIndex() end
+  end
   return ah.CalculateCommodityDeposit(itemID, duration, quantity)
 end
 

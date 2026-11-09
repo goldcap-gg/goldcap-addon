@@ -56,6 +56,13 @@ end
 function M.IndexOfHours(hours)
   return HOURS_TO_INDEX[hoursFor()][hours]
 end
+
+-- The hours a posting index (1 to 3) lasts on this client, or nil for anything else: the one table
+-- every hour label reads (GC.L["%d h"]), never the client's AUCTION_DURATION_* strings.
+function M.HoursOf(index)
+  if index ~= 1 and index ~= 2 and index ~= 3 then return nil end
+  return hoursFor()[index]
+end
 -- itemID -> { rule = the readable rule as the file has it, l, u, f }, rebuilt by Adopt.
 local byItem = {}
 -- Counts the Adopts that changed something, for a reader that caches what it built from the groups

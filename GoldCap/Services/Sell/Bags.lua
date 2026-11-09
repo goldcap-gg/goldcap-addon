@@ -6,7 +6,7 @@ local _, GC = ...
 
 local S = GC.SellState
 local Bags, Walk = GC.SellBags, GC.SellWalk
-local exact, safeAdd = GC.SellUtil.exact, GC.SellUtil.safeAdd
+local exact, safeAdd, validIndex = GC.SellUtil.exact, GC.SellUtil.safeAdd, GC.SellUtil.validIndex
 
 local SELL_BAGS = { 0, 1, 2, 3, 4, 5 }
 local sessionCommodityKind = {}
@@ -329,25 +329,31 @@ function Bags.ResolveLocation(position)
   return cached.location
 end
 
--- What listing `quantity` of this position costs up front, at the duration the player posts at,
--- as the client quotes it: C_AuctionHouse.CalculateCommodityDeposit for a commodity, as Blizzard's
--- commodity sell frame asks, and CalculateItemDeposit for an item, which takes the stack itself, so
--- only once the last paint pinned one of this position's stacks (Bags.ResolveLocation). nil when
--- the client does not say, or no stack of an item is in the bags. Never on the way to a protected
--- call: a compose, a paint, or a click that makes none.
-function Bags.Deposit(position, quantity)
+-- What listing `quantity` of this position costs up front at `durationIndex` (1 to 3; anything else
+-- is the duration its next post goes up at, GC.Sell.PostDurationFor), as the client quotes it:
+-- C_AuctionHouse.CalculateCommodityDeposit for a commodity, as Blizzard's commodity sell frame
+-- asks, and CalculateItemDeposit for an item, which takes the stack itself, so only once the last
+-- paint pinned one of this position's stacks (Bags.ResolveLocation). nil when the client does not
+-- say, or no stack of an item is in the bags. A quote it gets is kept in S.depositQuotes, which the
+-- Post click copies into its pin (it cannot quote). Never on the way to a protected call: a
+-- compose, a paint, or a click that makes none.
+function Bags.Deposit(position, quantity, durationIndex)
   if type(position) ~= "table" or not exact(quantity) or quantity <= 0 then return nil end
+  local duration = validIndex(durationIndex) or GC.Sell.PostDurationFor(position)
   local ok, deposit
   if type(position.positionKey) == "string" and position.positionKey:match("^commodity:") then
     if not (GC.Flips and GC.Flips.CommodityDeposit) then return nil end
-    ok, deposit = pcall(GC.Flips.CommodityDeposit, position.itemID, quantity)
+    ok, deposit = pcall(GC.Flips.CommodityDeposit, position.itemID, quantity, duration)
   else
     local location = Bags.ResolveLocation(position)
-    if not (location and C_AuctionHouse and C_AuctionHouse.CalculateItemDeposit and GC.Flips) then return nil end
-    ok, deposit = pcall(C_AuctionHouse.CalculateItemDeposit, location, GC.Flips.PostDurationIndex(), quantity)
+    if not (location and C_AuctionHouse and C_AuctionHouse.CalculateItemDeposit) then return nil end
+    ok, deposit = pcall(C_AuctionHouse.CalculateItemDeposit, location, duration, quantity)
   end
-  if ok and exact(deposit) then return deposit end
-  return nil
+  if not (ok and exact(deposit)) then return nil end
+  if type(position.positionKey) == "string" and position.positionKey ~= "" then
+    S.depositQuotes[position.positionKey .. "\1" .. duration] = { quantity = quantity, deposit = deposit }
+  end
+  return deposit
 end
 
 -- BAG_UPDATE_DELAYED (Core/Init.lua), while this tab is on screen: re-pins every position's

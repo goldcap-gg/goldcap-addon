@@ -74,6 +74,14 @@ GC.SellState = {
   -- not persisted, handed to BuildPostPlan, spent with the post that carried it
   -- (GC.Sell._SpendPrice). Only ever under what one click could list; "all of it" is no entry.
   quantityOverrides = {},
+  -- The duration (1, 2 or 3) the player picked for a position's next post, keyed the same way:
+  -- written only by WoW: Forever's post panel, read by GC.Sell.PostDurationFor and by the click's
+  -- own copy of it (Services/Sell/Post.lua), forgotten when the auction house closes.
+  durationOverrides = {},
+  -- The client's deposit quotes (GC.SellBags.Deposit), by positionKey .. "\1" .. duration:
+  -- { quantity, deposit }. The click cannot quote, so a post's pin copies the one quoted at paint
+  -- or compose for the same quantity and duration. Forgotten when the auction house closes.
+  depositQuotes = {},
   -- The dock walks the selling list once a visit (owner, 2026-10-10): what was posted this visit,
   -- and what the player passed over with SKIP, by positionKey. Out of the walk until the auction
   -- house is closed (GC.Sell._HoldDoneInQueue, GC.Sell.Reset); a row click still puts either in
@@ -236,6 +244,11 @@ local function postQuantity(position)
   return most, most, false
 end
 
+-- A listing duration index the posting calls take (1, 2 or 3), or nil for anything else.
+local function validIndex(v)
+  return (v == 1 or v == 2 or v == 3) and v or nil
+end
+
 local function context()
   return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
 end
@@ -273,7 +286,7 @@ local function itemName(itemID)
 end
 
 GC.SellUtil = { exact = exact, safeAdd = safeAdd, safeMultiply = safeMultiply, overrideKey = overrideKey,
-  effectivePostUnit = effectivePostUnit, postQuantity = postQuantity,
+  effectivePostUnit = effectivePostUnit, postQuantity = postQuantity, validIndex = validIndex,
   context = context, activeScope = activeScope, exactRenderEntry = exactRenderEntry, itemName = itemName }
 
 -- What the pricing walk searches for. A quote id is an itemID -- a commodity, or an item priced
@@ -319,6 +332,26 @@ function GC.Sell.DefaultPrice()
   local id = type(sniper) == "table" and sniper.defaultPrice or nil
   if id == "match" or id == "under" or id == "market" then return id end
   return nil
+end
+
+-- The duration index (1 to 3) a position's next post goes up at, and why: "picked" (the player
+-- chose it for this post, GC.SellState.durationOverrides), "rule" (a followed group's), "slow"
+-- (WoW: Forever's slow sellers, set only by Core/ForeverPace.lua) or "setting"
+-- (settings.sniper.postDuration, 2 when that is not one of the three). Each counts only when it is
+-- 1, 2 or 3. The live rule for paint, quotes and the queue; the Post click keeps a plain-field copy
+-- (Services/Sell/Post.lua's PreparePost), and spec/forever_post_duration_spec.lua pins that the two
+-- agree.
+function GC.Sell.PostDurationFor(position)
+  local key = overrideKey(position)
+  local picked = validIndex(key and GC.SellState.durationOverrides[key])
+  if picked then return picked, "picked" end
+  local p = type(position) == "table" and position or {}
+  local rule = validIndex(p.ruleDurationIndex)
+  if rule then return rule, "rule" end
+  local slow = validIndex(p.slowDurationIndex)
+  if slow then return slow, "slow" end
+  local settings = type(GC.db) == "table" and type(GC.db.settings) == "table" and GC.db.settings.sniper
+  return validIndex(type(settings) == "table" and settings.postDuration) or 2, "setting"
 end
 
 -- WoW: Forever, the way this tab has always told it (Core/ForeverScan.lua's Enabled, set at

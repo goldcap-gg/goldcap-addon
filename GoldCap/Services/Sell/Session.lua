@@ -134,6 +134,10 @@ function GC.Sell.Reset()
   S.queueDone, S.dockKey = {}, nil
   -- And the GROUPS row starts at all of it (UI/Sell/Toolbar.lua).
   S.group, S.groupName = nil, nil
+  -- A duration picked for a post is for this visit, and the deposit quotes are the client's for
+  -- the bags of this visit.
+  for key in pairs(S.durationOverrides) do S.durationOverrides[key] = nil end
+  for key in pairs(S.depositQuotes) do S.depositQuotes[key] = nil end
   -- The CANCEL button's run (UI/Sell/Dock.lua) ends with the visit: its confirm was for the lots
   -- on screen then, and a press after reopening arms again.
   S.cancelRun = nil
