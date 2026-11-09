@@ -4,23 +4,43 @@ local helper = require("spec.spec_helper")
 -- came from, read off the merchant's buyback list. The merchant is an API-shaped fake: the client's
 -- GetNumBuybackItems, GetBuybackItemInfo (exactly name, texture, price, quantity, numAvailable,
 -- isUsable, isBound, as Blizzard's MerchantFrame.lua reads it), GetBuybackItemLink and
--- C_MerchantFrame.GetBuybackItemID, plus MerchantFrame:IsShown(). The acquisition store is the real
--- one. The sale is booked when the merchant closes, as Core/Init.lua forwards MERCHANT_CLOSED.
+-- C_MerchantFrame.GetBuybackItemID, plus MerchantFrame:IsShown(); and the bags, through
+-- C_Container.GetContainerNumSlots and GetContainerItemInfo (itemID and stackCount, fields the real
+-- ContainerItemInfo has). A sale takes its units out of the bags and a buyback puts them back. The
+-- acquisition store is the real one. The sale is booked when the merchant closes, as Core/Init.lua
+-- forwards MERCHANT_CLOSED, and only for units that left the bags during the visit.
 describe("merchant sales spend purchase lots", function()
-  local GC, db, shelf, ledgerRows
+  local GC, db, shelf, ledgerRows, bag, hidden
   local me = { char = "Seller-Realm", region = "110" }
 
   local function link(itemID, suffix)
     return ("|cffffffff|Hitem:%d::::::%s:::::::::|h[Item %d]|h|r"):format(itemID, suffix or "", itemID)
   end
 
+  local function hold(itemID, count) bag[itemID] = count end
+
   -- The merchant's buyback page: oldest first, the newest sale last, twelve at most.
   local function sell(itemID, quantity, price, suffix)
+    assert((bag[itemID] or 0) >= quantity, "the bags do not hold what the test sells")
+    bag[itemID] = bag[itemID] - quantity
     shelf[#shelf + 1] = { itemID = itemID, quantity = quantity, price = price, link = link(itemID, suffix) }
     if #shelf > 12 then table.remove(shelf, 1) end
   end
 
-  local function buyBack(index) table.remove(shelf, index) end
+  local function buyBack(index)
+    local entry = table.remove(shelf, index)
+    bag[entry.itemID] = (bag[entry.itemID] or 0) + entry.quantity
+  end
+
+  -- The bags as one backpack of stacks, in item order.
+  local function slots()
+    local out = {}
+    for itemID, count in pairs(bag) do
+      if count > 0 then out[#out + 1] = { itemID = itemID, stackCount = count } end
+    end
+    table.sort(out, function(a, b) return a.itemID < b.itemID end)
+    return out
+  end
 
   local function lot(fields)
     local args = { source = "goldcap", itemID = 1206, positionKey = "commodity:1206", itemName = "Moss Agate",
@@ -49,8 +69,8 @@ describe("merchant sales spend purchase lots", function()
     GC.Acquisitions.Init(db)
     GC.Ledger = { Context = function() return me end,
       Append = function(row) ledgerRows[#ledgerRows + 1] = row end }
-    shelf = {}
-    _G.GetNumBuybackItems = function() return #shelf end
+    shelf, bag, hidden = {}, {}, false
+    _G.GetNumBuybackItems = function() return hidden and 0 or #shelf end
     _G.GetBuybackItemInfo = function(index)
       local entry = shelf[index]
       if not entry then return nil end
@@ -60,16 +80,21 @@ describe("merchant sales spend purchase lots", function()
     _G.C_MerchantFrame = { GetBuybackItemID = function(index) return shelf[index] and shelf[index].itemID end }
     _G.MerchantFrame = { shown = true }
     function _G.MerchantFrame:IsShown() return self.shown end
+    _G.C_Container = {
+      GetContainerNumSlots = function(index) return index == 0 and #slots() or 0 end,
+      GetContainerItemInfo = function(index, slot) return index == 0 and slots()[slot] or nil end,
+    }
     GC.VendorSales.Install()
   end)
 
   after_each(function()
     _G.GetNumBuybackItems, _G.GetBuybackItemInfo, _G.GetBuybackItemLink = nil, nil, nil
-    _G.C_MerchantFrame, _G.MerchantFrame = nil, nil
+    _G.C_MerchantFrame, _G.MerchantFrame, _G.C_Container = nil, nil, nil
   end)
 
   it("books a stack sold to a merchant against the oldest purchase of the item, once", function()
     local batch = lot()
+    hold(1206, 4)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(201)
@@ -103,6 +128,7 @@ describe("merchant sales spend purchase lots", function()
 
   it("takes only what the books hold when bought and looted units are sold together", function()
     local batch = lot()
+    hold(1206, 6)
     GC.VendorSales.OnShow(200)
     sell(1206, 6, 600)
     GC.VendorSales.OnChanged(201)
@@ -114,8 +140,9 @@ describe("merchant sales spend purchase lots", function()
     assert.equal(1440, realized.cost)
   end)
 
-  it("books nothing for a stack bought back before the merchant closed", function()
+  it("books nothing net for a stack bought back before the merchant closed", function()
     local batch = lot()
+    hold(1206, 4)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(201)
@@ -129,6 +156,7 @@ describe("merchant sales spend purchase lots", function()
 
   it("keeps a sale when the stack sold before it is the one bought back", function()
     local batch = lot()
+    hold(1206, 4)
     GC.VendorSales.OnShow(200)
     sell(1206, 2, 800)
     GC.VendorSales.OnChanged(201)
@@ -143,6 +171,9 @@ describe("merchant sales spend purchase lots", function()
 
   it("reads a full page that drops its oldest as one new sale, not a buyback", function()
     local batch = lot()
+    hold(1206, 4)
+    for i = 1, 11 do hold(9000 + i, 1) end
+    hold(9100, 1)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(201)
@@ -161,6 +192,7 @@ describe("merchant sales spend purchase lots", function()
 
   it("ignores a read made after the merchant closed, and loses no sale to it", function()
     local batch = lot()
+    hold(1206, 4)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(201)
@@ -170,6 +202,7 @@ describe("merchant sales spend purchase lots", function()
     GC.VendorSales.OnClosed(203)
     assert.equal(0, batch.remainingQty)
     assert.equal(1, #saleKeys())
+    hold(1206, 4)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(204) -- no visit open: says nothing
     GC.VendorSales.OnClosed(205)
@@ -178,6 +211,7 @@ describe("merchant sales spend purchase lots", function()
 
   it("takes a list still empty at the door for the last visit's, not as everything new", function()
     lot({ quantity = 8, total = 2880 })
+    hold(1206, 8)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(201)
@@ -193,6 +227,7 @@ describe("merchant sales spend purchase lots", function()
 
   it("books a visit the client never closed at the next door", function()
     local batch = lot()
+    hold(1206, 4)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(201)
@@ -204,6 +239,7 @@ describe("merchant sales spend purchase lots", function()
   it("leaves an item alone when its lots carry two keys and the sale cannot say which", function()
     local a = lot({ itemID = 2632, positionKey = "item:2632:14:14311:0", quantity = 1, total = 500 })
     local b = lot({ itemID = 2632, positionKey = "item:2632:14:14303:0", quantity = 1, total = 700, acquiredAt = 110 })
+    hold(2632, 2)
     GC.VendorSales.OnShow(200)
     sell(2632, 1, 900)
     GC.VendorSales.OnChanged(201)
@@ -217,6 +253,7 @@ describe("merchant sales spend purchase lots", function()
     local alt = lot({ character = "Alt-Realm", acquiredAt = 50 })
     local other = lot({ region = "90", acquiredAt = 60 })
     local mine = lot({ acquiredAt = 100 })
+    hold(1206, 4)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(201)
@@ -228,6 +265,7 @@ describe("merchant sales spend purchase lots", function()
 
   it("never writes a ledger row", function()
     lot()
+    hold(1206, 4)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     GC.VendorSales.OnChanged(201)
@@ -239,6 +277,7 @@ describe("merchant sales spend purchase lots", function()
 
   it("reads nothing as a sale when an entry of the page cannot be read", function()
     local batch = lot()
+    hold(1206, 4)
     GC.VendorSales.OnShow(200)
     sell(1206, 4, 1600)
     _G.C_MerchantFrame.GetBuybackItemID = function() return nil end
@@ -248,12 +287,55 @@ describe("merchant sales spend purchase lots", function()
     assert.equal(4, batch.remainingQty)
   end)
 
+  -- After a /reload the session's buyback page is still the server's, but the first read at the door
+  -- can come back empty: the stacks sold before the reload then appear a tick later as if new.
+  it("books nothing for a page that fills after the door while the bags did not move", function()
+    local batch = lot()
+    hold(1206, 4)
+    shelf = { { itemID = 1206, quantity = 4, price = 1600, link = link(1206) } } -- sold before the reload
+    hidden = true
+    GC.VendorSales.OnShow(200)
+    hidden = false
+    GC.VendorSales.OnChanged(201)
+    GC.VendorSales.OnClosed(202)
+    assert.equal(4, batch.remainingQty)
+    assert.equal(0, #saleKeys())
+  end)
+
+  it("books no more units than left the bags, at their share of the price", function()
+    local batch = lot()
+    hold(1206, 4)
+    GC.VendorSales.OnShow(200)
+    sell(1206, 4, 1600)
+    hold(1206, 2) -- the bags lost two of the four the page names
+    GC.VendorSales.OnChanged(201)
+    GC.VendorSales.OnClosed(202)
+    assert.equal(2, batch.remainingQty)
+    local realized = GC.Acquisitions.GetRealized(me)[1]
+    assert.equal(2, realized.quantity)
+    assert.equal(800, realized.proceeds)
+  end)
+
+  it("counts what this merchant sold the player during the visit as units the bags could lose", function()
+    GC.VendorSales.OnShow(200)
+    -- Core/VendorBuys.lua books a merchant purchase once the bags show it: 4 vials, 8c each.
+    local vials = lot({ source = "vendor", itemID = 3371, positionKey = "commodity:3371", itemName = "Empty Vial",
+      quantity = 4, total = 32, acquiredAt = 201 })
+    hold(3371, 4)
+    GC.VendorSales.OnChanged(201)
+    sell(3371, 4, 4)
+    GC.VendorSales.OnChanged(202)
+    GC.VendorSales.OnClosed(203)
+    assert.equal(0, vials.remainingQty)
+  end)
+
   it("books every sale of a visit even when one booking fails", function()
     local booked = {}
-    local page = {}
+    local page, counts = {}, { [1] = 1, [2] = 1 }
     GC.VendorSales.SetDriver({
       open = function() return true end,
       buyback = function() return page end,
+      bags = function() return counts end,
       record = function(sale)
         if sale.itemID == 1 then error("store refused") end
         booked[#booked + 1] = sale.itemID
@@ -261,9 +343,35 @@ describe("merchant sales spend purchase lots", function()
     })
     GC.VendorSales.OnShow(200)
     page = { { itemID = 1, quantity = 1, price = 5 }, { itemID = 2, quantity = 1, price = 5 } }
+    counts = {}
     GC.VendorSales.OnChanged(201)
     GC.VendorSales.OnClosed(202)
     assert.same({ 2 }, booked)
+  end)
+
+  describe("the bags' word on a visit's sales", function()
+    local function sale(itemID, quantity, price) return { itemID = itemID, quantity = quantity, price = price, at = 1 } end
+    local function units(list)
+      local out = {}
+      for _, s in ipairs(list) do out[#out + 1] = s.itemID .. "x" .. s.quantity .. "@" .. s.price end
+      return out
+    end
+
+    it("lets a sale through only for the units that left the bags, oldest sale first", function()
+      local sales = { sale(1, 4, 400), sale(1, 4, 400), sale(2, 1, 9) }
+      assert.same({ "1x4@400", "1x2@200", "2x1@9" },
+        units(GC.VendorSales.Corroborate(sales, { [1] = 8, [2] = 1 }, { [1] = 2 }, {})))
+    end)
+
+    it("lets nothing through for an item the bags did not lose, or got back", function()
+      local sales = { sale(1, 4, 400), sale(3, 2, 10) }
+      assert.same({}, units(GC.VendorSales.Corroborate(sales, { [1] = 4 }, { [1] = 4 }, {})))
+      assert.same({}, units(GC.VendorSales.Corroborate(sales, { [1] = 4 }, { [1] = 6 }, {})))
+    end)
+
+    it("adds what the merchant sold the player during the visit to what the bags could lose", function()
+      assert.same({ "1x3@30" }, units(GC.VendorSales.Corroborate({ sale(1, 3, 30) }, {}, {}, { [1] = 3 })))
+    end)
   end)
 
   describe("the page diff", function()
