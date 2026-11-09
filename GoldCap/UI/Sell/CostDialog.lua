@@ -166,12 +166,14 @@ end
 -- still hold (GC.Acquisitions.Retire), keeping the lots and their purchase, and the row leaves the
 -- list. There is no undo, hence the second click. The question is kept by position, not by pooled
 -- row, so a render between the clicks asks it on the same item. Not offered while an auction house
--- sale of the item waits in the mail: that one books itself.
+-- sale of the item waits in the mail: that one books itself. Nor before this session has read the
+-- player's own auctions: until then a listed lot is in no bag and on no auction as far as SELL knows.
 local RETIRE_SECONDS = 8
 local retireToken = 0
 
 function CostDialog.CanRetire(position)
-  if type(position) ~= "table" or position.unresolved or type(position.positionKey) ~= "string"
+  if not GC.SellState.ownedRead
+      or type(position) ~= "table" or position.unresolved or type(position.positionKey) ~= "string"
       or (position.bagQty or 0) > 0 or (position.listedQty or 0) > 0
       or (type(position.facts) == "table" and position.facts.soldPending) then
     return false

@@ -39,6 +39,9 @@ GC.Sell.EMPTY_ANSWER_AGE = 60
 
 GC.SellState = {
   positions = {}, ownedLots = {}, quotes = {},
+  -- Whether this session has read the player's own auctions yet (GC.Sell.OnOwnedAuctions). Until
+  -- it has, ownedLots is empty and a listed lot looks like one in no bag and on no auction.
+  ownedRead = false,
   -- The posting queue, DERIVED, never stored: rebuilt by Compose.Positions() every time positions
   -- are, straight from GC.PostQueue.Build(positions). There is deliberately no separate stateful
   -- queue with an index into it -- a post empties that item from the bags, so the entry drops out

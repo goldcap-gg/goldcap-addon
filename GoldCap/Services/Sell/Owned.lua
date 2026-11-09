@@ -135,6 +135,7 @@ function GC.Sell.OnOwnedAuctions()
     if returned then View.status(GC.L["The cancel did not go through: the lot is still listed"]) end
   end
   S.ownedLots = GC.SellPositions.NormalizeOwnedLots(Owned.Classify(auctions), time())
+  S.ownedRead = true
   local scope = context()
   -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): the roster this
   -- read just produced is the roster the companion uploads, unchanged. No second query.

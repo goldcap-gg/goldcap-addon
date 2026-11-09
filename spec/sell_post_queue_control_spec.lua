@@ -1109,7 +1109,10 @@ describe("Sell tab, the posting queue control", function()
   -- The owner's NOT ON HAND rows (WoW: Forever, 2026-11-09): stock sold to a merchant that the books
   -- still counted. Moss Agate was bought on DEALS and is in no bag and on no auction.
   describe("a row with nothing on hand", function()
-    before_each(function() GC.db = { sellMarks = {} } end)
+    before_each(function()
+      GC.db = { sellMarks = {} }
+      GC.Sell.OnOwnedAuctions() -- this session's read of the player's auctions: none listed
+    end)
 
     local function ghostRow()
       for _, row in ipairs(GC.SellUI.rows) do
@@ -1187,6 +1190,20 @@ describe("Sell tab, the posting queue control", function()
       end
       assert.is_true(onHand.mark.shown)
       assert.equal(onHand.itemInset, row.itemInset)
+    end)
+
+    -- Until the auctions are read, a lot on the auction house is in no bag and on no auction as far
+    -- as SELL knows, and spending it would leave its sale uncosted.
+    it("offers no Sold/used before this session has read the player's auctions", function()
+      GC.SellState.ownedRead = false
+      local lot = bought()
+      openFold()
+      local row = ghostRow()
+      assert.is_not.equal("Sold/used", row.action.helpKey)
+      assert.equal(4, lot.remainingQty)
+      GC.Sell.OnOwnedAuctions()
+      render()
+      assert.equal("Sold/used", ghostRow().action.helpKey)
     end)
 
     it("offers no Sold/used while the stock is in the bags", function()
