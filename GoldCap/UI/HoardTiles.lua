@@ -46,9 +46,9 @@ local ORDER = { "pricesUp", "forCrafts", "putAway" }
 -- Prices are up in the board's gold, its button the gold fill, while it has something to take out;
 -- the other two, and Prices are up with nothing, on the window's glass, their buttons in a gold
 -- tint and ring.
-local UP_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.08 }
-local UP_RING = { K.gold[1], K.gold[2], K.gold[3], 0.55 }
-local MOVE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.45 }
+local UP_FILL = GC.Kit.Tokens.alpha("gold", 0.08)
+local UP_RING = GC.Kit.Tokens.alpha("gold", 0.55)
+local MOVE_RING = GC.Kit.Tokens.alpha("gold", 0.45)
 -- A button's look at rest (UI/HoardFrame.lua's moveButton), a full tile's and a compact one's, in
 -- Prices are up's gold or as the other two wear it.
 local function fullLook(gold)

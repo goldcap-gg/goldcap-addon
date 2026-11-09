@@ -91,13 +91,13 @@ local LOCK_ICON, LOCK_EDGE = "Interface\\LFGFrame\\UI-LFG-ICON-LOCK", 28 / 32
 -- The boards' colours, from the kit's tokens: the top card's gold tint and ring; a card's Send in a
 -- gold outline; Stop's ring in the loss colour, as the Hoard's Stop wears it; the card in flight in
 -- the Hoard's run gold; "Who sells it?" ringed in gold; a card this character sells at SELF_ALPHA.
-local CARD_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.06 }
-local CARD_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
-local SEND_RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }
-local STOP_RING = { K.loss[1], K.loss[2], K.loss[3], 0.5 }
-local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
-local RUN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
-local PICK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
+local CARD_FILL = GC.Kit.Tokens.alpha("gold", 0.06)
+local CARD_RING = GC.Kit.Tokens.alpha("gold", 0.35)
+local SEND_RING = GC.Kit.Tokens.alpha("gold", 0.5)
+local STOP_RING = GC.Kit.Tokens.alpha("loss", 0.5)
+local RUN_FILL = GC.Kit.Tokens.alpha("gold", 0.07)
+local RUN_RING = GC.Kit.Tokens.alpha("gold", 0.6)
+local PICK_RING = GC.Kit.Tokens.alpha("gold", 0.6)
 local SELF_ALPHA = 0.6
 
 -- Whether the mailbox is open (MAIL_SHOW until MAIL_CLOSED or the mail frame's hide). What the last

@@ -24,7 +24,7 @@ local SWITCH_TRACK = { 0, 0, 0, 0.35 }
 local ICON_EDGE = { 0, 0, 0, 0.75 }
 -- An icon whose item has moved in the run: shaded in the window's own dark under the check, as
 -- the board draws it.
-local MOVED_SHADE = { K.windowBottom[1], K.windowBottom[2], K.windowBottom[3], 0.6 }
+local MOVED_SHADE = GC.Kit.Tokens.alpha("windowBottom", 0.6)
 -- The sizes an item's count over its icon tries, largest first, so it fits inside the icon.
 local COUNT_SIZES = { 8, 7, 6 }
 -- In UI units: the check a moved item's icon wears, and the price line's dot and the room right of

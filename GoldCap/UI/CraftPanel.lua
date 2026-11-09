@@ -65,10 +65,10 @@ local function tint(c, a) return { c[1], c[2], c[3], a } end
 -- figure on the window's dark, the profit on a wash and a ring of its own colour; a Worth crafting
 -- row on the glass in a hairline, the open recipe's on This recipe's gold; Restock to and the "+"
 -- ringed in gold.
-local CARD_FILL, CARD_RING = tint(K.gold, 0.07), tint(K.gold, 0.5)
+local CARD_FILL, CARD_RING = GC.Kit.Tokens.alpha("gold", 0.07), GC.Kit.Tokens.alpha("gold", 0.5)
 local CELL_FILL, NO_RING = { 0, 0, 0, 0.3 }, { 0, 0, 0, 0 }
-local OPEN_FILL, OPEN_RING = tint(K.gold, 0.07), tint(K.gold, 0.45)
-local GOLD_RING = tint(K.gold, 0.5)
+local OPEN_FILL, OPEN_RING = GC.Kit.Tokens.alpha("gold", 0.07), GC.Kit.Tokens.alpha("gold", 0.45)
+local GOLD_RING = GC.Kit.Tokens.alpha("gold", 0.5)
 
 -- What changes the list: the window opening, its recipe list refreshed, a recipe learned. Bags
 -- changing moves nothing here, but the queue reads them (UI/CraftQueueView.lua): a bag change

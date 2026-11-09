@@ -13,8 +13,8 @@ local SQUARE_EDGE = { 1, 1, 1, 0.11 }
 local PRESSED = { 0, 0, 0, 0.28 }
 -- A disabled button draws its fill and ring at this share of their own alpha.
 local DIM = 0.45
-local PRIMARY_GLOW = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
-local DANGER_GLOW = { K.loss[1], K.loss[2], K.loss[3], 0.35 }
+local PRIMARY_GLOW = GC.Kit.Tokens.alpha("gold", 0.35)
+local DANGER_GLOW = GC.Kit.Tokens.alpha("loss", 0.35)
 
 -- A trailing ▼ or ▲ on a label ("SHOW DETAILS ▼", a picker's "All ▼"): drawn as the atlas caret at
 -- the right edge, because the condensed face has neither triangle (docs/addon/tools/fonts.py).

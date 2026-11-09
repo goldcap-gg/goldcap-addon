@@ -35,19 +35,19 @@ local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrappi
 -- The colours the boards draw a row with, all from the kit's tokens: Store in the gold the bags'
 -- share wears, an opened row ringed in it; the "+N" box in the kit's hairline; each play's chip in
 -- its own colour.
-local STORE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.45 }
-local OPEN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
+local STORE_RING = GC.Kit.Tokens.alpha("gold", 0.45)
+local OPEN_RING = GC.Kit.Tokens.alpha("gold", 0.35)
 -- The boards' gold on a row: while its run goes (Window, mode running), checked (ManyGroups), and a
 -- folder with any group checked.
-local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
-local RUN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
-local CHECK_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.06 }
-local CHECK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.3 }
-local FOLDER_CHECK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
+local RUN_FILL = GC.Kit.Tokens.alpha("gold", 0.07)
+local RUN_RING = GC.Kit.Tokens.alpha("gold", 0.6)
+local CHECK_FILL = GC.Kit.Tokens.alpha("gold", 0.06)
+local CHECK_RING = GC.Kit.Tokens.alpha("gold", 0.3)
+local FOLDER_CHECK_RING = GC.Kit.Tokens.alpha("gold", 0.35)
 local PLAY_COLOR = { gather = K.profit, craft = K.yours, flip = K.goldText, stock = K.text2 }
 -- The bar's bank share: the legend's slate (HF.ui.SLATE) a step darker, as the board draws the
 -- bar's track under the bags' gold.
-local SLATE_TRACK = { U.SLATE[1], U.SLATE[2], U.SLATE[3], 0.38 }
+local SLATE_TRACK = GC.Kit.Tokens.alpha("yours", 0.38)
 -- An item's icon, as every row and window draws it, is the kit's (UI/Kit/Parts.lua), which the
 -- crafting panel draws with on both games; HF.Row hands it on.
 local KP = GC.Theme.Parts

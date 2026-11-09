@@ -6,7 +6,7 @@ local T = GC.Theme
 local MEDIA = GC.Kit.MEDIA
 local K = GC.Kit.Tokens.color
 -- A panel's and a card's default fill: the window's top colour, opaque.
-local PANEL = { K.windowTop[1], K.windowTop[2], K.windowTop[3] }
+local PANEL = GC.Kit.Tokens.rgb("windowTop")
 
 -- Panel: flat dark texture + 1px border.
 function T.Panel(parent)

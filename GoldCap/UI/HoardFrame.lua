@@ -100,7 +100,7 @@ for _, bag in ipairs(BAGS) do IS_BAG[bag] = true end
 -- The bank's share in the legend of the bar under each row (the bar's own is a step darker,
 -- UI/HoardRow.lua): the kit's "yours" blue dimmed to the boards' slate, the kit having no slate of
 -- its own. The bags' share is the kit's gold.
-local SLATE = { K.yours[1], K.yours[2], K.yours[3], 0.6 }
+local SLATE = GC.Kit.Tokens.alpha("yours", 0.6)
 
 -- The stacks a press has sent, "bag:slot" -> { itemID, count } as the slot held them, until the
 -- slot shows the move or the settle timer gives up on it.

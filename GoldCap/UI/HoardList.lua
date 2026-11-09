@@ -29,11 +29,11 @@ local HL = HF.List
 -- window's own border).
 local CHECK_OFF = { 1, 1, 1, 0.28 }
 local FILL_TRACK = { 1, 1, 1, 0.08 }
-local BAR_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.10 }
-local BAR_RING = { K.gold[1], K.gold[2], K.gold[3], 0.55 }
-local TAKE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }
+local BAR_FILL = GC.Kit.Tokens.alpha("gold", 0.10)
+local BAR_RING = GC.Kit.Tokens.alpha("gold", 0.55)
+local TAKE_RING = GC.Kit.Tokens.alpha("gold", 0.5)
 -- A move button's Stop: the kit's stop look with a ring in its colour.
-local STOP_RING = { K.loss[1], K.loss[2], K.loss[3], 0.5 }
+local STOP_RING = GC.Kit.Tokens.alpha("loss", 0.5)
 -- The most a run's count can say: the bags and both banks hold fewer than a thousand stacks.
 local COUNT_MOST = 999
 

@@ -31,9 +31,9 @@ local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrappi
 local M = { PAD = 7, ICON = 22, ICON_GAP = 8, LINE_GAP = 2, GAP = 6, BUTTON_H = 21, BUTTON_GAP = 8, NOTE_GAP = 6 }
 -- The board's blue: the kit's "yours", for what goes to another of the player's characters. A piece
 -- that cannot be sold sits on the window's glass.
-local CARD_FILL = { K.yours[1], K.yours[2], K.yours[3], 0.06 }
-local CARD_RING = { K.yours[1], K.yours[2], K.yours[3], 0.25 }
-local BUTTON_RING = { K.yours[1], K.yours[2], K.yours[3], 0.5 }
+local CARD_FILL = GC.Kit.Tokens.alpha("yours", 0.06)
+local CARD_RING = GC.Kit.Tokens.alpha("yours", 0.25)
+local BUTTON_RING = GC.Kit.Tokens.alpha("yours", 0.5)
 local KINDS = { "in", "out", "stuck" }
 
 local function eyebrowOf(kind)
