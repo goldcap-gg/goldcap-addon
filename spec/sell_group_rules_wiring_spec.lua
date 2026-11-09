@@ -240,6 +240,7 @@ describe("Sell tab with followed groups' rules", function()
           Num = function(p) return region("FontString", p) end,
           Button = function(p) return region("Button", p) end,
           Card = function(p) local card = region("Frame", p); function card:SetTint() end return card end,
+          Plate = function() return nil end, -- no skin plates in this fake
           SlicedTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
           ItemTooltipOutside = function() end,
           TooltipAnchor = function() return "ANCHOR_RIGHT" end,

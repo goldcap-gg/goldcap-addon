@@ -84,9 +84,10 @@ local ROUNDED_GHOST_FILL = GC.Kit.Tokens.alpha("ink", 0.05)
 -- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
 -- `rounded` (nil | "plaque" | "badge"): nil keeps the original square look (solid bg,
 -- T.EdgeBorder) unchanged. "plaque"/"badge" swap the bg and hover wash for sliced textures of
--- that art (ROUNDED_BUTTON above) and drop the square T.EdgeBorder -- "plaque" gets a sliced
--- plaque_ring.png ring in its place, "badge" gets none (too small for the ring art, same as
--- T.RailButton's own badge).
+-- that art (roundedButton above) and drop the square T.EdgeBorder -- "plaque" gets a sliced
+-- plaque_ring.png ring in its place, or, under a skin that frames its controls (T.Plate), the
+-- skin's baked plate ring over a gradient fill; "badge" gets none (too small for the ring art,
+-- same as T.RailButton's own badge).
 function T.Button(parent, variant, rounded)
   local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
   local roundedSpec = (rounded == "plaque" or rounded == "badge") and roundedButton(rounded) or nil

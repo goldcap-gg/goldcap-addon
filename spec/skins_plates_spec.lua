@@ -184,6 +184,52 @@ describe("skin plates", function()
     assert.equal(MEDIA .. "plaque_r0.png", W.state(chip.bg).file)
   end)
 
+  -- WCAG relative luminance contrast of two {r, g, b} colours.
+  local function contrast(a, b)
+    local function lum(c)
+      local function lin(v) return v <= 0.03928 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4 end
+      return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3])
+    end
+    local hi, lo = math.max(lum(a), lum(b)), math.min(lum(a), lum(b))
+    return (hi + 0.05) / (lo + 0.05)
+  end
+
+  it("goldcap's rail fill is today's flat black at 22%", function()
+    Skins.Apply("goldcap")
+    local rail = T.Rail(parent())
+    assert.equal(MEDIA .. "card_left.png", W.state(rail.frame.fill).file)
+    assert.same({ 0, 0, 0, 0.22 }, W.state(rail.frame.fill).vertex)
+  end)
+
+  it("parchment's rail is the wood gradient and its labels read against it", function()
+    Skins.Apply("parchment")
+    local rail = T.Rail(parent())
+    local mid = W.state(rail.frame.fill[5]).gradient
+    assert.same(rgb(K.railBottom), stop(mid[2]))
+    assert.same(rgb(K.railTop), stop(mid[3]))
+    assert.same(rgb(Skins.defs.parchment.color.railTop), { 0x34 / 255, 0x24 / 255, 0x14 / 255 })
+    assert.is_true(contrast(K.railIdle, K.railBottom) >= 3)
+    assert.is_true(contrast(K.railActive, K.railBottom) >= 3)
+  end)
+
+  it("a plate skin draws no track behind its tabs", function()
+    Skins.Apply("goldcap")
+    local sw = parent()
+    GC.Theme.Parts.sunkenTrack(sw)
+    assert.is_not_nil(sw.track)
+    Skins.Apply("forever")
+    sw = parent()
+    GC.Theme.Parts.sunkenTrack(sw)
+    assert.is_nil(sw.track)
+  end)
+
+  it("a plate ring's slice is its outline and band, and no more", function()
+    assert.equal(3, T.ArtSlice("plate", 3, 2))
+    assert.equal(6, T.ArtSlice("plate", 6, 2))
+    Skins.Apply("horde")
+    assert.same({ 3, 3, 3, 3 }, W.state(T.RailButton(parent(), "deals", "DEALS").ring).slice)
+  end)
+
   it("ships every file the rail, the buttons and the chips draw in every skin", function()
     for _, id in ipairs(Skins.ORDER) do
       Skins.Apply(id)

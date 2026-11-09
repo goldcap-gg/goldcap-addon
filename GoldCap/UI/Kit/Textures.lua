@@ -48,7 +48,9 @@ end
 -- its smallest edge. A bevel ring's margin also covers its whole band: the outline pixel, `width`
 -- and the inner line.
 function T.ArtSlice(kind, radius, width)
-  if kind == "bevel" or kind == "plate" then return math.max(radius, math.ceil((width or 0) + 2), 2) end
+  if kind == "bevel" then return math.max(radius, math.ceil((width or 0) + 2), 2) end
+  -- A plate ring is its outline and its `width` band, nothing inside.
+  if kind == "plate" then return math.max(radius, 1 + (width or 0), 2) end
   local today = TODAY[kind]
   if today and today[1] == radius then
     return (kind == "card" or kind == "ring") and CARD_SLICE or PLAQUE_SLICE
@@ -66,8 +68,8 @@ function T.SmallArt(radius, cap)
   return T.Art("plaque", radius), T.Art("plaqueRing", radius), math.min(T.ArtSlice("plaque", radius), cap)
 end
 
--- The skins whose plate ring is baked (docs/addon/tools/gen_art.py PLATE_SKINS).
-local BAKED_PLATES = { forever = true, horde = true, alliance = true, leather = true }
+-- A plate ring's band, in px, inside its 1px outline (docs/addon/tools/gen_art.py PLATE_BAND).
+local PLATE_BAND = 2
 
 --- What the applied skin frames its rail buttons, tabs and buttons with, or nil when it frames none:
 -- { ring = the baked ring (vertex colour white), ringSlice, fill = plaque art at the control radius,
@@ -76,9 +78,9 @@ local BAKED_PLATES = { forever = true, horde = true, alliance = true, leather = 
 -- client art, and until then it draws none (return them here).
 function T.Plate()
   local skin = GC.Kit.Skins.Current()
-  if not (skin.plates and BAKED_PLATES[skin.id]) then return nil end
+  if not (skin.plates and skin.plateArt) then return nil end
   local radius = skin.radius[3]
-  return { ring = T.Art("plate", skin.id), ringSlice = T.ArtSlice("plate", radius, 2),
+  return { ring = T.Art("plate", skin.id), ringSlice = T.ArtSlice("plate", radius, PLATE_BAND),
     fill = T.Art("plaque", radius), fillSlice = T.ArtSlice("plaque", radius) }
 end
 

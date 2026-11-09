@@ -205,8 +205,16 @@ function T.Rail(parent)
   -- card_left.png: left corners rounded to match the window card's own radius 12, right edge
   -- square (it borders content, not window chrome) -- a flat rectangle here would poke square
   -- corners past the window's rounded top-left/bottom-left arcs.
-  local bg = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { 0, 0, 0, 0.22 }) -- untinted
-  bg:SetAllPoints()
+  -- The skin's rail fill (K.railTop to K.railBottom): flat, as it always was, where the two are the
+  -- same; else a vertical gradient cut from the same art (T.GradientFill).
+  local top, bottom = K.railTop, K.railBottom
+  local flat = top[1] == bottom[1] and top[2] == bottom[2] and top[3] == bottom[3] and top[4] == bottom[4]
+  if flat then
+    frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", top)
+    frame.fill:SetAllPoints()
+  else
+    frame.fill = T.GradientFill(frame, top, bottom, T.MEDIA .. "card_left.png", 16, 64)
+  end
   local edge = frame:CreateTexture(nil, "BORDER")
   edge:SetColorTexture(K.hairline[1], K.hairline[2], K.hairline[3], K.hairline[4])
   edge:SetPoint("TOPRIGHT")

@@ -1096,7 +1096,8 @@ local function createBanner(parent)
   b.button = Theme.Button(b.frame, "ghost", "plaque")
   b.button:SetPoint("RIGHT", b.frame, "RIGHT", -SD.BANNER_PAD_X / 2, 0)
   local gc = Theme.color.gold
-  if b.button.ring then b.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
+  -- A plate's ring is baked in colour: a tint would spoil it.
+  if b.button.ring and not b.button.plate then b.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
   b.button.bg:SetVertexColor(1, 1, 1, 0) -- untinted
   setColor(b.button.text, Theme.color.goldHi)
   b.button:SetScript("OnClick", function()
@@ -1189,7 +1190,8 @@ local function createEmpty(parent)
   setColor(e.sub, Theme.color.fgDim)
   e.button = Theme.Button(e.frame, "ghost", "plaque")
   local gc = Theme.color.gold
-  if e.button.ring then e.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
+  -- A plate's ring is baked in colour: a tint would spoil it.
+  if e.button.ring and not e.button.plate then e.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
   e.button.bg:SetVertexColor(1, 1, 1, 0) -- untinted
   setColor(e.button.text, Theme.color.goldHi)
   e.button:SetScript("OnClick", function()

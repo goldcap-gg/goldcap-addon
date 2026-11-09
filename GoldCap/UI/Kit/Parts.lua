@@ -92,8 +92,10 @@ end
 
 -- A switch's sunken track in the glass's border, over the whole of `switch`: the Hoard's switches
 -- and the crafting panel's tabs (UI/CraftPanel.lua).
+-- A skin that frames its tabs (Theme.Plate) draws none: each tab wears its own plate.
 function KP.sunkenTrack(switch)
   local T = GC.Theme
+  if T.Plate() then return end
   switch.track = T.SlicedTexture(switch, "BACKGROUND", T.MEDIA .. "plaque.png", SWITCH_TRACK, T.SLICE.plaque)
   switch.track:SetAllPoints(switch)
   switch.edge = T.SlicedTexture(switch, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)

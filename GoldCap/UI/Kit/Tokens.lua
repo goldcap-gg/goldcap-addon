@@ -41,6 +41,9 @@ local c = {
   -- The primary button is flat gold here, as it always was: equal stops mean a flat fill.
   primaryTop = hex("E8B04B"), primaryBottom = hex("E8B04B"), primaryText = hex("160F04"),
   frameTint = { 1, 1, 1, 0.14 },
+  -- The rail's own fill, top and bottom (the mock's `--rail`): equal stops are a flat fill. Today's is
+  -- black at 22%; a skin's rail labels (railIdle, railActive) are chosen against its own.
+  railTop = { 0, 0, 0, 0.22 }, railBottom = { 0, 0, 0, 0.22 },
   -- The fills of a plate (a rail button, a tab, a button in a skin that frames them): top and bottom,
   -- idle and selected. The plain look draws no plate, so nothing reads these there.
   plateTop = hex("1B2029"), plateBottom = hex("12151B"), plateOnTop = hex("2A2F3A"), plateOnBottom = hex("1B2029"),

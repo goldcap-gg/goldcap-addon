@@ -89,6 +89,7 @@ describe("Sell widget geometry and manual cost", function()
       Card = function(parent) local card = region("Frame", parent); function card:SetTint() end return card end,
       -- Records what the real one does with its arguments: a caller that tints a sliced region
       -- any other way than SetVertexColor loses the art, and only the file name shows that.
+      Plate = function() return nil end, -- no skin plates in this fake
       SlicedTexture = function(parent, layer, file, c, margin)
         local t = region("Texture", parent)
         t.layer = layer

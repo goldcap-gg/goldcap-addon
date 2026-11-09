@@ -43,6 +43,7 @@ defs.goldcap = {
     railIdle = blizzard.railIdle, railActive = blizzard.railActive,
     primaryTop = blizzard.primaryTop, primaryBottom = blizzard.primaryBottom, primaryText = blizzard.primaryText,
     frameTint = blizzard.frameTint,
+    railTop = blizzard.railTop, railBottom = blizzard.railBottom,
     plateTop = blizzard.plateTop, plateBottom = blizzard.plateBottom, plateOnTop = blizzard.plateOnTop,
     plateOnBottom = blizzard.plateOnBottom,
     frameInner = blizzard.frameInner,
@@ -86,6 +87,7 @@ defs.forever = {
     railIdle = hex("A8977C"), railActive = hex("FFD27A"),
     primaryTop = hex("E8BC72"), primaryBottom = hex("9E6E36"), primaryText = hex("1B1107"),
     frameTint = hex("AD7F49"),
+    railTop = { 0, 0, 0, .28 }, railBottom = { 0, 0, 0, .28 },
     plateTop = hex("2A2119"), plateBottom = hex("17120D"), plateOnTop = hex("4D3A22"), plateOnBottom = hex("2B2015"),
     frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("FF927D"), safe = hex("8AE38E"),
@@ -103,6 +105,8 @@ defs.forever = {
   frameWidth = 2,
   ornament = nil,
   plates = true,
+  -- Its plate ring is baked (gen_art.py PLATE_SKINS).
+  plateArt = true,
   glow = true,
   fonts = { head = "RobotoCondensed-Bold.ttf" },
 }
@@ -126,6 +130,7 @@ defs.pixel = {
     railIdle = hex("8A8A8A"), railActive = hex("F2C14E"),
     primaryTop = hex("E8B04B"), primaryBottom = hex("E8B04B"), primaryText = hex("000000"),
     frameTint = hex("000000"),
+    railTop = hex("0C0C0C"), railBottom = hex("0C0C0C"),
     plateTop = blizzard.plateTop, plateBottom = blizzard.plateBottom, plateOnTop = blizzard.plateOnTop,
     plateOnBottom = blizzard.plateOnBottom,
     frameInner = hex("2E2E2E"),
@@ -170,6 +175,7 @@ defs.parchment = {
     railIdle = hex("D2BD93"), railActive = hex("FFD100"),
     primaryTop = hex("C92D1C"), primaryBottom = hex("7E140A"), primaryText = hex("FFD100"),
     frameTint = hex("3B2511"),
+    railTop = hex("342414"), railBottom = hex("21160B"),
     plateTop = blizzard.plateTop, plateBottom = blizzard.plateBottom, plateOnTop = blizzard.plateOnTop,
     plateOnBottom = blizzard.plateOnBottom,
     frameInner = blizzard.frameInner,
@@ -213,6 +219,7 @@ defs.horde = {
     railIdle = hex("AE948A"), railActive = hex("FFC46B"),
     primaryTop = hex("CF3B2D"), primaryBottom = hex("7A1710"), primaryText = hex("FFD58A"),
     frameTint = hex("3B3431"),
+    railTop = { 0, 0, 0, .32 }, railBottom = { 0, 0, 0, .32 },
     plateTop = hex("2B1E1B"), plateBottom = hex("170F0D"), plateOnTop = hex("7A1F16"), plateOnBottom = hex("3E0E09"),
     frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("FF8C7C"), safe = hex("86DD8E"),
@@ -230,6 +237,8 @@ defs.horde = {
   frameWidth = 3,
   ornament = "rivets",
   plates = true,
+  -- Its plate ring is baked (gen_art.py PLATE_SKINS).
+  plateArt = true,
   glow = true,
   fonts = { head = "RuslanDisplay-Regular.ttf", display = true },
 }
@@ -253,6 +262,7 @@ defs.alliance = {
     railIdle = hex("94A2BC"), railActive = hex("FFD978"),
     primaryTop = hex("4E91EE"), primaryBottom = hex("1F4E9E"), primaryText = hex("FFE79A"),
     frameTint = hex("BA933F"),
+    railTop = { 0, 0, 0, .26 }, railBottom = { 0, 0, 0, .26 },
     plateTop = hex("17223A"), plateBottom = hex("0C1322"), plateOnTop = hex("2F62B3"), plateOnBottom = hex("173A78"),
     frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("FF9090"), safe = hex("80E4A9"),
@@ -270,6 +280,8 @@ defs.alliance = {
   frameWidth = 2,
   ornament = "brackets",
   plates = true,
+  -- Its plate ring is baked (gen_art.py PLATE_SKINS).
+  plateArt = true,
   glow = true,
   fonts = { head = "PlayfairDisplaySC-Bold.ttf", display = true },
 }
@@ -293,6 +305,7 @@ defs.midnight = {
     railIdle = hex("A097C4"), railActive = hex("FFD98A"),
     primaryTop = hex("A97FFF"), primaryBottom = hex("5B32C9"), primaryText = hex("FFF1C9"),
     frameTint = hex("7356D0"),
+    railTop = { 0, 0, 0, .30 }, railBottom = { 0, 0, 0, .30 },
     plateTop = blizzard.plateTop, plateBottom = blizzard.plateBottom, plateOnTop = blizzard.plateOnTop,
     plateOnBottom = blizzard.plateOnBottom,
     frameInner = blizzard.frameInner,
@@ -334,6 +347,7 @@ defs.classic = {
     railIdle = hex("FFD100"), railActive = hex("FFFFFF"),
     primaryTop = hex("F2BE57"), primaryBottom = hex("C9922F"), primaryText = hex("160F04"),
     frameTint = hex("8A8A8A"),
+    railTop = { 0, 0, 0, .35 }, railBottom = { 0, 0, 0, .35 },
     plateTop = blizzard.plateTop, plateBottom = blizzard.plateBottom, plateOnTop = blizzard.plateOnTop,
     plateOnBottom = blizzard.plateOnBottom,
     frameInner = blizzard.frameInner,
@@ -375,6 +389,7 @@ defs.leather = {
     railIdle = hex("BDA77F"), railActive = hex("F3D27E"),
     primaryTop = hex("E8C877"), primaryBottom = hex("9A7431"), primaryText = hex("2A1A08"),
     frameTint = hex("AB8742"),
+    railTop = { 0, 0, 0, .28 }, railBottom = { 0, 0, 0, .28 },
     plateTop = hex("3B2918"), plateBottom = hex("22170E"), plateOnTop = hex("5C4024"), plateOnBottom = hex("37260F"),
     frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("F2907A"), safe = hex("A0DC8E"),
@@ -392,6 +407,8 @@ defs.leather = {
   frameWidth = 3,
   ornament = "stitch",
   plates = true,
+  -- Its plate ring is baked (gen_art.py PLATE_SKINS).
+  plateArt = true,
   glow = true,
   fonts = { head = "OldStandard-Bold.ttf", display = true },
 }
