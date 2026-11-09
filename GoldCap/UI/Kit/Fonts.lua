@@ -16,6 +16,9 @@ T.FONT_TEXT_SEMI = MEDIA .. "FiraSans-SemiBold.ttf"
 T.FONT_TEXT_BOLD = MEDIA .. "FiraSans-Bold.ttf"
 T.FONT_HEAD = MEDIA .. "FiraSansCondensed-Bold.ttf"
 T.FONT_HEAD_HEAVY = MEDIA .. "FiraSansCondensed-ExtraBold.ttf"
+-- What a skin falls back to, per role: ApplySkinFonts starts from these every time.
+local FIRA = { text = T.FONT_TEXT, semi = T.FONT_TEXT_SEMI, bold = T.FONT_TEXT_BOLD, head = T.FONT_HEAD,
+  heavy = T.FONT_HEAD_HEAVY }
 T.FONT_MONO = MEDIA .. "FiraMono-Medium.ttf"
 T.FONT_MONO_BOLD = MEDIA .. "FiraMono-Bold.ttf"
 -- Every face above, for UI/FontPreload.lua.
@@ -136,7 +139,11 @@ function T.LocaleIsDrawable(code)
   return firstFace(faces and faces.regular) ~= nil
 end
 
+-- The language last given to RefreshFonts, so a skin applied later settles on the same one.
+local lastCode
+
 function T.RefreshFonts(code)
+  lastCode = code
   if not CJK_LOCALES[code] then
     T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
     T.FONT_HEADING = T.FONT_HEAD
@@ -192,6 +199,39 @@ function T.RefreshFonts(code)
   T.FONT_HEADING = T.FONT_UI_BOLD
   T.FONT_FOREIGN = code ~= clientLocale() and T.FONT_UI or nil
   return T.FONT_UI
+end
+
+-- Headings and body text of the applied skin (UI/Kit/Skins.lua `fonts`); the shipped faces are
+-- listed in docs/addon/tools/fonts.py. Figures never change: T.FONT_MONO and T.FONT_UI stay Fira
+-- Mono in every skin. Each role starts from Fira and takes the skin's face only if the client
+-- loads it (faceLoads), so a missing file leaves that role on Fira rather than drawing nothing.
+-- The skin's `display` flag turns on the 11px floor of T.Heading and T.Label.
+T.MIN_DISPLAY_SIZE = 11
+local displayFaces = false
+
+local function skinFace(file)
+  if not file then return nil end
+  local path = MEDIA .. file
+  if faceLoads(path) then
+    bundledFace[path] = true
+    return path
+  end
+  return nil
+end
+
+function T.ApplySkinFonts(fonts)
+  fonts = fonts or {}
+  local text = fonts.text or {}
+  local head = skinFace(fonts.head)
+  T.FONT_HEAD = head or FIRA.head
+  T.FONT_HEAD_HEAVY = head or FIRA.heavy
+  T.FONT_TEXT = skinFace(text.regular) or FIRA.text
+  T.FONT_TEXT_SEMI = skinFace(text.semi) or FIRA.semi
+  T.FONT_TEXT_BOLD = skinFace(text.bold) or FIRA.bold
+  displayFaces = fonts.display == true
+  -- FONT_HEADING and FONT_LABEL derive from the faces above, and from the language (CJK keeps
+  -- its own faces).
+  T.RefreshFonts(lastCode)
 end
 
 local scale, hooks = 1.0, {}
@@ -323,6 +363,7 @@ end
 -- checklist covers verifying it reads fine at the scale extremes), not a bug to fix by also
 -- scaling layout geometry.
 function T.Label(parent, size)
+  if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
   local inherited, _, flags = fs:GetFont()
   -- T.FONT_LABEL is Fira for every Latin or Cyrillic language and nil only where the client's
@@ -344,6 +385,7 @@ end
 -- client's bold face for its script on Korean and Chinese (T.RefreshFonts). Drawn through
 -- T.ClientFont, because the condensed face has no ▲ or ▼ either.
 function T.Heading(parent, size, layer)
+  if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, layer or "OVERLAY"))
   local path = T.FONT_HEADING or T.FONT_HEAD
   fs:SetFont(path, size * T.Scale(), "")

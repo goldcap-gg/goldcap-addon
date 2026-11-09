@@ -97,7 +97,7 @@ defs.forever = {
   ornament = nil,
   plates = true,
   glow = true,
-  fonts = {},
+  fonts = { head = "RobotoCondensed-Bold.ttf" },
 }
 
 -- Pixel (flat #111, square, black lines).
@@ -135,7 +135,8 @@ defs.pixel = {
   ornament = nil,
   plates = false,
   glow = false,
-  fonts = {},
+  fonts = { head = "PTSansNarrow-Bold.ttf",
+    text = { regular = "PTSansNarrow-Regular.ttf", semi = "PTSansNarrow-Bold.ttf", bold = "PTSansNarrow-Bold.ttf" } },
 }
 
 -- Parchment (aged parchment with dark wood frame).
@@ -173,7 +174,9 @@ defs.parchment = {
   ornament = nil,
   plates = false,
   glow = false,
-  fonts = {},
+  fonts = { head = "AlegreyaSC-Bold.ttf",
+    text = { regular = "Alegreya-Medium.ttf", semi = "Alegreya-Bold.ttf", bold = "Alegreya-Bold.ttf" },
+    display = true },
 }
 
 -- Horde (war-red iron with rivets).
@@ -211,7 +214,7 @@ defs.horde = {
   ornament = "rivets",
   plates = true,
   glow = true,
-  fonts = {},
+  fonts = { head = "RuslanDisplay-Regular.ttf", display = true },
 }
 
 -- Alliance (royal blue and gold, corner brackets).
@@ -249,7 +252,7 @@ defs.alliance = {
   ornament = "brackets",
   plates = true,
   glow = true,
-  fonts = {},
+  fonts = { head = "PlayfairDisplaySC-Bold.ttf", display = true },
 }
 
 -- Midnight (violet glass with shimmer lines).
@@ -287,7 +290,7 @@ defs.midnight = {
   ornament = "shimmer",
   plates = false,
   glow = true,
-  fonts = {},
+  fonts = { head = "Philosopher-Bold.ttf", display = true },
 }
 
 -- Classic (the game's own marble, gold border and panel buttons).
@@ -325,7 +328,7 @@ defs.classic = {
   ornament = nil,
   plates = true,
   glow = false,
-  fonts = {},
+  fonts = { client = true },
 }
 
 -- Leather (tooled leather with gold stitching).
@@ -363,7 +366,7 @@ defs.leather = {
   ornament = "stitch",
   plates = true,
   glow = true,
-  fonts = {},
+  fonts = { head = "OldStandard-Bold.ttf", display = true },
 }
 
 local current = "goldcap"
@@ -383,6 +386,19 @@ function Skins.Apply(id)
   end
   current = id
   Tokens.refresh()
+  -- Faces: Skins.lua loads before Fonts.lua and FontPreload.lua, so each is asked for only if it
+  -- is there. {} (goldcap) puts Fira back; the preloader gets the skin's files so the first window
+  -- is drawn in them.
+  local fonts = defs[id].fonts
+  local Theme = GC.Theme
+  if Theme and Theme.ApplySkinFonts then Theme.ApplySkinFonts(fonts) end
+  if Theme and Theme.PreloadFaces then
+    local MEDIA = GC.Kit.MEDIA
+    local paths = {}
+    if fonts.head then paths[#paths + 1] = MEDIA .. fonts.head end
+    for _, file in pairs(fonts.text or {}) do paths[#paths + 1] = MEDIA .. file end
+    Theme.PreloadFaces(paths)
+  end
   return id
 end
 

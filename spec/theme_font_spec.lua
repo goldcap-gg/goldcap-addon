@@ -248,6 +248,84 @@ describe("Theme fonts per locale", function()
     end)
   end)
 
+  -- A skin moves headings and text, never figures (UI/Kit/Skins.lua `fonts`).
+  describe("skin faces", function()
+    local W = require("spec.support.wow_frames")
+    local restore, refuse
+
+    before_each(function()
+      restore = W.install()
+      refuse = {}
+      _G.UIParent = {
+        CreateFontString = function()
+          return { SetFont = function(_, path) return not refuse[path] end }
+        end,
+      }
+    end)
+    after_each(function()
+      GC.Kit.Skins.Apply("goldcap")
+      GC.Theme.SetScale(1.0)
+      _G.UIParent = nil
+      restore()
+    end)
+
+    local function path(fs) return W.state(fs).font[1] end
+
+    it("a skin moves headings and text, never figures", function()
+      GC.Kit.Skins.Apply("parchment")
+      local parent = W.CreateFrame("Frame")
+      assert.equal(GC.Kit.MEDIA .. "AlegreyaSC-Bold.ttf", path(GC.Theme.Heading(parent, 12)))
+      assert.equal(GC.Kit.MEDIA .. "Alegreya-Medium.ttf", path(GC.Theme.Label(parent, 12)))
+      assert.equal(GC.Kit.MEDIA .. "FiraMono-Medium.ttf", path(GC.Theme.Num(parent, 12)))
+      assert.equal(GC.Kit.MEDIA .. "Alegreya-Bold.ttf", GC.Theme.FONT_TEXT_BOLD)
+    end)
+
+    it("goldcap restores Fira after another skin", function()
+      GC.Kit.Skins.Apply("pixel")
+      GC.Kit.Skins.Apply("goldcap")
+      assert.equal(GC.Kit.MEDIA .. "FiraSansCondensed-Bold.ttf", GC.Theme.FONT_HEADING)
+      assert.equal(GC.Kit.MEDIA .. "FiraSans-Medium.ttf", GC.Theme.FONT_LABEL)
+      assert.equal(GC.Kit.MEDIA .. "FiraSansCondensed-ExtraBold.ttf", GC.Theme.FONT_HEAD_HEAVY)
+    end)
+
+    it("display faces never draw below 11", function()
+      GC.Kit.Skins.Apply("horde")
+      local parent = W.CreateFrame("Frame")
+      local fs = GC.Theme.Heading(parent, 9.5)
+      assert.equal(11, W.state(fs).font[2])
+      assert.equal(11, W.state(GC.Theme.Label(parent, 8)).font[2])
+      GC.Theme.SetScale(1.3)
+      assert.is_true(math.abs(W.state(fs).font[2] - 11 * 1.3) < 1e-9)
+    end)
+
+    it("a skin that is not a display skin keeps the size asked for", function()
+      GC.Kit.Skins.Apply("pixel")
+      assert.equal(9.5, W.state(GC.Theme.Heading(W.CreateFrame("Frame"), 9.5)).font[2])
+    end)
+
+    it("Korean keeps its own face under a display skin", function()
+      GC.Kit.Skins.Apply("horde")
+      refuse = setmetatable({}, { __index = function(_, p) return p ~= "Fonts\\2002B.TTF" and p ~= "Fonts\\2002.TTF"
+        and not p:find("Media", 1, true) end })
+      GC.Theme.RefreshFonts("koKR")
+      assert.equal("Fonts\\2002B.TTF", path(GC.Theme.Heading(W.CreateFrame("Frame"), 12)))
+      GC.Theme.RefreshFonts("enUS")
+    end)
+
+    it("a face that will not load falls back to Fira", function()
+      refuse[GC.Kit.MEDIA .. "RuslanDisplay-Regular.ttf"] = true
+      GC.Kit.Skins.Apply("horde")
+      assert.equal(GC.Kit.MEDIA .. "FiraSansCondensed-Bold.ttf", path(GC.Theme.Heading(W.CreateFrame("Frame"), 12)))
+    end)
+
+    it("respells only the triangles on a skin face", function()
+      GC.Kit.Skins.Apply("parchment")
+      local fs = GC.Theme.Heading(W.CreateFrame("Frame"), 12)
+      fs:SetText("▲4% · x")
+      assert.equal("+4% · x", W.state(fs).text)
+    end)
+  end)
+
   -- Faces change under a LIVE interface -- picking a language the current face cannot draw is
   -- the entire point of the picker. A FontString that remembered the FILE it was built with
   -- stayed on it, and that is how the Settings language button came out as "\226\153\166\226\153\166\226\153\166" the

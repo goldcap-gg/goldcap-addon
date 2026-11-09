@@ -55,7 +55,7 @@ describe("skins", function()
       assert.is_number(d.frameWidth, id)
       assert.is_boolean(d.plates, id)
       assert.is_boolean(d.glow, id)
-      assert.same({}, d.fonts, id)
+      assert.is_table(d.fonts, id)
     end
     assert.equal("rivets", Skins.defs.horde.ornament)
     assert.equal("stitch", Skins.defs.leather.ornament)
