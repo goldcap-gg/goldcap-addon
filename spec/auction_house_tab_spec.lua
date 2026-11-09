@@ -53,6 +53,8 @@ describe("Auction House tab", function()
       local t = {}
       function t:SetAllPoints() end
       function t:SetColorTexture(...) self.color = { ... } end
+      self.textures = self.textures or {}
+      self.textures[#self.textures + 1] = t
       return t
     end
     -- Screen position, which is what decides where the bar actually ends -- array order does
@@ -158,6 +160,17 @@ describe("Auction House tab", function()
     end
     return nil
   end
+
+  it("the dock fills with the skin's window colour", function()
+    local real = helper.loadModule("UI/Theme.lua")
+    real.Kit.Skins.Apply("forever")
+    GC.Theme = real.Theme
+    GC.AuctionHouseTab.Install()
+    local fill = dockPanel().textures[1].color
+    local bottom = real.Kit.Skins.defs.forever.color.windowBottom
+    assert.same({ bottom[1], bottom[2], bottom[3], 1 }, fill)
+    real.Kit.Skins.Apply("goldcap")
+  end)
 
   -- 2026-11-07: AuctionHouseFrame.numTabs and .tabsForDisplayMode read as written by GoldCap in
   -- the owner's client, and on WoW: Forever's controller interface the auction house's next

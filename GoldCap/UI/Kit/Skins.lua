@@ -53,7 +53,7 @@ defs.goldcap = {
     soldEmpty = blizzard.soldEmpty, soldFaint = blizzard.soldFaint,
   },
   quality = nil,
-  radius = { 12, 10, 8, 12 },
+  radius = { 12, 12, 8, 12 },
   frame = "hairline",
   frameWidth = 0,
   ornament = nil,

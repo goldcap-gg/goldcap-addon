@@ -12168,7 +12168,7 @@ local function createFrame()
   f:Hide()
 
   -- The window's dark glass: a gradient card with a soft shadow (UI/Kit/Card.lua's Theme.Window).
-  f.windowPanel = Theme.Window(f) -- SetDocked hides its shadow while the window sits in the AH frame
+  f.windowPanel = Theme.Window(f) -- SetDocked drops its frame while the window sits in the AH frame
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
   local restoreWidth, restoreHeight = WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT
@@ -12840,8 +12840,9 @@ function GC.Sniper.SetDocked(host)
     -- toplevel would yank the whole thing forward on every click inside it.
     frame:SetFrameStrata(host:GetFrameStrata())
     frame:SetToplevel(false)
-    -- The 18px shadow would draw over the AH frame's border and the strip above its tabs.
-    if frame.windowPanel then frame.windowPanel.shadow:Hide() end
+    -- The AH frame is the window's frame: the shadow would draw over its border and the strip
+    -- above its tabs, and a skin's own ring and ornament would be a second frame inside it.
+    if frame.windowPanel then frame.windowPanel:SetDocked(true) end
     -- The drawer follows the window up: adopting the host's strata can otherwise land the
     -- window level with a drawer that was pinned one strata above the UNDOCKED window, and
     -- level with is enough for the deals rows to draw through an opaque sheet.
@@ -12864,7 +12865,7 @@ function GC.Sniper.SetDocked(host)
     -- Back to a window of its own: see createFrame for why both calls are needed.
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
-    if frame.windowPanel then frame.windowPanel.shadow:Show() end
+    if frame.windowPanel then frame.windowPanel:SetDocked(false) end
     if dialog and dialog.raiseStrata then dialog.raiseStrata() end
     if GC.SettingsUI and GC.SettingsUI.Raise then GC.SettingsUI.Raise() end
     frame:SetMovable(true)

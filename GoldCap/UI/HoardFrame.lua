@@ -816,7 +816,7 @@ local function build()
   frame:SetSize(L.WIDTH, L.MIN_H)
   frame:EnableMouse(true)
   frame:SetClampedToScreen(true)
-  frame.glass = T.Window(frame)
+  frame.glass = T.Window(frame, { inside = true })
   newHeader(frame, onCloseClick)
 
   -- The bank switch, the other bank bare text and the bank chosen in the gold fill the board gives

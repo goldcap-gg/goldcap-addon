@@ -838,7 +838,7 @@ end
 local function build(frame)
   local T = GC.Theme
   local f = CreateFrame("Frame", nil, frame.CraftingPage)
-  f.glass = T.Window(f)
+  f.glass = T.Window(f, { inside = true })
   f:SetWidth(LAYOUT.WIDTH)
   P.Place(f, frame)
   -- The recipes page is 942 wide: on a 16:10 or 4:3 screen, or with the window pushed to the
