@@ -1878,4 +1878,21 @@ GC.Locales.esMX = {
   ["Raise: next price is %d%% higher"] = "Subir: el siguiente precio es un %d%% más alto",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Tus %d ya publicados cubren unas %d h de ventas. Escribe un número o presiona MÁX. para publicar más.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] = "Se venden unos %d en %d h en esta casa de subastas.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "Nadie lo compró aquí en los últimos %d días. Se publica 1 para probar el precio.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "Nadie lo compró aquí en el último día. Se publica 1 para probar el precio.",
+  ["Sells about %s a day here"] = "Aquí se venden unos %s al día",
+  ["No sales here in %d days"] = "Sin ventas aquí en %d días",
+  ["No sales here in the last day"] = "Sin ventas aquí en el último día",
+  ["24 h: about %s sell a day here."] = "24 h: aquí se venden unos %s al día.",
+  ["24 h: came back unsold %d times at %d h."] = "24 h: volvió sin vender %d veces a %d h.",
+  ["Deposit %s instead of %s, returned when it sells."] = "Depósito %s en vez de %s, se devuelve al vender.",
+  ["Post slow sellers for 24 h"] = "Publicar a 24 h lo que se vende lento",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "Si no eliges duración y ningún grupo la fija, lo que se vende menos de una vez por publicación, o volvió sin vender dos veces, se publica a 24 h.",
+  ["Came back unsold %d times since its last sale."] = "Volvió sin vender %d veces desde su última venta.",
+  ["Came back unsold once since its last sale."] = "Volvió sin vender una vez desde su última venta.",
 }

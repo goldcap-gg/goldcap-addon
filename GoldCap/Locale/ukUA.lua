@@ -1944,4 +1944,23 @@ GC.Locales.ukUA = {
   ["Raise: next price is %d%% higher"] = "Підняти: наступна ціна вища на %d%%",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Уже виставлених %d шт. вистачить приблизно на %d год продажів. Введіть число або натисніть УСЕ, щоб виставити більше.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] =
+    "Близько %d шт. продається за %d год на цьому аукціоні.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "Тут це ніхто не купував останні %d дн. Виставляється 1 шт., щоб перевірити ціну.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "Тут це ніхто не купував за останню добу. Виставляється 1 шт., щоб перевірити ціну.",
+  ["Sells about %s a day here"] = "Тут продається близько %s шт. на день",
+  ["No sales here in %d days"] = "Тут немає продажів уже %d дн.",
+  ["No sales here in the last day"] = "Тут немає продажів за останню добу",
+  ["24 h: about %s sell a day here."] = "24 год: тут продається близько %s шт. на день.",
+  ["24 h: came back unsold %d times at %d h."] = "24 год: повернень без продажу %d із терміном %d год.",
+  ["Deposit %s instead of %s, returned when it sells."] =
+    "Застава %s замість %s, повертається після продажу.",
+  ["Post slow sellers for 24 h"] = "Повільний товар на 24 год",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "Якщо ви не обрали строк і група його не задає, товар, що продається рідше разу за виставлення або двічі повернувся непроданим, виставляється на 24 год.",
+  ["Came back unsold %d times since its last sale."] = "Повернень без продажу від останнього продажу: %d.",
+  ["Came back unsold once since its last sale."] = "Від останнього продажу один раз повернувся непроданим.",
 }

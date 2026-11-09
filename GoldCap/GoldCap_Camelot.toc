@@ -151,6 +151,7 @@ UI/Sell/Toolbar.lua
 UI/Sell/Dock.lua
 UI/Sell/PostPanel.lua
 UI/SoldFrame.lua
+UI/SellPace_Camelot.lua
 UI/ForeverUpgradesFrame.lua
 UI/BuyCapEditor.lua
 UI/BuyFrame.lua

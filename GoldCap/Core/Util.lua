@@ -97,6 +97,15 @@ function GC.Util.Grouped(n)
   return text
 end
 
+-- Sales a day. Under ten the decimal carries the decision -- 3.5 a day against 3 -- so it
+-- stays; from ten up it is noise, and "29728.0" is the figure this replaced. Decided on the
+-- rounded figure, so 9.96 prints "10" rather than "10.0".
+function GC.Util.PerDay(n)
+  local tenths = ("%.1f"):format(n)
+  if tonumber(tenths) < 10 then return tenths end
+  return GC.Util.Grouped(n)
+end
+
 local function coinTextFallback(copper)
   -- Round first, sign the ROUNDED magnitude: a value that rounds to zero (e.g. -0.4) prints
   -- "0<copper icon>", never "-0<copper icon>".

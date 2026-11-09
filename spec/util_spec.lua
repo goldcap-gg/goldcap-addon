@@ -67,6 +67,16 @@ describe("Util", function()
   -- Both numbers ride the import string's verification token, so either can be absent and
   -- neither may be trusted to be sane.
   -- Capitals in every cased language the addon ships (owner, 2026-10-09).
+  -- Sales a day: the tenth under ten, whole and grouped from ten up (the tooltip's old local).
+  describe("PerDay", function()
+    it("keeps the decimal under ten and groups the rest", function()
+      assert.equal("3.4", GC.Util.PerDay(3.4285714))
+      assert.equal("10", GC.Util.PerDay(9.96))
+      assert.equal("29,728", GC.Util.PerDay(29728))
+      assert.equal("0.0", GC.Util.PerDay(0))
+    end)
+  end)
+
   describe("Upper", function()
     it("capitalises ASCII, Latin-1's accents and Cyrillic, and leaves the rest as written", function()
       assert.equal("POST", GC.Util.Upper("Post"))

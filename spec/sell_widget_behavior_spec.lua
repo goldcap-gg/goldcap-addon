@@ -2396,7 +2396,7 @@ describe("Sell widget geometry and manual cost", function()
     -- Plain-language detail line: market state, competition, velocity and time to clear. It no
     -- longer opens by naming the allocation rule, which told a seller nothing.
     -- Split the way it is read: the queue and the velocity on the left, the quote's age right.
-    assert.equal("3 ahead of you · sells 4/day · clears in ~1d", rows[2].drawerFacts.text)
+    assert.equal("3 ahead of you · sells 4.0/day · clears in ~1d", rows[2].drawerFacts.text)
     assert.equal("quote 7s ago", rows[2].drawerQuote.text)
     assert.equal("|cffff0000Repost|r @ 149", rows[2].subItem.text) -- the verdict's word in the verdict's colour
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.

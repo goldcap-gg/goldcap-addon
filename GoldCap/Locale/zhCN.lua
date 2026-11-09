@@ -1767,4 +1767,20 @@ GC.Locales.zhCN = {
   ["Raise: next price is %d%% higher"] = "提价：下一个价格高 %d%%",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "已上架的 %d 件约够 %d 小时的销量。输入数量或点击最大以上架更多。",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] = "约 %d 件会在 %d 小时内于此拍卖行售出。",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "过去 %d 天内这里无人购买。先上架 1 件试探价格。",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] = "过去一天内这里无人购买。先上架 1 件试探价格。",
+  ["Sells about %s a day here"] = "此处每天约售出 %s 件",
+  ["No sales here in %d days"] = "此处 %d 天无销售",
+  ["No sales here in the last day"] = "此处过去一天无销售",
+  ["24 h: about %s sell a day here."] = "24 小时：此处每天约售出 %s 件。",
+  ["24 h: came back unsold %d times at %d h."] = "24 小时：已 %d 次未售出退回（上架 %d 小时）。",
+  ["Deposit %s instead of %s, returned when it sells."] = "押金 %s（原为 %s），售出后退还。",
+  ["Post slow sellers for 24 h"] = "滞销物品上架 24 小时",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "未选择时长且没有分组规则时，每次上架卖不出一件、或已两次未售出退回的物品将上架 24 小时。",
+  ["Came back unsold %d times since its last sale."] = "自上次售出后已 %d 次未售出退回。",
+  ["Came back unsold once since its last sale."] = "自上次售出后已 1 次未售出退回。",
 }

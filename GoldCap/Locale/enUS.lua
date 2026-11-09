@@ -1862,4 +1862,22 @@ GC.Locales.enUS = {
   ["Raise: next price is %d%% higher"] = "Raise: next price is %d%% higher",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Your %d already up cover about %d h of sales. Type a number or press MAX to post more.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] = "About %d sell in %d h on this auction house.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "Nobody bought this here in the last %d days. Posting 1 to test the price.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "Nobody bought this here in the last day. Posting 1 to test the price.",
+  ["Sells about %s a day here"] = "Sells about %s a day here",
+  ["No sales here in %d days"] = "No sales here in %d days",
+  ["No sales here in the last day"] = "No sales here in the last day",
+  ["24 h: about %s sell a day here."] = "24 h: about %s sell a day here.",
+  ["24 h: came back unsold %d times at %d h."] = "24 h: came back unsold %d times at %d h.",
+  ["Deposit %s instead of %s, returned when it sells."] =
+    "Deposit %s instead of %s, returned when it sells.",
+  ["Post slow sellers for 24 h"] = "Post slow sellers for 24 h",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h.",
+  ["Came back unsold %d times since its last sale."] = "Came back unsold %d times since its last sale.",
+  ["Came back unsold once since its last sale."] = "Came back unsold once since its last sale.",
 }

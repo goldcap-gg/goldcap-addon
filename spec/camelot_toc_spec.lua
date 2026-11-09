@@ -97,6 +97,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["Core/ForeverPace.lua"] = "Core/SellRounds.lua",
     -- The deposits lost to expired and cancelled lots, beside the returns log that feeds it.
     ["Core/ForeverDeposits.lua"] = "Core/MailReturns.lua",
+    -- What SELL shows of the pace: the duration buttons, the lines, the 24 h mark.
+    ["UI/SellPace_Camelot.lua"] = "UI/SoldFrame.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()

@@ -1878,4 +1878,22 @@ GC.Locales.frFR = {
   ["Raise: next price is %d%% higher"] = "Augmenter : le prix suivant est %d%% plus haut",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Tes %d déjà en vente couvrent environ %d h de ventes. Saisis un nombre ou appuie sur MAX pour en mettre plus.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] =
+    "Environ %d se vendent en %d h dans cet hôtel des ventes.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "Personne ne l'a acheté ici ces %d derniers jours. 1 mis en vente pour tester le prix.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "Personne ne l'a acheté ici depuis un jour. 1 mis en vente pour tester le prix.",
+  ["Sells about %s a day here"] = "Se vend ici environ %s par jour",
+  ["No sales here in %d days"] = "Aucune vente ici depuis %d jours",
+  ["No sales here in the last day"] = "Aucune vente ici depuis un jour",
+  ["24 h: about %s sell a day here."] = "24 h : il s'en vend ici environ %s par jour.",
+  ["24 h: came back unsold %d times at %d h."] = "24 h : revenu invendu %d fois à %d h.",
+  ["Deposit %s instead of %s, returned when it sells."] = "Caution %s au lieu de %s, rendue à la vente.",
+  ["Post slow sellers for 24 h"] = "Mettre en vente 24 h ce qui se vend lentement",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "Si tu ne choisis pas de durée et qu'aucun groupe n'en fixe, ce qui se vend moins d'une fois par mise en vente, ou est revenu invendu deux fois, part pour 24 h.",
+  ["Came back unsold %d times since its last sale."] = "Revenu invendu %d fois depuis sa dernière vente.",
+  ["Came back unsold once since its last sale."] = "Revenu invendu une fois depuis sa dernière vente.",
 }

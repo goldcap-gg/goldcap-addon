@@ -94,6 +94,7 @@ function ROW.itemTooltip(row)
         0.85, 0.85, 0.85, true)
     end
     UI.fmt.ruleTooltip(row.position)
+    if UI.fmt.paceTooltip then UI.fmt.paceTooltip(row.position) end
     GameTooltip:Show()
   elseif GameTooltip and (row.kind == "group" or row.kind == "batch" or row.kind == "section")
       and row.groupHint and row.groupHint ~= "" then

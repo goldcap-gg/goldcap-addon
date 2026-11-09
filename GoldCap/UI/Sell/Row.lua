@@ -463,7 +463,8 @@ function Row.PaintPosition(row, entry, ctx)
   row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
     or GC.SellViewModel.SourceText(p))
     .. (notOnHand and (DIM_HEX .. " · not on hand|r") or "")
-    .. rowTag(p, heldBackReason[p.positionKey], notOnHand) -- then a followed group's name, in gold:
+    .. rowTag(p, heldBackReason[p.positionKey], notOnHand)
+    .. (ROW.foreverMark and ROW.foreverMark(p) or "") -- then a followed group's name, in gold:
     .. (p.rule and p.rule.name and ("  " .. GC.Sell._InlineColor(Theme.color.gold, p.rule.name)) or ""))
   -- Cost per unit, not the position total: it is the number that compares against the
   -- market price in the very next column. An incomplete basis says so in words below.
