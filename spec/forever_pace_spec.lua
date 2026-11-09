@@ -36,6 +36,15 @@ describe("WoW: Forever's sale pace", function()
         assert.equal(case[3], pace().Target(case[1], case[2]))
       end)
     end
+
+    -- Review of Tasks 4-5, M1: 1 is the answer for "nobody buys it", not for "no idea".
+    it("is no pace when the hours or the rate are unknown", function()
+      local P = pace()
+      assert.is_nil(P.Target(3, nil))
+      assert.is_nil(P.Target(3, 0))
+      assert.is_nil(P.Target(3, 0 / 0))
+      assert.is_nil(P.Target(nil, 8))
+    end)
   end)
 
   describe("Decorate sets one target per duration", function()
@@ -49,6 +58,12 @@ describe("WoW: Forever's sale pace", function()
         assert.equal(168, position.paceHours)
       end)
     end
+
+    it("no hours, no targets: every unit goes up", function()
+      local position = { itemID = 10, positionKey = "commodity:10", bagQty = 4, ownedLots = {}, tape = tape(3) }
+      pace().Decorate(position, ctx({ slowOn = false, hoursOf = function() return nil end }))
+      assert.is_nil(position.paceTargets)
+    end)
 
     it("no tape, no targets", function()
       local position = { itemID = 10, positionKey = "commodity:10", bagQty = 4, ownedLots = {} }
@@ -198,12 +213,32 @@ describe("WoW: Forever's sale pace", function()
 
     it("A5: the market's own rate and reach come first", function()
       local position = build(sales(), { [10] = { mv = 130, sold = 7, reach = 140 } })
+      local matched = 0
       for _, call in ipairs(calls) do
         if call.result == position.postRecommendation then
+          matched = matched + 1
           assert.equal(7, call.opts.sold)
           assert.equal(140, call.opts.reachUnit)
         end
       end
+      assert.equal(1, matched)
+    end)
+
+    -- Review of Tasks 4-5, M5: a tape whose newest hour is more than TAPE_STALE_HOURS old says
+    -- nothing about today's auction house: no pace from it, and no overcut.
+    it("a stale tape is no tape", function()
+      local function at(age)
+        local t = { units = 40, sales = 5, median = 150, perDay = 4, hours = 72, at = 1000 }
+        return GC.SellPositions.Build({ acquisitions = {}, ownedLots = {},
+          bagStock = { { positionKey = "commodity:10", itemID = 10, itemName = "Herb", quantity = 20, isCommodity = true } },
+          quotes = { [10] = { unit = 120, at = 1000 + age - 1 } }, statsByItemID = {}, context = CONTEXT,
+          now = 1000 + age, salesFor = function() return t end })[1]
+      end
+      assert.equal(72, GC.SellPositions.TAPE_STALE_HOURS)
+      assert.is_not_nil(at(72 * 3600).tape)
+      calls = {}
+      assert.is_nil(at(72 * 3600 + 1).tape)
+      for _, call in ipairs(calls) do assert.is_nil(call.opts.sold) end
     end)
 
     it("retail builds no tape", function()
@@ -231,6 +266,89 @@ describe("WoW: Forever's sale pace", function()
       assert.equal("pet", position.variantKind)
       assert.is_nil(position.tape)
       assert.is_false(asked)
+    end)
+  end)
+
+  -- Review of Tasks 4-5, I2: A5 prices a post one rung above a tiny cheap lot, and the repost
+  -- advice, which does not hear the tape, relists at the match price. Weighed against that, our own
+  -- fresh overcut post read as an undercut worth its deposit, and CANCEL offered it; POST then
+  -- relisted at the same rung, and every round lost the deposit. On WoW: Forever the cancel is
+  -- weighed against the price POST would relist at.
+  describe("our own overcut post", function()
+    local GC
+    local CONTEXT = { char = "A-R", region = "eu" }
+    local KEY = "commodity:42"
+    local TAPE = { units = 30, sales = 12, median = 15000, perDay = 8, hours = 90 }
+
+    before_each(function()
+      GC = helper.loadModule("Core/Acquisitions.lua")
+      helper.loadModule("Core/Flips.lua", GC)
+      helper.loadModule("Core/QuoteCache.lua", GC)
+      helper.loadModule("Core/SellPositions.lua", GC)
+      helper.loadModule("Core/CancelQueue.lua", GC)
+      GC.db = { settings = { sniper = {} } }
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+    end)
+    after_each(function() _G.C_AuctionHouse = nil end)
+
+    -- Eight bought through Deals (so the repost advice runs), a book of 1 at 1g, 10 at 1g40s and
+    -- 5 at 2g, with our own lots on it.
+    local function build(owned, bagQty, forfeit)
+      local levels = { { unitPrice = 10000, quantity = 1 }, { unitPrice = 14000, quantity = 10 },
+        { unitPrice = 20000, quantity = 5 } }
+      for _, lot in ipairs(owned) do
+        local placed = false
+        for _, level in ipairs(levels) do
+          if level.unitPrice == lot.unitPrice then level.quantity, placed = level.quantity + lot.quantity, true end
+        end
+        if not placed then levels[#levels + 1] = { unitPrice = lot.unitPrice, quantity = lot.quantity } end
+      end
+      table.sort(levels, function(a, b) return a.unitPrice < b.unitPrice end)
+      return GC.SellPositions.Build({
+        acquisitions = { { id = "acq:1", source = "goldcap", itemID = 42, positionKey = KEY, remainingQty = 8,
+          remainingTotal = 8 * 6000, acquiredAt = 1, character = CONTEXT.char, region = CONTEXT.region } },
+        ownedLots = owned,
+        bagStock = bagQty > 0 and { { positionKey = KEY, itemID = 42, itemName = "Herb", quantity = bagQty,
+          isCommodity = true } } or {},
+        quotes = { [42] = { unit = 10000, at = 9, levels = levels } },
+        statsByItemID = { [42] = { mv = 12000, source = "scan" } }, context = CONTEXT, now = 10,
+        salesFor = function() return TAPE end, cancelForfeit = function() return forfeit or 500 end,
+        oneLevelPerItem = true })[1]
+    end
+
+    local function lot(unit, qty)
+      return { itemID = 42, positionKey = KEY, quantity = qty, unitPrice = unit, auctionID = 901, firstSeenAt = 5 }
+    end
+
+    it("is not offered for cancel", function()
+      local before = build({}, 8)
+      assert.equal("overcut", before.postRecommendation.mode)
+      assert.equal(14000, before.postRecommendation.unit)
+      local after = build({ lot(14000, 3) }, 5)
+      assert.equal(14000, after.postRecommendation.unit)
+      assert.is_false(after.ownedLots[1].cancelWorth)
+      local entries, skipped = GC.CancelQueue.Build({ after }, { undercutPct = 0 })
+      assert.equal(0, #entries)
+      assert.equal("deposit", skipped[1].reason)
+    end)
+
+    it("is not offered for cancel with nothing left in the bags", function()
+      local after = build({ lot(14000, 3) }, 0)
+      assert.is_nil(after.postRecommendation)
+      assert.is_false(after.ownedLots[1].cancelWorth)
+      local entries, skipped = GC.CancelQueue.Build({ after }, { undercutPct = 0 })
+      assert.equal(0, #entries)
+      assert.equal("deposit", skipped[1].reason)
+    end)
+
+    it("a lot above the rung POST would use is still weighed as before", function()
+      local after = build({ lot(14100, 3) }, 5, 100)
+      assert.equal(14000, after.postRecommendation.unit)
+      assert.is_true(after.ownedLots[1].cancelWorth) -- 1s a unit over 1g40s, three units: 3s against 1s
+      local entries = GC.CancelQueue.Build({ after }, { undercutPct = 0 })
+      assert.equal(901, entries[1].auctionID)
+      -- ...and with a forfeit over that premium it is held.
+      assert.is_false(build({ lot(14100, 3) }, 5, 300).ownedLots[1].cancelWorth)
     end)
   end)
 end)

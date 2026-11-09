@@ -19,7 +19,8 @@ local _, GC = ...
 -- What Decorate writes on a position. A variant (`variantKind`: a suffix or a caged pet shares its
 -- itemID with every other variant, so the tape is not its own) and a repair row get none of it:
 --   pacePerDay, paceHours  the tape's units a day and its hours; nil with no tape
---   paceTargets            { units within 2 h, within 8 h, within 24 h } (Target); nil with no tape.
+--   paceTargets            { units within 2 h, within 8 h, within 24 h } (Target); nil with no tape
+--                          or no hours, and a duration whose hours are unknown has none.
 --                          Core/SellPositions.lua's PostQuantity reads it at the duration the post
 --                          goes up at, less the units already up at or under the post's price.
 --   returnRounds, returnShort, returnShortIndex  streakFor's answer
@@ -48,9 +49,11 @@ local function validIndex(v)
 end
 
 --- The units that sell within `hours` at `perDay` units a day, rounded up and at least 1: an item
---- nobody bought here still posts one, to test the price.
+--- nobody bought here still posts one, to test the price. nil, no pace, when the hours or the rate
+--- are unknown: 1 is the answer for "nobody buys it", not for "no idea".
 function P.Target(perDay, hours)
-  if not (finite(perDay) and finite(hours)) or perDay <= 0 or hours <= 0 then return 1 end
+  if not (finite(perDay) and finite(hours)) or hours <= 0 then return nil end
+  if perDay <= 0 then return 1 end
   return math.max(1, math.ceil(perDay * hours / 24 - 1e-9))
 end
 
@@ -77,8 +80,9 @@ function P.Decorate(position, ctx)
   local tape = position.tape
   if type(tape) == "table" and finite(tape.perDay) then
     position.pacePerDay, position.paceHours = tape.perDay, tape.hours
-    position.paceTargets = { P.Target(tape.perDay, hoursOf(1)), P.Target(tape.perDay, hoursOf(2)),
+    local targets = { P.Target(tape.perDay, hoursOf(1)), P.Target(tape.perDay, hoursOf(2)),
       P.Target(tape.perDay, hoursOf(3)) }
+    position.paceTargets = next(targets) ~= nil and targets or nil
   end
   local rounds, short, shortIndex = 0, 0, nil
   if type(ctx.streakFor) == "function" then rounds, short, shortIndex = ctx.streakFor(position.itemID) end
