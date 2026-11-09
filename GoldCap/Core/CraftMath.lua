@@ -96,7 +96,9 @@ end
 function M.Breakeven(cost, per)
   if type(cost) ~= "number" or cost <= 0 then return nil end
   per = math.max(1, per or 1)
-  return math.floor((cost * 100 + 95 * per - 1) / (95 * per))
+  -- The units one craft makes each sell for floor(unit * 0.95), so each must net ceil(cost / per).
+  local k = math.ceil(cost / per)
+  return math.floor((k * 100 + 94) / 95)
 end
 
 --- A crafted item that sells less than once a day on the market. Unknown sales are not slow.

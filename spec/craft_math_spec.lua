@@ -41,7 +41,7 @@ describe("craft maths", function()
   end)
 
   describe("Breakeven", function()
-    for _, c in ipairs({ { 1000, 1, 1053 }, { 1000, 5, 211 }, { 95, 1, 100 } }) do
+    for _, c in ipairs({ { 1000, 1, 1053 }, { 1000, 5, 211 }, { 95, 1, 100 }, { 1001, 5, 212 }, { 1, 2, 2 } }) do
       it(("asks %d for %d at %d a craft"):format(c[3], c[1], c[2]), function()
         local unitPrice = M.Breakeven(c[1], c[2])
         assert.equal(c[3], unitPrice)
@@ -49,6 +49,19 @@ describe("craft maths", function()
         assert.is_true(math.floor((unitPrice - 1) * 0.95) * c[2] < c[1])
       end)
     end
+    it("is the least unit price that covers the cost, for every per and cost in range", function()
+      local function net(best, per) return math.floor(best * 95 / 100) * per end
+      for per = 1, 6 do
+        for cost = 1, 3000 do
+          local best = M.Breakeven(cost, per)
+          assert.is_true(net(best, per) >= cost, ("cost %d per %d unit %d"):format(cost, per, best))
+          if best > 1 then
+            assert.is_true(net(best - 1, per) < cost, ("cost %d per %d unit %d"):format(cost, per, best))
+          end
+        end
+      end
+    end)
+
     it("answers nothing without a positive cost", function()
       assert.is_nil(M.Breakeven(0, 1))
       assert.is_nil(M.Breakeven(nil, 1))
