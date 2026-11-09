@@ -28,17 +28,15 @@ T.SLICE = { card = CARD_SLICE, plaque = PLAQUE_SLICE, badge = BADGE_SLICE }
 -- The art for a shape at a radius. Today's radii keep today's files (card.png and ring.png at 12,
 -- plaque.png and plaque_ring.png at 8); every other radius a skin uses has a file of its own, drawn
 -- by gen_art.py: card_r<N>.png and ring_r<N>.png (64px), plaque_r<N>.png and plaque_ring_r<N>.png
--- (32px), and bevel_r<N>_w<W>.png (a window's metal ring, grey, tinted in code), a decimal point in
--- a width written `p`.
+-- (32px), and bevel_<skin>.png (a bevel skin's window ring, baked in colour from the skin's frame
+-- gradient, drawn untinted).
 local TODAY = { card = { 12, "card.png" }, ring = { 12, "ring.png" },
   plaque = { 8, "plaque.png" }, plaqueRing = { 8, "plaque_ring.png" } }
 local STEM = { card = "card_r", ring = "ring_r", plaque = "plaque_r", plaqueRing = "plaque_ring_r" }
 
-function T.Art(kind, radius, width)
+function T.Art(kind, radius)
   local MEDIA = GC.Kit.MEDIA
-  if kind == "bevel" then
-    return MEDIA .. "bevel_r" .. radius .. "_w" .. tostring(width):gsub("%.", "p") .. ".png"
-  end
+  if kind == "bevel" then return MEDIA .. "bevel_" .. radius .. ".png" end -- `radius` is the skin's id
   local today = TODAY[kind]
   if today and today[1] == radius then return MEDIA .. today[2] end
   return MEDIA .. STEM[kind] .. radius .. ".png"
@@ -46,8 +44,10 @@ end
 
 --- The slice margin that goes with T.Art(kind, radius): today's files keep today's margins, any other
 -- file the radius, at least 2 (a radius of 0 still needs a margin), and every use stays under half
--- its smallest edge.
-function T.ArtSlice(kind, radius)
+-- its smallest edge. A bevel ring's margin also covers its whole band: the outline pixel, `width`
+-- and the inner line.
+function T.ArtSlice(kind, radius, width)
+  if kind == "bevel" then return math.max(radius, math.ceil((width or 0) + 2), 2) end
   local today = TODAY[kind]
   if today and today[1] == radius then
     return (kind == "card" or kind == "ring") and CARD_SLICE or PLAQUE_SLICE

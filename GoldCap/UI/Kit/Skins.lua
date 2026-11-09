@@ -43,6 +43,7 @@ defs.goldcap = {
     railIdle = blizzard.railIdle, railActive = blizzard.railActive,
     primaryTop = blizzard.primaryTop, primaryBottom = blizzard.primaryBottom, primaryText = blizzard.primaryText,
     frameTint = blizzard.frameTint,
+    frameInner = blizzard.frameInner,
     ink = blizzard.ink, danger = blizzard.danger, safe = blizzard.safe,
     fail = blizzard.fail, soldGold = blizzard.soldGold, soldGreen = blizzard.soldGreen,
     soldDim = blizzard.soldDim, dealMuted = blizzard.dealMuted, rowDim = blizzard.rowDim,
@@ -81,6 +82,7 @@ defs.forever = {
     railIdle = hex("A8977C"), railActive = hex("FFD27A"),
     primaryTop = hex("E8BC72"), primaryBottom = hex("9E6E36"), primaryText = hex("1B1107"),
     frameTint = hex("AD7F49"),
+    frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("FF927D"), safe = hex("8AE38E"),
     fail = hex("FF927D"), soldGold = hex("FFD27A"), soldGreen = hex("8AE38E"),
     soldDim = hex("AE9D82"), dealMuted = hex("AE9D82"), rowDim = hex("AE9D82"),
@@ -119,6 +121,7 @@ defs.pixel = {
     railIdle = hex("8A8A8A"), railActive = hex("F2C14E"),
     primaryTop = hex("E8B04B"), primaryBottom = hex("E8B04B"), primaryText = hex("000000"),
     frameTint = hex("000000"),
+    frameInner = hex("2E2E2E"),
     ink = hex("FFFFFF"), danger = hex("FF8A8A"), safe = hex("6EE7A0"),
     fail = hex("FF8A8A"), soldGold = hex("F2C14E"), soldGreen = hex("6EE7A0"),
     soldDim = hex("A3A3A3"), dealMuted = hex("A3A3A3"), rowDim = hex("A3A3A3"),
@@ -158,6 +161,7 @@ defs.parchment = {
     railIdle = hex("D2BD93"), railActive = hex("FFD100"),
     primaryTop = hex("C92D1C"), primaryBottom = hex("7E140A"), primaryText = hex("FFD100"),
     frameTint = hex("3B2511"),
+    frameInner = blizzard.frameInner,
     ink = hex("2A1A0A"), danger = hex("A3261B"), safe = hex("1D6A2A"),
     fail = hex("A3261B"), soldGold = hex("8A230F"), soldGreen = hex("1D6A2A"),
     soldDim = hex("5F4529"), dealMuted = hex("5F4529"), rowDim = hex("5F4529"),
@@ -198,6 +202,7 @@ defs.horde = {
     railIdle = hex("AE948A"), railActive = hex("FFC46B"),
     primaryTop = hex("CF3B2D"), primaryBottom = hex("7A1710"), primaryText = hex("FFD58A"),
     frameTint = hex("3B3431"),
+    frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("FF8C7C"), safe = hex("86DD8E"),
     fail = hex("FF8C7C"), soldGold = hex("FFC46B"), soldGreen = hex("86DD8E"),
     soldDim = hex("AF988E"), dealMuted = hex("AF988E"), rowDim = hex("AF988E"),
@@ -236,6 +241,7 @@ defs.alliance = {
     railIdle = hex("94A2BC"), railActive = hex("FFD978"),
     primaryTop = hex("4E91EE"), primaryBottom = hex("1F4E9E"), primaryText = hex("FFE79A"),
     frameTint = hex("BA933F"),
+    frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("FF9090"), safe = hex("80E4A9"),
     fail = hex("FF9090"), soldGold = hex("FFD978"), soldGreen = hex("80E4A9"),
     soldDim = hex("9AA7BF"), dealMuted = hex("9AA7BF"), rowDim = hex("9AA7BF"),
@@ -274,6 +280,7 @@ defs.midnight = {
     railIdle = hex("A097C4"), railActive = hex("FFD98A"),
     primaryTop = hex("A97FFF"), primaryBottom = hex("5B32C9"), primaryText = hex("FFF1C9"),
     frameTint = hex("7356D0"),
+    frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("FF8FA3"), safe = hex("7FE6B0"),
     fail = hex("FF8FA3"), soldGold = hex("FFD98A"), soldGreen = hex("7FE6B0"),
     soldDim = hex("A79DC7"), dealMuted = hex("A79DC7"), rowDim = hex("A79DC7"),
@@ -312,6 +319,7 @@ defs.classic = {
     railIdle = hex("FFD100"), railActive = hex("FFFFFF"),
     primaryTop = hex("F2BE57"), primaryBottom = hex("C9922F"), primaryText = hex("160F04"),
     frameTint = hex("8A8A8A"),
+    frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("FF4A4A"), safe = hex("1EFF00"),
     fail = hex("FF4A4A"), soldGold = hex("FFD100"), soldGreen = hex("1EFF00"),
     soldDim = hex("BDBDBD"), dealMuted = hex("BDBDBD"), rowDim = hex("BDBDBD"),
@@ -350,6 +358,7 @@ defs.leather = {
     railIdle = hex("BDA77F"), railActive = hex("F3D27E"),
     primaryTop = hex("E8C877"), primaryBottom = hex("9A7431"), primaryText = hex("2A1A08"),
     frameTint = hex("AB8742"),
+    frameInner = blizzard.frameInner,
     ink = hex("FFFFFF"), danger = hex("F2907A"), safe = hex("A0DC8E"),
     fail = hex("F2907A"), soldGold = hex("F3D27E"), soldGreen = hex("A0DC8E"),
     soldDim = hex("B9A27D"), dealMuted = hex("B9A27D"), rowDim = hex("B9A27D"),
@@ -368,6 +377,8 @@ defs.leather = {
   glow = true,
   fonts = { head = "OldStandard-Bold.ttf", display = true },
 }
+
+for id, def in pairs(defs) do def.id = id end
 
 local current = "goldcap"
 

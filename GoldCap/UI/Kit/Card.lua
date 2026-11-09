@@ -160,11 +160,9 @@ local function windowFill(f, top, bottom, file)
   return p
 end
 
--- The mock's pixel skin draws a second, lighter line one pixel inside its black one.
-local PIXEL_INNER = { 0.18, 0.18, 0.18, 1 } -- untinted
-
 -- The ornament a skin draws on its window, as a list of regions. `inside`: kept clear of the edge,
--- for a window against a Blizzard frame. Positions are the mock's (.sk-<id> .gcw > .orn).
+-- for a window against a Blizzard frame. Positions are the mock's (.sk-<id> .gcw > .orn), but for
+-- the middle rivets, which the mock clips at the edge and are drawn 2px out.
 local function ornamentOf(window, kind, inside)
   local list = {}
   local function add(layer)
@@ -195,28 +193,35 @@ local function ornamentOf(window, kind, inside)
       t:SetVertexColor(K.goldText[1], K.goldText[2], K.goldText[3], 1)
     end
   elseif kind == "shimmer" then
-    local lines = { { "TOP", -1, 12, K.text2, 0.9 }, { "BOTTOM", 1, 32, K.goldText, 0.65 } }
+    -- Two lines, centred: 70% of the window's width at the top, 50% at the bottom.
+    local lines = { { "TOP", -1, 0.7, K.text2, 0.9 }, { "BOTTOM", 1, 0.5, K.goldText, 0.65 } }
     for _, line in ipairs(lines) do
       local t = add()
       t:SetTexture(MEDIA .. "shimmer.png")
       t:SetHeight(1)
-      t:SetPoint(line[1] .. "LEFT", window, line[1] .. "LEFT", line[3], line[2])
-      t:SetPoint(line[1] .. "RIGHT", window, line[1] .. "RIGHT", -line[3], line[2])
+      t:SetPoint(line[1], window, line[1], 0, line[2])
       t:SetVertexColor(line[4][1], line[4][2], line[4][3], line[5])
+      line.region = t
     end
+    local function fit(width)
+      for _, line in ipairs(lines) do line.region:SetWidth(width * line[3]) end
+    end
+    fit(window:GetWidth() or 0)
+    window:HookScript("OnSizeChanged", function(_, width) fit(width) end)
   elseif kind == "stitch" then
-    -- A dashed line 6px inside the edge: stitch.png tiled along each side.
+    -- A dashed line 6px inside the edge, tiled along each side.
+    -- Two files, a dash tile along and a dash tile across, so no region needs a texcoord of its own.
     local sides = { { "TOPLEFT", "TOPRIGHT", 6, -6, -6, -6, true }, { "BOTTOMLEFT", "BOTTOMRIGHT", 6, 6, -6, 6, true },
       { "TOPLEFT", "BOTTOMLEFT", 6, -6, 6, 6, false }, { "TOPRIGHT", "BOTTOMRIGHT", -6, -6, -6, 6, false } }
     for _, side in ipairs(sides) do
       local t = add()
-      t:SetTexture(MEDIA .. "stitch.png", "REPEAT", "REPEAT")
+      t:SetTexture(MEDIA .. (side[7] and "stitch_h.png" or "stitch_v.png"), "REPEAT", "REPEAT")
       t:SetPoint(side[1], window, side[1], side[3], side[4])
       t:SetPoint(side[2], window, side[2], side[5], side[6])
       if side[7] then
-        t:SetHeight(1); t:SetHorizTile(true); t:SetTexCoord(0, 1, 0, 0.5)
+        t:SetHeight(1); t:SetHorizTile(true)
       else
-        t:SetWidth(1); t:SetVertTile(true); t:SetTexCoord(0, 0.5, 0, 1)
+        t:SetWidth(1); t:SetVertTile(true)
       end
       t:SetVertexColor(K.goldText[1], K.goldText[2], K.goldText[3], 0.45)
     end
@@ -248,11 +253,12 @@ function T.Window(window, opts)
   local win = { fill = windowFill(window, K.windowTop, K.windowBottom, T.Art("card", radius)) }
 
   if skin.frame == "bevel" then
-    win.ring = T.SlicedTexture(window, "BORDER", T.Art("bevel", radius, skin.frameWidth), K.frameTint,
-      T.ArtSlice("bevel", radius))
+    -- Baked in colour (outline, band from the skin's frame gradient, inner line), so drawn untinted.
+    win.ring = T.SlicedTexture(window, "BORDER", T.Art("bevel", skin.id), { 1, 1, 1, 1 }, -- untinted
+      T.ArtSlice("bevel", radius, skin.frameWidth))
   elseif skin.frame == "pixel" then
     win.ring = T.SlicedTexture(window, "BORDER", MEDIA .. "pixel_line.png", K.frameTint, T.ArtSlice("ring", 0))
-    local inner = T.SlicedTexture(window, "BORDER", MEDIA .. "pixel_line.png", PIXEL_INNER, T.ArtSlice("ring", 0))
+    local inner = T.SlicedTexture(window, "BORDER", MEDIA .. "pixel_line.png", K.frameInner, T.ArtSlice("ring", 0))
     inner:SetPoint("TOPLEFT", window, "TOPLEFT", 1, -1)
     inner:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -1, 1)
     win.frameExtra = { inner }
@@ -275,13 +281,17 @@ function T.Window(window, opts)
   win.ornament = ornamentOf(window, skin.ornament, inside)
 
   local hairline = skin.frame == "hairline"
-  if hairline or (skin.glow and not inside) then win.shadow = T.Shadow(window, 18, 0.65) end
+  -- Every look drops the same soft shadow (the mock gives all nine); a window against a Blizzard
+  -- frame draws none outside itself, but for goldcap's, which always had it.
+  if hairline or not inside then win.shadow = T.Shadow(window, 18, 0.65) end
   if skin.ornament == "shimmer" and not inside then
     -- Midnight's violet glow, in its accent colour.
     win.glow = T.Glow(window, { K.gold[1], K.gold[2], K.gold[3], 0.45 }, 28)
   end
 
-  local frame = { win.ring, win.shadow, win.glow }
+  local frame = { win.ring }
+  if win.shadow then frame[#frame + 1] = win.shadow end
+  if win.glow then frame[#frame + 1] = win.glow end
   for _, extra in ipairs(win.frameExtra or {}) do frame[#frame + 1] = extra end
   for _, region in ipairs(win.ornament or {}) do frame[#frame + 1] = region end
   local function setShown(region, shown)

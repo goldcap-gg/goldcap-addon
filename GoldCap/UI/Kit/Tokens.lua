@@ -39,6 +39,8 @@ local c = {
   railIdle = hex("6F7885"), railActive = hex("F7CF5A"),
   primaryTop = hex("F2BE57"), primaryBottom = hex("C9922F"), primaryText = hex("160F04"),
   frameTint = { 1, 1, 1, 0.14 },
+  -- The second, inner line of the pixel skin's frame; the other looks never draw it.
+  frameInner = { 0.18, 0.18, 0.18, 1 },
   -- The colour of a faint fill or stroke laid over the window (an empty slot, a meter's track, a
   -- scrollbar thumb, a standing mark): white on a dark skin, dark ink on a light one. The alpha
   -- is the caller's.
