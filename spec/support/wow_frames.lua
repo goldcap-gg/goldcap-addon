@@ -17,7 +17,7 @@
 -- 12-point face's and scale with the size SetFont gave, a colour escape (|cAARRGGBB, |r) takes no
 -- room, and a texture or atlas escape (|T..|t, |A..|a) the face's height plus its 2px offset, as
 -- the coin a money figure ends in does.
-local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {}, CLIENT_METRICS = false }
+local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {}, missingTextures = {}, CLIENT_METRICS = false }
 
 local STATE = setmetatable({}, { __mode = "k" })
 
@@ -99,7 +99,12 @@ end
 
 function W.Texture(parent)
   local t, s = region("Texture", parent)
-  function t:SetTexture(file) s.file = file end
+  -- TextureBase:SetTexture returns whether the client has the file; a spec lists a path it lacks in
+  -- W.missingTextures.
+  function t:SetTexture(file)
+    s.file = file
+    return not W.missingTextures[file]
+  end
   -- TextureBase:SetAtlas(atlas [, useAtlasSize]): the game's own art by its atlas name.
   function t:SetAtlas(atlas, useAtlasSize) s.atlas, s.useAtlasSize = atlas, useAtlasSize end
   function t:SetColorTexture(...) s.color = { ... } end
@@ -144,6 +149,11 @@ function W.FontString(parent, inherits)
   function f:GetTextColor() return s.color[1], s.color[2], s.color[3], s.color[4] end
   function f:SetFont(path, size, flags) s.font = { path, size, flags }; return true end
   function f:GetFont() return s.font[1], s.font[2], s.font[3] end
+  -- FontInstance:SetFontObject: the face and size of a Font object, which it also hands back by GetFont.
+  function f:SetFontObject(font)
+    s.fontObject = font
+    if font and font.GetFont then s.font = { font:GetFont() } end
+  end
   function f:GetStringWidth() return measure(s.text, s.font[2]) end
   -- The width the text would take on one line, whatever width the FontString was given.
   function f:GetUnboundedStringWidth() return measure(s.text, s.font[2]) end
@@ -179,6 +189,10 @@ function W.CreateFrame(kind, _, parent)
   function f:GetAlpha() return s.alpha or 1 end
   function f:EnableMouse(v) s.mouse = v and true or false end
   function f:IsMouseEnabled() return s.mouse == true end
+  -- BackdropTemplate: the backdrop table a frame was given (an edge file and its size) and its colours.
+  function f:SetBackdrop(backdrop) s.backdrop = backdrop end
+  function f:SetBackdropColor(...) s.backdropColor = { ... } end
+  function f:SetBackdropBorderColor(...) s.backdropBorderColor = { ... } end
   function f:SetID(id) s.id = id end
   function f:GetID() return s.id or 0 end
   function f:SetScript(name, fn) s.scripts[name] = fn end

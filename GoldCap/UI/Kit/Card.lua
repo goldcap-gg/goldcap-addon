@@ -266,9 +266,52 @@ function T.Window(window, opts)
   local skin = GC.Kit.Skins.Current()
   local inside = opts and opts.inside
   local radius = skin.radius[1]
-  local win = { fill = windowFill(window, K.windowTop, K.windowBottom, T.Art("card", radius)) }
+  local classic = skin.frame == "classic"
+  local win
+  if classic then
+    -- The client's marble, tiled in its own colours, in one piece (a tiled texture cannot be cut
+    -- into the nine of the gradient fill).
+    local marble = window:CreateTexture(nil, "BACKGROUND")
+    marble:SetTexture(T.CLASSIC.marble, "REPEAT", "REPEAT")
+    marble:SetHorizTile(true)
+    marble:SetVertTile(true)
+    marble:SetAllPoints()
+    win = { fill = { marble } }
+  else
+    win = { fill = windowFill(window, K.windowTop, K.windowBottom, T.Art("card", radius)) }
+  end
 
-  if skin.frame == "bevel" then
+  if classic then
+    -- The client's gold dialog border: a backdrop edge (the file's pieces are 32px) drawn at 40px,
+    -- 14px outside the window; against a Blizzard frame it sits on the window's own edge. A frame of
+    -- its own, since only a frame has a backdrop; made now, so the controls made later draw over it.
+    local out = inside and 0 or 14
+    local border = CreateFrame("Frame", nil, window, "BackdropTemplate")
+    border:SetBackdrop({ edgeFile = T.CLASSIC.goldBorder, edgeSize = inside and 32 or 40 })
+    border:SetFrameLevel(window:GetFrameLevel()) -- under every control of the window
+    border:SetPoint("TOPLEFT", window, "TOPLEFT", -out, out)
+    border:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", out, -out)
+    win.ring = border
+    if not inside then
+      -- The title plate over the top edge, "GoldCap" in white on it.
+      local plate = border:CreateTexture(nil, "OVERLAY")
+      local coords = T.CLASSIC.headerCoords
+      -- A client that has not the plate (SetTexture says so) gets the one gen_art.py draws.
+      if plate:SetTexture(T.CLASSIC.goldHeader) == false then
+        plate:SetTexture(MEDIA .. "classic_header.png")
+        plate:SetTexCoord(0, 1, 0, 1)
+      else
+        plate:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+      end
+      plate:SetSize(236, 66)
+      plate:SetPoint("TOP", window, "TOP", 0, 31)
+      local text = T.Heading(border, 16, "OVERLAY")
+      text:SetPoint("CENTER", plate, "CENTER", 0, 0)
+      text:SetText("GoldCap")
+      text:SetTextColor(1, 1, 1, 1) -- untinted
+      win.title, win.titleText = plate, text
+    end
+  elseif skin.frame == "bevel" then
     -- Baked in colour (outline, band from the skin's frame gradient, inner line), so drawn untinted.
     win.ring = T.SlicedTexture(window, "BORDER", T.Art("bevel", skin.id), { 1, 1, 1, 1 }, -- untinted
       T.ArtSlice("bevel", radius, skin.frameWidth))
@@ -278,10 +321,10 @@ function T.Window(window, opts)
     inner:SetPoint("TOPLEFT", window, "TOPLEFT", 1, -1)
     inner:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -1, 1)
     win.frameExtra = { inner }
-  else -- hairline (today) and classic (until its own frame)
+  else -- hairline (today)
     win.ring = T.SlicedTexture(window, "BORDER", T.Art("ring", radius), K.windowBorder, T.ArtSlice("ring", radius))
   end
-  win.ring:SetAllPoints()
+  if not classic then win.ring:SetAllPoints() end
 
   if skin.ornament == "stitch" then
     -- The stitched (leather) skin's grain, tiled over the gradient and under everything else.
@@ -306,6 +349,7 @@ function T.Window(window, opts)
   end
 
   local frame = { win.ring }
+  if win.title then frame[#frame + 1] = win.title; frame[#frame + 1] = win.titleText end
   if win.shadow then frame[#frame + 1] = win.shadow end
   if win.glow then frame[#frame + 1] = win.glow end
   for _, extra in ipairs(win.frameExtra or {}) do frame[#frame + 1] = extra end
@@ -319,6 +363,7 @@ function T.Window(window, opts)
       return
     end
     for _, region in ipairs(frame) do setShown(region, not docked) end
+    if classic then return end -- the marble has no corners to square
     for _, i in ipairs({ 1, 3, 7, 9 }) do
       local c = docked and WINDOW_PIECES[5] or WINDOW_PIECES[i]
       self.fill[i]:SetTexCoord(c[1], c[2], c[3], c[4])

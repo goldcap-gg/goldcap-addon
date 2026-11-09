@@ -131,6 +131,8 @@ describe("locale contract", function()
       -- Its one SetText puts a sample in each bundled face, in a frame off screen, so the client
       -- loads the face at login. The player never sees it.
       ["GoldCap/UI/FontPreload.lua"] = true,
+      -- Classic's title plate reads "GoldCap": the addon's name, written the same in every language.
+      ["GoldCap/UI/Kit/Card.lua"] = true,
     }
     local EMITS = { "AddDoubleLine", "AddLine%(", "SetText%(", "GC%.Print%(" }
 

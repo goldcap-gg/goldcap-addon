@@ -208,6 +208,51 @@ end
 -- The skin's `display` flag turns on the 11px floor of T.Heading and T.Label.
 T.MIN_DISPLAY_SIZE = 11
 local displayFaces = false
+-- The skin draws headings and body text through the client's own Font objects (Classic).
+local clientFonts = false
+
+-- Classic's family: one member per alphabet, so the client picks the face for the script of the text
+-- (Latin, Cyrillic, Korean, both Chinese). A Font object has one size, so there is one family per
+-- size, made on first use and kept. Where the client cannot make one, GameFontNormal stands, at its
+-- own size; where it has not even that, nil, and the caller keeps the bundled face.
+local CLASSIC_FACES = {
+  { "roman", "Fonts\\FRIZQT__.TTF" }, { "russian", "Fonts\\FRIZQT___CYR.TTF" },
+  { "korean", "Fonts\\2002.TTF" }, { "simplifiedchinese", "Fonts\\ARKai_T.ttf" },
+  { "traditionalchinese", "Fonts\\bLEI00D.ttf" },
+}
+T.CLASSIC_FACES = CLASSIC_FACES
+local classicFamilies = {}
+
+function T.ClassicFont(size)
+  local cached = classicFamilies[size]
+  if cached ~= nil then return cached or nil end
+  local name = "GoldCapClassic" .. string.format("%g", size):gsub("%.", "_")
+  local family = _G[name]
+  if not family and _G.CreateFontFamily then
+    local members = {}
+    for i, face in ipairs(CLASSIC_FACES) do
+      members[i] = { alphabet = face[1], file = face[2], height = size, flags = "" }
+    end
+    local ok, made = pcall(_G.CreateFontFamily, name, members)
+    family = ok and made or nil
+  end
+  family = family or _G.GameFontNormal
+  classicFamilies[size] = family or false
+  return family
+end
+
+-- Puts `fs` on the client's face for `size`; false when there is none, and the caller draws in Fira.
+local function useClientFont(fs, size)
+  local object = T.ClassicFont(size)
+  if not object then return false end
+  fs:SetFontObject(object)
+  -- A Font object made here carries no shadow; Classic's text has the client's.
+  if fs.SetShadowOffset then
+    fs:SetShadowOffset(1, -1)
+    fs:SetShadowColor(0, 0, 0, 0.95) -- untinted
+  end
+  return true
+end
 
 local function skinFace(file)
   if not file then return nil end
@@ -229,6 +274,7 @@ function T.ApplySkinFonts(fonts)
   T.FONT_TEXT_SEMI = skinFace(text.semi) or FIRA.semi
   T.FONT_TEXT_BOLD = skinFace(text.bold) or FIRA.bold
   displayFaces = fonts.display == true
+  clientFonts = fonts.client == true
   -- FONT_HEADING and FONT_LABEL derive from the faces above, and from the language (CJK keeps
   -- its own faces).
   T.RefreshFonts(lastCode)
@@ -279,6 +325,7 @@ end
 function T.RefontWidget(fs)
   local info = fs and widgetFonts[fs]
   if not info then return end
+  if info.object then return end -- on one of the client's Font objects, which names its own face
   local role = info.role
   local path
   if role == "mono" then path = T.FONT_MONO_BOLD       -- the brand "G": latin, always
@@ -365,6 +412,12 @@ end
 function T.Label(parent, size)
   if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
+  if clientFonts and useClientFont(fs, size) then
+    -- Font objects carry their size; the font-scale slider does not reach them.
+    widgetFonts[fs] = { role = "label", size = size, object = true }
+    fs:SetJustifyH("LEFT")
+    return fs
+  end
   local inherited, _, flags = fs:GetFont()
   -- T.FONT_LABEL is Fira for every Latin or Cyrillic language and nil only where the client's
   -- own face must stand (a Latin language on a Korean or Chinese client); then the inherited
@@ -387,6 +440,10 @@ end
 function T.Heading(parent, size, layer)
   if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, layer or "OVERLAY"))
+  if clientFonts and useClientFont(fs, size) then
+    widgetFonts[fs] = { role = "head", size = size, object = true }
+    return fs
+  end
   local path = T.FONT_HEADING or T.FONT_HEAD
   fs:SetFont(path, size * T.Scale(), "")
   widgetFonts[fs] = { role = "head", path = path, size = size }

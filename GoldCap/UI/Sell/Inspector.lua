@@ -601,14 +601,21 @@ function Inspector.Build()
   inspector:SetFrameLevel((container:GetFrameLevel() or 0) + 20)
   inspector:EnableMouse(true)
   inspector:Hide()
-  local ipc = Theme.color.panel
-  local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
-    { ipc[1], ipc[2], ipc[3], 1 }, 24)
-  inspectorFill:SetAllPoints(inspector)
+  -- Classic: the client's tooltip border over its panel colour, in place of the card and its ring.
+  local clientPanel = Theme.ClientPanel and Theme.ClientPanel(inspector)
   local ibc = Theme.color.border
-  local inspectorEdge = Theme.SlicedTexture(inspector, "BORDER", Theme.MEDIA .. "ring.png",
-    GC.Kit.Tokens.ink((ibc[4] or 0.06) * 2), 24)
-  inspectorEdge:SetAllPoints(inspector)
+  if clientPanel then
+    clientPanel:SetAllPoints(inspector)
+    clientPanel:SetFrameLevel(inspector:GetFrameLevel()) -- under the panel's own widgets
+  else
+    local ipc = Theme.color.panel
+    local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
+      { ipc[1], ipc[2], ipc[3], 1 }, 24)
+    inspectorFill:SetAllPoints(inspector)
+    local inspectorEdge = Theme.SlicedTexture(inspector, "BORDER", Theme.MEDIA .. "ring.png",
+      GC.Kit.Tokens.ink((ibc[4] or 0.06) * 2), 24)
+    inspectorEdge:SetAllPoints(inspector)
+  end
 
   inspector.icon = inspector:CreateTexture(nil, "ARTWORK")
   inspector.icon:SetSize(36, 36)

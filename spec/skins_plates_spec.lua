@@ -92,7 +92,7 @@ describe("skin plates", function()
     assert.is_true(shown(b.glow))
   end)
 
-  it("every plate skin but classic bakes its ring, and classic draws none yet", function()
+  it("every plate skin but classic bakes its ring, and classic draws the client's", function()
     for _, id in ipairs({ "forever", "horde", "alliance", "leather" }) do
       Skins.Apply(id)
       local b = T.RailButton(parent(), "deals", "DEALS")
@@ -247,7 +247,8 @@ describe("skin plates", function()
       T.Chip(p)
       for _, t in ipairs(made) do
         local file = W.state(t).file
-        if file then
+        -- Classic's textures are the client's, by path.
+        if file and not file:find("^Interface\\") then
           assert.is_true(exists("GoldCap/Media/" .. file:match("[^\\]+$")), id .. ": " .. file .. " is missing")
         end
       end

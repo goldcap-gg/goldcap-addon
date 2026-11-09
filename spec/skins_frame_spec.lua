@@ -69,7 +69,8 @@ describe("skin frames", function()
       T.Card(f, nil, nil, true)
       for _, t in ipairs(made) do
         local file = W.state(t).file
-        if file then
+        -- Classic's textures are the client's, by path.
+        if file and not file:find("^Interface\\") then
           local onDisk = "GoldCap/Media/" .. file:match("[^\\]+$")
           assert.is_true(exists(onDisk), id .. ": " .. file .. " is missing")
         end
@@ -261,6 +262,17 @@ describe("skin frames", function()
       for i, t in ipairs(made) do assert.is_false(outside(t, f), id .. " region " .. i) end
       assert.is_true(#made > 9, id)
     end
+  end)
+
+  it("classic against a Blizzard frame keeps its frame inside too", function()
+    Skins.Apply("classic")
+    local f, made = windowFrame()
+    local win = T.Window(f, { inside = true })
+    assert.is_nil(win.shadow)
+    assert.is_false(outside(win.ring, f)) -- the gold border sits on the window's own edge
+    for i, t in ipairs(made) do assert.is_false(outside(t, f), "region " .. i) end
+    local g = windowFrame()
+    assert.is_true(outside(T.Window(g).ring, g)) -- control: the floating one hangs 14px out
   end)
 
   it("keeps goldcap's shadow on a window against a Blizzard frame, as today", function()

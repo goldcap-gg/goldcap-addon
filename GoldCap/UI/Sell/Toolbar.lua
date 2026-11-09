@@ -285,7 +285,8 @@ function Toolbar.Build()
   local previous = refreshButton
   for slot, id in ipairs(CHIP_IDS) do
     local button = Theme.Button(container, "ghost", "badge")
-    button:SetSize(CHIP_WIDTHS[slot], 20)
+    -- Classic draws a filter as a check box and its words; the box takes 22px more.
+    button:SetSize(CHIP_WIDTHS[slot] + (button.SetCheckStyle and button:SetCheckStyle() or 0), 20)
     button:SetPoint("RIGHT", previous, "LEFT", -2, 0)
     button:SetLabel(GC.L[CHIP_LABELS[slot]])
     button:SetScript("OnClick", function()

@@ -20,13 +20,6 @@ local TEXTURES = {
 local SEGMENTS = { "Classic", "Аа Ґґ Її", "한국어", "简体中文", "繁體中文" }
 local SAMPLE = table.concat(SEGMENTS, " ")
 
-local MEMBERS = {
-  roman = "Fonts\\FRIZQT__.TTF",
-  russian = "Fonts\\FRIZQT___CYR.TTF",
-  korean = "Fonts\\2002.TTF",
-  simplifiedchinese = "Fonts\\ARKai_T.ttf",
-  traditionalchinese = "Fonts\\bLEI00D.ttf",
-}
 
 local panel
 
@@ -50,8 +43,9 @@ end
 
 local function makeFamily(name, height)
   local members = {}
-  for alphabet, file in pairs(MEMBERS) do
-    members[#members + 1] = { alphabet = alphabet, file = file, height = height, flags = "" }
+  -- The members Classic's own families have (UI/Kit/Fonts.lua).
+  for _, face in ipairs(GC.Theme.CLASSIC_FACES) do
+    members[#members + 1] = { alphabet = face[1], file = face[2], height = height, flags = "" }
   end
   -- The brief names the members by alphabet; CreateFontFamily takes them as a list of tables.
   return CreateFontFamily(name, members)

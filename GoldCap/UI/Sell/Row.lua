@@ -75,6 +75,13 @@ end -- do: keeps the helpers above out of the file's own local count (Lua 5.1 al
 function ROW.paintMark(row, selling, done)
   row.markSelling, row.markDone = selling, (selling and done) or nil
   local lit = selling and not done
+  if row.mark.client then
+    -- Classic's check box and check mark keep the client's own colours; a mark passed by is dimmer.
+    row.mark.ring:SetVertexColor(1, 1, 1, lit and 1 or 0.6) -- untinted
+    row.mark.coin:SetVertexColor(1, 1, 1, 1) -- untinted
+    if lit then row.mark.coin:Show() else row.mark.coin:Hide() end
+    return
+  end
   local ring = lit and Theme.color.gold or Theme.color.fgDim
   row.mark.ring:SetVertexColor(ring[1], ring[2], ring[3], lit and 0.9 or 0.6)
   local coin = Theme.color.gold
@@ -144,6 +151,11 @@ local function createRow(parent)
   row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
   row.zebra:SetPoint("TOPLEFT", 2, -inset); row.zebra:SetPoint("BOTTOMRIGHT", -2, inset)
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
+  -- Classic: the client's auction name frame under the zebra's place, shown with it (Row.Style).
+  row.nameFrame = Theme.RowPlate and Theme.RowPlate(row)
+  if row.nameFrame then
+    row.nameFrame:SetPoint("TOPLEFT", 2, -inset); row.nameFrame:SetPoint("BOTTOMRIGHT", -2, inset)
+  end
   -- The card's edge: the glass border (Theme.color.border) every panel in the kit wears.
   local gb = Theme.color.border
   row.cardRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
@@ -211,6 +223,15 @@ local function createRow(parent)
   row.mark.coin:SetTexture(Theme.MEDIA .. "badge.png")
   row.mark.coin:SetSize(8, 8)
   row.mark.coin:SetPoint("CENTER")
+  local framed = Theme.Plate and Theme.Plate()
+  if framed and framed.client then
+    -- Classic: the client's check box (20px) with its check mark (26px) in it.
+    row.mark.client = true
+    row.mark.ring:SetTexture(Theme.CLASSIC.checkBox)
+    row.mark.ring:SetSize(20, 20)
+    row.mark.coin:SetTexture(Theme.CLASSIC.checkMark)
+    row.mark.coin:SetSize(26, 26)
+  end
   row.mark:SetScript("OnClick", function(self)
     local position = row.position
     if not (position and type(position.positionKey) == "string") then return end
@@ -887,4 +908,5 @@ function Row.Style(row, entry)
   else
     UI.List.LayoutCells(row)
   end
+  if row.nameFrame then row.nameFrame:SetShown(row.zebra:IsShown()) end
 end

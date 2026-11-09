@@ -93,9 +93,26 @@ function T.Button(parent, variant, rounded)
   local roundedSpec = (rounded == "plaque" or rounded == "badge") and roundedButton(rounded) or nil
   -- Art is chosen here, as the button is built; the skin is applied before any window exists.
   local skin = GC.Kit.Skins.Current()
-  -- A skin that frames its controls (nil in the plain look, and in classic until its client art
-  -- lands): tabs and plaque-class buttons wear the baked ring over a gradient fill.
-  local plate = roundedSpec and rounded == "plaque" and T.Plate() or nil
+  local framed = T.Plate()
+  -- Classic: every button, whatever its shape, is the client's own panel button in its own colours.
+  local client = framed and framed.client or nil
+  if client then roundedSpec = roundedSpec or roundedButton("plaque") end
+  -- A skin that frames its controls (nil in the plain look): tabs and plaque-class buttons wear the
+  -- baked ring over a gradient fill.
+  local plate = not client and roundedSpec and rounded == "plaque" and framed or nil
+  -- The label's colour: the variant's own, or in Classic the gold of the client's button text
+  -- (white on the one that is on).
+  local function ink()
+    if client then return spec == BUTTON_VARIANTS.active and K.text1 or K.goldText end
+    return spec.text
+  end
+  -- Points a texture of this button at the client's panel button art.
+  local function clientArt(tx)
+    local art = T.CLASSIC.panelButton
+    tx:SetTexture(art.file)
+    tx:SetTexCoord(art.coords[1], art.coords[2], art.coords[3], art.coords[4])
+    tx:SetTextureSliceMargins(art.slice[1], art.slice[2], art.slice[3], art.slice[4])
+  end
   -- Held on the button, not captured as upvalues, so SetVariant below can genuinely change how
   -- a live button looks. Capturing them made a repaint impossible: the next OnEnter/OnLeave
   -- would stomp it back, which is why the Auto control used to be two overlaid buttons swapped
@@ -120,6 +137,7 @@ function T.Button(parent, variant, rounded)
   if roundedSpec then
     b.bg = T.SlicedTexture(b, "BACKGROUND", roundedSpec.bg, spec.bg or ROUNDED_GHOST_FILL, roundedSpec.margin)
     b.bg:SetAllPoints()
+    if client then clientArt(b.bg) end
   else
     b.bg = T.Solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 }) -- untinted
     b.bg:SetAllPoints()
@@ -144,6 +162,7 @@ function T.Button(parent, variant, rounded)
     b.highlightTexture:SetTexture(roundedSpec.bg)
     b.highlightTexture:SetTextureSliceMargins(roundedSpec.margin, roundedSpec.margin, roundedSpec.margin, roundedSpec.margin)
     b.highlightTexture:SetVertexColor(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
+    if client then clientArt(b.highlightTexture) end
   else
     b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
   end
@@ -152,6 +171,7 @@ function T.Button(parent, variant, rounded)
   -- way it shows HIGHLIGHT under the cursor -- nothing to get stuck if the button hides mid-press.
   if roundedSpec then
     b.pressedTexture = T.SlicedTexture(b, "ARTWORK", roundedSpec.bg, PRESSED, roundedSpec.margin)
+    if client then clientArt(b.pressedTexture) end
   else
     b.pressedTexture = T.Solid(b, "ARTWORK", PRESSED)
   end
@@ -183,7 +203,9 @@ function T.Button(parent, variant, rounded)
   end
 
   if roundedSpec then
-    if plate then
+    if client then
+      b.plate = framed -- the client's art, drawn above; no ring of ours
+    elseif plate then
       b.plate = plate
       b.ring = T.SlicedTexture(b, "BORDER", plate.ring, { 1, 1, 1, 1 }, plate.ringSlice) -- untinted
       b.ring:SetAllPoints()
@@ -240,7 +262,7 @@ function T.Button(parent, variant, rounded)
         b.caret:SetSize(10, 10)
         b.caret:SetPoint("RIGHT", b, "RIGHT", -6, 0)
       end
-      T.SetIcon(b.caret, caret, b.dimmed and K.text3 or spec.text)
+      T.SetIcon(b.caret, caret, b.dimmed and K.text3 or ink())
       b.caret:Show()
     elseif b.caret then
       b.caret:Hide()
@@ -287,7 +309,7 @@ function T.Button(parent, variant, rounded)
   -- skin whose primary colours differ, and, under a plate, an idle button (a ghost or a tab) and a
   -- selected one (`active`). Only a rounded button has one: it is cut from the same art.
   local function gradientStops()
-    if not b.roundedMargin then return nil end
+    if client or not b.roundedMargin then return nil end
     if spec == BUTTON_VARIANTS.primary and not sameColour(K.primaryTop, K.primaryBottom) then
       return K.primaryTop, K.primaryBottom
     end
@@ -299,6 +321,11 @@ function T.Button(parent, variant, rounded)
   end
 
   local function paintFill()
+    if client then
+      -- The client's button keeps its own colours; only a disabled one is dimmed.
+      b.bg:SetVertexColor(1, 1, 1, b.dimmed and DIM or 1) -- untinted
+      return
+    end
     local a = (base[4] or 1) * (b.dimmed and DIM or 1)
     local top, bottom = gradientStops()
     if top then
@@ -339,8 +366,10 @@ function T.Button(parent, variant, rounded)
     -- this fix for free -- it just repaints whatever `base` SetVariant last computed.
     base = spec.bg or (b.roundedMargin and ROUNDED_GHOST_FILL or { 0, 0, 0, 0 }) -- untinted
     paintFill()
-    b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
-    if b.caret then b.caret:SetVertexColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1) end
+    local c = ink()
+    b.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+    if b.caret then b.caret:SetVertexColor(c[1], c[2], c[3], c[4] or 1) end
+    if b.checkMark then b.checkMark:SetShown(spec == BUTTON_VARIANTS.active) end
     if b.ring and not b.ringAsked then
       if spec.bare and not plate then b.ring:Hide() else b.ring:Show() end
     end
@@ -353,7 +382,7 @@ function T.Button(parent, variant, rounded)
   -- inherit it. Built on first use and kept, so a render does not mint a texture per call.
   function b:SetRing(c)
     -- A plate has its frame: the ring it wears is baked in colour, and a tint would spoil it.
-    if plate then return end
+    if plate or client then return end
     if not c then
       if b.ring then b.ring:Hide() end
       return
@@ -410,6 +439,29 @@ function T.Button(parent, variant, rounded)
     b.text:SetPoint("RIGHT", b, "RIGHT", (b.caret and b.caret:IsShown()) and -16 or 0, 0)
   end
 
+  -- Classic's filters: a check box and the label, with no button plate. Returns the width the box
+  -- takes, which the caller adds to the button's; 0 where the skin has no check boxes.
+  function b:SetCheckStyle()
+    if not client then return 0 end
+    b.bg:Hide()
+    b.highlightTexture:SetVertexColor(0, 0, 0, 0) -- untinted
+    b.pressedTexture:SetVertexColor(0, 0, 0, 0) -- untinted
+    b.checkBox = b:CreateTexture(nil, "ARTWORK")
+    b.checkBox:SetTexture(T.CLASSIC.checkBox)
+    b.checkBox:SetSize(24, 24)
+    b.checkBox:SetPoint("LEFT", b, "LEFT", 0, 0)
+    b.checkMark = b:CreateTexture(nil, "OVERLAY")
+    b.checkMark:SetTexture(T.CLASSIC.checkMark)
+    b.checkMark:SetSize(24, 24)
+    b.checkMark:SetPoint("CENTER", b.checkBox, "CENTER", 0, 0)
+    b.checkMark:SetShown(spec == BUTTON_VARIANTS.active)
+    b.text:ClearAllPoints()
+    b.text:SetJustifyH("LEFT")
+    b.text:SetPoint("LEFT", b.checkBox, "RIGHT", 0, 0)
+    b.text:SetPoint("RIGHT", b, "RIGHT", 0, 0)
+    return 22
+  end
+
   -- I3: Theme.Button has no template-driven disabled look (unlike UIPanelButtonTemplate) --
   -- without this, Disable() (loud-requote arm window, buy/requery timeouts, ...) left a
   -- button looking exactly as live/clickable as ever. Dims the background and switches text
@@ -442,9 +494,10 @@ function T.Button(parent, variant, rounded)
       local c = b.ringColor
       b.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
     end
-    b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
+    local c = ink()
+    b.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
     b.highlightTexture:Show()
-    if b.caret then b.caret:SetVertexColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1) end
+    if b.caret then b.caret:SetVertexColor(c[1], c[2], c[3], c[4] or 1) end
     paintGlow()
   end)
 

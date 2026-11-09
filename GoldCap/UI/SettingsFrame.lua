@@ -1270,7 +1270,7 @@ local function build(sniperFrame)
   if gear and gear.SetVariant then
     panel:HookScript("OnShow", function()
       gear:SetVariant("active")
-      if gear.icon and gear.icon.SetVertexColor then
+      if gear.icon and gear.icon.SetVertexColor and not gear.clientIcon then
         local c = Theme.color.goldHi
         gear.icon:SetVertexColor(c[1], c[2], c[3], 1)
       end
@@ -1283,7 +1283,7 @@ local function build(sniperFrame)
     end)
     panel:SetScript("OnHide", function()
       gear:SetVariant("ghost")
-      if gear.icon and gear.icon.SetVertexColor then
+      if gear.icon and gear.icon.SetVertexColor and not gear.clientIcon then
         local c = Theme.color.fgDim
         gear.icon:SetVertexColor(c[1], c[2], c[3], 1)
       end

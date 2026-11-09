@@ -71,17 +71,72 @@ end
 -- A plate ring's band, in px, inside its 1px outline (docs/addon/tools/gen_art.py PLATE_BAND).
 local PLATE_BAND = 2
 
+-- Classic's art is the client's own, by path (we ship none of it). Each piece: its file, the part of
+-- the file that is the art as texture coordinates (left, right, top, bottom; the file's size is in
+-- the comment), and the slice margins (left, top, right, bottom) it stretches by.
+local function crop(w, h, x1, y1, x2, y2) return { x1 / w, x2 / w, y1 / h, y2 / h } end
+T.CLASSIC = {
+  marble = "Interface\\FrameGeneral\\UI-Background-Marble",
+  goldBorder = "Interface\\DialogFrame\\UI-DialogBox-Gold-Border",
+  goldHeader = "Interface\\DialogFrame\\UI-DialogBox-Gold-Header",
+  headerCoords = crop(256, 64, 58, 0, 197, 40), -- 256x64
+  tooltipBorder = "Interface\\Tooltips\\UI-Tooltip-Border",
+  nameFrame = { file = "Interface\\AuctionFrame\\UI-AuctionItemNameFrame", coords = crop(256, 32, 0, 0, 106, 32),
+    slice = { 8, 8, 8, 8 } },
+  quickslot = { file = "Interface\\Buttons\\UI-Quickslot2", coords = crop(64, 64, 12, 12, 51, 51),
+    slice = { 6, 6, 6, 6 } },
+  hilight = "Interface\\Buttons\\CheckButtonHilight",
+  checkBox = "Interface\\Buttons\\UI-CheckBox-Up",
+  checkMark = "Interface\\Buttons\\UI-CheckBox-Check",
+  panelButton = { file = "Interface\\Buttons\\UI-Panel-Button-Up", coords = crop(128, 32, 0, 0, 80, 22),
+    slice = { 10, 5, 10, 5 } },
+  -- The rail's icons: item icons both clients have.
+  icons = { deals = "Interface\\Icons\\INV_Misc_Spyglass_02", sell = "Interface\\Icons\\INV_Misc_Bag_10",
+    sold = "Interface\\Icons\\INV_Misc_Coin_02", buy = "Interface\\Icons\\INV_Scroll_03",
+    gear = "Interface\\Icons\\INV_Misc_Gear_01" },
+}
+
 --- What the applied skin frames its rail buttons, tabs and buttons with, or nil when it frames none:
 -- { ring = the baked ring (vertex colour white), ringSlice, fill = plaque art at the control radius,
--- fillSlice (also the corner of the gradient cut from it) }.
--- Classic has plates too, but of the client's own textures; they come with the classic skin's
--- client art, and until then it draws none (return them here).
+-- fillSlice (also the corner of the gradient cut from it) }. Classic's are the client's textures
+-- (T.CLASSIC), which each control draws itself: { client = true }.
 function T.Plate()
   local skin = GC.Kit.Skins.Current()
+  if skin.frame == "classic" then return { client = true } end
   if not (skin.plates and skin.plateArt) then return nil end
   local radius = skin.radius[3]
   return { ring = T.Art("plate", skin.id), ringSlice = T.ArtSlice("plate", radius, PLATE_BAND),
     fill = T.Art("plaque", radius), fillSlice = T.ArtSlice("plaque", radius) }
+end
+
+--- Classic's piece `art` (an entry of T.CLASSIC with a crop and slices) as a texture of `parent`, in
+-- its own colours, stretched by its slice margins.
+function T.ClientSliced(parent, layer, art)
+  local tx = parent:CreateTexture(nil, layer)
+  tx:SetTexture(art.file)
+  tx:SetTexCoord(art.coords[1], art.coords[2], art.coords[3], art.coords[4])
+  tx:SetTextureSliceMargins(art.slice[1], art.slice[2], art.slice[3], art.slice[4])
+  tx:SetVertexColor(1, 1, 1, 1) -- untinted
+  return tx
+end
+
+--- The plate of a list row (the client's auction name frame), or nil in a skin that has none.
+function T.RowPlate(parent)
+  if GC.Kit.Skins.Current().frame ~= "classic" then return nil end
+  return T.ClientSliced(parent, "BACKGROUND", T.CLASSIC.nameFrame)
+end
+
+--- A panel in the client's tooltip border over the popup colour (#10101f in Classic), drawn 14px, or
+-- nil in a skin that has none. A frame of its own (a backdrop is one), made before the controls it
+-- sits under, so they draw over it. `inset` pulls it in from the parent's edge.
+function T.ClientPanel(parent)
+  if GC.Kit.Skins.Current().frame ~= "classic" then return nil end
+  local panel = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+  local c = GC.Kit.Tokens.color.popup
+  panel:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = T.CLASSIC.tooltipBorder, edgeSize = 14,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+  panel:SetBackdropColor(c[1], c[2], c[3], 1)
+  return panel
 end
 
 --- A solid colour fill.

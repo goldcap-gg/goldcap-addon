@@ -100,7 +100,11 @@ function T.RailButton(parent, iconName, labelText)
   -- A skin without a glow (Pixel, Parchment, Classic) draws no halo at all.
   if skin.glow then b.glow = T.Glow(b, RAIL_GLOW, 10) end
   local washFile, washSlice
-  if plate then
+  local client = plate and plate.client
+  if client then
+    -- Classic: the client's quickslot frame round the icon, its hilight when selected (below).
+    b.plate = plate
+  elseif plate then
     -- A framed plate: the baked ring (untinted, it carries its own colours) over a vertical
     -- gradient, drawn all the time and lit when the button is the selected one.
     b.plate = plate
@@ -125,20 +129,44 @@ function T.RailButton(parent, iconName, labelText)
   end
 
   b.icon = b:CreateTexture(nil, "ARTWORK")
-  T.SetIcon(b.icon, iconName)
-  b.icon:SetSize(20, 20)
-  b.icon:SetPoint("TOP", 0, -8)
+  if client then
+    -- The client's item icon in its quickslot frame, 40px, trimmed of the icon's own border.
+    b.icon:SetTexture(T.CLASSIC.icons[iconName])
+    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    b.icon:SetSize(40, 40)
+    b.icon:SetPoint("TOP", 0, -1)
+    b.iconFrame = T.ClientSliced(b, "OVERLAY", T.CLASSIC.quickslot)
+    b.iconFrame:SetAllPoints(b.icon)
+  else
+    T.SetIcon(b.icon, iconName)
+    b.icon:SetSize(20, 20)
+    b.icon:SetPoint("TOP", 0, -8)
+  end
 
-  b.text = T.Heading(b, 9.5)
-  b.text:SetPoint("BOTTOM", 0, 7)
+  b.text = T.Heading(b, client and 11 or 9.5)
+  b.text:SetPoint("BOTTOM", 0, client and 1 or 7)
   b.text:SetText(labelText)
 
   -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
   -- the button's whole square, so hovering a rail button drew a square around the rounded
   -- plate the active one wears (owner, Forever beta 2026-10-01).
-  b.highlightTexture = T.SlicedTexture(b, "HIGHLIGHT", washFile, HOVER_WASH, washSlice)
-  b.highlightTexture:SetAllPoints()
-  b.highlightTexture:SetBlendMode("ADD")
+  if client then
+    -- The client's round hilight, 46px over the 40px icon: under the cursor, and kept on the selected one.
+    local function hilight(layer)
+      local tx = b:CreateTexture(nil, layer)
+      tx:SetTexture(T.CLASSIC.hilight)
+      tx:SetBlendMode("ADD")
+      tx:SetSize(46, 46)
+      tx:SetPoint("CENTER", b.icon, "CENTER", 0, 0)
+      return tx
+    end
+    b.highlightTexture = hilight("HIGHLIGHT")
+    b.selected = hilight("OVERLAY")
+  else
+    b.highlightTexture = T.SlicedTexture(b, "HIGHLIGHT", washFile, HOVER_WASH, washSlice)
+    b.highlightTexture:SetAllPoints()
+    b.highlightTexture:SetBlendMode("ADD")
+  end
 
   -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
   -- can still raise a tooltip), so the wash is hidden here instead of guarded in a script.
@@ -174,9 +202,16 @@ function T.RailButton(parent, iconName, labelText)
 
   function b:SetActive(active)
     local c = active and K.railActive or K.railIdle
-    b.icon:SetVertexColor(c[1], c[2], c[3], 1)
+    if client then
+      -- The client's icon keeps its own colours.
+      b.icon:SetVertexColor(1, 1, 1, 1) -- untinted
+    else
+      b.icon:SetVertexColor(c[1], c[2], c[3], 1)
+    end
     b.text:SetTextColor(c[1], c[2], c[3], 1)
-    if b.plateFill then
+    if client then
+      b.selected:SetShown(active)
+    elseif b.plateFill then
       -- The plate stays; only its fill lights.
       if active then
         T.PaintGradientFill(b.plateFill, K.plateOnTop, K.plateOnBottom)
@@ -259,7 +294,14 @@ function T.Rail(parent)
   gear:SetSize(28, 28)
   gear:SetPoint("BOTTOM", 0, 14)
   gear.icon = gear:CreateTexture(nil, "ARTWORK")
-  T.SetIcon(gear.icon, "gear", T.color.fgDim)
+  local framed = T.Plate()
+  if framed and framed.client then
+    gear.icon:SetTexture(T.CLASSIC.icons.gear) -- the client's own icon, in its own colours
+    gear.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    gear.clientIcon = true -- SettingsFrame's tint of the icon leaves it alone
+  else
+    T.SetIcon(gear.icon, "gear", T.color.fgDim)
+  end
   gear.icon:SetSize(17, 17)
   gear.icon:SetPoint("CENTER")
 
