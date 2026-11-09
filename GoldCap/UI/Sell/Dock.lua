@@ -784,7 +784,7 @@ function Dock.BuildFill()
   -- of widgets on the window's own background, which read as leftovers under the list rather
   -- than as the place the tab is driven from.
   local phc = Theme.color.panelHi
-  local dockFill = Theme.ClientPanel and Theme.ClientPanel(container) -- Classic: a frame in the client's border
+  local dockFill = Theme.ClientPanel and Theme.ClientPanel(container, 0.94) -- Classic: a frame in the client's border
     or Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png", { phc[1], phc[2], phc[3], 1 }, 12)
   dockFill:SetPoint("BOTTOMLEFT"); dockFill:SetPoint("BOTTOMRIGHT")
   dockFill:SetHeight(Dock.Height())

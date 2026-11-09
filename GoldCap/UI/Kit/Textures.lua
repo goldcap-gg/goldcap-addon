@@ -81,11 +81,12 @@ T.CLASSIC = {
   goldHeader = "Interface\\DialogFrame\\UI-DialogBox-Gold-Header",
   headerCoords = crop(256, 64, 58, 0, 197, 40), -- 256x64
   tooltipBorder = "Interface\\Tooltips\\UI-Tooltip-Border",
-  nameFrame = { file = "Interface\\AuctionFrame\\UI-AuctionItemNameFrame", coords = crop(256, 32, 0, 0, 106, 32),
+  nameFrame = { file = "Interface\\AuctionFrame\\UI-AuctionItemNameFrame", coords = crop(128, 32, 0, 0, 106, 32), -- 128x32
     slice = { 8, 8, 8, 8 } },
   quickslot = { file = "Interface\\Buttons\\UI-Quickslot2", coords = crop(64, 64, 12, 12, 51, 51),
     slice = { 6, 6, 6, 6 } },
   hilight = "Interface\\Buttons\\CheckButtonHilight",
+  checkHover = "Interface\\Buttons\\UI-CheckBox-Highlight",
   checkBox = "Interface\\Buttons\\UI-CheckBox-Up",
   checkMark = "Interface\\Buttons\\UI-CheckBox-Check",
   panelButton = { file = "Interface\\Buttons\\UI-Panel-Button-Up", coords = crop(128, 32, 0, 0, 80, 22),
@@ -111,8 +112,8 @@ end
 
 --- Classic's piece `art` (an entry of T.CLASSIC with a crop and slices) as a texture of `parent`, in
 -- its own colours, stretched by its slice margins.
-function T.ClientSliced(parent, layer, art)
-  local tx = parent:CreateTexture(nil, layer)
+function T.ClientSliced(parent, layer, art, sublevel)
+  local tx = parent:CreateTexture(nil, layer, nil, sublevel)
   tx:SetTexture(art.file)
   tx:SetTexCoord(art.coords[1], art.coords[2], art.coords[3], art.coords[4])
   tx:SetTextureSliceMargins(art.slice[1], art.slice[2], art.slice[3], art.slice[4])
@@ -120,22 +121,32 @@ function T.ClientSliced(parent, layer, art)
   return tx
 end
 
+--- The client's quickslot frame round an item icon (a texture), or nil in a skin that has none. It
+-- is a texture of its own: the caller shows and hides it with the icon.
+function T.IconFrame(icon, parent)
+  if GC.Kit.Skins.Current().frame ~= "classic" then return nil end
+  local frame = T.ClientSliced(parent, "OVERLAY", T.CLASSIC.quickslot)
+  frame:SetAllPoints(icon)
+  return frame
+end
+
 --- The plate of a list row (the client's auction name frame), or nil in a skin that has none.
 function T.RowPlate(parent)
   if GC.Kit.Skins.Current().frame ~= "classic" then return nil end
-  return T.ClientSliced(parent, "BACKGROUND", T.CLASSIC.nameFrame)
+  return T.ClientSliced(parent, "BACKGROUND", T.CLASSIC.nameFrame, -1)
 end
 
 --- A panel in the client's tooltip border over the popup colour (#10101f in Classic), drawn 14px, or
--- nil in a skin that has none. A frame of its own (a backdrop is one), made before the controls it
--- sits under, so they draw over it. `inset` pulls it in from the parent's edge.
-function T.ClientPanel(parent)
+-- nil in a skin that has none. A frame of its own (a backdrop is one) on its parent's level, so the
+-- parent's own text and the controls above it draw over it. `alpha` is the fill's, 1 by default.
+function T.ClientPanel(parent, alpha)
   if GC.Kit.Skins.Current().frame ~= "classic" then return nil end
   local panel = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+  panel:SetUsingParentLevel(true)
   local c = GC.Kit.Tokens.color.popup
   panel:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = T.CLASSIC.tooltipBorder, edgeSize = 14,
     insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-  panel:SetBackdropColor(c[1], c[2], c[3], 1)
+  panel:SetBackdropColor(c[1], c[2], c[3], alpha or 1)
   return panel
 end
 

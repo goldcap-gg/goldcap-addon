@@ -96,7 +96,11 @@ function T.Button(parent, variant, rounded)
   local framed = T.Plate()
   -- Classic: every button, whatever its shape, is the client's own panel button in its own colours.
   local client = framed and framed.client or nil
+  -- The label keeps the size its shape always had (10 on a rounded button, 12 on a square one).
+  local labelSize = roundedSpec and 10 or 12
   if client then roundedSpec = roundedSpec or roundedButton("plaque") end
+  -- Classic's tabs (a segmented switch's halves) are dark gradient tabs, not the red panel button.
+  local tab = client and variant == "segment"
   -- A skin that frames its controls (nil in the plain look): tabs and plaque-class buttons wear the
   -- baked ring over a gradient fill.
   local plate = not client and roundedSpec and rounded == "plaque" and framed or nil
@@ -177,6 +181,24 @@ function T.Button(parent, variant, rounded)
   end
   b.pressedTexture:SetAllPoints()
   b:SetPushedTexture(b.pressedTexture)
+  if tab then
+    -- A flat gradient with a 1px edge, its bottom darker; the hover and the held shade are flat too.
+    b.bg:SetTexture(nil)
+    b.bg:SetTextureSliceMargins(0, 0, 0, 0)
+    b.bg:SetTexCoord(0, 1, 0, 1)
+    -- White, which the gradient colours.
+    b.bg:SetColorTexture(1, 1, 1, 1) -- untinted
+    b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
+    b.pressedTexture:SetColorTexture(PRESSED[1], PRESSED[2], PRESSED[3], PRESSED[4])
+    for _, side in ipairs({ "TOP", "LEFT", "RIGHT", "BOTTOM" }) do
+      local edge = T.Solid(b, "BORDER", side == "BOTTOM" and K.frameInner or K.frameTint)
+      if side == "TOP" or side == "BOTTOM" then
+        edge:SetPoint(side .. "LEFT"); edge:SetPoint(side .. "RIGHT"); edge:SetHeight(1)
+      else
+        edge:SetPoint("TOP" .. side); edge:SetPoint("BOTTOM" .. side); edge:SetWidth(1)
+      end
+    end
+  end
 
   -- A soft halo under the main action, only while it is live: a dim button with a bright glow
   -- reads as clickable. A primary button wears it in gold unless told not to; a danger one, in
@@ -225,7 +247,7 @@ function T.Button(parent, variant, rounded)
   -- Condensed Bold averages 0.47 em a lower-case Latin letter, 0.54 em a Latin capital and 0.61 em
   -- a Cyrillic capital (measured from the font file): at 10 that is within 2% of the mono-10 the
   -- rounded buttons drew before, which spec/button_label_width_spec.lua's budgets were set for.
-  b.text = T.Heading(b, roundedSpec and 10 or 12)
+  b.text = T.Heading(b, labelSize)
   b.text:SetJustifyH("CENTER")
   b.text:ClearAllPoints()
   -- Bounded LEFT-to-RIGHT rather than pinned at CENTER. A CENTER-anchored FontString has no
@@ -321,6 +343,14 @@ function T.Button(parent, variant, rounded)
   end
 
   local function paintFill()
+    if tab then
+      local top, bottom = K.plateTop, K.plateBottom
+      if spec == BUTTON_VARIANTS.active then top, bottom = K.plateOnTop, K.plateOnBottom end
+      local k = b.dimmed and DIM or 1
+      b.bg:SetGradient("VERTICAL", CreateColor(bottom[1], bottom[2], bottom[3], (bottom[4] or 1) * k),
+        CreateColor(top[1], top[2], top[3], (top[4] or 1) * k))
+      return
+    end
     if client then
       -- The client's button keeps its own colours; only a disabled one is dimmed.
       b.bg:SetVertexColor(1, 1, 1, b.dimmed and DIM or 1) -- untinted
@@ -444,7 +474,13 @@ function T.Button(parent, variant, rounded)
   function b:SetCheckStyle()
     if not client then return 0 end
     b.bg:Hide()
-    b.highlightTexture:SetVertexColor(0, 0, 0, 0) -- untinted
+    -- Hovered, the client's check box lights as its own does.
+    b.highlightTexture:Hide()
+    b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
+    b.highlightTexture:SetTexture(T.CLASSIC.checkHover)
+    b.highlightTexture:SetBlendMode("ADD")
+    b.highlightTexture:SetSize(24, 24)
+    b.highlightTexture:SetPoint("LEFT", b, "LEFT", 0, 0)
     b.pressedTexture:SetVertexColor(0, 0, 0, 0) -- untinted
     b.checkBox = b:CreateTexture(nil, "ARTWORK")
     b.checkBox:SetTexture(T.CLASSIC.checkBox)

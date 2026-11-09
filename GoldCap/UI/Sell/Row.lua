@@ -77,7 +77,7 @@ function ROW.paintMark(row, selling, done)
   local lit = selling and not done
   if row.mark.client then
     -- Classic's check box and check mark keep the client's own colours; a mark passed by is dimmer.
-    row.mark.ring:SetVertexColor(1, 1, 1, lit and 1 or 0.6) -- untinted
+    row.mark.ring:SetVertexColor(1, 1, 1, lit and 1 or 0.55) -- untinted
     row.mark.coin:SetVertexColor(1, 1, 1, 1) -- untinted
     if lit then row.mark.coin:Show() else row.mark.coin:Hide() end
     return
@@ -168,6 +168,14 @@ local function createRow(parent)
     { Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.38 }, 12)
   row.selectRing:SetPoint("TOPLEFT", 2, -inset); row.selectRing:SetPoint("BOTTOMRIGHT", -2, inset)
   row.selectRing:Hide()
+  if row.nameFrame then
+    -- Classic: square rings, so a selected row still reads as selected on the square frame.
+    for _, ring in ipairs({ row.cardRing, row.selectRing }) do
+      ring:SetTexture(Theme.Art("ring", 0))
+      ring:SetTextureSliceMargins(Theme.ArtSlice("ring", 0), Theme.ArtSlice("ring", 0),
+        Theme.ArtSlice("ring", 0), Theme.ArtSlice("ring", 0))
+    end
+  end
   -- The "well": a sunken fill an expanded position's children sit in instead of the list's
   -- alternating zebra, so a sub-row reads as nested inside its position rather than as one more
   -- row in the same flat list (row.spine, below, is the other half of that cue). Same sliced
@@ -207,6 +215,8 @@ local function createRow(parent)
   row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
+  row.iconFrame = Theme.IconFrame and Theme.IconFrame(row.icon, row) -- Classic: the quickslot frame
+  if row.iconFrame then row.iconFrame:Hide() end
   -- The selling mark, before the icon on the posting deck (Row.Style shows it): a gold coin in a
   -- ring when POST and the post-next key list this item, an empty ring when only the row's own
   -- Post does. A click is the player's choice for the position, kept across sessions
@@ -908,5 +918,10 @@ function Row.Style(row, entry)
   else
     UI.List.LayoutCells(row)
   end
-  if row.nameFrame then row.nameFrame:SetShown(row.zebra:IsShown()) end
+  if row.iconFrame then row.iconFrame:SetShown(row.icon:IsShown()) end
+  if row.nameFrame then
+    -- Classic's rows are the square name frame: the glass wash is not drawn over it.
+    row.nameFrame:SetShown(row.zebra:IsShown())
+    row.zebra:Hide()
+  end
 end

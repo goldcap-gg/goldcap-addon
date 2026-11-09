@@ -140,8 +140,12 @@ function KP.newBrand(f, logo, size, gap)
   f.logo:SetTexture(T.MEDIA .. "GoldCap")
   f.logo:SetSize(logo, logo)
   f.brand = track(f, f:CreateFontString(nil, "OVERLAY"))
-  f.brand:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "")
-  T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = size })
+  if T.ClientFonts() and T.UseClientFont(f.brand, size) then
+    T.TrackFont(f.brand, { role = "brand", size = size, object = true }) -- the client's own face
+  else
+    f.brand:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "")
+    T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = size })
+  end
   f.brand:SetWordWrap(false)
   colour(f.brand, K.goldText)
   f.brand:SetPoint("LEFT", f.logo, "RIGHT", gap, 0)

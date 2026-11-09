@@ -759,7 +759,7 @@ end
 local function semibold(parent, size)
   local T = GC.Theme
   local fs = T.Label(parent, size)
-  if T.FONT_LABEL == T.FONT_TEXT then
+  if not T.ClientFonts() and T.FONT_LABEL == T.FONT_TEXT then
     fs:SetFont(T.FONT_TEXT_SEMI, size * T.Scale(), "")
     T.TrackFont(fs, { role = "label", path = T.FONT_TEXT_SEMI, size = size, flags = "" })
   end

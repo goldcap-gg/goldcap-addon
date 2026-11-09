@@ -288,7 +288,7 @@ function T.Window(window, opts)
     local out = inside and 0 or 14
     local border = CreateFrame("Frame", nil, window, "BackdropTemplate")
     border:SetBackdrop({ edgeFile = T.CLASSIC.goldBorder, edgeSize = inside and 32 or 40 })
-    border:SetFrameLevel(window:GetFrameLevel()) -- under every control of the window
+    border:SetUsingParentLevel(true) -- on the window's own level, under every control of it
     border:SetPoint("TOPLEFT", window, "TOPLEFT", -out, out)
     border:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", out, -out)
     win.ring = border

@@ -181,6 +181,11 @@ function W.CreateFrame(kind, _, parent)
   s.scripts = {}
   function f:GetChildren() return unpack(s.children) end
   function f:SetFrameLevel(level) s.level = level end
+  -- Frame:SetUsingParentLevel: the frame takes its parent's level instead of one above it.
+  function f:SetUsingParentLevel(v)
+    s.usingParentLevel = v and true or false
+    if v and parent and STATE[parent] then s.level = STATE[parent].level end
+  end
   function f:GetFrameLevel() return s.level end
   function f:SetFrameStrata(strata) s.strata = strata end
   -- Frame:SetAlpha: the frame's own alpha, which the client multiplies into everything it and its

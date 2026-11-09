@@ -606,7 +606,6 @@ function Inspector.Build()
   local ibc = Theme.color.border
   if clientPanel then
     clientPanel:SetAllPoints(inspector)
-    clientPanel:SetFrameLevel(inspector:GetFrameLevel()) -- under the panel's own widgets
   else
     local ipc = Theme.color.panel
     local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
@@ -620,6 +619,7 @@ function Inspector.Build()
   inspector.icon = inspector:CreateTexture(nil, "ARTWORK")
   inspector.icon:SetSize(36, 36)
   inspector.icon:SetPoint("TOPLEFT", INSP.PAD + 4, -11)
+  inspector.iconFrame = Theme.IconFrame and Theme.IconFrame(inspector.icon, inspector)
   -- Guarded for busted: most of this suite's frame doubles hand back textures that were never
   -- taught SetTexCoord, because nothing built at Attach time trimmed an icon before this.
   if inspector.icon.SetTexCoord then inspector.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
@@ -730,6 +730,7 @@ function Inspector.PaintInspector(position)
     icon = ok and texture or nil
   end
   if icon then inspector.icon:SetTexture(icon); inspector.icon:Show() else inspector.icon:Hide() end
+  if inspector.iconFrame then inspector.iconFrame:SetShown(icon ~= nil) end
   local left = icon and (INSP.PAD + 50) or (INSP.PAD + 4)
   -- Top points only, so a wrapped name pushes its stock line down rather than over it.
   local right = -(INSP.PAD + 2 + 22 + 6) -- clear of the close button

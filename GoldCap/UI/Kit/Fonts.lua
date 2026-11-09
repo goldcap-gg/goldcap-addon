@@ -241,8 +241,8 @@ function T.ClassicFont(size)
   return family
 end
 
--- Puts `fs` on the client's face for `size`; false when there is none, and the caller draws in Fira.
-local function useClientFont(fs, size)
+--- Puts `fs` on the client's face for `size`; false when there is none, and the caller draws in Fira.
+function T.UseClientFont(fs, size)
   local object = T.ClassicFont(size)
   if not object then return false end
   fs:SetFontObject(object)
@@ -279,6 +279,9 @@ function T.ApplySkinFonts(fonts)
   -- its own faces).
   T.RefreshFonts(lastCode)
 end
+
+--- True while the applied skin draws its text through the client's Font objects.
+function T.ClientFonts() return clientFonts end
 
 local scale, hooks = 1.0, {}
 
@@ -412,7 +415,7 @@ end
 function T.Label(parent, size)
   if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
-  if clientFonts and useClientFont(fs, size) then
+  if clientFonts and T.UseClientFont(fs, size) then
     -- Font objects carry their size; the font-scale slider does not reach them.
     widgetFonts[fs] = { role = "label", size = size, object = true }
     fs:SetJustifyH("LEFT")
@@ -440,7 +443,7 @@ end
 function T.Heading(parent, size, layer)
   if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, layer or "OVERLAY"))
-  if clientFonts and useClientFont(fs, size) then
+  if clientFonts and T.UseClientFont(fs, size) then
     widgetFonts[fs] = { role = "head", size = size, object = true }
     return fs
   end

@@ -12,7 +12,7 @@ describe("classic skin", function()
   local NAME_FRAME = "Interface\\AuctionFrame\\UI-AuctionItemNameFrame"
   local PANEL_BUTTON = "Interface\\Buttons\\UI-Panel-Button-Up"
 
-  local families, failFamily
+  local families, failFamily, savedNormal
 
   local function shown(t) return t ~= nil and t:IsShown() end
 
@@ -30,6 +30,7 @@ describe("classic skin", function()
   before_each(function()
     restore = W.install()
     W.missingTextures = {}
+    savedNormal = _G.GameFontNormal
     _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     families = {}
     failFamily = false
@@ -51,8 +52,10 @@ describe("classic skin", function()
   after_each(function()
     Skins.Apply("goldcap")
     restore()
-    for _, size in ipairs({ 9.5, 10, 12, 13, 16 }) do _G["GoldCapClassic" .. size] = nil end
-    _G.CreateFontFamily, _G.GameFontNormal, _G.CreateColor = nil, nil, nil
+    for name in pairs(_G) do
+      if type(name) == "string" and name:find("^GoldCapClassic") then _G[name] = nil end
+    end
+    _G.CreateFontFamily, _G.GameFontNormal, _G.CreateColor = nil, savedNormal, nil
     W.missingTextures = {}
   end)
 
@@ -84,7 +87,7 @@ describe("classic skin", function()
     Skins.Apply("classic")
     local plate = T.RowPlate(W.CreateFrame("Frame"))
     assert.equal(NAME_FRAME, W.state(plate).file)
-    assert.same({ 0, 106 / 256, 0, 1 }, W.state(plate).texCoord)
+    assert.same({ 0, 106 / 128, 0, 1 }, W.state(plate).texCoord)
     assert.same({ 8, 8, 8, 8 }, W.state(plate).slice)
     Skins.Apply("goldcap")
     assert.is_nil(T.RowPlate(W.CreateFrame("Frame")))
@@ -241,5 +244,63 @@ describe("classic skin", function()
     assert.same({ K.popup[1], K.popup[2], K.popup[3], 1 }, W.state(panel).backdropColor)
     Skins.Apply("goldcap")
     assert.is_nil(T.ClientPanel(W.CreateFrame("Frame")))
+  end)
+
+  it("the dock's panel sits on its parent's level, under the posting panel's own text", function()
+    Skins.Apply("classic")
+    local container = W.CreateFrame("Frame")
+    local label = container:CreateFontString(nil, "OVERLAY") -- a region of the posting panel
+    local panel = T.ClientPanel(container, 0.94)
+    assert.is_true(W.state(panel).usingParentLevel)
+    assert.equal(container:GetFrameLevel(), panel:GetFrameLevel())
+    local button = W.CreateFrame("Button", nil, container)
+    assert.is_true(button:GetFrameLevel() > panel:GetFrameLevel())
+    assert.is_not_nil(label)
+    assert.equal(0.94, W.state(panel).backdropColor[4])
+    -- the gold border of a window is on its window's level too
+    local f = windowFrame()
+    assert.is_true(W.state(T.Window(f).ring).usingParentLevel)
+  end)
+
+  it("a formerly square button keeps its 12px label", function()
+    Skins.Apply("classic")
+    local square = T.Button(W.CreateFrame("Frame"), "ghost")
+    local rounded = T.Button(W.CreateFrame("Frame"), "ghost", "plaque")
+    assert.equal(12, select(2, square.text:GetFont()))
+    assert.equal(10, select(2, rounded.text:GetFont()))
+  end)
+
+  it("classic tabs are dark gradient tabs, filters light their check box on hover", function()
+    Skins.Apply("classic")
+    local tab = T.Button(W.CreateFrame("Frame"), "segment", "plaque")
+    assert.same({ 0, 0, 0, 0 }, W.state(tab.bg).slice)
+    assert.is_not_nil(W.state(tab.bg).gradient)
+    assert.is_nil(W.state(tab.bg).file)
+    tab:SetVariant("active")
+    assert.same({ K.text1[1], K.text1[2], K.text1[3], 1 }, W.state(tab.text).color)
+    local chip = T.Button(W.CreateFrame("Frame"), "ghost", "badge")
+    chip:SetCheckStyle()
+    assert.equal("Interface\\Buttons\\UI-CheckBox-Highlight", W.state(chip.highlightTexture).file)
+    assert.equal("ADD", W.state(chip.highlightTexture).blend)
+  end)
+
+  it("item icons wear the quickslot frame, shown with the icon", function()
+    Skins.Apply("classic")
+    local f = W.CreateFrame("Frame")
+    local icon = f:CreateTexture(nil, "ARTWORK")
+    local frame = T.IconFrame(icon, f)
+    assert.equal("Interface\\Buttons\\UI-Quickslot2", W.state(frame).file)
+    Skins.Apply("goldcap")
+    assert.is_nil(T.IconFrame(icon, f))
+  end)
+
+  it("brand text and the Hoard's name draw through the client's face", function()
+    Skins.Apply("classic")
+    assert.is_true(T.ClientFonts())
+    local fs = W.CreateFrame("Frame"):CreateFontString(nil, "OVERLAY")
+    assert.is_true(T.UseClientFont(fs, 14))
+    assert.equal(T.ClassicFont(14), W.state(fs).fontObject)
+    Skins.Apply("goldcap")
+    assert.is_false(T.ClientFonts())
   end)
 end)
