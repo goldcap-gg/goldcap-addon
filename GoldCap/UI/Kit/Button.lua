@@ -106,8 +106,12 @@ function T.Button(parent, variant, rounded)
   local plate = not client and roundedSpec and rounded == "plaque" and framed or nil
   -- The label's colour: the variant's own, or in Classic the gold of the client's button text
   -- (white on the one that is on).
+  -- A tab is selected as "active" or, in the Hoard's and the crafting panel's switches, "primary".
+  local function selected()
+    return spec == BUTTON_VARIANTS.active or (tab and spec == BUTTON_VARIANTS.primary)
+  end
   local function ink()
-    if client then return spec == BUTTON_VARIANTS.active and K.text1 or K.goldText end
+    if client then return selected() and K.text1 or K.goldText end
     return spec.text
   end
   -- Points a texture of this button at the client's panel button art.
@@ -345,7 +349,7 @@ function T.Button(parent, variant, rounded)
   local function paintFill()
     if tab then
       local top, bottom = K.plateTop, K.plateBottom
-      if spec == BUTTON_VARIANTS.active then top, bottom = K.plateOnTop, K.plateOnBottom end
+      if selected() then top, bottom = K.plateOnTop, K.plateOnBottom end
       local k = b.dimmed and DIM or 1
       b.bg:SetGradient("VERTICAL", CreateColor(bottom[1], bottom[2], bottom[3], (bottom[4] or 1) * k),
         CreateColor(top[1], top[2], top[3], (top[4] or 1) * k))
