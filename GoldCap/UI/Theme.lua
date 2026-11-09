@@ -490,6 +490,9 @@ function T.QualityColor(itemOrQuality, isQuality)
     quality = found
   end
   if type(quality) ~= "number" then return nil end
+  -- An item's common and poor colours are never drawn (nil, as before); only a caller that asks
+  -- by quality number, and so colours every quality, reads them from the skin.
+  if quality < 2 and not isQuality then return nil end
   local skinned = T.SkinQuality(quality)
   if skinned then return skinned end
   if quality < 2 then return nil end
