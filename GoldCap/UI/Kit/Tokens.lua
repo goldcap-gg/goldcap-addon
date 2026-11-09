@@ -39,6 +39,17 @@ local c = {
   railIdle = hex("6F7885"), railActive = hex("F7CF5A"),
   primaryTop = hex("F2BE57"), primaryBottom = hex("C9922F"), primaryText = hex("160F04"),
   frameTint = { 1, 1, 1, 0.14 },
+  -- The colour of a faint fill or stroke laid over the window (an empty slot, a meter's track, a
+  -- scrollbar thumb, a standing mark): white on a dark skin, dark ink on a light one. The alpha
+  -- is the caller's.
+  ink = { 1, 1, 1, 1 },
+  -- A verdict's two colours in a dialog: a refusal, and a safe buy.
+  danger = { 1, 0.3, 0.3, 1 }, safe = { 0.25, 0.85, 0.25, 1 },
+  -- Inline-escape colours of single words in running text: a failed import, and the Sold
+  -- window's gold, green and dim figures, the Deals rows' muted counts, the Sell rows' dim note.
+  fail = hex("FF4040"),
+  soldGold = hex("E8C15A"), soldSilver = hex("C9CED6"), soldCopper = hex("D08A5A"), soldGreen = hex("5FD38D"), soldDim = hex("9D9D9D"),
+  dealMuted = hex("8C8A85"), rowDim = hex("8F8D88"),
 }
 Tokens.color = c
 
@@ -48,6 +59,22 @@ Tokens.blizzard = {}
 for key, value in pairs(c) do
   Tokens.blizzard[key] = { value[1], value[2], value[3], value[4] }
 end
+
+-- The game tooltip's own palette, for the lines GoldCap adds to it. It has no window twin: the
+-- tooltip stays dark in every skin.
+local b = Tokens.blizzard
+b.tipTitle = { 1, 0.82, 0, 1 }
+b.tipLabel = { 0.65, 0.82, 1, 1 }
+b.tipWhite = { 1, 1, 1, 1 }
+b.tipBody = { 0.85, 0.85, 0.85, 1 }
+b.tipSoft = { 0.7, 0.7, 0.7, 1 }
+b.tipNote = { 0.6, 0.6, 0.6, 1 }
+b.tipHint = { 0.55, 0.55, 0.55, 1 }
+b.tipGrey = { 0.65, 0.65, 0.65, 1 }
+b.tipGood = { 0.3, 0.85, 0.4, 1 }
+b.tipSafe = { 0.25, 0.85, 0.25, 1 }
+b.tipWarn = { 1, 0.6, 0.2, 1 }
+b.tipAmber = { 0.83, 0.64, 0.22, 1 }
 
 -- Colours derived from a token. Each is registered, so Tokens.refresh() rewrites it in place and
 -- every file that kept a reference sees the applied skin.
@@ -59,6 +86,13 @@ function Tokens.alpha(key, a)
   local out = { from[1], from[2], from[3], a or from[4] }
   derived[#derived + 1] = { out = out, key = key, a = a }
   return out
+end
+
+--- A fresh {r, g, b, a} in the skin's ink at alpha `a`, for a fill or stroke a window builds once
+--- (a window is built after the skin is applied; for a colour held since load, use alpha()).
+function Tokens.ink(a)
+  local ink = c.ink
+  return { ink[1], ink[2], ink[3], a }
 end
 
 --- {r, g, b} of Tokens.color[key].

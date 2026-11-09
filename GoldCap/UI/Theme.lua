@@ -24,7 +24,7 @@ T.color = {
   redFill = rgb("lossFill"),
   green   = rgb("profit"),
   cost    = rgb("cost"),
-  zebra   = { 1, 1, 1, 0.035 },
+  zebra   = Tokens.alpha("ink", 0.035),
   hover   = Tokens.alpha("gold", 0.16),
   watch   = rgb("yours"),
 }
@@ -72,7 +72,7 @@ function T.QuietScrollBar(scroll)
     thumb:SetTexture(T.MEDIA .. "bar.png")
     if thumb.SetTexCoord then thumb:SetTexCoord(0, 1, 0, 1) end
     if thumb.SetTextureSliceMargins then thumb:SetTextureSliceMargins(2, 2, 2, 2) end
-    if thumb.SetVertexColor then thumb:SetVertexColor(1, 1, 1, 0.22) end
+    if thumb.SetVertexColor then thumb:SetVertexColor(K.ink[1], K.ink[2], K.ink[3], 0.22) end
     if thumb.SetSize then thumb:SetSize(4, 36) end
   end
 end

@@ -247,7 +247,7 @@ local function build()
     f.features[i] = row
   end
 
-  local card = Theme.Card(f, { 1, 1, 1, 0.03 }, K.glassBorder)
+  local card = Theme.Card(f, GC.Kit.Tokens.ink(0.03), K.glassBorder)
   f.card = card
   card.icon = card:CreateTexture(nil, "ARTWORK")
   card.icon:SetSize(16, 16)
@@ -518,7 +518,7 @@ end
 -- a browser, so it opens this window, its link ready to copy. In the colour the game's own spell
 -- links wear.
 local LINK_ID = "addon:GoldCap:companion"
-local LINK = "|cff71d5ff|H" .. LINK_ID .. "|h[GoldCap Companion]|h|r"
+local LINK = "|cff71d5ff|H" .. LINK_ID .. "|h[GoldCap Companion]|h|r" -- blizzard surface
 
 -- The chat line for a state that asks something of the player, the link last.
 local function loginText(s)

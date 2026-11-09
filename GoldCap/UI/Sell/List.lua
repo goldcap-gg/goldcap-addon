@@ -12,7 +12,7 @@ local exact, itemName = GC.SellUtil.exact, GC.SellUtil.itemName
 local UI = GC.SellUI
 local List = UI.List
 local COLUMNS, ROW, DR, INSP = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP
-local setColor, DIM_HEX = UI.fmt.setColor, UI.fmt.DIM_HEX
+local setColor, dimHex = UI.fmt.setColor, UI.fmt.dimHex
 local renderGeneration = 0
 
 -- Why the deck is empty, in the five ways the owner approved (3C mockup, 2026-10-10): the icon
@@ -309,7 +309,7 @@ end
 function ROW.sectionText(section)
   local hint = ROW.SECTION_HINTS[section.id]
   local text = UI.fmt.count(GC.L[ROW.SECTION_TITLES[section.id]], #section.positions)
-    .. (hint and ("  " .. DIM_HEX .. GC.L[hint] .. "|r") or "")
+    .. (hint and ("  " .. dimHex() .. GC.L[hint] .. "|r") or "")
   -- With a group picked (UI/Sell/Toolbar.lua's GROUPS row), SELLING is that group: its name over
   -- its items, and POST's walk said to stay in it.
   if section.id == "selling" and S.group then
@@ -318,7 +318,7 @@ function ROW.sectionText(section)
     local walk = S.group == "mine" and GC.L["Post goes through your groups only"]
       or (GC.L["Post goes through %s only"]):format(S.groupName or S.group)
     text = name .. " " .. GC.Sell._InlineColor(gold, tostring(#section.positions))
-      .. "  " .. DIM_HEX .. walk .. "|r"
+      .. "  " .. dimHex() .. walk .. "|r"
   end
   -- SELLING carries the posting deck's totals: the dock is one row there (owner, 2026-10-10).
   local aside = section.id == "selling" and UI.Dock.SellingAside() or ""
@@ -557,8 +557,8 @@ local function explain(frame, title, body)
   frame[hook](frame, "OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(GC.Util.ClientText(title), 1, 0.82, 0)
-    for _, line in ipairs(body) do GameTooltip:AddLine(GC.Util.ClientText(line), 0.85, 0.85, 0.85, true) end
+    GameTooltip:AddLine(GC.Util.ClientText(title), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
+    for _, line in ipairs(body) do GameTooltip:AddLine(GC.Util.ClientText(line), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true) end
     GameTooltip:Show()
   end)
   frame[hook](frame, "OnLeave", function()

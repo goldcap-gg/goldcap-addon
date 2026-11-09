@@ -8,6 +8,7 @@
 -- live AH observations, a cached quote stream, and widgets around that single model.
 -- wow-auction: docs/superpowers/specs/2026-10-09-addon-ui-kit-and-sell-design.md, Part 2.
 local _, GC = ...
+local B = GC.Kit.Tokens.blizzard
 
 GC.Sell = GC.Sell or {}
 
@@ -197,7 +198,7 @@ end
 -- suffix on the PROFIT/UNIT cell shares one FontString with the number in front of it, so there
 -- is no separate region to SetTextColor -- the only way to dim part of the text is to color it
 -- inline and close with |r.
-fmt.DIM_HEX = "|cff8f8d88"
+function fmt.dimHex() return (GC.Util.Colored(GC.Kit.Tokens.color.rowDim, ""):sub(1, -3)) end
 
 -- Theme.color.cost as an inline escape, for the one number on the stock line that is money.
 -- The line under an item name is a run-on -- count, then listed, then what a unit cost -- drawn
@@ -206,7 +207,7 @@ fmt.DIM_HEX = "|cff8f8d88"
 -- the PRICE / UNIT column two feet to the right is meant to be compared against, and it carried
 -- no more emphasis than the word "in". Colouring the amount (never the words around it) gives
 -- the eye something to land on without adding a row, a column or a line.
-fmt.MONEY_HEX = "|cffc9a957"
+function fmt.moneyHex() return (GC.Util.Colored(GC.Kit.Tokens.color.cost, ""):sub(1, -3)) end
 
 -- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount above
 -- (final review "Headroom").
@@ -227,9 +228,9 @@ end
 function fmt.ruleTooltip(position)
   local rule = position and position.rule
   if not (GameTooltip and rule and rule.name) then return end
-  GameTooltip:AddLine(GC.Util.ClientText((GC.L["Group you follow: %s"]):format(rule.name)), 1, 0.82, 0, true)
+  GameTooltip:AddLine(GC.Util.ClientText((GC.L["Group you follow: %s"]):format(rule.name)), B.tipTitle[1], B.tipTitle[2], B.tipTitle[3], true)
   local words = GC.GroupRules and GC.GroupRules.Describe and GC.GroupRules.Describe(rule)
-  if words then GameTooltip:AddLine(GC.Util.ClientText(words), 0.85, 0.85, 0.85, true) end
+  if words then GameTooltip:AddLine(GC.Util.ClientText(words), B.tipBody[1], B.tipBody[2], B.tipBody[3], true) end
 end
 
 -- What a price makes over what one cost once the auction house has taken its 5%, as the row's

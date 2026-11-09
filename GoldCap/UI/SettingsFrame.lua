@@ -1,4 +1,5 @@
 local _, GC = ...
+local B = GC.Kit.Tokens.blizzard
 local Theme = GC.Theme
 
 GC.SettingsUI = GC.SettingsUI or {}
@@ -490,7 +491,7 @@ local function build(sniperFrame)
   local subtitle = Theme.Num(panel, 9)
   subtitle:SetJustifyH("LEFT")
   subtitle:SetWordWrap(false)
-  subtitle:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  subtitle:SetTextColor(B.text3[1], B.text3[2], B.text3[3])
   subtitle:SetText(GC.L["SAVED INSTANTLY · ESC OR DONE TO CLOSE"])
   subtitle:SetPoint("LEFT", title, "RIGHT", 12, 0)
 
@@ -559,8 +560,8 @@ local function build(sniperFrame)
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       local tip = GC.Util.ClientText
       GameTooltip:AddLine(tip(labelText))
-      GameTooltip:AddLine(tip(sentence), 1, 1, 1, true)
-      GameTooltip:AddLine(tip(defaultLineText), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      GameTooltip:AddLine(tip(sentence), B.tipWhite[1], B.tipWhite[2], B.tipWhite[3], true)
+      GameTooltip:AddLine(tip(defaultLineText), B.text3[1], B.text3[2], B.text3[3])
       GameTooltip:Show()
     end
     local function onLeave() GameTooltip:Hide() end
@@ -608,7 +609,7 @@ local function build(sniperFrame)
     local c = Theme.Card(parent, Theme.color.panelHi, nil)
     c:SetHeight(24 + rowCount * STEP + 6)
     local t = Theme.Num(c, 9); t:SetJustifyH("LEFT"); t:SetPoint("TOPLEFT", Theme.pad.m, -8)
-    t:SetText(cardTitle); t:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    t:SetText(cardTitle); t:SetTextColor(B.text3[1], B.text3[2], B.text3[3])
     function c.rowY(i) return -(24 + (i - 1) * STEP) end
     c.rows = {}
     if withDefaultsButton then
@@ -873,7 +874,7 @@ local function build(sniperFrame)
     local note = Theme.Num(whatCounts, 9)
     note:SetPoint("TOPLEFT", Theme.pad.m, whatCounts.rowY(3))
     note:SetJustifyH("LEFT")
-    note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    note:SetTextColor(B.text3[1], B.text3[2], B.text3[3])
     note:SetText(GC.L["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."])
     addRow(whatCounts, note)
   end
@@ -992,7 +993,7 @@ local function build(sniperFrame)
     refreshers[#refreshers + 1] = paintChoice
     local note = Theme.Num(posting, 9)
     note:SetJustifyH("LEFT")
-    note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    note:SetTextColor(B.text3[1], B.text3[2], B.text3[3])
     note:SetText(sentence)
     addRow(posting, note)
     local widgets = { label }
@@ -1054,7 +1055,7 @@ local function build(sniperFrame)
     local note = Theme.Num(automation, 9)
     note:SetPoint("TOPLEFT", Theme.pad.m, automation.rowY(4))
     note:SetJustifyH("LEFT")
-    note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    note:SetTextColor(B.text3[1], B.text3[2], B.text3[3])
     note:SetText(GC.L["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."])
     addRow(automation, note)
   end

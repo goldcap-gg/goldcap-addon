@@ -13,7 +13,7 @@ local exact, effectivePostUnit, postQuantity = GC.SellUtil.exact, GC.SellUtil.ef
 local UI = GC.SellUI
 local Row = UI.Row
 local COLUMNS, ROW = UI.COLUMNS, UI.ROW
-local setColor, formatCell, DIM_HEX, MONEY_HEX = UI.fmt.setColor, UI.fmt.cell, UI.fmt.DIM_HEX, UI.fmt.MONEY_HEX
+local setColor, formatCell, dimHex, moneyHex = UI.fmt.setColor, UI.fmt.cell, UI.fmt.dimHex, UI.fmt.moneyHex
 
 -- The one-word state a row wears at the end of its stock line, and only when something is off:
 -- a row that is ready says nothing. It replaces the WHAT TO DO column, which no deck had room
@@ -110,7 +110,7 @@ function ROW.variantSuffix(position)
   end
   if not level or level <= 0 then return "" end
   local words = position.variantKind == "pet" and (GC.L["level %d"]):format(level) or (GC.L["ilvl %d"]):format(level)
-  return "  " .. DIM_HEX .. words .. "|r"
+  return "  " .. dimHex() .. words .. "|r"
 end
 
 -- The first of this position's lots the cancel queue holds, or nil: the queue is the one
@@ -273,7 +273,7 @@ local function createRow(parent)
   -- the same way: a held-back tag at its end is the line's most important word.
   row.itemStock = Theme.Num(row, 10)
   -- Said out loud rather than inherited from the font template: this line is deliberately one
-  -- step back from the item name above it, so that the money coloured into it (MONEY_HEX) is
+  -- step back from the item name above it, so that the money coloured into it (moneyHex) is
   -- the thing that steps forward. Leaving it on the template's own colour made the whole line
   -- compete with the name and the cost compete with nothing.
   row.itemStock:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
@@ -420,7 +420,7 @@ function Row.PaintPosition(row, entry, ctx)
     -- Escaped around the AMOUNT, not around the whole phrase: a translation is free to
     -- put the money anywhere in its own sentence, and only the money should light up.
     stockParts[#stockParts + 1] =
-      (GC.L["paid %s each"]):format(MONEY_HEX .. formatCell(paidUnit) .. "|r")
+      (GC.L["paid %s each"]):format(moneyHex() .. formatCell(paidUnit) .. "|r")
   end
   -- The quality pip goes in the label rather than beside it: this row and
   -- the Sniper's deal row anchor their cells completely differently, and an
@@ -452,7 +452,7 @@ function Row.PaintPosition(row, entry, ctx)
   -- What is off about this row, if anything -- see rowTag.
   row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
     or GC.SellViewModel.SourceText(p))
-    .. (notOnHand and (DIM_HEX .. " · not on hand|r") or "")
+    .. (notOnHand and (dimHex() .. " · not on hand|r") or "")
     .. rowTag(p, heldBackReason[p.positionKey], notOnHand) -- then a followed group's name, in gold:
     .. (p.rule and p.rule.name and ("  " .. GC.Sell._InlineColor(Theme.color.gold, p.rule.name)) or ""))
   -- Cost per unit, not the position total: it is the number that compares against the
@@ -555,7 +555,7 @@ function Row.PaintPosition(row, entry, ctx)
       and GC.Util.IntText(math.floor(p.profitAtHold / 10000)) .. "g"
       or formatCell(p.profitAtHold)
     row.cells.profit:SetText(("%s %s@%s|r"):format(
-      formatCell(profit), DIM_HEX, hold))
+      formatCell(profit), dimHex(), hold))
     setColor(row.cells.profit, profit < 0 and Theme.color.red or Theme.color.gold)
   else
     row.cells.profit:SetText(formatCell(profit))
@@ -659,11 +659,12 @@ function Row.PaintPosition(row, entry, ctx)
   for slot, mark in ipairs(row.standMarks) do
     if not standing then
       -- No book, no marks: five grey ticks beside nothing read as a broken widget.
-      mark:SetColorTexture(1, 1, 1, 0)
+      mark:SetColorTexture(1, 1, 1, 0) -- untinted
     elseif slot == standing.slot then
       mark:SetColorTexture(lit[1], lit[2], lit[3], 1)
     else
-      mark:SetColorTexture(1, 1, 1, slot < standing.slot and 0.32 or 0.10)
+      local ink = GC.Kit.Tokens.color.ink
+      mark:SetColorTexture(ink[1], ink[2], ink[3], slot < standing.slot and 0.32 or 0.10)
     end
   end
   if not standing then
@@ -705,7 +706,7 @@ function Row.PaintHeading(row, entry)
     -- bundled face drew tofu for the arrows the design used).
     row.sectionLabel:SetText((entry.open and "- " or "+ ")
       .. (GC.L["NOT ON HAND %d"]):format(entry.count)
-      .. "  " .. DIM_HEX .. GC.L["in the mail, the bank or on another character"] .. "|r")
+      .. "  " .. dimHex() .. GC.L["in the mail, the bank or on another character"] .. "|r")
     row.action:Hide()
   elseif entry.kind == "section" then
     row.sectionLabel:SetText(ROW.sectionText(entry.section))

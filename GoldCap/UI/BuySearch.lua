@@ -1,4 +1,5 @@
 local _, GC = ...
+local B = GC.Kit.Tokens.blizzard
 
 -- The BUY tab's search of the auction house, as Auctionator's Shopping tab has it: a name typed in
 -- the item box at the top (UI/BuyAddBox.lua, through GC.Buy._SearchSubmit) is looked for among
@@ -438,7 +439,7 @@ build = function()
   well:SetSize(LAYOUT.BOX_W, 22)
   local wc = Theme.color.bg or Theme.color.panel
   Theme.SlicedTexture(well, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(well)
-  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, 12):SetAllPoints(well)
+  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", GC.Kit.Tokens.ink(0.12), 12):SetAllPoints(well)
   local box = CreateFrame("EditBox", nil, well)
   box:SetAutoFocus(false)
   box:SetPoint("TOPLEFT", 8, -2)
@@ -532,11 +533,11 @@ function S._ShowTip(owner)
   local row = rowById(owner.id)
   if not (row and GameTooltip) then return end
   local tip = GC.Util.ClientText
-  local dim = GC.Theme.color.fgDim
+  local dim = B.text3
   GC.Theme.ItemTooltipOutside(owner, GC.Buy._view.container:GetParent())
   if row.known and row.commodity == false and row.itemLevel > 0 then
     GameTooltip:SetText(tip(GC.Theme.WithQuality(nameOf(row), row.itemID)))
-    GameTooltip:AddLine(tip((GC.L["ilvl %d"]):format(row.itemLevel)), 1, 1, 1)
+    GameTooltip:AddLine(tip((GC.L["ilvl %d"]):format(row.itemLevel)), B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
   else
     GameTooltip:SetItemByID(row.itemID)
   end

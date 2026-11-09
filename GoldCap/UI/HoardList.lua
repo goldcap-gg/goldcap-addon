@@ -16,6 +16,7 @@ local _, GC = ...
 -- item or presses for the player.
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
+local KB = GC.Kit.Tokens.blizzard -- what a line in the game tooltip reads
 local U = HF.ui
 local L = U.L
 local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrapping, U.heightOf, U.track
@@ -27,8 +28,8 @@ local HL = HF.List
 -- checked one is filled and ringed in gold), a cast bar's track under its gold fill, the selection
 -- bar in a gold wash with a gold ring, its Take out ringed in gold (its clear button wears the
 -- window's own border).
-local CHECK_OFF = { 1, 1, 1, 0.28 }
-local FILL_TRACK = { 1, 1, 1, 0.08 }
+local CHECK_OFF = GC.Kit.Tokens.alpha("ink", 0.28)
+local FILL_TRACK = GC.Kit.Tokens.alpha("ink", 0.08)
 local BAR_FILL = GC.Kit.Tokens.alpha("gold", 0.10)
 local BAR_RING = GC.Kit.Tokens.alpha("gold", 0.55)
 local TAKE_RING = GC.Kit.Tokens.alpha("gold", 0.5)
@@ -273,7 +274,7 @@ local function showClearTip(button)
   local tooltip = _G.GameTooltip
   if not tooltip then return end
   tooltip:SetOwner(button, GC.Theme.TooltipAnchor(button))
-  tooltip:AddLine(GC.Util.ClientText(GC.L["Clear the selection"]), K.text1[1], K.text1[2], K.text1[3])
+  tooltip:AddLine(GC.Util.ClientText(GC.L["Clear the selection"]), KB.text1[1], KB.text1[2], KB.text1[3])
   tooltip:Show()
 end
 
@@ -477,7 +478,7 @@ local function buildSearch()
   local wc = T.color.bg or T.color.panel
   local fill = T.SlicedTexture(well, "BACKGROUND", T.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, T.SLICE.plaque)
   fill:SetAllPoints(well)
-  T.SlicedTexture(well, "BORDER", T.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, T.SLICE.plaque):SetAllPoints(well)
+  T.SlicedTexture(well, "BORDER", T.MEDIA .. "plaque_ring.png", GC.Kit.Tokens.ink(0.12), T.SLICE.plaque):SetAllPoints(well)
   well.icon = well:CreateTexture(nil, "ARTWORK")
   well.icon:SetSize(L.WELL_ICON, L.WELL_ICON)
   well.icon:SetPoint("LEFT", well, "LEFT", L.WELL_PAD, 0)

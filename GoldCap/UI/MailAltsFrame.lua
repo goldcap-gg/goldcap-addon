@@ -50,6 +50,7 @@ GC.MailAlts = {}
 local MA = GC.MailAlts
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
+local KB = GC.Kit.Tokens.blizzard -- what a line in the game tooltip reads
 local U = HF.ui
 local L = U.L
 local setText, colour, wrapping, heightOf, track, restamp = U.setText, U.colour, U.wrapping, U.heightOf, U.track,
@@ -780,7 +781,7 @@ end
 -- A character in the menu: its class icon, its name in its class colour, and a grey note: the groups
 -- that go to it already here, else when it was last seen.
 local function altLine(alt, reading)
-  local text = GC.Util.Colored(classColour(alt.class) or K.text1, alt.mailName)
+  local text = GC.Util.Colored(classColour(alt.class) or KB.text1, alt.mailName)
   local atlas = classAtlas(alt.class)
   if atlas then text = ("|A:%s:14:14|a %s"):format(atlas, text) end
   local gets = {}
@@ -788,7 +789,7 @@ local function altLine(alt, reading)
     if row.to == alt.full then gets[#gets + 1] = row.name end
   end
   local note = #gets > 0 and GC.L["gets %s"]:format(commasOf(gets)) or seenText(alt.seen)
-  return text .. "  " .. GC.Util.Colored(K.text3, note)
+  return text .. "  " .. GC.Util.Colored(KB.text3, note)
 end
 
 -- Who sells a group, from its chip: the characters this one can mail, this character, a name typed
@@ -804,7 +805,7 @@ local function fillMenu(root, chip, row)
       root:CreateButton(GC.Util.ClientText(altLine(alt, reading)), function() setRecipient(row.key, alt.full) end)
     end
   else
-    root:CreateTitle(GC.Util.ClientText(GC.Util.Colored(K.text3,
+    root:CreateTitle(GC.Util.ClientText(GC.Util.Colored(KB.text3,
       GC.L["Your other characters show here once each has logged in with GoldCap."])))
   end
   root:CreateDivider()
@@ -850,10 +851,10 @@ local function showIconTip(hit)
   local tooltip, item = _G.GameTooltip, hit.item
   if not (tooltip and item) then return end
   GC.Theme.ItemTooltipOutside(hit, frame)
-  tooltip:AddLine(GC.Util.ClientText(("%s ×%d"):format(U.itemName(item), item.count)), K.text1[1], K.text1[2], K.text1[3])
+  tooltip:AddLine(GC.Util.ClientText(("%s ×%d"):format(U.itemName(item), item.count)), KB.text1[1], KB.text1[2], KB.text1[3])
   local why = item.why == "bound" and GC.L["Bound to you: a mail cannot take it."]
     or item.why == "refund" and GC.L["Can still be refunded: a mail would end that, so it stays."] or nil
-  if why then tooltip:AddLine(GC.Util.ClientText(why), K.text2[1], K.text2[2], K.text2[3], true) end
+  if why then tooltip:AddLine(GC.Util.ClientText(why), KB.text2[1], KB.text2[2], KB.text2[3], true) end
   tooltip:Show()
 end
 

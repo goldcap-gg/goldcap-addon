@@ -5,6 +5,11 @@ GC.slashHandlers = GC.slashHandlers or {}
 
 local dialog
 
+-- A failed import, in the window's failure colour.
+local function failedText(text)
+  return GC.Util.Colored(GC.Kit.Tokens.color.fail, text)
+end
+
 -- The status line under the box wraps, and the box gives up the height it takes: an import that
 -- left names out says which, in full, in every language.
 local function setStatus(f, text)
@@ -20,7 +25,7 @@ end
 local function importLists(f, text, perSubgroup)
   local result, why = GC.BuyLists.ImportText(text, f.into, perSubgroup)
   if result and result.error then
-    setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. result.error .. "|r")
+    setStatus(f, failedText(GC.L["Import failed:"] .. " " .. result.error))
     return
   end
   if result then
@@ -43,7 +48,7 @@ local function importLists(f, text, perSubgroup)
     return
   end
   if f.lists then
-    setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. GC.BuyLists.NotAList(why) .. "|r")
+    setStatus(f, failedText(GC.L["Import failed:"] .. " " .. GC.BuyLists.NotAList(why)))
     return
   end
 end
@@ -126,13 +131,13 @@ local function createDialog()
     -- only opens this dialog) and the dialog's own Import button are covered. Buy runs (above)
     -- are a different grammar and unaffected.
     if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
-      setStatus(f, "|cffff4040" .. GC.L["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."] .. "|r")
+      setStatus(f, failedText(GC.L["On WoW: Forever, goldcap.gg prices come through GoldCap Companion, not a pasted string."]))
       return
     end
     local parsed, err = GC.ImportString.Parse(text)
     if not parsed then
-      setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " "
-        .. GC.Data.DescribeImportError(err) .. "|r")
+      setStatus(f, failedText(GC.L["Import failed:"] .. " "
+        .. GC.Data.DescribeImportError(err)))
       return
     end
     GC.Data.SetImported(parsed)

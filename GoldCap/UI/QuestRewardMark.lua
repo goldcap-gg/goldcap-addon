@@ -77,7 +77,7 @@ local function build(frame)
   holder:SetAllPoints(frame)
   -- A gold ring over the reward: the same small rounded ring every GoldCap card wears, with no
   -- fill, so the reward's icon and name stay as Blizzard drew them.
-  holder.ring = T.Card(holder, CLEAR, T.color.gold, true)
+  holder.ring = T.Card(holder, CLEAR, GC.Kit.Tokens.blizzard.gold, true)
   -- The line under the rewards: the quest window's own font, wrapped to the reward frame's width.
   -- The window is Blizzard's, so its face stands, except when GoldCap speaks a language the
   -- client's face cannot draw (Russian or Ukrainian on an English client): then T.FONT_FOREIGN,

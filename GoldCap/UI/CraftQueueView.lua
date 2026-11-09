@@ -60,7 +60,7 @@ local CELL_TEXT_X = LAYOUT.CELL_PAD + LAYOUT.CELL_ICON + LAYOUT.COL_GAP
 local BUSY_FILL = GC.Kit.Tokens.alpha("gold", 0.07)
 local BUSY_RING = GC.Kit.Tokens.alpha("gold", 0.6)
 local GOLD_RING = GC.Kit.Tokens.alpha("gold", 0.5)
-local DIM_RING = { 1, 1, 1, 0.27 }
+local DIM_RING = GC.Kit.Tokens.alpha("ink", 0.27)
 local CELL_FILL, NO_RING = { 0, 0, 0, 0.25 }, { 0, 0, 0, 0 }
 
 -- How wide the view's content is: the panel's body less the scroll's bar.

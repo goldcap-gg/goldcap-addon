@@ -366,7 +366,7 @@ function Toolbar.Build()
   Theme.SlicedTexture(searchWell, "BACKGROUND", Theme.MEDIA .. "plaque.png",
     { swc[1], swc[2], swc[3], 1 }, 12):SetAllPoints(searchWell)
   Theme.SlicedTexture(searchWell, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { 1, 1, 1, 0.12 }, 12):SetAllPoints(searchWell)
+    GC.Kit.Tokens.ink(0.12), 12):SetAllPoints(searchWell)
   local search = CreateFrame("EditBox", nil, searchWell)
   search:SetAutoFocus(false)
   search:SetPoint("TOPLEFT", 10, -2)

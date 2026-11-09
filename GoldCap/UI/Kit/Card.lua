@@ -103,7 +103,7 @@ function T.Shadow(frame, spread, alpha)
   local t = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
   t:SetTexture(MEDIA .. "shadow.png")
   t:SetTextureSliceMargins(24, 24, 24, 24)
-  t:SetVertexColor(0, 0, 0, alpha or 0.6)
+  t:SetVertexColor(0, 0, 0, alpha or 0.6) -- untinted
   t:SetPoint("TOPLEFT", -spread, spread)
   t:SetPoint("BOTTOMRIGHT", spread, -spread)
   return t

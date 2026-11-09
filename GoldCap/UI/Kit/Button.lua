@@ -9,7 +9,7 @@ local K = GC.Kit.Tokens.color
 
 local HOVER_WASH = K.hoverWash
 -- A square button's edge, and the shade the engine lays over any button while it is held.
-local SQUARE_EDGE = { 1, 1, 1, 0.11 }
+local SQUARE_EDGE = GC.Kit.Tokens.alpha("ink", 0.11)
 local PRESSED = { 0, 0, 0, 0.28 }
 -- A disabled button draws its fill and ring at this share of their own alpha.
 local DIM = 0.45
@@ -67,7 +67,7 @@ local ROUNDED_BUTTON = {
 -- small for the ring art -- ROUNDED_BUTTON's own comment), so a rounded ghost painted with the
 -- same alpha-0 fill has zero at-rest boundary: the row Buy button's "Check" state was bare
 -- text. A faint white fill gives rounded ghost the affordance square ghost got from its border.
-local ROUNDED_GHOST_FILL = { 1, 1, 1, 0.05 }
+local ROUNDED_GHOST_FILL = GC.Kit.Tokens.alpha("ink", 0.05)
 
 -- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
 -- `rounded` (nil | "plaque" | "badge"): nil keeps the original square look (solid bg,

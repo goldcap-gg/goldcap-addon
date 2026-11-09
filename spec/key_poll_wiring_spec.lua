@@ -645,7 +645,7 @@ describe("Key poll wiring", function()
           assert.equal("Sells here within a day", under(GC)) -- the lot asks 100 copper
           local details = GC.Sniper._RowDetails(deal(10))
           assert.equal("Among the 5 cheapest of 24 realms", details[2].text)
-          assert.equal(GC.Theme.color.gold, details[2].color)
+          assert.equal(GC.Kit.Tokens.blizzard.gold, details[2].color)
           assert.truthy(texts(details):find("Sell here for " .. GC.Util.FormatMoney(1900 * G), 1, true))
           GC = loadRouted(nil, { floor5th = 99, realms = 24 })
           assert.falsy(texts(GC.Sniper._RowDetails(deal(10))):find("cheapest", 1, true))

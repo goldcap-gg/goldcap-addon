@@ -236,7 +236,8 @@ local function layoutDetailRow(row)
   row.sectionRule:ClearAllPoints()
   row.sectionRule:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -2)
   row.sectionRule:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, -2)
-  row.sectionRule:SetColorTexture(1, 1, 1, 0.06)
+  local hl = GC.Kit.Tokens.color.hairline
+  row.sectionRule:SetColorTexture(hl[1], hl[2], hl[3], hl[4])
   setColor(row.sectionLabel, Theme.color.fgMuted)
   -- The head lays itself out over this: called from here so renderRows has one panel layout
   -- to know about, not two (see rowTag on why that function counts its upvalues).
@@ -264,7 +265,8 @@ function Inspector.Decorate(row)
   row.headRules = {}
   for i = 1, 1 do
     local rule = row:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(1, 1, 1, 0.06)
+    local hl = GC.Kit.Tokens.color.hairline
+    rule:SetColorTexture(hl[1], hl[2], hl[3], hl[4])
     rule:SetHeight(1)
     rule:Hide()
     row.headRules[i] = rule
@@ -392,7 +394,7 @@ function INSP.paintHead(row, p, d)
       if source or chip.handsBack then chip:Enable() else chip:Disable() end
       -- A segment of the strip behind it, not a pill of its own: only the one in force keeps
       -- a fill. After Enable/Disable on purpose -- the kit repaints the fill on both.
-      if chip.bg and not lit then chip.bg:SetVertexColor(1, 1, 1, 0) end
+      if chip.bg and not lit then chip.bg:SetVertexColor(1, 1, 1, 0) end -- untinted
       if chip.ring then chip.ring:Hide() end
       chip:Show()
     end

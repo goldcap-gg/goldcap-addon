@@ -136,7 +136,7 @@ local CARD_FILL = { PURPLE[1], PURPLE[2], PURPLE[3], 0.06 }
 local CARD_RING = { PURPLE[1], PURPLE[2], PURPLE[3], 0.35 }
 local ROW_CAST_FILL = { PURPLE[1], PURPLE[2], PURPLE[3], 0.10 }
 local ROW_CAST_RING = { PURPLE[1], PURPLE[2], PURPLE[3], 0.6 }
-local BAR_TRACK = { 1, 1, 1, 0.08 }
+local BAR_TRACK = GC.Kit.Tokens.alpha("ink", 0.08)
 -- The shade the engine lays over a held button (UI/Kit/Button.lua's PRESSED).
 local PRESSED = { 0, 0, 0, 0.28 }
 -- A disabled button's fill, at this share of its own alpha (UI/Kit/Button.lua's DIM).
@@ -680,7 +680,7 @@ end
 -- A menu line that acts on one click: the item, and what the click does in grey after it.
 local function addAct(root, stack, act, fn)
   local text = GC.Util.ClientText
-  root:CreateButton(text(keptLabel(stack.itemID, stack) .. "  " .. GC.Util.Colored(K.text3, act)), fn)
+  root:CreateButton(text(keptLabel(stack.itemID, stack) .. "  " .. GC.Util.Colored(GC.Kit.Tokens.blizzard.text3, act)), fn)
 end
 
 --- The Kept menu, of the items the bags hold now (the stored sets keep the others, and an item shows
@@ -1227,7 +1227,7 @@ local function paintCast(look, width)
   local c = look == "ready" and ON_PURPLE or (look == "casting" and CASTING_TEXT or K.text3)
   setText(b.text, GC.L["Disenchant"])
   colour(b.text, c)
-  b.icon:SetVertexColor(1, 1, 1, look == "ready" and 1 or 0.5)
+  b.icon:SetVertexColor(1, 1, 1, look == "ready" and 1 or 0.5) -- untinted
   b.wash:SetShown(look ~= "idle")
   -- The engine still shows an enabled button's pushed texture under a click: none while idle.
   b.held:SetAlpha(look == "idle" and 0 or 1)

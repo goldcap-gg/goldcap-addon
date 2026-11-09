@@ -3246,7 +3246,7 @@ local function showLineTooltip(row)
   if not GameTooltip then return end
   local line = row.lineItemID and lineFor(row.lineItemID) or nil
   if not line then return end
-  local dim, fg, gold = Theme.color.fgDim, Theme.color.fg, Theme.color.gold
+  local dim, fg, gold = GC.Kit.Tokens.blizzard.text3, GC.Kit.Tokens.blizzard.text1, GC.Kit.Tokens.blizzard.gold
   local tip = GC.Util.ClientText
   local buyHere = not line.vendor and line.kind ~= "craft" and not line.done
   -- A gear line's lots, and the lot it buys next: the one its armed read chose, else the one the
@@ -3284,7 +3284,7 @@ local function showLineTooltip(row)
       dim[1], dim[2], dim[3], true)
   end
   if line.vendor then
-    local muted = Theme.color.fgMuted
+    local muted = GC.Kit.Tokens.blizzard.text2
     GameTooltip:AddLine(tip(line.vendorUnit and (GC.L["a vendor sells it for %s each"]):format(formatAmount(line.vendorUnit))
       or GC.L["a vendor sells it"]), muted[1], muted[2], muted[3], true)
   end
@@ -3363,7 +3363,7 @@ local function showLineTooltip(row)
   -- including when the auction house has no price to compare against at all.
   local compare = not line.done and GC.BuyRun.CraftText(line) or nil
   if compare then
-    local cc = compare.cheaper and Theme.color.green or dim
+    local cc = compare.cheaper and GC.Kit.Tokens.blizzard.profit or dim
     local parts = {}
     for _, reagent in ipairs(compare.reagents) do
       parts[#parts + 1] = (GC.L["%d× %s"]):format(
@@ -3710,7 +3710,7 @@ local function createBand(parent)
   well:SetPoint("LEFT", tools, "LEFT", 0, 0)
   local wc = Theme.color.bg or Theme.color.panel
   Theme.SlicedTexture(well, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(well)
-  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, 12):SetAllPoints(well)
+  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", GC.Kit.Tokens.ink(0.12), 12):SetAllPoints(well)
   local search = CreateFrame("EditBox", nil, well)
   search:SetAutoFocus(false)
   search:SetPoint("TOPLEFT", 10, -2)
@@ -3827,7 +3827,7 @@ local function createDock(parent)
   dock.cap:RegisterForClicks("LeftButtonUp")
   local wc = Theme.color.bg or Theme.color.panel
   Theme.SlicedTexture(dock.cap, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(dock.cap)
-  Theme.SlicedTexture(dock.cap, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.14 }, 12):SetAllPoints(dock.cap)
+  Theme.SlicedTexture(dock.cap, "BORDER", Theme.MEDIA .. "plaque_ring.png", GC.Kit.Tokens.ink(0.14), 12):SetAllPoints(dock.cap)
   local hc = Theme.color.hover
   local capHover = dock.cap:CreateTexture(nil, "HIGHLIGHT")
   capHover:SetTexture(Theme.MEDIA .. "plaque.png")

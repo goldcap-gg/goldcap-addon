@@ -923,14 +923,14 @@ function Dock.Build(f)
   cancelHeldBackHit:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Held back from cancelling"]), 1, 0.82, 0)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Held back from cancelling"]), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
     if #S.cancelSkipped == 0 then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true)
     else
       for _, skip in ipairs(S.cancelSkipped) do
         GameTooltip:AddLine(GC.Util.ClientText(("%s: %s"):format(skip.itemName or GC.L["Item"],
           (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
-            or GC.L["not ready to cancel"]))), 0.85, 0.85, 0.85, true)
+            or GC.L["not ready to cancel"]))), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true)
       end
     end
     GameTooltip:Show()
@@ -975,10 +975,10 @@ function Dock.Build(f)
     hit:SetScript("OnEnter", function(self)
       if not GameTooltip or not value:IsShown() then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L[SUMMARY_STAT_LABELS[i]]), 1, 0.82, 0)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L[SUMMARY_STAT_LABELS[i]]), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
       local tip = SUMMARY_STAT_TIPS[id]
       if type(tip) == "table" then tip = tip[container.summaryDeck or "post"] end
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L[tip]), 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L[tip]), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true)
       GameTooltip:Show()
     end)
     hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

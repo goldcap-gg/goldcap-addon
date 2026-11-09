@@ -67,6 +67,7 @@ local _, GC = ...
 GC.HoardFrame = {}
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
+local KB = GC.Kit.Tokens.blizzard -- what a line in the game tooltip reads
 
 -- In UI units; the approved boards are drawn at twice that. WIDTH: the board's 360 and GUTTER, the
 -- room the scroll's bar takes right of the list (it hangs 6px right of the scroll frame and is 16px
@@ -673,9 +674,9 @@ local function showMoveTip(button)
   -- Beside the window, level with the button, as the approved board draws a tile's: never over the
   -- list it describes.
   GC.Theme.ItemTooltipOutside(button, frame)
-  tooltip:AddLine(GC.Util.ClientText(button.tipTitle), K.goldText[1], K.goldText[2], K.goldText[3])
+  tooltip:AddLine(GC.Util.ClientText(button.tipTitle), KB.goldText[1], KB.goldText[2], KB.goldText[3])
   if button.tipNote then
-    tooltip:AddLine(GC.Util.ClientText(button.tipNote), K.text1[1], K.text1[2], K.text1[3], true)
+    tooltip:AddLine(GC.Util.ClientText(button.tipNote), KB.text1[1], KB.text1[2], KB.text1[3], true)
   end
   if button.stopping then return tooltip:Show() end
   if button.tipLines then
@@ -686,9 +687,9 @@ local function showMoveTip(button)
   local stack = stacks[1]
   if stack then
     tooltip:AddLine(GC.Util.ClientText(GC.L["%s ×%d (%d left)"]:format(itemName(stack), stack.count, #stacks)),
-      K.text1[1], K.text1[2], K.text1[3], true)
+      KB.text1[1], KB.text1[2], KB.text1[3], true)
   else
-    tooltip:AddLine(GC.Util.ClientText(GC.L["Nothing to move"]), K.text3[1], K.text3[2], K.text3[3])
+    tooltip:AddLine(GC.Util.ClientText(GC.L["Nothing to move"]), KB.text3[1], KB.text3[2], KB.text3[3])
   end
   tooltip:Show()
 end

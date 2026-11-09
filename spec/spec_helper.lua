@@ -13,6 +13,24 @@ function helper.securecallfunction(fn, ...)
 end
 _G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 
+-- Every UI file reads the design tokens (UI/Kit/Tokens.lua), which both TOCs load before any other
+-- UI file. A spec that builds its own GC and loads a UI file with loadfile gets the same: the
+-- tokens are put on that GC first, unless it already has them.
+local realLoadfile = loadfile
+function loadfile(path, ...)
+  local chunk, err = realLoadfile(path, ...)
+  if chunk and type(path) == "string" and path:match("^GoldCap/UI/") and not path:match("^GoldCap/UI/Kit/Tokens%.lua$") then
+    local inner = chunk
+    chunk = function(name, GC, ...)
+      if type(GC) == "table" and not (type(GC.Kit) == "table" and GC.Kit.Tokens) then
+        assert(realLoadfile("GoldCap/UI/Kit/Tokens.lua"))(name, GC)
+      end
+      return inner(name, GC, ...)
+    end
+  end
+  return chunk, err
+end
+
 --- UI/Kit/*.lua, in the order both TOCs load them, right before UI/Theme.lua
 --- (spec/kit_structure_spec.lua holds the TOCs to this list). Theme.lua builds on them.
 helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Skins.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua", "UI/Kit/Button.lua", "UI/Kit/Chip.lua",
