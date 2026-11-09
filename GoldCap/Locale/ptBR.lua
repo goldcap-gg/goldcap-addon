@@ -1855,4 +1855,11 @@ GC.Locales.ptBR = {
     "Um reagente vendido por um vendedor recebe o preço assim que você abre esse vendedor.",
   ["An auction house price needs at least %d listed."] =
     "Um preço da casa de leilões precisa de pelo menos %d unidades à venda.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Esgotado",
+  ["Sold/used?"] = "Esgotado?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Vendido a um mercador, usado ou dado: o GoldCap deixa de contar estas unidades como estoque. O que você pagou continua no histórico delas.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Clique de novo para deixar de contar estas unidades como estoque. Não dá para desfazer.",
 }

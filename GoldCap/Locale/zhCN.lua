@@ -1752,4 +1752,11 @@ GC.Locales.zhCN = {
     "商人出售的材料，在你打开该商人后就会有价格。",
   ["An auction house price needs at least %d listed."] =
     "拍卖行价格需要至少 %d 件在售。",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "已售/已用",
+  ["Sold/used?"] = "已售/已用？",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "卖给了商人、用掉了或送人了：GoldCap 不再把这些物品算作库存。你付出的成本仍保留在它们的记录里。",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "再点一次，就不再把这些物品算作库存。此操作无法撤销。",
 }

@@ -1861,4 +1861,11 @@ GC.Locales.deDE = {
     "Ein Reagenz, das ein Händler verkauft, bekommt seinen Preis, sobald du diesen Händler öffnest.",
   ["An auction house price needs at least %d listed."] =
     "Ein Auktionshauspreis braucht mindestens %d angebotene Stück.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Ausbuchen",
+  ["Sold/used?"] = "Ausbuchen?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "An einen Händler verkauft, verbraucht oder verschenkt: GoldCap zählt diese Einheiten nicht mehr als Bestand. Was du bezahlt hast, bleibt in ihrem Verlauf.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Klicke noch einmal, damit GoldCap diese Einheiten nicht mehr als Bestand zählt. Das lässt sich nicht rückgängig machen.",
 }

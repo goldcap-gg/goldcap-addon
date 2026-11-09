@@ -467,6 +467,34 @@ function GC.Acquisitions.RemoveManual(id)
   return false
 end
 
+-- SELL's "Sold/used" on a NOT ON HAND row (UI/Sell/CostDialog.lua): the player says the units these
+-- lots still hold are gone (sold to a merchant, used, given away) where nothing else could see it.
+-- Each lot's remaining units are spent through Consume under a `retired` key of its own, so the
+-- lot and its purchase evidence stay, unlike RemoveManual, which deletes and only a hand-entered
+-- lot. No realized row: nothing says what the units fetched. Only this character's and region's
+-- lots that still hold units, so a lot retired once retires nothing the next time. Returns how
+-- many units were retired.
+function GC.Acquisitions.Retire(batchIDs, at, context)
+  if not db or type(batchIDs) ~= "table" or not isExactInteger(at) or not validContext(context) then return 0 end
+  local wanted = {}
+  for _, id in ipairs(batchIDs) do
+    if isNonEmptyString(id) then wanted[id] = true end
+  end
+  local retired = 0
+  for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
+    if wanted[batch.id] then
+      local quantity = batch.remainingQty
+      local plan = allocationFor({ batch }, quantity)
+      local key = table.concat({ "retired", batch.id, ("%d"):format(at) }, "\1")
+      if plan and plan.coverage == "COMPLETE" and GC.Acquisitions.Consume(batch.positionKey, quantity, key, at,
+          context, plan, { ids = { [batch.id] = true } }) then
+        retired = retired + quantity
+      end
+    end
+  end
+  return retired
+end
+
 local function pendingByID(id)
   for index, pending in ipairs(db and db.acquisitionPending or {}) do
     if type(pending) == "table" and pending.id == id then return pending, index end

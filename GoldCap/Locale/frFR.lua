@@ -1863,4 +1863,11 @@ GC.Locales.frFR = {
     "Un composant vendu par un marchand reçoit son prix dès que tu ouvres ce marchand.",
   ["An auction house price needs at least %d listed."] =
     "Un prix de l'hôtel des ventes demande au moins %d unités en vente.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Épuisé",
+  ["Sold/used?"] = "Épuisé ?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Vendu à un marchand, utilisé ou donné : GoldCap ne compte plus ces unités dans ton stock. Ce que tu as payé reste dans leur historique.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Clique encore une fois pour ne plus compter ces unités dans ton stock. Impossible d'annuler.",
 }

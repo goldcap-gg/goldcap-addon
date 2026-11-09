@@ -1847,4 +1847,11 @@ GC.Locales.enUS = {
     "A reagent a vendor sells gets its price once you open that vendor.",
   ["An auction house price needs at least %d listed."] =
     "An auction house price needs at least %d listed.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Sold/used",
+  ["Sold/used?"] = "Sold/used?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Click again to stop counting these units as stock. There is no undo.",
 }

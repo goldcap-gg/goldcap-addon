@@ -1863,4 +1863,11 @@ GC.Locales.esMX = {
     "Un componente que vende un vendedor recibe su precio en cuanto abres ese vendedor.",
   ["An auction house price needs at least %d listed."] =
     "Un precio de la casa de subastas necesita al menos %d unidades en venta.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Agotado",
+  ["Sold/used?"] = "¿Agotado?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Vendido a un comerciante, usado o regalado: GoldCap deja de contar estas unidades como inventario. Lo que pagaste queda en su historial.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Pulsa otra vez para dejar de contar estas unidades como inventario. No se puede deshacer.",
 }

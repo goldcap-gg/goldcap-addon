@@ -1927,4 +1927,11 @@ GC.Locales.ruRU = {
     "Реагент, который продаёт торговец, получит цену, как только ты откроешь этого торговца.",
   ["An auction house price needs at least %d listed."] =
     "Для цены аукциона нужно не меньше %d шт. в продаже.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Списать",
+  ["Sold/used?"] = "Списать?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Продано торговцу, израсходовано или отдано: GoldCap больше не считает эти единицы запасом. То, что вы заплатили, остаётся в их истории.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Нажмите ещё раз, чтобы больше не считать эти единицы запасом. Отменить это нельзя.",
 }

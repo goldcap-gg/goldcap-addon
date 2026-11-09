@@ -1105,4 +1105,82 @@ describe("Sell tab, the posting queue control", function()
       end
     end)
   end)
+
+  -- The owner's NOT ON HAND rows (WoW: Forever, 2026-11-09): stock sold to a merchant that the books
+  -- still counted. Moss Agate was bought on DEALS and is in no bag and on no auction.
+  describe("a row with nothing on hand", function()
+    before_each(function() GC.db = { sellMarks = {} } end)
+
+    local function ghostRow()
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row.shown and row.kind == "position" and row.position.positionKey == "commodity:1206" then return row end
+      end
+    end
+
+    local function folds()
+      local n = 0
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row.shown and row.kind == "fold" then n = n + 1 end
+      end
+      return n
+    end
+
+    local function bought()
+      return (GC.Acquisitions.Record({ source = "goldcap", itemID = 1206, positionKey = "commodity:1206",
+        itemName = "Moss Agate", quantity = 4, total = 1440, acquiredAt = 900, evidenceKey = "deal:1206",
+        character = "Owner-Dentarg", region = "eu" }))
+    end
+
+    local function openFold()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      assert.equal(1, folds())
+      GC.SellUI.showNotOnHand = true
+      render()
+    end
+
+    it("offers Sold/used, asks once, and the second click takes the row out of NOT ON HAND", function()
+      local lot = bought()
+      openFold()
+      local row = ghostRow()
+      assert.is_true(row.action.shown)
+      assert.equal("Sold/used", row.action.helpKey)
+      row.action.scripts.OnClick(row.action)
+      assert.equal("Sold/used?", ghostRow().action.helpKey)
+      assert.equal(4, lot.remainingQty)
+      render() -- a render between the two clicks still asks on the same row
+      row = ghostRow()
+      assert.equal("Sold/used?", row.action.helpKey)
+      row.action.scripts.OnClick(row.action)
+      assert.equal(0, lot.remainingQty)
+      assert.equal(4, lot.originalQty) -- the purchase stays in the history
+      assert.is_nil(ghostRow())
+      assert.equal(0, folds())
+    end)
+
+    it("puts the question away when the second click does not come, and spends nothing", function()
+      local timers = {}
+      local saved = _G.C_Timer
+      _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+      local lot = bought()
+      openFold()
+      ghostRow().action.scripts.OnClick(ghostRow().action)
+      assert.equal("Sold/used?", ghostRow().action.helpKey)
+      timers[#timers]()
+      assert.equal("Sold/used", ghostRow().action.helpKey)
+      ghostRow().action.scripts.OnClick(ghostRow().action) -- asks again
+      assert.equal(4, lot.remainingQty)
+      _G.C_Timer = saved
+    end)
+
+    it("offers no Sold/used while the stock is in the bags", function()
+      GC.Acquisitions.Record({ source = "goldcap", itemID = 99001, positionKey = "commodity:99001",
+        itemName = "Widget", quantity = 5, total = 500, acquiredAt = 900, evidenceKey = "deal:99001",
+        character = "Owner-Dentarg", region = "eu" })
+      ready()
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row.shown and row.kind == "position" then assert.is_not.equal("Sold/used", row.action.helpKey) end
+      end
+    end)
+  end)
 end)

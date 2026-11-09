@@ -1929,4 +1929,11 @@ GC.Locales.ukUA = {
     "Реагент, який продає торговець, отримає ціну, щойно ти відкриєш цього торговця.",
   ["An auction house price needs at least %d listed."] =
     "Для ціни аукціону потрібно щонайменше %d шт. у продажу.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Списати",
+  ["Sold/used?"] = "Списати?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Продано торговцю, витрачено або віддано: GoldCap більше не рахує ці одиниці запасом. Те, що ви заплатили, лишається в їхній історії.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Натисніть ще раз, щоб більше не рахувати ці одиниці запасом. Скасувати це не можна.",
 }

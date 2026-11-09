@@ -693,6 +693,10 @@ function Row.PaintPosition(row, entry, ctx)
     showRowAction(row, "Post", function() UI.Dock.OnPostClick(row) end)
   elseif UI.CostDialog.CanSetCost(p) then
     showRowAction(row, GC.L["Set cost"], function() UI.CostDialog.OpenCostDialog(p) end)
+  elseif UI.CostDialog.CanRetire(p) then
+    -- NOT ON HAND: the player says where the units went, with a second click (UI/Sell/CostDialog.lua).
+    showRowAction(row, UI.CostDialog.RetireAsked(p) and "Sold/used?" or "Sold/used",
+      function() UI.CostDialog.Retire(row) end)
   else
     row.action:Hide()
   end

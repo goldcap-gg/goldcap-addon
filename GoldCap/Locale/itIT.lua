@@ -1857,4 +1857,11 @@ GC.Locales.itIT = {
     "Un reagente venduto da un mercante riceve il suo prezzo appena apri quel mercante.",
   ["An auction house price needs at least %d listed."] =
     "Un prezzo della casa d'aste richiede almeno %d unità in vendita.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Esaurito",
+  ["Sold/used?"] = "Esaurito?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Venduto a un mercante, consumato o regalato: GoldCap smette di contare queste unità come scorte. Quello che hai pagato resta nella loro cronologia.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Clicca di nuovo per non contare più queste unità come scorte. Non si può annullare.",
 }

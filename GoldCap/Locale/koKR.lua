@@ -1787,4 +1787,11 @@ GC.Locales.koKR = {
     "상인이 판매하는 재료는 그 상인 창을 열면 가격이 생깁니다.",
   ["An auction house price needs at least %d listed."] =
     "경매장 가격은 최소 %d개가 등록되어 있어야 합니다.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "소진 처리",
+  ["Sold/used?"] = "소진 처리?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "상인에게 팔았거나, 다 썼거나, 남에게 준 경우: GoldCap이 이 물량을 더 이상 재고로 세지 않습니다. 지불한 금액은 기록에 남습니다.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "한 번 더 누르면 이 물량을 더 이상 재고로 세지 않습니다. 되돌릴 수 없습니다.",
 }

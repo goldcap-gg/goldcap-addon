@@ -1,6 +1,7 @@
 -- Set cost: what a player paid for units GoldCap has no receipt for, typed in gold and recorded in
 -- copper, and the purchase lines in the inspector (WHAT YOU PAID) whose hand-entered costs it can
--- take back. Moved from UI/SellFrame.lua as it was.
+-- take back. Moved from UI/SellFrame.lua as it was. Sold/used, a NOT ON HAND row's way out of the
+-- books, is here too.
 local _, GC = ...
 
 local Theme = GC.Theme
@@ -157,6 +158,68 @@ local function confirmCostDialog(dialog)
       character = scope.char, region = scope.region })
   end
   if batch then dialog.submitted = true; dialog:Hide(); GC.Sell.Refresh() else setDialogError(dialog, GC.L["Enter an exact positive cost"]) end
+end
+
+-- Sold/used, the way out of NOT ON HAND: units the books still hold of a position that is in no bag
+-- and on no auction (sold to a merchant, used, given away), which nothing else can see. The first
+-- click asks, the button reading "Sold/used?" for RETIRE_SECONDS; the second spends what the lots
+-- still hold (GC.Acquisitions.Retire), keeping the lots and their purchase, and the row leaves the
+-- list. There is no undo, hence the second click. The question is kept by position, not by pooled
+-- row, so a render between the clicks asks it on the same item. Not offered while an auction house
+-- sale of the item waits in the mail: that one books itself.
+local RETIRE_SECONDS = 8
+local retireToken = 0
+
+function CostDialog.CanRetire(position)
+  if type(position) ~= "table" or position.unresolved or type(position.positionKey) ~= "string"
+      or (position.bagQty or 0) > 0 or (position.listedQty or 0) > 0
+      or (type(position.facts) == "table" and position.facts.soldPending) then
+    return false
+  end
+  for _, batch in ipairs(position.batches or {}) do
+    if type(batch.id) == "string" and exact(batch.remainingQty) and batch.remainingQty > 0 then return true end
+  end
+  return false
+end
+
+function CostDialog.RetireAsked(position)
+  return UI.retiring ~= nil and type(position) == "table" and UI.retiring.key == position.positionKey
+end
+
+function CostDialog.Retire(row)
+  local position = row.position
+  if not CostDialog.CanRetire(position) then return end
+  if GC.SellState.postingRow or GC.SellState.repostingRow then
+    UI.Dock.SetStatus(GC.L["Finish the pending post or repost first"])
+    return
+  end
+  if not CostDialog.RetireAsked(position) then
+    retireToken = retireToken + 1
+    local token = retireToken
+    UI.retiring = { key = position.positionKey, token = token }
+    UI.Row.ShowRowAction(row, "Sold/used?")
+    UI.Dock.SetStatus(GC.L["Click again to stop counting these units as stock. There is no undo."])
+    if C_Timer and C_Timer.After then
+      C_Timer.After(RETIRE_SECONDS, function()
+        if UI.retiring and UI.retiring.token == token then
+          UI.retiring = nil
+          UI.List.RenderRows()
+        end
+      end)
+    end
+    return
+  end
+  UI.retiring = nil
+  local scope = activeScope(position)
+  if not scope or not (GC.Acquisitions and GC.Acquisitions.Retire) then return end
+  local ids = {}
+  for _, batch in ipairs(position.batches) do
+    if type(batch.id) == "string" then ids[#ids + 1] = batch.id end
+  end
+  GC.Acquisitions.Retire(ids, time(), scope)
+  -- What the books hold changed, nothing else: the rows again from the store, the walk left alone.
+  GC.SellCompose.Positions()
+  UI.List.RenderRows()
 end
 
 -- A purchase line in the inspector's WHAT YOU PAID: how many, what each cost, where from and when,
