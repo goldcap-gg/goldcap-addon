@@ -138,6 +138,8 @@ function GC.Sell.Reset()
   -- the bags of this visit.
   for key in pairs(S.durationOverrides) do S.durationOverrides[key] = nil end
   for key in pairs(S.depositQuotes) do S.depositQuotes[key] = nil end
+  -- And this visit's posts (WoW: Forever's sale pace): the next visit's owned list holds them.
+  for key in pairs(S.pacePosted) do S.pacePosted[key] = nil end
   -- The CANCEL button's run (UI/Sell/Dock.lua) ends with the visit: its confirm was for the lots
   -- on screen then, and a press after reopening arms again.
   S.cancelRun = nil

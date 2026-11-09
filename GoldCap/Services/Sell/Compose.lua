@@ -114,12 +114,30 @@ function Compose.Positions(skipPaint)
     -- WoW: Forever only: an item ID has one item level there, so an ItemKey's level is no variant
     -- and the item's own market figures apply (Core/SellPositions.lua's decoratePosition).
     oneLevelPerItem = GC.Sell.OnForever and GC.Sell.OnForever() or nil,
+    -- WoW: Forever only: what each item sold on this auction house lately (GC.Data.ForeverSales),
+    -- kept on the position for the sale pace below and for the post recommendation's overcut.
+    salesFor = GC.Sell.OnForever() and GC.Data and GC.Data.ForeverSales or nil,
     -- Followed groups: each item's selling rule and its unsold rounds (Core/GroupRules.lua,
     -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. Both games load
     -- both; without SellRounds every position reads zero rounds.
     rules = GC.GroupRules and { ruleFor = GC.GroupRules.RuleFor,
       roundsFor = GC.SellRounds and GC.SellRounds.Rounds or function() return 0 end } or nil,
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })
+  -- WoW: Forever's sale pace (Core/ForeverPace.lua, which only GoldCap_Camelot.toc loads): how many
+  -- of each item one post lists, and which posts go up for 24 h, before the queue below reads them.
+  -- This visit's posts certain to be ours count as listed until the owned list holds them, and
+  -- then drop out of S.pacePosted: a lot that sells or is cancelled off that list later is no
+  -- longer up, and must not count again. No unsold rounds are counted per item here yet: every
+  -- item reads none.
+  if GC.ForeverPace then
+    local ctx = { hoursOf = GC.GroupRules and GC.GroupRules.HoursOf, settingIndex = GC.Flips.PostDurationIndex(),
+      slowOn = GC.Sell.SlowSellersOn(), streakFor = function() return 0, 0, nil end, recent = S.pacePosted }
+    for _, position in ipairs(S.positions) do
+      GC.ForeverPace.Decorate(position, ctx)
+      local key = position.positionKey
+      if type(key) == "string" and S.pacePosted[key] then S.pacePosted[key] = position.paceRecent end
+    end
+  end
   -- Stamped in the same walk this function already does over every position, rather than a
   -- second pass triggered from SellableCount() -- see that function for why a fresh compose
   -- per label-read was wasteful (a six-bag scan plus every Acquisitions/Ledger walk, on a tab

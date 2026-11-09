@@ -108,8 +108,11 @@ end
 
 -- The price: empty hands the decision back to GoldCap, which is a real answer. Half-typed text
 -- ("39." between two keystrokes) keeps the last price that read as one. A Confirm waiting on the
--- old price is let go: it would send the price it was armed with, not the one now on screen.
-local function applyPrice(box, key)
+-- old price is let go: it would send the price it was armed with, not the one now on screen. The
+-- queue is built again once the price is settled, as for how many (setQuantity): on WoW: Forever
+-- how many a post lists depends on the price, the units already up at or under it counting
+-- against the sale pace, and the queue reads the price live (GC.Sell._QueueOpts).
+local function applyPrice(box, key, settled)
   local copper
   if not (box:GetText() or ""):match("^%s*$") then
     copper = priceBoxCopper(box)
@@ -117,6 +120,7 @@ local function applyPrice(box, key)
   end
   if S.priceOverrides[key] ~= copper then Post.WalkAway() end
   S.priceOverrides[key] = copper
+  if settled and not S.postingRow then GC.SellCompose.Queue() end
   UI.List.RenderRows()
 end
 

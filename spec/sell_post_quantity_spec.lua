@@ -60,6 +60,15 @@ describe("one quantity rule", function()
       end)
     end
 
+    -- Review of Tasks 1-3, M2: with one unit left in the bags the rule's one is still one, where
+    -- the pace would have held it; at or over the most the quantity is the most, as before.
+    it("a group's one at a time holds with one in the bags", function()
+      local p = with({ rulePostQty = 1, paceTargets = { [2] = 2 }, ownedLots = { { quantity = 2, unitPrice = 100 } } })
+      assert.same({ 1, "rule" }, { GC.SellPositions.PostQuantity(p, nil, 1, 100, 2) })
+      assert.same({ 1, "rule" }, { GC.SellPositions.PostQuantity(p, nil, 5, 100, 2) })
+      assert.same({ 3, "rule" }, { GC.SellPositions.PostQuantity({ rulePostQty = 5 }, nil, 3, 100, nil) })
+    end)
+
     it("MAX is the value the panel stores", function()
       assert.equal("all", GC.SellPositions.ALL)
       assert.same({ 20, "all" }, { GC.SellPositions.PostQuantity(base(), GC.SellPositions.ALL, 20, 100, 2) })

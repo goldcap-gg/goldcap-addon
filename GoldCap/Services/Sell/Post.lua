@@ -662,10 +662,12 @@ function GC.Sell.OnAuctionCreated(auctionID)
   -- Posted is done for this visit, and the dock moves on to the next item (GC.Sell._HoldDoneInQueue):
   -- a post of a number the player typed, or of everything the item had in the bags -- that one
   -- would otherwise stand in the dock again until the bags caught up. A normal item with another
-  -- stack still in the bags is not done: one post lists one stack, and POST lists the next.
+  -- stack still in the bags is not done: one post lists one stack, and POST lists the next. On
+  -- WoW: Forever a post its sale pace capped (`paceCapped`) is done too: the rest stays in the
+  -- bags on purpose, and POST would only hold it "Enough listed".
   local whole = type(owner.position) == "table" and exact(owner.quantity)
     and owner.quantity >= (owner.position.bagQty or 0)
-  if type(owner.positionKey) == "string" and (owner.overrideQuantity or whole) then
+  if type(owner.positionKey) == "string" and (owner.overrideQuantity or whole or owner.paceCapped) then
     S.postedThisVisit[owner.positionKey] = true
     View.moveOn(owner.positionKey) -- the item after it, and its panel if this one's was open
     if S.dockKey == owner.positionKey then S.dockKey = nil end
@@ -678,6 +680,16 @@ function GC.Sell.OnAuctionCreated(auctionID)
   if whole and certain and type(owner.positionKey) == "string" then
     S.postedOut[owner.positionKey] = owner.position.bagQty or 0
     View.leave(owner.positionKey)
+  end
+  -- WoW: Forever (a position with a sale pace, Core/ForeverPace.lua): the lot counts as already up
+  -- at once, by its auction's own id, until the owned list holds that id, so a second POST before
+  -- the list catches up does not list another batch. Only when it is certainly this post's: a
+  -- guess notes nothing, and a post with no id counts from the owned list alone.
+  if certain and exact(auctionID) and auctionID > 0 and type(owner.positionKey) == "string"
+      and type(owner.position) == "table" and owner.position.paceTargets then
+    local list = S.pacePosted[owner.positionKey] or {}
+    list[#list + 1] = { auctionID = auctionID, quantity = owner.quantity, unitPrice = owner.unitPrice }
+    S.pacePosted[owner.positionKey] = list
   end
   GC.Sell._SpendPrice(owner)
   if owner ~= wire then

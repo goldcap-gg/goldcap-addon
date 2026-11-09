@@ -90,9 +90,9 @@ end
 --      cut a vendor pays at least as much for it. "Post everything worth more than a vendor
 --      pays" is this queue's whole design there, so such a position is held back and says why.
 --      Retail passes no opts at all, so this branch never runs there.
---   enough_listed -- WoW: Forever only (opts.durationFor): the sale pace is already covered by the
---      units up at or under the price (GC.SellPositions.PostQuantity), so this post would list
---      none. Decided where the quantity is, before the deposit below weighs it.
+--   enough_listed -- WoW: Forever only (opts.durationFor, opts.unitFor): the sale pace is already
+--      covered by the units up at or under the price (GC.SellPositions.PostQuantity), so this post
+--      would list none. Decided where the quantity is, before the deposit below weighs it.
 --   5. below_deposit -- WoW: Forever only too (opts.depositFor, 2026-11-06): what one click
 --      lists, after the 5% cut and less what a vendor pays for the same units, is no more than
 --      the deposit the post puts up. The deposit comes back only if the lot sells, so posting
@@ -144,10 +144,13 @@ local function evaluate(position, opts)
   -- ...and on fewer by the one quantity rule the post plan and the panel read
   -- (GC.SellPositions.PostQuantity): the seller's own number (the Sell tab's "how many"), a
   -- followed group's "1 at a time" ("POST takes one at a time"), or on WoW: Forever the sale pace
-  -- at the duration the post goes up at (opts.durationFor, passed there alone). Nothing to list
-  -- because enough is already up holds the item as enough_listed.
+  -- at the duration and the price the post goes up at (opts.durationFor and opts.unitFor, passed
+  -- there alone; the price live, a number the player typed since the last compose included, so
+  -- the queue counts the same own lots as already up as the click does). Nothing to list because
+  -- enough is already up holds the item as enough_listed.
+  local quantityUnit = opts and opts.unitFor and opts.unitFor(position) or unit
   postable = GC.SellPositions.PostQuantity(position, opts and opts.quantities and opts.quantities[position.positionKey],
-    postable, unit, opts and opts.durationFor and opts.durationFor(position))
+    postable, quantityUnit, opts and opts.durationFor and opts.durationFor(position))
   if postable <= 0 then return "enough_listed" end
   local value = mulExact(unit, postable)
   if not value then
@@ -226,7 +229,9 @@ end
 -- Post, so its row still says what is wrong with it; the dock reads the count.
 -- `opts.vendorUnit` is WoW: Forever's (`function(itemID) ...`), read by `evaluate`'s
 -- `below_vendor` case above, and so is `opts.depositFor` (`function(position, quantity)`, the
--- deposit for posting that many, or nil), read by `below_deposit`.
+-- deposit for posting that many, or nil), read by `below_deposit`, and `opts.durationFor` and
+-- `opts.unitFor` (`function(position)`, the duration index and the unit price the post goes up
+-- at), read by the quantity rule.
 -- `opts.group`, when set, is the group the Sell tab's GROUPS row picked, and `opts.inGroup(key)`
 -- answers whether a position is in it: one that is not is in none of the three lists, as its row
 -- is not on screen, and one that is sells unless the player unmarked it (Selling's `grouped`).

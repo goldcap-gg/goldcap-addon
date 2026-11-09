@@ -1140,8 +1140,10 @@ function GC.SellPositions.PostQuantity(position, typed, most, unit, durationInde
     if typed < most then return typed, "typed" end
     return most, "all"
   end
+  -- The rule holds whatever is in the bags: with one unit left, its "1 at a time" is still one, not
+  -- the pace's hold (the quantity is the same as before where the rule is at or over `most`).
   local rule = position.rulePostQty
-  if exact(rule) and rule > 0 and rule < most then return rule, "rule" end
+  if exact(rule) and rule > 0 then return math.min(rule, most), "rule" end
   local target = type(position.paceTargets) == "table" and durationIndex and position.paceTargets[durationIndex]
   if exact(target) and target > 0 then
     local left = target - GC.SellPositions.ListedAtOrBelow(position, unit)

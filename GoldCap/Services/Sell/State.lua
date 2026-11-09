@@ -85,6 +85,11 @@ GC.SellState = {
   -- { quantity, deposit }. The click cannot quote, so a post's pin copies the one quoted at paint
   -- or compose for the same quantity and duration. Forgotten when the auction house closes.
   depositQuotes = {},
+  -- WoW: Forever: this visit's posts certain to be ours (GC.Sell.OnAuctionCreated), by
+  -- positionKey: a list of { auctionID, quantity, unitPrice }. Core/ForeverPace.lua counts each as
+  -- already up until the owned list holds its auctionID, so a second POST before that list catches
+  -- up does not list another batch. Forgotten when the auction house closes.
+  pacePosted = {},
   -- The dock walks the selling list once a visit (owner, 2026-10-10): what was posted this visit,
   -- and what the player passed over with SKIP, by positionKey. Out of the walk until the auction
   -- house is closed (GC.Sell._HoldDoneInQueue, GC.Sell.Reset); a row click still puts either in
@@ -355,6 +360,14 @@ function GC.Sell.PostDurationFor(position)
   return validIndex(type(settings) == "table" and settings.postDuration) or 2, "setting"
 end
 
+-- WoW: Forever's "Post slow sellers for 24 h" (Settings): on unless the player turned it off. Not
+-- in GC.DEFAULTS, so a retail save never holds the key (the cancelUndercutPct precedent).
+function GC.Sell.SlowSellersOn()
+  local settings = type(GC.db) == "table" and GC.db.settings
+  local sniper = type(settings) == "table" and settings.sniper
+  return not (type(sniper) == "table" and sniper.foreverSlowSellers24h == false)
+end
+
 -- What a post held for its sale pace says (GC.SellPositions.PostQuantity's "enough"): the units
 -- already up at or under the price (`listed`) and the hours the post would have run. The position
 -- is the one the click and the panel hold; nothing here reads it yet.
@@ -391,6 +404,14 @@ function GC.Sell._QueueOpts()
   -- (below_deposit, 2026-11-06). Retail's queue is left as it was.
   if GC.Sell.OnForever() and GC.SellBags and GC.SellBags.Deposit then
     opts.depositFor = GC.SellBags.Deposit
+  end
+  -- ...and the duration and the price each post goes up at, which the sale pace is read at
+  -- (GC.SellPositions.PostQuantity: the units already up at or under the price count against it).
+  -- The price is read live, as the panel and the click read it, so a price typed since the last
+  -- compose holds or frees the item at once (the price box rebuilds the queue).
+  if GC.Sell.OnForever() then
+    opts.durationFor = function(p) return (GC.Sell.PostDurationFor(p)) end
+    opts.unitFor = function(p) return (effectivePostUnit(p)) end
   end
   return opts
 end
