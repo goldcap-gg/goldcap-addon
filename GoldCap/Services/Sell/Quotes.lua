@@ -8,7 +8,6 @@ local S, View = GC.SellState, GC.SellView
 local Quotes, Compose, Walk = GC.SellQuotes, GC.SellCompose, GC.SellWalk
 local exact = GC.SellUtil.exact
 local QUOTE_STALE_SECONDS, SELL_QUOTE_ACTION_AGE = GC.Sell.QUOTE_STALE_SECONDS, GC.Sell.SELL_QUOTE_ACTION_AGE
-local QUOTE_REWALK_AGE = GC.Sell.QUOTE_REWALK_AGE
 
 local function quoteDriver()
   local function boundedLevels(itemID, commodity)
@@ -266,7 +265,7 @@ function GC.Sell.FoldBulk(browsed)
     local held = itemID and S.quotes[itemID] or nil
     -- A real quote the walk already holds is better than this in every way; keep it.
     local keep = type(held) == "table" and not held.bulk and not held.bookless and exact(held.at)
-      and (now - held.at) <= QUOTE_REWALK_AGE
+      and (now - held.at) <= SELL_QUOTE_ACTION_AGE
     if exact(itemID) and exact(unit) and unit > 0 and not row.containsOwnerItem and not keep then
       GC.QuoteCache.Set(S.quotes, itemID, unit, now)
       if type(S.quotes[itemID]) == "table" then

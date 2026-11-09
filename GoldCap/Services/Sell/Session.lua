@@ -24,12 +24,26 @@ end
 -- `automatic` marks the self-driven repeat below, which politely stands aside
 -- for anything already in flight. A press of the button does not: it means "do
 -- it now", and refusing while a phase was set is what made the button dead.
--- Whatever was in flight is let go of behind a drain tombstone, exactly the way
+-- The one exception is a press that finds a full pass already reading books: it joins that pass.
+-- Otherwise whatever was in flight is let go of behind a drain tombstone, exactly the way
 -- Reset already did it, so a late terminal event is consumed rather than
 -- credited to this run.
 -- `visit`: the auction house opening or the tab being shown, not a press (Walk.Begin).
 function GC.Sell.Refresh(automatic, visit)
   if automatic and S.refresh.phase ~= "idle" and S.refresh.phase ~= "done" and S.refresh.phase ~= "error" then
+    return
+  end
+  -- A press, or a post's refresh, while a full pass is already reading books joins that pass:
+  -- it asks for the bulk price and the listings query and leaves the walk, its place and its
+  -- count alone. Restarting it would drop the search on the wire and start over at 1/N.
+  local phase = S.refresh.phase
+  if not automatic and not visit and S.refresh.fullPass
+      and (phase == "pricing" or phase == "waiting_result" or phase == "draining") then
+    S.refresh.bulkWanted, S.refresh.ownedWanted = true, true
+    Compose.Positions()
+    View.render()
+    GC.Sell.TrySendBulk()
+    View.status(GC.L["Checking prices…"])
     return
   end
   -- A PRESS of Refresh is the player asking for the list to be re-ordered; the walk's own
