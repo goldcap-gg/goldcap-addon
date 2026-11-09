@@ -30,10 +30,10 @@ T.color = {
 }
 
 T.tier = {
-  HOT     = { 1, 0.35, 0.15 },
-  GOOD    = { 0.25, 0.85, 0.25 },
-  WATCH   = { 0.65, 0.65, 0.65 },
-  SUSPECT = { 1, 0.85, 0.1 },
+  HOT     = rgb("tierHot"),
+  GOOD    = rgb("tierGood"),
+  WATCH   = rgb("tierWatch"),
+  SUSPECT = rgb("tierSuspect"),
 }
 
 T.pad = { xs = 4, s = 8, m = 12, l = 16 }
@@ -171,7 +171,7 @@ function T.Rail(parent)
   -- card_left.png: left corners rounded to match the window card's own radius 12, right edge
   -- square (it borders content, not window chrome) -- a flat rectangle here would poke square
   -- corners past the window's rounded top-left/bottom-left arcs.
-  local bg = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { 0, 0, 0, 0.22 })
+  local bg = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { 0, 0, 0, 0.22 }) -- untinted
   bg:SetAllPoints()
   local edge = frame:CreateTexture(nil, "BORDER")
   edge:SetColorTexture(K.hairline[1], K.hairline[2], K.hairline[3], K.hairline[4])

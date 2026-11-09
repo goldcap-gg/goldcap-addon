@@ -607,7 +607,7 @@ function Inspector.Build()
   inspectorFill:SetAllPoints(inspector)
   local ibc = Theme.color.border
   local inspectorEdge = Theme.SlicedTexture(inspector, "BORDER", Theme.MEDIA .. "ring.png",
-    { 1, 1, 1, (ibc[4] or 0.06) * 2 }, 24)
+    GC.Kit.Tokens.ink((ibc[4] or 0.06) * 2), 24)
   inspectorEdge:SetAllPoints(inspector)
 
   inspector.icon = inspector:CreateTexture(nil, "ARTWORK")

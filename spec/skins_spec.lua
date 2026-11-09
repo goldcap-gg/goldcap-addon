@@ -132,7 +132,7 @@ describe("skins", function()
           local r = contrast(c[key], c[ground])
           assert.is_true(r >= 4.5, ("%s: %s on %s is %.2f"):format(id, key, ground, r))
         end
-        for _, key in ipairs({ "text3", "text4", "profit", "loss", "goldText", "yours", "warn" }) do
+        for _, key in ipairs({ "text3", "text4", "profit", "loss", "goldText", "yours", "warn", "tierHot", "tierGood", "tierWatch", "tierSuspect" }) do
           local r = contrast(c[key], c[ground])
           assert.is_true(r >= 3, ("%s: %s on %s is %.2f"):format(id, key, ground, r))
         end

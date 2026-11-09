@@ -18,10 +18,32 @@ describe("skins and literal colours", function()
     return false
   end
 
-  -- True for a `|cff` escape of six hex digits that is not marked as a Blizzard surface's.
+  -- True for a `|cff` escape of six hex digits, or one whose digits are a format directive
+  -- (`|cff%s`), that is not marked as a Blizzard surface's.
   local function literalEscape(line)
     if isComment(line) or line:find("%-%- blizzard surface%s*$") then return false end
-    return line:find("|c[fF][fF]%x%x%x%x%x%x") ~= nil
+    return line:find("|c[fF][fF]%x%x%x%x%x%x") ~= nil or line:find("|c[fF][fF]%%[sdx]") ~= nil
+  end
+
+  -- True for a number that can be a colour channel: 0 to 1.
+  local function channel(text)
+    local n = tonumber(text)
+    return n ~= nil and n >= 0 and n <= 1
+  end
+
+  -- True for a line holding a table of three or four colour channels, `{ 0.5, 0.5, 0.5 }`, unless it
+  -- is marked `-- untinted`. A table is never a call's first argument, so the call matcher cannot see it.
+  local function literalTable(line)
+    if isComment(line) or line:find("%-%- untinted%s*$") then return false end
+    for body in line:gmatch("{([^{}]*)}") do
+      local parts = {}
+      for part in (body .. ","):gmatch("%s*([^,]-)%s*,") do parts[#parts + 1] = part end
+      if (#parts == 3 or #parts == 4) and channel(parts[1]) and channel(parts[2]) and channel(parts[3])
+          and (parts[4] == nil or channel(parts[4])) then
+        return true
+      end
+    end
+    return false
   end
 
   -- The text of each AddLine / AddDoubleLine call in `text`, parentheses balanced, strings skipped.
@@ -50,7 +72,7 @@ describe("skins and literal colours", function()
   local function windowTooltipCall(call)
     call = call:gsub('"[^"]*"', '""'):gsub("'[^']*'", "''")
     return call:find(",%s*%.?%d[%d.]*%s*,%s*%.?%d[%d.]*%s*,%s*%.?%d") ~= nil
-      or call:find("Theme%.color%.") ~= nil or call:find("Tokens%.color%.") ~= nil
+      or call:find("Theme%.color%.") ~= nil or call:find("Theme%.tier%.") ~= nil or call:find("Tokens%.color%.") ~= nil
       or call:find("[^%w_.]K%.") ~= nil
   end
 
@@ -98,6 +120,36 @@ describe("skins and literal colours", function()
     assert.is_false(flagged('tip:AddLine(text, KB.text1[1], KB.text1[2], KB.text1[3])'))
     assert.is_false(flagged('tip:AddLine((GC.L["a (b, 1, 2, 3)"]):format(n), c[1], c[2], c[3])'))
     assert.is_false(flagged('GameTooltip:AddLine(" ")'))
+  end)
+
+  it("the table matcher flags a table of channels and passes tokens, counts and marked lines", function()
+    assert.is_true(literalTable("local TRACK = { 1, 1, 1, 0.08 }"))
+    assert.is_true(literalTable("  HOT = { 1, 0.35, 0.15 },"))
+    assert.is_true(literalTable("  x = { 0, 0, 0, 0.35 }, y = 2"))
+    assert.is_false(literalTable("local PRESSED = { 0, 0, 0, 0.28 } -- untinted"))
+    assert.is_false(literalTable("local PCTS = { 25, 50, 75, 100 }"))
+    assert.is_false(literalTable("local SIZES = { 8, 7, 6 }"))
+    assert.is_false(literalTable("local c = { ink[1], ink[2], ink[3], 0.5 }"))
+    assert.is_false(literalTable("local pair = { 1, 2 }"))
+    assert.is_false(literalTable("  -- { 1, 1, 1, 1 } was the old fill"))
+  end)
+
+  it("the escape matcher flags a format directive for the hex digits", function()
+    assert.is_true(literalEscape('  ("  |cff%s%s|r"):format(hex, text)'))
+    assert.is_false(literalEscape('  ("|cn%s:%s|r"):format(a, b)'))
+  end)
+
+  it("colour tables read tokens", function()
+    local found = {}
+    eachUiFile(function(path, text)
+      if path:match("Kit/Tokens%.lua$") or path:match("Kit/Skins%.lua$") then return end
+      local n = 0
+      for line in (text .. "\n"):gmatch("(.-)\n") do
+        n = n + 1
+        if literalTable(line) then found[#found + 1] = path .. ":" .. n end
+      end
+    end)
+    assert.same({}, found)
   end)
 
   it("colour calls read tokens", function()

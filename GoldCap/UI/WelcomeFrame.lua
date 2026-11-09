@@ -264,7 +264,7 @@ local function build()
   card.linkLabel = label(card, 12, K.text1)
 
   -- The link: a well with the URL in it, selected whole on a click so the copy keys just work.
-  local box = Theme.Card(card, { 0, 0, 0, 0.35 }, K.glassBorder, true)
+  local box = Theme.Card(card, { 0, 0, 0, 0.35 }, K.glassBorder, true) -- untinted
   box:SetHeight(G.LINK_H)
   card.box = box
   box.keys = Theme.Label(box, 11)

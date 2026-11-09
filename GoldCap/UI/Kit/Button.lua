@@ -10,7 +10,7 @@ local K = GC.Kit.Tokens.color
 local HOVER_WASH = K.hoverWash
 -- A square button's edge, and the shade the engine lays over any button while it is held.
 local SQUARE_EDGE = GC.Kit.Tokens.alpha("ink", 0.11)
-local PRESSED = { 0, 0, 0, 0.28 }
+local PRESSED = { 0, 0, 0, 0.28 } -- untinted
 -- A disabled button draws its fill and ring at this share of their own alpha.
 local DIM = 0.45
 local PRIMARY_GLOW = GC.Kit.Tokens.alpha("gold", 0.35)
@@ -35,7 +35,7 @@ local BUTTON_VARIANTS = {
   primary = { bg = K.gold, text = K.onGold },
   active  = { bg = GC.Kit.Tokens.alpha("gold", 0.14), text = K.goldText },
   ghost   = { bg = nil, text = K.text1 },
-  danger  = { bg = K.lossFill, text = { 0.102, 0.024, 0.024 } },
+  danger  = { bg = K.lossFill, text = K.onLoss },
   -- Attention without alarm: a purchase that is real but not the whole line (the BUY tab's
   -- capped fill). Red is what CANCEL and losses wear and reads as "do not".
   warn    = { bg = GC.Kit.Tokens.alpha("warn", 0.16), text = K.warn },
@@ -47,7 +47,7 @@ local BUTTON_VARIANTS = {
   yours   = { bg = GC.Kit.Tokens.alpha("yours", 0.14), text = K.yours },
   -- The half of a segmented switch that is not on: bare text in the track the switch draws, no
   -- fill and no ring of its own (the Sell tab's TO POST / MY LOTS). Its other half is `active`.
-  segment = { bg = { 1, 1, 1, 0 }, text = K.text3, bare = true },
+  segment = { bg = { 1, 1, 1, 0 }, text = K.text3, bare = true }, -- untinted
 }
 
 -- rounded T.Button: file + margin per size class, keyed the same way T.Card's `small`
@@ -103,7 +103,7 @@ function T.Button(parent, variant, rounded)
     b.bg = T.SlicedTexture(b, "BACKGROUND", roundedSpec.bg, spec.bg or ROUNDED_GHOST_FILL, roundedSpec.margin)
     b.bg:SetAllPoints()
   else
-    b.bg = T.Solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
+    b.bg = T.Solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 }) -- untinted
     b.bg:SetAllPoints()
   end
 
@@ -278,7 +278,7 @@ function T.Button(parent, variant, rounded)
     -- Rounded ghost (spec.bg == nil) falls back to ROUNDED_GHOST_FILL, not alpha-0 -- see that
     -- constant's own comment. `base` feeds OnEnable's restore below too, so that path inherits
     -- this fix for free -- it just repaints whatever `base` SetVariant last computed.
-    base = spec.bg or (b.roundedMargin and ROUNDED_GHOST_FILL or { 0, 0, 0, 0 })
+    base = spec.bg or (b.roundedMargin and ROUNDED_GHOST_FILL or { 0, 0, 0, 0 }) -- untinted
     paintFill()
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
     if b.caret then b.caret:SetVertexColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1) end

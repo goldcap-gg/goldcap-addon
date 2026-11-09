@@ -131,14 +131,14 @@ local PURPLE = { 176 / 255, 100 / 255, 240 / 255, 1 }
 local FILL_TOP, FILL_BOTTOM, ON_PURPLE = hex("C58BFA"), hex("9A55E0"), hex("14081F")
 local CASTING_FILL = { PURPLE[1], PURPLE[2], PURPLE[3], 0.22 }
 local CASTING_TEXT = hex("C9A3F5")
-local MATS_C, VENDOR_C, LOSER_C = K.profit, hex("F2B544"), K.text4
+local MATS_C, VENDOR_C, LOSER_C = K.profit, K.vendor, K.text4
 local CARD_FILL = { PURPLE[1], PURPLE[2], PURPLE[3], 0.06 }
 local CARD_RING = { PURPLE[1], PURPLE[2], PURPLE[3], 0.35 }
 local ROW_CAST_FILL = { PURPLE[1], PURPLE[2], PURPLE[3], 0.10 }
 local ROW_CAST_RING = { PURPLE[1], PURPLE[2], PURPLE[3], 0.6 }
 local BAR_TRACK = GC.Kit.Tokens.alpha("ink", 0.08)
 -- The shade the engine lays over a held button (UI/Kit/Button.lua's PRESSED).
-local PRESSED = { 0, 0, 0, 0.28 }
+local PRESSED = { 0, 0, 0, 0.28 } -- untinted
 -- A disabled button's fill, at this share of its own alpha (UI/Kit/Button.lua's DIM).
 local DIM = 0.45
 -- A line done this visit.

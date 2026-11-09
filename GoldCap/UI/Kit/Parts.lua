@@ -19,9 +19,9 @@ local KP = GC.Theme.Parts
 -- The sunken track of a two-way switch, the bank switch's and the search row's filter
 -- (UI/HoardList.lua): black at 0.35 under the glass, as the boards draw it; the kit has no token for
 -- it.
-local SWITCH_TRACK = { 0, 0, 0, 0.35 }
+local SWITCH_TRACK = { 0, 0, 0, 0.35 } -- untinted
 -- An icon with no quality colour edged dark.
-local ICON_EDGE = { 0, 0, 0, 0.75 }
+local ICON_EDGE = { 0, 0, 0, 0.75 } -- untinted
 -- An icon whose item has moved in the run: shaded in the window's own dark under the check, as
 -- the board draws it.
 local MOVED_SHADE = GC.Kit.Tokens.alpha("windowBottom", 0.6)

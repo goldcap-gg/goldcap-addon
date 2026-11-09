@@ -473,7 +473,7 @@ function GC.AuctionHouseTab.Install()
     built:SetFrameLevel(ah:GetFrameLevel() + DOCK_LEVEL)
     local bg = built:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(built)
-    local c = GC.Theme and GC.Theme.color and GC.Theme.color.bg or { 0.05, 0.05, 0.07 }
+    local c = GC.Theme and GC.Theme.color and GC.Theme.color.bg or { 0.05, 0.05, 0.07 } -- untinted
     bg:SetColorTexture(c[1], c[2], c[3], 1)
     built:EnableMouse(true)
     built:EnableMouseWheel(true)

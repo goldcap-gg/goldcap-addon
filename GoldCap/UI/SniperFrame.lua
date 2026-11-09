@@ -1613,7 +1613,8 @@ function GC.Sniper._MarkSuffix(itemID)
   local state, kind = GC.Sniper._MarkState(itemID)
   local text = GC.ItemsBoard.MarkText(state, kind)
   if not text then return "" end
-  return ("  |cff%s%s|r"):format(state == "missing" and "f7cf5a" or "8c8a85", text)
+  return "  " .. GC.Util.Colored(
+    state == "missing" and GC.Kit.Tokens.color.goldText or GC.Kit.Tokens.color.dealMuted, text)
 end
 
 -- The line under an Items board row's name: `text` dim, then the item's collection mark; "" with
@@ -1739,7 +1740,7 @@ function GC.Sniper._PaintBoardEntry(row, entry)
   row:SetAlpha(1)
   row.pinBg:Hide()
   if hoveredRow ~= row then row.rail:Hide() end
-  row.tierChip:SetLabel("", { 0, 0, 0, 0 })
+  row.tierChip:SetLabel("", { 0, 0, 0, 0 }) -- untinted
   for _, cell in ipairs({ row.discountText, row.unitText, row.priceText, row.profitText, row.trendText }) do
     cell:SetText("")
   end
@@ -10266,7 +10267,7 @@ local function createDialog()
     { Theme.color.panel[1], Theme.color.panel[2], Theme.color.panel[3], 1 }, 24)
   d.sheet:SetAllPoints()
   d.ring = Theme.SlicedTexture(d, "BORDER", Theme.MEDIA .. "ring.png",
-    { 1, 1, 1, (Theme.color.border[4] or 0.06) * 2 }, 24)
+    GC.Kit.Tokens.ink((Theme.color.border[4] or 0.06) * 2), 24)
   d.ring:SetAllPoints()
   d:EnableMouse(true)
   -- In from the right as it opens, as the Sell item panel does. It goes at once: its hide is what

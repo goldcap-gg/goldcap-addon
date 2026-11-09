@@ -18,7 +18,7 @@ local M = GC.QuestRewardMark
 
 local LOOT_ITEM = 0                     -- GetQuestItemInfoLootType: 0 an item, 1 a currency
 local LAYOUT = { GAP = 6, BOTTOM = 4, LEVEL_ABOVE = 2 }
-local CLEAR = { 0, 0, 0, 0 }
+local CLEAR = { 0, 0, 0, 0 } -- untinted
 
 -- The client, in one place. QuestInfoFrame's `questLog` and `rewardsFrame` are set by
 -- QuestInfo_Display; the two reward functions are the ones QuestInfo_ShowRewards itself calls when

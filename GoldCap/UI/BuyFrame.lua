@@ -3294,7 +3294,7 @@ local function showLineTooltip(row)
       -- One lot per press: the lots by price (the dock's groups), the dear ones marked, and the one
       -- the next press buys -- never a walk up the book.
       for _, g in ipairs(GC.BuyLots.Groups(lots, line.cap, line.minIlvl)) do
-        local rc = g.over and Theme.tier.SUSPECT or dim
+        local rc = g.over and GC.Kit.Tokens.blizzard.tierSuspect or dim
         GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(g.count, formatAmount(g.buyout))),
           tip(g.over and GC.L["over your cap"] or ""), fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
       end
@@ -3303,7 +3303,7 @@ local function showLineTooltip(row)
           tip((nextLot.itemLevel or 0) > 0 and (GC.L["ilvl %d"]):format(nextLot.itemLevel) or ""),
           gold[1], gold[2], gold[3], gold[1], gold[2], gold[3])
       elseif why == "nocap" or why == "wallet" then
-        local sc = Theme.tier.SUSPECT
+        local sc = GC.Kit.Tokens.blizzard.tierSuspect
         GameTooltip:AddLine(tip(why == "nocap" and GC.L["no cap for this item. Right-click the line to set one"]
           or GC.L["not enough gold"]), sc[1], sc[2], sc[3], true)
       elseif why == "none" then
@@ -3312,7 +3312,7 @@ local function showLineTooltip(row)
     elseif read and read.ladder then
       for _, r in ipairs(GC.BuyView.Ladder(read.ladder, offered(line), line.cap)) do
         local right = (r.take > 0 and (GC.L["you take %d"]):format(r.take)) or (r.over and GC.L["over your cap"]) or ""
-        local rc = r.take > 0 and gold or (r.over and Theme.tier.SUSPECT or dim)
+        local rc = r.take > 0 and gold or (r.over and GC.Kit.Tokens.blizzard.tierSuspect or dim)
         GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit))), tip(right),
           fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
       end

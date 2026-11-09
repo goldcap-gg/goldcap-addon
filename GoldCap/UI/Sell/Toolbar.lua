@@ -314,7 +314,7 @@ function Toolbar.Build()
   -- frame at the buttons' level would draw its fill over theirs, layer by layer (the window
   -- glass did that to the Sniper's buttons, 691786b).
   local trackW = 2 * DECK_W + 3 * DECK_PAD
-  local trackFill = Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png", { 0, 0, 0, 0.3 }, 12)
+  local trackFill = Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png", { 0, 0, 0, 0.3 }, 12) -- untinted
   trackFill:SetPoint("TOPLEFT"); trackFill:SetSize(trackW, 26)
   local tb = Theme.color.border
   local trackRing = Theme.SlicedTexture(container, "BORDER", Theme.MEDIA .. "plaque_ring.png",

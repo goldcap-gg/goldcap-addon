@@ -48,6 +48,16 @@ local c = {
   -- Inline-escape colours of single words in running text: a failed import, and the Sold
   -- window's gold, green and dim figures, the Deals rows' muted counts, the Sell rows' dim note.
   fail = hex("FF4040"),
+  -- The Sniper tiers as text (hot, good, watch, suspect), and the Disenchant window's vendor figure.
+  tierHot = { 1, 0.35, 0.15, 1 }, tierGood = { 0.25, 0.85, 0.25, 1 },
+  tierWatch = { 0.65, 0.65, 0.65, 1 }, tierSuspect = { 1, 0.85, 0.1, 1 },
+  vendor = hex("F2B544"),
+  -- Lettering on the loss fill (the same red in every skin).
+  onLoss = { 0.102, 0.024, 0.024, 1 },
+  -- The Sold window's tile fills (a tile, the road, the banner, an empty slot) and its faint text.
+  soldTile = { 0.071, 0.078, 0.098, 1 }, soldRoad = { 0.117, 0.112, 0.105, 1 },
+  soldBanner = { 0.099, 0.138, 0.109, 1 }, soldEmpty = { 0.063, 0.071, 0.090, 1 },
+  soldFaint = { 0.459, 0.451, 0.435, 1 },
   soldGold = hex("E8C15A"), soldSilver = hex("C9CED6"), soldCopper = hex("D08A5A"), soldGreen = hex("5FD38D"), soldDim = hex("9D9D9D"),
   dealMuted = hex("8C8A85"), rowDim = hex("8F8D88"),
 }
@@ -74,6 +84,7 @@ b.tipGrey = { 0.65, 0.65, 0.65, 1 }
 b.tipGood = { 0.3, 0.85, 0.4, 1 }
 b.tipSafe = { 0.25, 0.85, 0.25, 1 }
 b.tipWarn = { 1, 0.6, 0.2, 1 }
+b.tipOrange = { 0.941, 0.627, 0.294, 1 }
 b.tipAmber = { 0.83, 0.64, 0.22, 1 }
 
 -- Colours derived from a token. Each is registered, so Tokens.refresh() rewrites it in place and

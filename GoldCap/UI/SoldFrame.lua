@@ -61,11 +61,12 @@ local HEX = setmetatable({}, { __index = function(_, key)
   local color = GC.Kit.Tokens.color[HEX_KEY[key]]
   return color and GC.Util.Colored(color, ""):sub(1, -3)
 end })
-local COLOR = {
-  tile = { 0.071, 0.078, 0.098 }, road = { 0.117, 0.112, 0.105 },
-  banner = { 0.099, 0.138, 0.109 }, empty = { 0.063, 0.071, 0.090 },
-  faint = { 0.459, 0.451, 0.435 }, orange = { 0.941, 0.627, 0.294 }, white = { 1, 1, 1 },
-}
+local COLOR_KEY = { tile = "soldTile", road = "soldRoad", banner = "soldBanner", empty = "soldEmpty", faint = "soldFaint" }
+-- The window's fills and faint text, read from the applied skin when a tile is built; `orange` and
+-- `white` are the game tooltip's.
+local COLOR = setmetatable({ orange = B.tipOrange, white = B.tipWhite }, { __index = function(_, key)
+  return GC.Kit.Tokens.color[COLOR_KEY[key]]
+end })
 
 -- @localised-keys: literals in these tables ARE GC.L keys. They are built at FILE SCOPE, where
 -- GC.L still answers in English (ApplyLocale runs at ADDON_LOADED), so each is looked up where
