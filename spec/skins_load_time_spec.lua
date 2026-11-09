@@ -4,19 +4,37 @@ local helper = require("spec.spec_helper")
 -- later, at ADDON_LOADED, never reaches the copy. Tokens.alpha / Tokens.rgb return a table that
 -- Skins.Apply rewrites in place instead.
 describe("skins and colours taken at load", function()
-  -- True for a line at column 1 that starts `local` and copies a colour's channels or runs a tint.
-  local function copiesChannels(line)
-    if line:sub(1, 6) ~= "local " then return false end
-    if line:find("[%w_]+%.[%w_]+%[[123]%]") then return true end
+  -- True for a line that copies a colour's channels (`a.b[1]`) or runs a tint( call.
+  local function copies(line)
+    if line:find("([%w_]+%.[%w_]+)%[1%]%s*,%s*%1%[2%]") then return true end
     return line:find("tint%(") ~= nil and line:find("function tint", 1, true) == nil
   end
 
-  it("the matcher flags a copy and passes an alias and a derived colour (positive control)", function()
-    assert.is_true(copiesChannels("local RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }"))
-    assert.is_true(copiesChannels("local RING = tint(K.gold, 0.5)"))
-    assert.is_false(copiesChannels("local RING = GC.Kit.Tokens.alpha(\"gold\", 0.5)"))
-    assert.is_false(copiesChannels("local PLAY = { gather = K.profit }"))
-    assert.is_false(copiesChannels("  local inside = { K.gold[1], K.gold[2], K.gold[3] }"))
+  -- The offending lines of a file's text: those outside a body that opens on a column-1 line with `function` and closes on a column-1 `end`, so a
+  -- copy made when a window is built is fine, one in a load-time constructor (indented or not) is not.
+  local function offenders(lines)
+    local bad, inFn = {}, false
+    for n, line in ipairs(lines) do
+      if line:match("^%S") and line:find("function", 1, true) and not line:find("end%s*[,)]*%s*$") then
+        inFn = true
+      elseif inFn and line:match("^end") then
+        inFn = false
+      elseif not inFn and copies(line) then
+        bad[#bad + 1] = n
+      end
+    end
+    return bad
+  end
+
+  it("the matcher flags load-time copies and passes aliases, derived colours and copies in functions", function()
+    assert.same({ 1 }, offenders({ "local RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }" }))
+    assert.same({ 1 }, offenders({ "local RING = tint(K.gold, 0.5)" }))
+    assert.same({ 2 }, offenders({ "local V = {", "  active = { bg = { K.gold[1], K.gold[2], K.gold[3], 0.14 } },", "}" }))
+    assert.same({}, offenders({ "local RING = GC.Kit.Tokens.alpha(\"gold\", 0.5)", "local PLAY = { gather = K.profit }" }))
+    assert.same({}, offenders({ "local function f()", "  local c = { K.gold[1], K.gold[2], K.gold[3] }", "end",
+      "function T.X()", "  return { K.gold[1], K.gold[2], 0 }", "end" }))
+    -- Back at file level after a function ends, a copy is flagged again.
+    assert.same({ 4 }, offenders({ "local function f()", "  return 1", "end", "local A = { K.gold[1], K.gold[2] }" }))
   end)
 
   it("no UI file copies a token's channels at load", function()
@@ -25,12 +43,10 @@ describe("skins and colours taken at load", function()
     for path in listing:lines() do
       files = files + 1
       local fh = assert(io.open(path, "r"))
-      local n = 0
-      for line in fh:lines() do
-        n = n + 1
-        if copiesChannels(line) then found[#found + 1] = path .. ":" .. n end
-      end
+      local lines = {}
+      for line in fh:lines() do lines[#lines + 1] = line end
       fh:close()
+      for _, n in ipairs(offenders(lines)) do found[#found + 1] = path .. ":" .. n end
     end
     listing:close()
     assert.is_true(files > 20, "the walk found no UI files")
