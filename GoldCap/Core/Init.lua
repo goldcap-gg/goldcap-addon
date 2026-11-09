@@ -222,6 +222,9 @@ GC.DEFAULTS = {
       -- ADDON_LOADED handler below) and re-written by UI/Theme.lua's SetScale itself on every
       -- change (the settings panel's font-scale slider), not by UI/SettingsFrame.lua directly.
       fontScale = 1.0,
+      -- Window skin id (UI/Kit/Skins.lua). Applied once at load, before any frame is built; an id
+      -- the addon does not know loads goldcap and is left as stored.
+      skin = "goldcap",
       -- Check panel v2: the evidence grid defaults open where the drawer fits -- the F5 guard
       -- in UI/SniperFrame.lua's applyDetailsState still closes it on a short window, and the
       -- toggle itself keeps persisting whatever the player actually chooses from here on.
@@ -499,6 +502,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- WoW: Forever's own scan: decides once whether this client is Forever, and holds the save
     -- GC.Data.GetItemValue reads the scan from. Off (and writing nothing) everywhere else.
     if GC.ForeverScan then GC.ForeverScan.Init(GC.db) end
+    -- Before the language and before any frame: the skin writes the palette every widget reads
+    -- at construction, and the locale's font refresh must run on the skin's faces. Never written
+    -- back, so a broken stored id stays as it was.
+    if GC.Kit and GC.Kit.Skins then GC.Kit.Skins.Apply(GC.db.settings.sniper.skin) end
     -- Before any frame is built: every widget reads its label through GC.L at construction,
     -- so the active language has to be settled first. After ApplyDefaults, because it reads
     -- settings.locale.
