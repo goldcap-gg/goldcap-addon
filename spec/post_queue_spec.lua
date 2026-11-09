@@ -476,6 +476,58 @@ describe("PostQueue", function()
     end)
   end)
 
+  describe("on WoW: Forever (minimumProfit, returnHold)", function()
+    local function pair()
+      local quotes = {}
+      setQuote(quotes, 2672, 30, 10)
+      return build({ bagStock = { stock("commodity:2672", 2672, "Stringy Wolf Meat", 2) }, quotes = quotes })
+    end
+    local function net(position)
+      local value = position.postRecommendation.unit * 2
+      return value - math.ceil(value / 20)
+    end
+    local function reasonFor(opts)
+      local entries, skipped = GC.PostQueue.Build(pair(), opts)
+      return entries[1] and "queued" or skipped[1].reason
+    end
+
+    it("holds a post that earns under the minimum", function()
+      local n = net(pair()[1])
+      local function with(deposit, minimum)
+        return reasonFor({ minimumProfit = minimum, depositFor = function() return deposit end })
+      end
+      assert.equal("queued", with(n - 20, 20))
+      assert.equal("low_profit", with(n - 19, 20))
+      assert.equal("below_deposit", with(n, 20))
+      assert.equal("queued", with(nil, 20))
+      assert.equal("queued", with(n - 19, 0))
+    end)
+
+    it("holds an item that keeps coming back", function()
+      local positions = pair()
+      local function with(rounds, opts, rule)
+        positions[1].returnRounds, positions[1].rule = rounds, rule
+        local entries, skipped = GC.PostQueue.Build(positions, opts)
+        return entries[1] and "queued" or skipped[1].reason
+      end
+      assert.equal("keeps_returning", with(3, { returnHold = 3 }))
+      assert.equal("queued", with(2, { returnHold = 3 }))
+      assert.equal("queued", with(3, { returnHold = 3 }, { play = "flip" }))
+      assert.equal("queued", with(3, {}))
+    end)
+
+    it("says how much it earns under", function()
+      local view = { Sell = {} }
+      helper.loadModule("Core/QuoteCache.lua", view)
+      helper.loadModule("Core/ForeverDeals.lua", view)
+      helper.loadSell(view)
+      view.db = { settings = { sniper = {} } }
+      assert.equal(20, view.Sell.MinimumProfit())
+      assert.equal("Earns under " .. view.SellUI.fmt.cell(20), view.SellUI.fmt.skipText("low_profit"))
+      assert.equal("Keeps coming back", view.SellUI.fmt.skipText("keeps_returning"))
+    end)
+  end)
+
   -- The selling list (owner, 2026-10-09): POST and the post-next key list only what the player
   -- marked for selling. What Deals bought and the player still holds counts as marked until they
   -- say otherwise; the player's own choice, either way, wins and is kept per position.

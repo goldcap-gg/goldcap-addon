@@ -34,6 +34,8 @@ local ROW_TAG_TEXT = {
   small_undercut = "small undercut",
   deposit = "hold",
   enough_listed = "Enough listed",
+  keeps_returning = "Keeps coming back",
+  low_profit = "Earns under %s",
 }
 
 local rowTag
@@ -57,6 +59,7 @@ rowTag = function(position, reason, notOnHand)
     tag, tone = GC.L["far below market"], "alarm"
   elseif reason then
     tag, tone = ROW_TAG_TEXT[reason] and GC.L[ROW_TAG_TEXT[reason]] or nil, ROW_TAG_TONE[reason]
+    if tag and reason == "low_profit" then tag = tag:format(formatCell(GC.Sell.MinimumProfit())) end
   end
   local uncosted = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
   if not tag and position.coverage ~= "COMPLETE" and not notOnHand and uncosted > 0 then

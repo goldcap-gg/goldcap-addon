@@ -1864,6 +1864,10 @@ GC.Locales.ptBR = {
     "Clique de novo para deixar de contar estas unidades como estoque. Não dá para desfazer.",
   -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
   ["Enough listed"] = "Já há o bastante",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Continua voltando",
+  ["Earns under %s"] = "Rende menos de %s",
+  ["Raise: next price is %d%% higher"] = "Subir: o próximo preço é %d%% maior",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Seus %d já anunciados cobrem cerca de %d h de vendas. Digite um número ou clique em MÁX. para anunciar mais.",
 }

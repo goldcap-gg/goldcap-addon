@@ -1872,6 +1872,10 @@ GC.Locales.esMX = {
     "Pulsa otra vez para dejar de contar estas unidades como inventario. No se puede deshacer.",
   -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
   ["Enough listed"] = "Ya hay bastantes",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Sigue volviendo",
+  ["Earns under %s"] = "Gana menos de %s",
+  ["Raise: next price is %d%% higher"] = "Subir: el siguiente precio es un %d%% más alto",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Tus %d ya publicados cubren unas %d h de ventas. Escribe un número o presiona MÁX. para publicar más.",
 }

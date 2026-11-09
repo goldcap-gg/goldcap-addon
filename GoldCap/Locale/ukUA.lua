@@ -1938,6 +1938,10 @@ GC.Locales.ukUA = {
     "Натисніть ще раз, щоб більше не рахувати ці одиниці запасом. Скасувати це не можна.",
   -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
   ["Enough listed"] = "Виставлено досить",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Постійно повертається",
+  ["Earns under %s"] = "Дохід менше %s",
+  ["Raise: next price is %d%% higher"] = "Підняти: наступна ціна вища на %d%%",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Уже виставлених %d шт. вистачить приблизно на %d год продажів. Введіть число або натисніть УСЕ, щоб виставити більше.",
 }

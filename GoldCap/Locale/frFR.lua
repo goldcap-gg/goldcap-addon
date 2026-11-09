@@ -1872,6 +1872,10 @@ GC.Locales.frFR = {
     "Clique encore une fois pour ne plus compter ces unités dans ton stock. Impossible d'annuler.",
   -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
   ["Enough listed"] = "Suffisamment en vente",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Revient sans cesse",
+  ["Earns under %s"] = "Rapporte moins de %s",
+  ["Raise: next price is %d%% higher"] = "Augmenter : le prix suivant est %d%% plus haut",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Tes %d déjà en vente couvrent environ %d h de ventes. Saisis un nombre ou appuie sur MAX pour en mettre plus.",
 }

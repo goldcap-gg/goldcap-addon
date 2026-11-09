@@ -1762,6 +1762,10 @@ GC.Locales.zhTW = {
     "再點一次，就不再把這些物品算作庫存。此操作無法復原。",
   -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
   ["Enough listed"] = "已上架足夠",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "反覆退回",
+  ["Earns under %s"] = "收益低於 %s",
+  ["Raise: next price is %d%% higher"] = "提價：下一個價格高 %d%%",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "已上架的 %d 件約夠 %d 小時的銷量。輸入數量或點擊最大以上架更多。",
 }

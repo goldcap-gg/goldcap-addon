@@ -388,11 +388,15 @@ UI.SKIP_TEXT = {
   -- WoW: Forever only (Core/PostQueue.lua's enough_listed): the sale pace is covered by what is
   -- already up.
   enough_listed = "Enough listed",
+  -- WoW: Forever only (Core/PostQueue.lua's keeps_returning, low_profit).
+  keeps_returning = "Keeps coming back",
+  low_profit = "Earns under %s",
 }
 
 -- Why a queue held a position back, in the words above; nil for a reason they do not name.
 function fmt.skipText(reason)
   local key = UI.SKIP_TEXT[reason]
+  if key and reason == "low_profit" then return GC.L[key]:format(fmt.cell(GC.Sell.MinimumProfit())) end
   return key and GC.L[key] or nil
 end
 

@@ -1856,6 +1856,10 @@ GC.Locales.enUS = {
     "Click again to stop counting these units as stock. There is no undo.",
   -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
   ["Enough listed"] = "Enough listed",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Keeps coming back",
+  ["Earns under %s"] = "Earns under %s",
+  ["Raise: next price is %d%% higher"] = "Raise: next price is %d%% higher",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Your %d already up cover about %d h of sales. Type a number or press MAX to post more.",
 }

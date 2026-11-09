@@ -93,7 +93,12 @@ function GC.CancelQueue.Build(positions, opts)
           if positive(lot.auctionID) and positive(lot.quantity) and positive(lot.unitPrice) then
             local undercut = lot.unitPrice > fresh
             if undercut then aboveMarket = aboveMarket + 1 end
-            local urgent = urgentUnit ~= nil and lot.unitPrice == urgentUnit
+            local atUrgent = urgentUnit ~= nil and lot.unitPrice == urgentUnit
+            -- WoW: Forever's weighing: a far-underpriced lot whose gain is no more than its
+            -- forfeit is not worth the cancel. Retail never sets urgentWorth.
+            local urgent = atUrgent and lot.urgentWorth ~= false
+            if atUrgent and not urgent then heldBy.deposit = true end
+            local raise = not urgent and positive(lot.raisePct) and lot.raisePct or nil
             local passes = (lot.unitPrice - fresh) * 100 > pct * lot.unitPrice
             -- Would this lot be queued but for the threshold, the floor or the deposit? The holds
             -- name what stopped it, ahead of the advice's own.
@@ -107,7 +112,7 @@ function GC.CancelQueue.Build(positions, opts)
             if wanted and passes and not overFloor then heldBy.below_floor = true end
             if wanted and passes and overFloor and not worth then heldBy.deposit = true end
             if wanted and not passes then heldBy.small_undercut = true end
-            if urgent or advised then
+            if urgent or advised or raise then
               local value = mulExact(lot.quantity, fresh)
               if not value then
                 overflowed = true
@@ -117,6 +122,7 @@ function GC.CancelQueue.Build(positions, opts)
                   itemID = position.itemID, itemName = position.itemName,
                   auctionID = lot.auctionID, quantity = lot.quantity,
                   listedUnit = lot.unitPrice, value = value, urgent = urgent or nil,
+                  raise = not urgent and not advised and raise or nil,
                 }
               end
             end
@@ -126,7 +132,7 @@ function GC.CancelQueue.Build(positions, opts)
           -- A value that cannot be stated exactly poisons the ordering for the whole position;
           -- same "cannot soundly state the numbers" family PostQueue files under this reason.
           reason, included = "unresolved_identity", {}
-        elseif #included == 0 and aboveMarket > 0 then
+        elseif #included == 0 and (aboveMarket > 0 or heldBy.deposit) then
           reason = heldBy.below_floor and "below_floor" or heldBy.small_undercut and "small_undercut"
             or heldBy.deposit and "deposit" or advice == "hold" and "advised_hold" or "no_advice"
         end

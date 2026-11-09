@@ -1796,6 +1796,10 @@ GC.Locales.koKR = {
     "한 번 더 누르면 이 물량을 더 이상 재고로 세지 않습니다. 되돌릴 수 없습니다.",
   -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
   ["Enough listed"] = "충분히 올림",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "계속 돌아옴",
+  ["Earns under %s"] = "%s 미만 수익",
+  ["Raise: next price is %d%% higher"] = "올리기: 다음 가격이 %d%% 높음",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "이미 올린 %d개로 약 %d시간 판매량을 채웁니다. 더 올리려면 숫자를 입력하거나 최대를 누르세요.",
 }

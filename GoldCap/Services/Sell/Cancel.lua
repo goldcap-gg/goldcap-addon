@@ -61,6 +61,13 @@ function GC.Sell.LotForfeit(lot)
   return deposit + fee
 end
 
+-- WoW: Forever only: the deposit raising `lot` would put up again, the client's quote for its units
+-- at the posting duration; nil where it cannot quote (an item with none of it in the bags).
+function GC.Sell.RelistDeposit(lot)
+  if type(lot) ~= "table" then return nil end
+  return GC.SellBags.Deposit({ positionKey = lot.positionKey, itemID = lot.itemID }, lot.quantity)
+end
+
 local function restoreRepostRow(row)
   if not row then return end
   row.repostStage, row.repostReady = nil, nil

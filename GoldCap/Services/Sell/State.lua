@@ -394,6 +394,12 @@ end
 -- saved data is loaded there are no marks and no list: every position is queued, as before the
 -- selling list.
 -- Read-only lookups: it runs inside Compose.Positions, which the Cancel click also calls.
+-- WoW: Forever: the least a post must earn, after the cut, the vendor and the deposit, to go up
+-- (the Deals board's minimum profit).
+function GC.Sell.MinimumProfit()
+  return GC.ForeverDeals.MinimumProfit(GC.db and GC.db.settings and GC.db.settings.sniper)
+end
+
 function GC.Sell._QueueOpts()
   local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil, quantities = GC.SellState.quantityOverrides,
     group = GC.SellState.group, inGroup = GC.Sell.InPickedGroup }
@@ -412,6 +418,8 @@ function GC.Sell._QueueOpts()
   if GC.Sell.OnForever() then
     opts.durationFor = function(p) return (GC.Sell.PostDurationFor(p)) end
     opts.unitFor = function(p) return (effectivePostUnit(p)) end
+    opts.minimumProfit = GC.ForeverDeals and GC.Sell.MinimumProfit() or nil
+    opts.returnHold = GC.ForeverPace and GC.ForeverPace.RETURN_HOLD
   end
   return opts
 end

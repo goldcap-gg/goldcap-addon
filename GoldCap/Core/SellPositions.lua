@@ -5,6 +5,8 @@ GC.SellPositions = {}
 -- WoW: Forever: how much sale tape (GC.Data.ForeverSales) the post recommendation needs before it
 -- prices above the cheapest ask with it (decoratePosition): hours covered, and sales seen.
 GC.SellPositions.TAPE_OVERCUT_HOURS = 72
+-- WoW: Forever: a lot priced under the next price by more than this share is offered for a raise.
+GC.SellPositions.RAISE_GAP = 0.20
 GC.SellPositions.TAPE_OVERCUT_SALES = 5
 -- ...and how old its newest hour (`at`) may be before it says nothing about today's auction house:
 -- no pace and no overcut from it then.
@@ -310,7 +312,7 @@ function GC.SellPositions.IsCommodity(position)
 end
 
 local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules,
-    defaultPrice, cancelForfeit, oneLevelPerItem, salesFor)
+    defaultPrice, cancelForfeit, oneLevelPerItem, salesFor, relistDeposit)
   table.sort(position.ownedLots, stableLotOrder)
   -- The lot's kind, for every price below that lands on the auction house's grid.
   local commodity = GC.SellPositions.IsCommodity(position)
@@ -663,6 +665,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- the deposit is the one a relist would really make. Weighed here, after the post's own price is
   -- settled, since a relist is a post.
   local advice = position.recommendation
+  local weighedUnit = fresh
   if type(cancelForfeit) == "function" and type(advice) == "table" and advice.action == "repost" and fresh then
     local relist = type(advice.rec) == "table" and positive(advice.rec.unit) and advice.rec.unit
       or GC.Flips.SilverDown(fresh, commodity)
@@ -676,6 +679,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     if type(post) ~= "table" then post = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue, postOpts) end
     local postUnit = type(post) == "table" and positive(post.unit) and post.unit or nil
     if relist and postUnit and postUnit > relist then relist = postUnit end
+    if relist and relist > fresh then weighedUnit = relist end
     local weighed, worthAny = false, false
     for _, ownedLot in ipairs(position.ownedLots) do
       if ownedLot.unitPrice > fresh then
@@ -688,6 +692,34 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     end
     if weighed and not worthAny then
       position.recommendation = { action = "hold", reason = "deposit", rec = advice.rec }
+    end
+  end
+
+  -- WoW: Forever (same cancelForfeit): the two cancels that do not come from the repost advice.
+  -- An urgent one (a lot far under its value) is pulled whatever the advice says, but only when
+  -- the gain, what the lot would sell for at the next price less its own, beats what the cancel
+  -- loses; a forfeit nobody can quote leaves it urgent. A raise is a lot a fifth or more under the
+  -- next price (RAISE_GAP) yet within it: offered when the 95% net of the step up beats the
+  -- forfeit plus the deposit the relist puts up, both quoted (Sell.RelistDeposit). Never both. The
+  -- price is the one the weighing above uses, `weighedUnit`.
+  if type(cancelForfeit) == "function" and weighedUnit then
+    local top = GC.Flips.SilverDown(weighedUnit, commodity)
+    for _, ownedLot in ipairs(position.ownedLots) do
+      local urgent = position.underpricedUnit ~= nil and ownedLot.unitPrice == position.underpricedUnit
+      if urgent then
+        local gain = top and top > ownedLot.unitPrice and valueFor(ownedLot.quantity, top - ownedLot.unitPrice) or 0
+        local forfeit = cancelForfeit(ownedLot)
+        if exact(forfeit) and gain <= forfeit then ownedLot.urgentWorth = false end
+      elseif top and ownedLot.unitPrice < weighedUnit
+          and weighedUnit * 5 >= ownedLot.unitPrice * 6 and top > ownedLot.unitPrice then
+        local win = math.floor((top - ownedLot.unitPrice) * ownedLot.quantity * 0.95)
+        local forfeit = cancelForfeit(ownedLot)
+        local deposit = type(relistDeposit) == "function" and relistDeposit(ownedLot) or nil
+        if exact(forfeit) and exact(deposit) and win > forfeit + deposit then
+          ownedLot.raisePct = math.floor((weighedUnit - ownedLot.unitPrice) * 100 / ownedLot.unitPrice)
+          position.facts.raise = true
+        end
+      end
     end
   end
 
@@ -1070,7 +1102,8 @@ function GC.SellPositions.Build(args)
     if not onlyIdleVendorLots(position) then
       decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
         args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules, args.defaultPrice, args.cancelForfeit,
-        args.oneLevelPerItem == true, type(args.salesFor) == "function" and args.salesFor or nil)
+        args.oneLevelPerItem == true, type(args.salesFor) == "function" and args.salesFor or nil,
+        type(args.relistDeposit) == "function" and args.relistDeposit or nil)
       result[#result + 1] = position
     end
   end

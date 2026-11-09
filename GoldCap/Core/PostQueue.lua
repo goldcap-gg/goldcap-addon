@@ -99,6 +99,9 @@ end
 --      is a bet that wins less than it stakes, the tooltip's "deposit outweighs the gain" verdict
 --      (Core/ForeverValue.lua's Verdict) for a whole post. A deposit the client cannot quote
 --      holds nothing, as a missing vendor price holds nothing above.
+--      keeps_returning and low_profit -- WoW: Forever only too (opts.returnHold, opts.minimumProfit):
+--      the item came back unsold that many rounds in a row, or the post would earn under the
+--      minimum after the cut, the vendor and the deposit.
 --
 -- Returns reason, unit, value -- unit/value are only meaningful when reason is nil.
 local function evaluate(position, opts)
@@ -134,6 +137,12 @@ local function evaluate(position, opts)
   if type(vendorUnit) == "number" and vendorUnit > 0 and math.floor(unit * 0.95) <= vendorUnit then
     return "below_vendor"
   end
+  -- WoW: Forever only (opts.returnHold, GC.ForeverPace.RETURN_HOLD): the item came back unsold
+  -- that many rounds in a row, so another post is held. A followed group's rule decides its own.
+  if positive(opts and opts.returnHold) and not position.rule
+      and (position.returnRounds or 0) >= opts.returnHold then
+    return "keeps_returning"
+  end
   -- Ranked on what one click actually LISTS, not on what is in the bags. A normal item posts a
   -- single stack (PostItem pins one ItemLocation -- see GC.BagStock.PostableQuantity and
   -- `postableQty` in SellPositions), so five stacks of twenty used to sort this queue as if a
@@ -164,6 +173,12 @@ local function evaluate(position, opts)
     local vendorTotal = positive(vendorUnit) and mulExact(vendorUnit, postable) or 0
     if vendorTotal and value - math.ceil(value / 20) - vendorTotal <= deposit then
       return "below_deposit"
+    end
+    -- WoW: Forever only (opts.minimumProfit): what is left after the cut, the vendor and the
+    -- deposit is under the least the player thinks a post worth.
+    if positive(opts.minimumProfit) and vendorTotal
+        and value - math.ceil(value / 20) - vendorTotal - deposit < opts.minimumProfit then
+      return "low_profit"
     end
   end
   return nil, unit, value, postable

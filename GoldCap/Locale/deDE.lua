@@ -1870,6 +1870,10 @@ GC.Locales.deDE = {
     "Klicke noch einmal, damit GoldCap diese Einheiten nicht mehr als Bestand zählt. Das lässt sich nicht rückgängig machen.",
   -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
   ["Enough listed"] = "Genug eingestellt",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Kommt immer wieder zurück",
+  ["Earns under %s"] = "Bringt unter %s",
+  ["Raise: next price is %d%% higher"] = "Erhöhen: nächster Preis %d%% höher",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
     "Deine %d eingestellten decken etwa %d Std. Verkäufe ab. Gib eine Zahl ein oder drück MAX, um mehr einzustellen.",
 }

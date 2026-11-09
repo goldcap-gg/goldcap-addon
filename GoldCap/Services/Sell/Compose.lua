@@ -111,6 +111,8 @@ function Compose.Positions(skipPaint)
     -- each lot against there (Core/SellPositions.lua's decoratePosition). Retail's advice is as it
     -- was.
     cancelForfeit = GC.Sell.OnForever and GC.Sell.OnForever() and GC.Sell.LotForfeit or nil,
+    -- ...and what a raise would put up again (GC.Sell.RelistDeposit), which a raise is weighed with.
+    relistDeposit = GC.Sell.OnForever and GC.Sell.OnForever() and GC.Sell.RelistDeposit or nil,
     -- WoW: Forever only: an item ID has one item level there, so an ItemKey's level is no variant
     -- and the item's own market figures apply (Core/SellPositions.lua's decoratePosition).
     oneLevelPerItem = GC.Sell.OnForever and GC.Sell.OnForever() or nil,

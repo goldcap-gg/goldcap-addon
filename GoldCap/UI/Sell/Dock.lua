@@ -269,6 +269,7 @@ paintCancelButton = function()
       parts[1] = GC.Sell._InlineColor(Theme.color.fg, ("%s ×%d @ %s"):format(
         head.itemName or GC.L["Item"], head.quantity or 0, formatCell(head.listedUnit)))
     end
+    if head and head.raise then parts[#parts + 1] = (GC.L["Raise: next price is %d%% higher"]):format(head.raise) end
     if #S.cancelSkipped > 0 then parts[#parts + 1] = (GC.L["%d held back"]):format(#S.cancelSkipped) end
     heldBack:SetText(table.concat(parts, "  ·  "))
     if GC.Sell.PaintCancelMirror then GC.Sell.PaintCancelMirror() end
