@@ -149,8 +149,16 @@ function GC.Sell.OwnedLot(auctionID)
     positionKey = newest.isCommodity == true and ("commodity:" .. newest.itemID) or nil }
 end
 
-function GC.Sell.OnOwnedAuctions()
+-- `answered`: the read answers a query (OWNED_AUCTIONS_UPDATED, Core/Init.lua). The other callers
+-- re-read the client's cache, which a query alone refreshes, so a lot posted since may be missing.
+function GC.Sell.OnOwnedAuctions(answered)
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
+  -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): a recorded lot an
+  -- answered read shows sold, or no longer holds before its end, joins no lot that comes back. The
+  -- whole roster, before the cancels on their way are left out below, and with them named.
+  if answered and GC.ForeverDeposits then
+    GC.ForeverDeposits.OnOwnedRoster(auctions, context(), time(), GC.Sell.cancelledLots)
+  end
   do
     local live, returned = {}, false
     for _, auction in ipairs(auctions) do

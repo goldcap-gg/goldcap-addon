@@ -11,14 +11,15 @@ local _, GC = ...
 -- first write (no DEFAULTS entry, no Init), so a retail save never gains the key:
 --   { v = 1,
 --     posts = { [auctionID] = { auctionID, itemID, itemName, quantity, duration, deposit, postedAt,
---       endsAt, char, region, faction, commodity, joinedAt, cancelledAt } },
+--       endsAt, char, region, faction, commodity, joinedAt, cancelledAt, goneAt } },
 --     streaks = { [char .. "\1" .. region] = { [itemID] = { soldAt,
 --       rounds = { { at, last, duration }, ... } } } } }
 -- A post is recorded only for a creation certain to be GoldCap's (GC.Sell.OnAuctionCreated) and
 -- kept KEEP_SECONDS (the longest lot lasts 24 h). `deposit` is the client's quote: a commodity's is
 -- asked at creation, an item's is the one the post panel quoted at paint, copied into the pin; nil
--- when there was none. A save with a newer `v` is a shape this build does not know: nothing reads
--- it and nothing writes to it.
+-- when there was none. `goneAt`: an owned-list read showed the lot sold, or gone before its end
+-- (OnOwnedRoster), so no mail will bring it back. A save with a newer `v` is a shape this build does
+-- not know: nothing reads it and nothing writes to it.
 --
 -- The rows (GC.Ledger.Append) carry the lost copper in `deposit`, with `total` 0, `cut` 0 and
 -- `pending` false: kind "expired" from source "mail" (a lot the returns log read back,
@@ -45,6 +46,13 @@ M.ROUND_GAP_SECONDS = 3600
 M.STREAK_SECONDS = 14 * 86400
 -- The newest rounds kept per item and character.
 M.MAX_ROUNDS = 20
+
+-- How far past `now` a record's end may lie and still be joined to a lot that came back: both are
+-- this PC's clock, so this is the creation event's lag behind the server, not a mail's drift.
+local END_SLACK_SECONDS = 300
+-- Enum.AuctionStatus.Sold, both games (AuctionHouseDocumentation.lua; Core/CraftQueue.lua's SOLD):
+-- a sold auction stays in the owned list until its gold is collected.
+local AUCTION_SOLD = 1
 
 -- What the client is asked, through fields a spec replaces. Each degrades to nil (or false) when
 -- the call is missing or raises.
@@ -205,20 +213,50 @@ function M.RecordPost(auctionID, pin, context, now)
   return record
 end
 
--- The record a lot that came back belongs to: this character's and realm's, of the item, not yet
--- joined or cancelled, and ended (within the returns log's own margin of the read); the one of the
--- lot's quantity first, then the oldest end, then the lower auctionID.
-local function joinFor(s, lot, context, now)
-  local latest = now + GC.MailReturns.MATCH_SECONDS
+--- An owned-list read that answered a query (GC.Sell.OnOwnedAuctions): `auctions` as
+--- C_AuctionHouse.GetOwnedAuctions gives them, before anything is filtered out, on this character.
+--- A record of a lot posted before the read that is not cancelled or joined is gone when the read
+--- shows it sold, or does not hold it before its end: it will never come back by mail, so it joins
+--- no returned lot. `pending` holds the cancels still on their way, by auctionID: one of those the
+--- read does not hold is a cancel, and AUCTION_CANCELED writes it.
+function M.OnOwnedRoster(auctions, context, now, pending)
+  if type(auctions) ~= "table" or not named(context) or not finite(now) then return end
+  local s = store(false)
+  if not s then return end
+  local listed = {}
+  for _, auction in ipairs(auctions) do
+    if type(auction) == "table" and whole(auction.auctionID) then
+      listed[auction.auctionID] = auction.status == AUCTION_SOLD and "sold" or "listed"
+    end
+  end
+  pending = type(pending) == "table" and pending or {}
+  for auctionID, record in pairs(s.posts) do
+    if type(record) == "table" and record.char == context.char and record.region == context.region
+        and not record.cancelledAt and not record.joinedAt and not record.goneAt
+        and finite(record.postedAt) and record.postedAt < now and finite(record.endsAt) then
+      local seen = listed[auctionID]
+      if seen == "sold" or (seen == nil and now < record.endsAt and pending[auctionID] == nil) then
+        record.goneAt = now
+      end
+    end
+  end
+end
+
+-- The record `count` units of `itemID` that came back belong to: this character's and realm's, of
+-- the item, not yet joined, cancelled or gone, and ended (END_SLACK_SECONDS at most after the read);
+-- the one of that quantity first, then the oldest end, then the lower auctionID.
+local function joinFor(s, itemID, count, context, now)
+  local latest = now + END_SLACK_SECONDS
   local best
   for _, record in pairs(s.posts) do
     if type(record) == "table" and record.char == context.char and record.region == context.region
-        and record.itemID == lot.itemID and not record.joinedAt and not record.cancelledAt
-        and whole(record.quantity) and finite(record.endsAt) and record.endsAt <= latest then
+        and record.itemID == itemID and not record.joinedAt and not record.cancelledAt and not record.goneAt
+        and whole(record.auctionID) and whole(record.quantity) and finite(record.endsAt)
+        and record.endsAt <= latest then
       if not best then
         best = record
       else
-        local equal, bestEqual = record.quantity == lot.count, best.quantity == lot.count
+        local equal, bestEqual = record.quantity == count, best.quantity == count
         if equal ~= bestEqual then
           if equal then best = record end
         elseif record.endsAt ~= best.endsAt then
@@ -241,42 +279,63 @@ local function inLedger(key)
 end
 
 --- The lots one inbox scan logged for the first time (GC.MailReturns.Observe's `fresh`: { itemID,
---- count, reason, at, expiresAt }). Each expired lot joins its post record, when there is one, and
---- costs that record's deposit for the units that came back; with none, a commodity's deposit is
---- quoted again at the setting's duration, and anything else costs 0. One ledger row each, and one
---- return in the item's run. A cancelled lot's mail writes nothing: its row is the cancel's own.
---- Returns the rows written, nil where nothing may be written.
+--- count, reason, at, expiresAt }). A lot comes back in as many mails as its stacks need, so the
+--- expired lots of one item and one expiry are summed first. The units then join post records, one
+--- after another (joinFor's order) until they are all placed, each record costing its deposit for
+--- the units it takes: two lots of one item that expired together each join their own. Units no
+--- record takes cost, for a commodity, its deposit quoted again at the setting's duration, and
+--- anything else 0. One ledger row per record and one for the rest, and one return in the item's
+--- run. A cancelled lot's mail writes nothing: its row is the cancel's own. Returns the rows
+--- written, nil where nothing may be written.
 function M.OnReturns(lots, context, now)
-  if not named(context) or not finite(now) or not GC.Ledger or not GC.MailReturns then return nil end
+  if not named(context) or not finite(now) or not GC.Ledger then return nil end
   local s = store(true)
   if not s then return nil end
-  local rows, keys = {}, {}
+  local merged, order = {}, {}
   for _, lot in ipairs(type(lots) == "table" and lots or {}) do
     if type(lot) == "table" and lot.reason == "expired" and whole(lot.itemID) and whole(lot.count)
         and finite(lot.expiresAt) then
-      local record = joinFor(s, lot, context, now)
-      local key, lost, at
-      if record then
-        lost = record.deposit and math.floor(record.deposit * math.min(lot.count, record.quantity) / record.quantity) or 0
-        key, at = "deposit\1" .. record.auctionID, math.min(record.endsAt, now)
-        record.joinedAt = now
+      local key = lot.itemID .. "\1" .. lot.expiresAt
+      if merged[key] then
+        merged[key].count = merged[key].count + lot.count
       else
-        lost = M.IsCommodity(lot.itemID) and quote(lot.itemID, lot.count, M.SettingIndex()) or 0
-        key, at = "deposit\1mail\1" .. context.char .. "\1" .. lot.itemID .. "\1" .. lot.expiresAt, now
-        -- Two lots that read the same are two (Core/MailReturns.lua): the second takes a number.
-        local base, n = key, 1
-        while keys[key] or inLedger(key) do
-          n = n + 1
-          key = base .. "\1" .. n
-        end
+        merged[key] = { itemID = lot.itemID, count = lot.count, expiresAt = lot.expiresAt }
+        order[#order + 1] = merged[key]
       end
-      keys[key] = true
-      local row = { key = key, kind = "expired", source = "mail", itemID = lot.itemID,
-        itemName = record and record.itemName or M.NameOf(lot.itemID), qty = lot.count, total = 0,
-        deposit = lost, cut = 0, pending = false, at = at, char = context.char, region = context.region }
-      local stored, _, err = GC.Ledger.Append(row)
-      if stored and not err then rows[#rows + 1] = row end
-      noteReturn(s, lot.itemID, context, now, record and record.duration)
+    end
+  end
+  local rows = {}
+  local function write(row)
+    local stored, _, err = GC.Ledger.Append(row)
+    if stored and not err then rows[#rows + 1] = row end
+  end
+  for _, lot in ipairs(order) do
+    local left = lot.count
+    local record = joinFor(s, lot.itemID, left, context, now)
+    while record and left > 0 do
+      local qty = math.min(left, record.quantity)
+      record.joinedAt = now
+      write({ key = "deposit\1" .. record.auctionID, kind = "expired", source = "mail", itemID = lot.itemID,
+        itemName = type(record.itemName) == "string" and record.itemName or M.NameOf(lot.itemID), qty = qty,
+        total = 0, deposit = copper(record.deposit) and math.floor(record.deposit * qty / record.quantity) or 0,
+        cut = 0, pending = false, at = math.min(record.endsAt, now), char = context.char, region = context.region })
+      noteReturn(s, lot.itemID, context, now, record.duration)
+      left = left - qty
+      record = left > 0 and joinFor(s, lot.itemID, left, context, now) or nil
+    end
+    if left > 0 then
+      local base = "deposit\1mail\1" .. context.char .. "\1" .. lot.itemID .. "\1" .. lot.expiresAt
+      -- A lot logged again later under a key a row already has (Core/MailReturns.lua logs it as a
+      -- new lot) takes a number.
+      local key, n = base, 1
+      while inLedger(key) do
+        n = n + 1
+        key = base .. "\1" .. n
+      end
+      write({ key = key, kind = "expired", source = "mail", itemID = lot.itemID, itemName = M.NameOf(lot.itemID),
+        qty = left, total = 0, deposit = M.IsCommodity(lot.itemID) and quote(lot.itemID, left, M.SettingIndex()) or 0,
+        cut = 0, pending = false, at = now, char = context.char, region = context.region })
+      noteReturn(s, lot.itemID, context, now, nil)
     end
   end
   return rows
@@ -310,14 +369,10 @@ function M.Cancelled(auctionID, lot, estimate, context, now)
   local itemID = record and record.itemID or lot and lot.itemID
   local qty = lot and whole(lot.quantity) and lot.quantity or record and record.quantity
   if not whole(itemID) or not whole(qty) then return nil end
-  local deposit
-  if record and record.deposit then
-    deposit = math.floor(record.deposit * math.min(qty, record.quantity) / record.quantity)
-  else
-    deposit = copper(estimate) and estimate or 0
-  end
+  local deposit = record and M.DepositOf(auctionID, qty) or (copper(estimate) and estimate) or 0
+  local name = record and record.itemName or lot and lot.itemName
   local row = { key = "deposit\1" .. auctionID, kind = "cancelled", source = "auction", itemID = itemID,
-    itemName = record and record.itemName or lot and lot.itemName or M.NameOf(itemID), qty = qty, total = 0,
+    itemName = type(name) == "string" and name or M.NameOf(itemID), qty = qty, total = 0,
     deposit = deposit, cut = 0, pending = false, at = now, char = context.char, region = context.region }
   local stored, _, err = GC.Ledger.Append(row)
   if not stored or err then return nil end
@@ -328,11 +383,14 @@ end
 
 --- A sale of `itemID` at `at` on this character (the ledger's inbox scan): its run of returns ends.
 --- A return stamped in the same second as the sale counts after it, as Core/SellRounds.lua counts.
+--- An item with no run has nothing to end, and gets no entry: every later return is stamped at or
+--- after the sale anyway.
 function M.Sold(itemID, at, context)
   if not whole(itemID) or not finite(at) or not named(context) then return end
-  local s = store(true)
+  local s = store(false)
   if not s then return end
-  local item, items = streakOf(s, itemID, context, true)
+  local item, items = streakOf(s, itemID, context, false)
+  if not item then return end
   item.soldAt = math.max(finite(item.soldAt) and item.soldAt or 0, at)
   local kept = {}
   for _, round in ipairs(item.rounds) do
@@ -366,9 +424,13 @@ function M.Streak(itemID, context, now)
   return rounds, short, shortIndex
 end
 
---- The deposit recorded for `auctionID`'s post, or nil.
-function M.DepositOf(auctionID)
+--- The deposit recorded for `auctionID`'s post, or nil; with `quantity`, its share for that many of
+--- the units posted (a lot can sell in part): floor(deposit * min(quantity, posted) / posted).
+function M.DepositOf(auctionID, quantity)
   local s = store(false)
   local record = s and whole(auctionID) and s.posts[auctionID]
-  return type(record) == "table" and copper(record.deposit) and record.deposit or nil
+  if type(record) ~= "table" or not copper(record.deposit) then return nil end
+  if quantity == nil then return record.deposit end
+  if not whole(quantity) or not whole(record.quantity) then return nil end
+  return math.floor(record.deposit * math.min(quantity, record.quantity) / record.quantity)
 end

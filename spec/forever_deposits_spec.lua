@@ -73,6 +73,16 @@ describe("ForeverDeposits", function()
       assert.equal(99, D.DepositOf(501))
     end)
 
+    it("hands out the deposit's share for the units still listed", function()
+      D.RecordPost(501, pin({ quantity = 200, deposit = 20000 }), CTX, 1000)
+      assert.equal(1000, D.DepositOf(501, 10))
+      assert.equal(20000, D.DepositOf(501, 200))
+      assert.equal(20000, D.DepositOf(501, 250))
+      assert.equal(20000, D.DepositOf(501))
+      assert.is_nil(D.DepositOf(501, 0))
+      assert.is_nil(D.DepositOf(502, 10))
+    end)
+
     it("quotes a commodity's deposit then, for its quantity and duration", function()
       D.QuoteCommodity = function(itemID, quantity, durationIndex)
         quotes[#quotes + 1] = { itemID, quantity, durationIndex }
@@ -151,8 +161,8 @@ describe("ForeverDeposits", function()
       assert.equal("deposit\1" .. 501, D.OnReturns({ lot(5, 9000) }, CTX, 9000)[1].key)
     end)
 
-    it("is not joined to a lot that has not ended yet", function()
-      local now = 1000 + 7200 - GC.MailReturns.MATCH_SECONDS - 1
+    it("is not joined to a lot that ends 10 minutes after the read", function()
+      local now = 1000 + 7200 - 600
       D.RecordPost(501, pin(), CTX, 1000)
       local rows = D.OnReturns({ lot(7, now) }, CTX, now)
       assert.equal("deposit\1mail\1A-R\1" .. "42\1" .. (now + 30 * DAY), rows[1].key)
@@ -161,13 +171,16 @@ describe("ForeverDeposits", function()
       assert.is_nil(db.foreverDeposits.posts[501].joinedAt)
     end)
 
-    it("is joined to one that ended within the mail's margin", function()
-      local now = 1000 + 7200 - GC.MailReturns.MATCH_SECONDS
+    it("is joined to one that ends within five minutes of the read", function()
+      local now = 1000 + 7200 - 300
       D.RecordPost(501, pin(), CTX, 1000)
       local rows = D.OnReturns({ lot(7, now) }, CTX, now)
       assert.equal("deposit\1" .. 501, rows[1].key)
       -- Dated no later than the mail was read.
       assert.equal(now, rows[1].at)
+      D.RecordPost(502, pin(), CTX, 1000)
+      assert.equal("deposit\1mail\1A-R\1" .. "42\1" .. (now - 1 + 30 * DAY),
+        D.OnReturns({ lot(7, now - 1) }, CTX, now - 1)[1].key)
     end)
 
     it("is joined only to this character's and realm's records of the item", function()
@@ -200,11 +213,39 @@ describe("ForeverDeposits", function()
       assert.equal(0, D.OnReturns({ lot(4, 9300) }, CTX, 9300)[1].deposit)
     end)
 
-    it("keeps two unrecorded lots that read the same as two rows", function()
+    it("sums a lot that came back in several mails, and joins it whole", function()
+      D.RecordPost(501, pin({ quantity = 200, deposit = 600 }), CTX, 1000)
+      local rows = D.OnReturns({ lot(100, 9000), lot(100, 9000) }, CTX, 9000)
+      assert.equal(1, #rows)
+      assert.same({ "deposit\1" .. 501, 200, 600 }, { rows[1].key, rows[1].qty, rows[1].deposit })
+      assert.equal(1, (D.Streak(42, CTX, 9000)))
+    end)
+
+    it("places summed units on as many records as they fill, and what is left on a row of its own", function()
+      D.RecordPost(501, pin({ quantity = 3, deposit = 30 }), CTX, 1000)
+      D.RecordPost(502, pin({ quantity = 7, deposit = 70 }), CTX, 1500)
+      local rows = D.OnReturns({ lot(6, 9000), lot(6, 9000) }, CTX, 9000)
+      assert.same({ "deposit\1" .. 501, 3, 30 }, { rows[1].key, rows[1].qty, rows[1].deposit })
+      assert.same({ "deposit\1" .. 502, 7, 70 }, { rows[2].key, rows[2].qty, rows[2].deposit })
+      assert.same({ "deposit\1mail\1A-R\1" .. "42\1" .. (9000 + 30 * DAY), 2, 0 },
+        { rows[3].key, rows[3].qty, rows[3].deposit })
+    end)
+
+    it("sums two unrecorded lots of one expiry, and keeps a later lot under a taken key on its own row", function()
       local rows = D.OnReturns({ lot(1, 9000), lot(1, 9000) }, CTX, 9000)
-      assert.equal(2, #rows)
-      assert.are_not.equal(rows[1].key, rows[2].key)
+      assert.equal(1, #rows)
+      assert.equal(2, rows[1].qty)
+      local again = D.OnReturns({ lot(1, 9000) }, CTX, 9000)
+      assert.are_not.equal(rows[1].key, again[1].key)
       assert.equal(2, #rowsOf("expired"))
+    end)
+
+    it("costs nothing for a record whose saved deposit is damaged", function()
+      D.RecordPost(501, pin(), CTX, 1000)
+      db.foreverDeposits.posts[501].deposit = "x"
+      local rows = D.OnReturns({ lot(7, 9000) }, CTX, 9000)
+      assert.same({ "deposit\1" .. 501, 0 }, { rows[1].key, rows[1].deposit })
+      assert.is_nil(D.DepositOf(501))
     end)
 
     it("writes nothing for a cancelled lot's mail", function()
@@ -212,6 +253,59 @@ describe("ForeverDeposits", function()
       assert.same({}, D.OnReturns({ lot(7, 9000, { reason = "cancelled" }) }, CTX, 9000))
       assert.same({}, rowsOf("expired"))
       assert.equal(0, (D.Streak(42, CTX, 9000)))
+    end)
+  end)
+
+  -- A lot that sold never comes back by mail: the owned list says so, and its record joins nothing.
+  describe("an owned-list read", function()
+    local T = 1000000
+    local function posts() return db.foreverDeposits.posts end
+
+    it("keeps a sold lot's record from taking the deposit of the lot that came back", function()
+      -- Silk, 5 units: 8 h for 40c, and it sold; then 24 h for 120c, and it expired.
+      D.RecordPost(501, pin({ quantity = 5, duration = 2, deposit = 40 }), CTX, T)
+      D.OnOwnedRoster({}, CTX, T + 3600, {})
+      assert.equal(T + 3600, posts()[501].goneAt)
+      local second = T + 9 * 3600
+      D.RecordPost(502, pin({ quantity = 5, duration = 3, deposit = 120 }), CTX, second)
+      D.OnOwnedRoster({ { auctionID = 502, status = 0 } }, CTX, second + 60, {})
+      assert.is_nil(posts()[502].goneAt)
+      local now = second + 24 * 3600 + 60
+      local rows = D.OnReturns({ lot(5, now) }, CTX, now)
+      assert.same({ "deposit\1" .. 502, 120, second + 24 * 3600 }, { rows[1].key, rows[1].deposit, rows[1].at })
+      assert.same({ 1, 0 }, { D.Streak(42, CTX, now) })
+    end)
+
+    it("marks a lot it shows sold gone", function()
+      D.RecordPost(501, pin(), CTX, T)
+      D.OnOwnedRoster({ { auctionID = 501, status = 1 } }, CTX, T + 60, {})
+      assert.equal(T + 60, posts()[501].goneAt)
+    end)
+
+    it("leaves a lot whose cancel is on its way, a cancelled one and another character's", function()
+      D.RecordPost(501, pin(), CTX, T)
+      D.RecordPost(502, pin(), CTX, T)
+      D.RecordPost(503, pin(), { char = "B-R", region = "eu" }, T)
+      D.Cancelled(502, { auctionID = 502, itemID = 42, quantity = 7 }, nil, CTX, T + 30)
+      D.OnOwnedRoster({}, CTX, T + 60, { [501] = { at = T + 30 } })
+      assert.is_nil(posts()[501].goneAt)
+      assert.is_nil(posts()[502].goneAt)
+      assert.is_nil(posts()[503].goneAt)
+    end)
+
+    it("reads nothing into a read in the second of the post, or into a lot gone after its end", function()
+      D.RecordPost(501, pin({ duration = 1 }), CTX, T)
+      D.OnOwnedRoster({}, CTX, T, {})
+      assert.is_nil(posts()[501].goneAt)
+      D.OnOwnedRoster({}, CTX, T + 2 * 3600, {})
+      assert.is_nil(posts()[501].goneAt)
+    end)
+
+    it("still listed, it stays a record to join", function()
+      D.RecordPost(501, pin(), CTX, T)
+      D.OnOwnedRoster({ { auctionID = 501, status = 0 } }, CTX, T + 60, {})
+      assert.is_nil(posts()[501].goneAt)
+      assert.equal("deposit\1" .. 501, D.OnReturns({ lot(7, T + 7200) }, CTX, T + 7200)[1].key)
     end)
   end)
 
@@ -333,6 +427,14 @@ describe("ForeverDeposits", function()
       back(T + 7200)
       assert.equal(1, (D.Streak(42, CTX, T + D.STREAK_SECONDS + 1)))
       assert.equal(0, (D.Streak(42, CTX, T + 7200 + D.STREAK_SECONDS + 1)))
+    end)
+
+    it("keeps nothing for a sale of an item that never came back", function()
+      D.Sold(42, T, CTX)
+      D.Sold(43, T, CTX)
+      assert.same({}, db.foreverDeposits and db.foreverDeposits.streaks or {})
+      back(T + 10)
+      assert.equal(1, (D.Streak(42, CTX, T + 10)))
     end)
 
     it("is this character's: another character's sale does not end it", function()

@@ -37,7 +37,8 @@ local repostArmToken = 0
 -- and:", CANCEL_AUCTION_CONFIRMATION_MONEY, shown once it is over 0; Auctionator reads it as a bid
 -- standing on the lot), so the two are added. The client keeps no record of a live lot's deposit
 -- (OwnedAuctionInfo carries none), so GoldCap's own record of the post comes first
--- (Core/ForeverDeposits.lua: what the post put up). Without one it is quoted again at the duration
+-- (Core/ForeverDeposits.lua: what the post put up, its share for the units still listed: a lot can
+-- sell in part). Without one it is quoted again at the duration
 -- GoldCap posts the item at: its followed group's, else the setting (not one picked for the next
 -- post, which is not this lot's); a lot posted at another is off by the difference. nil
 -- when the deposit cannot be quoted: an item lot with no record and no stack of it in the bags. A
@@ -45,7 +46,7 @@ local repostArmToken = 0
 -- posts no other.
 function GC.Sell.LotForfeit(lot)
   if type(lot) ~= "table" or not GC.Sell.OnForever() then return nil end
-  local deposit = GC.ForeverDeposits and GC.ForeverDeposits.DepositOf(lot.auctionID) or nil
+  local deposit = GC.ForeverDeposits and GC.ForeverDeposits.DepositOf(lot.auctionID, lot.quantity) or nil
   if not deposit then
     local rule = GC.GroupRules and GC.GroupRules.durationByItem and GC.GroupRules.durationByItem[lot.itemID] or nil
     local duration = GC.Sell.PostDurationFor({ ruleDurationIndex = rule })

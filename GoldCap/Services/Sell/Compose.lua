@@ -131,10 +131,11 @@ function Compose.Positions(skipPaint)
   -- last sale, on this character, is Core/ForeverDeposits.lua's (also Camelot only); without it
   -- every item reads none.
   if GC.ForeverPace then
+    local now = time()
     local ctx = { hoursOf = GC.GroupRules and GC.GroupRules.HoursOf, settingIndex = GC.Flips.PostDurationIndex(),
       slowOn = GC.Sell.SlowSellersOn(), recent = S.pacePosted,
       streakFor = function(itemID)
-        if GC.ForeverDeposits then return GC.ForeverDeposits.Streak(itemID, GC.Ledger.Context(), time()) end
+        if GC.ForeverDeposits then return GC.ForeverDeposits.Streak(itemID, scope, now) end
         return 0, 0, nil
       end }
     for _, position in ipairs(S.positions) do

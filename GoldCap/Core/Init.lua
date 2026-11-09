@@ -981,7 +981,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "OWNED_AUCTIONS_UPDATED" then
     if GC.Sell.OnOwnedAuctions then
-      GC.Sell.OnOwnedAuctions()
+      GC.Sell.OnOwnedAuctions(true)
     end
   elseif event == "AUCTION_CANCELED" then
     -- The lot the event names goes to the Sell tab FIRST: the owned-auctions list it re-reads

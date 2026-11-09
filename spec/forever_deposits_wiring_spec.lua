@@ -232,6 +232,38 @@ describe("lost deposits on WoW: Forever, wired", function()
       _G.C_AuctionHouse.GetCancelCost = function() return 5 end
       assert.equal(82, GC.Sell.LotForfeit(item))
     end)
+
+    -- 200 herbs went up for a 2g deposit and 190 sold: cancelling the last 10 loses 10s of it.
+    local function recordTwoHundred()
+      local quote = _G.C_AuctionHouse.CalculateCommodityDeposit
+      _G.C_AuctionHouse.CalculateCommodityDeposit = function() return 20000 end
+      GC.ForeverDeposits.RecordPost(501, { itemID = 10, quantity = 200, duration = 2, isCommodity = true },
+        GC.Ledger.Context(), clock)
+      _G.C_AuctionHouse.CalculateCommodityDeposit = quote
+      clock = clock + 3600
+    end
+
+    it("the forfeit is the deposit's share for the units still listed", function()
+      recordTwoHundred()
+      assert.equal(1000, GC.Sell.LotForfeit({ auctionID = 501, itemID = 10, quantity = 10, positionKey = "commodity:10" }))
+    end)
+
+    it("the cancel weighing sees the share", function()
+      recordTwoHundred()
+      -- What the thirty on hand (twenty in the bags, ten listed) cost: the repost advice needs it.
+      assert(GC.Acquisitions.RecordManual({ itemID = 10, positionKey = "commodity:10", itemName = "Herb",
+        quantity = 30, total = 30 * 5000, acquiredAt = 900, character = "Owner-Dentarg", region = "eu" }))
+      _G.C_AuctionHouse.GetOwnedAuctions = function()
+        return { { auctionID = 501, itemKey = { itemID = 10 }, quantity = 10, unitPrice = 20000, isCommodity = true } }
+      end
+      GC.Sell.OnOwnedAuctions()
+      ready(12000)
+      local lot = position().ownedLots[1]
+      assert.equal(501, lot.auctionID)
+      assert.equal(1000, lot.cancelForfeit)
+      -- The undercut on ten units (20000 over a 12000 ask) is worth far more than 10s.
+      assert.is_true(lot.cancelWorth)
+    end)
   end)
 
   -- The ledger's inbox scan, as spec/ledger_returns_spec.lua drives it, with Forever's modules.
@@ -278,6 +310,28 @@ describe("lost deposits on WoW: Forever, wired", function()
       assert.same({ { key = "deposit\1" .. 501, kind = "expired", source = "mail", itemID = 5, itemName = "Silk",
         qty = 20, total = 0, deposit = 60, cut = 0, pending = false, at = 1000, char = "A-B", region = "eu" } }, rows)
       assert.same({ 1, 1, 1 }, { GC.ForeverDeposits.Streak(5, CONTEXT, 4000) })
+    end)
+
+    it("a lot that came back in two mails writes one row", function()
+      GC.ForeverDeposits.RecordPost(501, { itemID = 5, quantity = 200, duration = 1, deposit = 600,
+        position = { itemName = "Silk" } }, CONTEXT, 1000 - 2 * 3600)
+      box = Mailbox.new({ expiredMail(5, "Silk", { 100 }), expiredMail(5, "Silk", { 100 }) })
+      scan(1000, true)
+      local rows = rowsOf(GC.Ledger.GetEntries(), "expired")
+      assert.equal(1, #rows)
+      assert.same({ "deposit\1" .. 501, 200, 600 }, { rows[1].key, rows[1].qty, rows[1].deposit })
+    end)
+
+    it("a damaged record costs nothing and the scan still books the sale beside it", function()
+      GC.ForeverDeposits.RecordPost(501, { itemID = 5, quantity = 20, duration = 1, deposit = 60 }, CONTEXT, 1000 - 2 * 3600)
+      db.foreverDeposits.posts[501].deposit = "x"
+      box = Mailbox.new({ expiredMail(5, "Silk", { 20 }),
+        { sender = "Auction House", subject = "Auction successful: Silk", money = 4000, auction = true, daysLeft = 30,
+          invoice = { invoiceType = "seller", itemName = "Silk", bid = 4000, buyout = 4000, count = 2 } } })
+      scan(1000, true)
+      local expired = rowsOf(GC.Ledger.GetEntries(), "expired")
+      assert.same({ "deposit\1" .. 501, 0 }, { expired[1].key, expired[1].deposit })
+      assert.equal(1, #rowsOf(GC.Ledger.GetEntries(), "sale"))
     end)
 
     it("a cancelled lot's mail writes nothing", function()
@@ -352,6 +406,7 @@ describe("lost deposits on WoW: Forever, wired", function()
     _G.time = function() return 5000 end
     _G.UnitName = function() return "Aiyana" end
     _G.GetRealmName = function() return "Dentarg" end
+    _G.UnitFactionGroup = function() return "Horde" end
     _G.GetCVar = function(k) if k == "portal" then return "eu" end end
     _G.GetBuildInfo = forever and function() return "1.60.1", "70790", "Nov 1 2026", 16001 end or nil
     _G.AUCTION_EXPIRED_MAIL_SUBJECT = SUBJECTS.expired
@@ -383,6 +438,7 @@ describe("lost deposits on WoW: Forever, wired", function()
     _G.C_AddOns, _G.GoldCapDB, _G.GoldCap_MarketData = nil, nil, nil
     _G.SLASH_GOLDCAP1, _G.SLASH_GOLDCAP2 = nil, nil
     _G.GetTime, _G.time, _G.UnitName, _G.GetRealmName, _G.GetCVar = nil, os.time, nil, nil, nil
+    _G.UnitFactionGroup = nil
     _G.GetBuildInfo, _G.C_AuctionHouse = nil, nil
     _G.AUCTION_EXPIRED_MAIL_SUBJECT, _G.AUCTION_REMOVED_MAIL_SUBJECT = nil, nil
     _G.GetInboxNumItems, _G.GetInboxHeaderInfo, _G.GetInboxInvoiceInfo, _G.GetInboxItem = nil, nil, nil, nil
@@ -425,7 +481,7 @@ describe("lost deposits on WoW: Forever, wired", function()
       -- The record: 7 a unit for each duration step, twenty at 8 h, twelve of them cancelled.
       assert.same({ { key = "deposit\1" .. 501, kind = "cancelled", source = "auction", itemID = 190316,
         itemName = "Ore", qty = 12, total = 0, deposit = math.floor(7 * 20 * 2 * 12 / 20), cut = 0, pending = false,
-        at = 5000, char = "Aiyana-Dentarg", region = "eu" } }, cancelled())
+        at = 5000, char = "Aiyana-Dentarg", region = "eu", faction = "Horde" } }, cancelled())
       rig.onEvent(nil, "AUCTION_CANCELED", 501)
       assert.equal(1, #cancelled())
     end)
@@ -449,7 +505,36 @@ describe("lost deposits on WoW: Forever, wired", function()
       -- Quoted again at the setting (8 h), and the cancel fee on top.
       assert.same({ { key = "deposit\1" .. 555, kind = "cancelled", source = "auction", itemID = 190316,
         qty = 20, total = 0, deposit = 7 * 20 * 2 + 15, cut = 0, pending = false, at = 5000,
-        char = "Aiyana-Dentarg", region = "eu" } }, cancelled())
+        char = "Aiyana-Dentarg", region = "eu", faction = "Horde" } }, cancelled())
+    end)
+
+    it("books an expired lot under the character's faction", function()
+      local box = Mailbox.new({ expiredMail(190316, "Ore", { 20 }) })
+      _G.GetInboxNumItems, _G.GetInboxHeaderInfo = box.api.GetInboxNumItems, box.api.GetInboxHeaderInfo
+      _G.GetInboxInvoiceInfo, _G.GetInboxItem = box.api.GetInboxInvoiceInfo, box.api.GetInboxItem
+      rig.onEvent(nil, "MAIL_SHOW")
+      local rows = rowsOf(GC.Ledger.GetEntries(), "expired")
+      assert.equal(1, #rows)
+      assert.same({ "Aiyana-Dentarg", "eu", "Horde" }, { rows[1].char, rows[1].region, rows[1].faction })
+    end)
+
+    it("a read of the owned list marks a recorded lot gone, but not one whose cancel is on its way", function()
+      local context = GC.Ledger.Context()
+      for _, id in ipairs({ 501, 502, 503 }) do
+        GC.ForeverDeposits.RecordPost(id, { itemID = 190316, quantity = 20, duration = 2, isCommodity = true }, context, 4000)
+      end
+      GC.Sell.cancelledLots[502] = { at = 5000 }
+      rig.owned = { ownedLot(503, 20) }
+      -- A cancel's own re-read of the client's cache is no answer: a lot posted since may be missing.
+      rig.onEvent(nil, "AUCTION_CANCELED", 777)
+      local posts = _G.GoldCapDB.foreverDeposits.posts
+      assert.is_nil(posts[501].goneAt)
+      rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+      assert.same({ 5000 }, { posts[501].goneAt, posts[502].goneAt, posts[503].goneAt })
+      rig.owned = { { auctionID = 503, itemKey = { itemID = 190316 }, isCommodity = true, status = 1, quantity = 20,
+        buyoutAmount = 1, timeLeftSeconds = 0 } }
+      rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+      assert.equal(5000, posts[503].goneAt)
     end)
 
     it("writes nothing for a lot nobody knows", function()
@@ -494,6 +579,8 @@ describe("lost deposits on WoW: Forever, wired", function()
       rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
       rig.onEvent(nil, "AUCTION_CANCELED", 555)
       assert.equal(5000, _G.GoldCapDB.ownedLots[1].cancelledAt)
+      rig.owned = {}
+      rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
       for _, entry in ipairs(GC.Ledger.GetEntries()) do
         assert.is_true(entry.kind ~= "expired" and entry.kind ~= "cancelled", entry.kind)
       end
