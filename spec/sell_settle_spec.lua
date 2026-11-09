@@ -81,4 +81,16 @@ describe("Sell settled order", function()
     local a, b = bag("a"), bag("b")
     assert.same({ "a", "b" }, keys(GC.SellViewModel.Settle({ a, b }, nil)))
   end)
+
+  it("settles a press the same way whether a quote is 10 or 50 seconds old", function()
+    -- 50 s old: past the posting age, so only displayMarketUnit is left on the cloak.
+    local cloak = bag("item:cloak", { bagQty = 1, displayMarketUnit = 400 })
+    local linen = bag("commodity:linen", { bagQty = 18, freshMarketUnit = 21, displayMarketUnit = 21 })
+    local water = bag("commodity:water", { bagQty = 8, freshMarketUnit = 12, displayMarketUnit = 12 })
+    local aged = keys(GC.SellViewModel.Settle(GC.SellViewModel.Deck({ water, linen, cloak }, "post"), {}))
+    cloak.freshMarketUnit = 400 -- 10 s old: the same price, still young enough to post on
+    local young = keys(GC.SellViewModel.Settle(GC.SellViewModel.Deck({ water, linen, cloak }, "post"), {}))
+    assert.same({ "item:cloak", "commodity:linen", "commodity:water" }, young)
+    assert.same(young, aged)
+  end)
 end)
