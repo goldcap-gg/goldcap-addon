@@ -179,6 +179,69 @@ describe("SELL by sale pace on WoW: Forever", function()
       assert.is_true(GC.SellState.postedThisVisit["commodity:10"])
     end)
 
+    -- Review of Tasks 4-5, I1: an item posts one piece a click. A post the pace did not cover
+    -- (four sell in 8 h, one piece went up) keeps the item on POST's walk; the post that covers the
+    -- pace, or the last piece, ends it.
+    describe("an item in single pieces", function()
+      local LINK = "|cffffffff|Hitem:10:0:0:0:0:0:0:0:60:0:0:0:0:0|h[Belt]|h|r"
+      local KEY = "item:10:5:0:0"
+      local function pieces(n)
+        BAGS = { [0] = {} }
+        for i = 1, n do BAGS[0][i] = { itemID = 10, stackCount = 1, itemName = "Belt", hyperlink = LINK } end
+      end
+
+      before_each(function()
+        pieces(3)
+        _G.C_Container.GetContainerItemLink = function(bag, slot)
+          local stack = (BAGS[bag] or {})[slot]
+          return stack and stack.hyperlink
+        end
+        _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = false } end
+        _G.C_AuctionHouse.PostItem = function(_, duration, quantity, _, buyout)
+          posted[#posted + 1] = { duration = duration, quantity = quantity, buyout = buyout }
+          return false
+        end
+        _G.C_Item.GetDetailedItemLevelInfo = function() return 5 end
+        GC.db.sellMarks = { [KEY] = true }
+      end)
+
+      it("a post the pace did not cover keeps the item on POST's walk", function()
+        sales.perDay = 10
+        ready(12000)
+        assert.equal(KEY, position().positionKey)
+        assert.equal(4, position().paceTargets[2])
+        post()
+        assert.equal(1, posted[1].quantity)
+        assert.is_false(GC.SellState.postingPin.paceCapped)
+        GC.Sell.OnAuctionCreated(601)
+        assert.is_nil(GC.SellState.postedThisVisit[KEY])
+        pieces(2)
+        ready(12000)
+        assert.equal(KEY, GC.SellState.queueEntries[1].positionKey)
+        post()
+        assert.equal(2, #posted)
+        assert.equal(1, posted[2].quantity)
+        GC.Sell.OnAuctionCreated(602)
+        assert.is_nil(GC.SellState.postedThisVisit[KEY])
+        -- The last piece goes up whole, and that ends the walk.
+        pieces(1)
+        ready(12000)
+        post()
+        assert.equal(3, #posted)
+        GC.Sell.OnAuctionCreated(603)
+        assert.is_true(GC.SellState.postedThisVisit[KEY])
+      end)
+
+      it("a post that covers the pace ends the walk with pieces left", function()
+        ready(12000) -- three a day: one sells in 8 h
+        post()
+        assert.equal(1, posted[1].quantity)
+        assert.is_true(GC.SellState.postingPin.paceCapped)
+        GC.Sell.OnAuctionCreated(601)
+        assert.is_true(GC.SellState.postedThisVisit[KEY])
+      end)
+    end)
+
     it("a second POST in the same visit is held", function()
       ready(12000)
       post()

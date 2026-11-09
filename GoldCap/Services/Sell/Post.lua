@@ -425,7 +425,9 @@ function Post.PreparePost(row)
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
     duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty,
     pickedDuration = pickedDuration, deposit = quoted and quoted.quantity == plan.quantity and quoted.deposit or nil,
-    paceCapped = plan.quantityWhy == "pace" }
+    -- The sale pace set the number and this post lists all it still wants (GC.Sell.OnAuctionCreated
+    -- ends the item's walk on it); one stack short of the pace keeps the walk on the item.
+    paceCapped = plan.quantityWhy == "pace" and plan.paceCovered == true }
   -- Plain field write only, before the call: row.postStage = "posting" is what the re-entrancy
   -- guard at the top of this function reads. The busy look -- Disable() (runs GoldCap's own
   -- OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy() (lazily creates
@@ -663,8 +665,9 @@ function GC.Sell.OnAuctionCreated(auctionID)
   -- a post of a number the player typed, or of everything the item had in the bags -- that one
   -- would otherwise stand in the dock again until the bags caught up. A normal item with another
   -- stack still in the bags is not done: one post lists one stack, and POST lists the next. On
-  -- WoW: Forever a post its sale pace capped (`paceCapped`) is done too: the rest stays in the
-  -- bags on purpose, and POST would only hold it "Enough listed".
+  -- WoW: Forever a post that lists all its sale pace still wants (`paceCapped`) is done too: the
+  -- rest stays in the bags on purpose, and POST would only hold it "Enough listed". A stack short
+  -- of the pace is not: POST lists the next one.
   local whole = type(owner.position) == "table" and exact(owner.quantity)
     and owner.quantity >= (owner.position.bagQty or 0)
   if type(owner.positionKey) == "string" and (owner.overrideQuantity or whole or owner.paceCapped) then

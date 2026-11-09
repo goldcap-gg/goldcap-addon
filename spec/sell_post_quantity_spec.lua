@@ -69,6 +69,14 @@ describe("one quantity rule", function()
       assert.same({ 3, "rule" }, { GC.SellPositions.PostQuantity({ rulePostQty = 5 }, nil, 3, 100, nil) })
     end)
 
+    -- Review of Tasks 4-5, I1: one stack of an item can be less than the pace wants.
+    it("the pace says whether this post covers it", function()
+      local p = { paceTargets = { [2] = 4 }, ownedLots = {} }
+      assert.same({ 1, "pace", false }, { GC.SellPositions.PostQuantity(p, nil, 1, 100, 2) })
+      assert.same({ 4, "pace", true }, { GC.SellPositions.PostQuantity(p, nil, 20, 100, 2) })
+      assert.same({ 4, "pace", true }, { GC.SellPositions.PostQuantity(p, nil, 4, 100, 2) })
+    end)
+
     it("MAX is the value the panel stores", function()
       assert.equal("all", GC.SellPositions.ALL)
       assert.same({ 20, "all" }, { GC.SellPositions.PostQuantity(base(), GC.SellPositions.ALL, 20, 100, 2) })

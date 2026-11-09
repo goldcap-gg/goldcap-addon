@@ -1133,7 +1133,9 @@ end
 -- followed group's "1 at a time", then WoW: Forever's sale pace (`paceTargets`, the units that sell
 -- within each duration, set only by Core/ForeverPace.lua) less what is already up at or under the
 -- price, then everything. `why`: "all" | "typed" | "rule" | "pace" | "enough" | "most"; 0 with
--- "enough" when what is up covers the pace.
+-- "enough" when what is up covers the pace. With "pace", a third value `covered`: whether this
+-- post lists all the pace still wants. One stack of an item can be less (three single pieces,
+-- four sell in 8 h), and then the next post lists the next stack.
 function GC.SellPositions.PostQuantity(position, typed, most, unit, durationIndex)
   if typed == GC.SellPositions.ALL then return most, "all" end
   if exact(typed) and typed > 0 then
@@ -1148,7 +1150,7 @@ function GC.SellPositions.PostQuantity(position, typed, most, unit, durationInde
   if exact(target) and target > 0 then
     local left = target - GC.SellPositions.ListedAtOrBelow(position, unit)
     if left <= 0 then return 0, "enough" end
-    return math.min(left, most), "pace"
+    return math.min(left, most), "pace", left <= most
   end
   return most, "most"
 end
@@ -1270,8 +1272,8 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   -- Fewer when the seller asked for fewer (the Sell tab's "how many"), a followed group's "1 at a
   -- time" ("one at a time" in spec/sell_group_rules_spec.lua) or the sale pace says so, never more
   -- than is here.
-  local quantity, quantityWhy = GC.SellPositions.PostQuantity(position, opts and opts.overrideQuantity, most, unit,
-    opts and opts.durationIndex)
+  local quantity, quantityWhy, paceCovered = GC.SellPositions.PostQuantity(position, opts and opts.overrideQuantity,
+    most, unit, opts and opts.durationIndex)
   if quantity <= 0 then return nil, "enough_listed", GC.SellPositions.ListedAtOrBelow(position, unit) end
   local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty or 0, quantity)
   local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
@@ -1279,7 +1281,8 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   -- caller's warning has to describe the price that gets sent, not the one before rounding.
   local risk = GC.SellPositions.PriceRisk(position, unit)
   return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,
-    quantity = quantity, quantityWhy = quantityWhy, cost = complete and allocation.knownCost or nil, costKnown = complete,
+    quantity = quantity, quantityWhy = quantityWhy, paceCovered = paceCovered == true,
+    cost = complete and allocation.knownCost or nil, costKnown = complete,
     allocations = allocation and allocation.allocations or {}, unitPrice = unit,
     chosen = chosen ~= nil, belowFloor = risk.belowFloor, belowCost = risk.belowCost }
 end
