@@ -82,6 +82,12 @@ function ROW.paintMark(row, selling, done)
   if lit then row.mark.coin:Show() else row.mark.coin:Hide() end
 end
 
+-- Whether any of a position is in the bags or listed. One with neither (NOT ON HAND) wears no
+-- selling mark: POST has nothing of it to list, whatever Deals bought (UI.List.RenderRows).
+function ROW.onHand(position)
+  return (position.bagQty or 0) > 0 or (position.listedQty or 0) > 0
+end
+
 -- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
 -- posting deck keeps its plain count beside the bags'.
 function ROW.listedText(position, listedQty, onListed)

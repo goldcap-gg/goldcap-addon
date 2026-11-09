@@ -1173,6 +1173,22 @@ describe("Sell tab, the posting queue control", function()
       _G.C_Timer = saved
     end)
 
+    -- The tick said POST would list it, with nothing there to list (the owner's save, 2026-11-09:
+    -- three NOT ON HAND rows bought on DEALS wore it).
+    it("draws no selling mark on a folded row, even one bought on DEALS, and keeps its name in line", function()
+      bought()
+      openFold()
+      local row = ghostRow()
+      assert.is_false(row.mark.shown)
+      assert.is_nil(row.markSelling)
+      local onHand
+      for _, other in ipairs(GC.SellUI.rows) do
+        if other.shown and other.kind == "position" and other.position.positionKey == "commodity:23427" then onHand = other end
+      end
+      assert.is_true(onHand.mark.shown)
+      assert.equal(onHand.itemInset, row.itemInset)
+    end)
+
     it("offers no Sold/used while the stock is in the bags", function()
       GC.Acquisitions.Record({ source = "goldcap", itemID = 99001, positionKey = "commodity:99001",
         itemName = "Widget", quantity = 5, total = 500, acquiredAt = 900, evidenceKey = "deal:99001",
