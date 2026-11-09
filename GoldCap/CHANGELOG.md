@@ -16,8 +16,9 @@
 - WoW: Forever: an item you sold to a merchant no longer stays under NOT ON HAND in SELL.
 - SELL: an item under NOT ON HAND that you sold or used some other way can be cleared with
   SOLD/USED.
-- SELL: the list keeps its order while prices refresh, and pressing REFRESH while a refresh is
-  running carries on with it instead of starting over.
+- SELL: rows stay in place for your whole auction house visit. REFRESH, a post or coming back to
+  the tab updates the prices without moving them, and pressing REFRESH while a refresh is running
+  carries on with it instead of starting over.
 - SELL's price panel shows sales per day rounded.
 - WoW: Forever, BUY: gear on your list that comes in versions, such as "of the Eagle", now finds
   its lots and can be bought. It used to say nothing was on the auction house.

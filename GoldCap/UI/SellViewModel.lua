@@ -184,9 +184,9 @@ end
 -- NUMBERS on a row, never where the row is.
 --
 -- `places` is the caller's memory, mutated here: a position keeps the place it was given until
--- the caller throws the table away, which it does only when the player asks for a new order
--- (Refresh, a deck change, a chip). Anything the caller has never seen is appended in Order's
--- own sequence, so a stack that appears mid-session lands at the bottom rather than shouldering
+-- the caller throws the table away, which it does only when the player changes the list (a deck,
+-- a chip, a group) or the auction house closes. Anything the caller has never seen is appended in
+-- Order's own sequence, so a stack that appears mid-session lands at the bottom rather than shouldering
 -- into the middle of a list somebody is working down.
 function GC.SellViewModel.Settle(positions, places)
   if type(places) ~= "table" then return positions or {} end

@@ -46,10 +46,8 @@ function GC.Sell.Refresh(automatic, visit)
     View.status(GC.L["Checking prices…"])
     return
   end
-  -- A PRESS of Refresh is the player asking for the list to be re-ordered; the walk's own
-  -- five-second repeat (`automatic`) is not, and neither is opening the tab mid-session. This
-  -- is the one place a settled order is deliberately given up -- see rowPlaces.
-  if not automatic then S.rowPlaces = {} end
+  -- No refresh moves a row: a press, a post's refresh and coming back to the tab change the
+  -- numbers, and the order the list settled on stays for the visit (S.rowPlaces; Reset lets it go).
   Walk.Abandon()
   S.quoteExpiryGeneration = S.quoteExpiryGeneration + 1
   S.refresh.generation = S.refresh.generation + 1
@@ -134,6 +132,9 @@ function GC.Sell.Reset()
   S.queueDone, S.dockKey = {}, nil
   -- And the GROUPS row starts at all of it (UI/Sell/Toolbar.lua).
   S.group, S.groupName = nil, nil
+  -- The order the list settled on is this visit's: the next one sorts its rows again, while the
+  -- tab is off screen, rather than a press of REFRESH re-sorting them under the cursor.
+  S.rowPlaces = {}
   -- A duration picked for a post is for this visit, and the deposit quotes are the client's for
   -- the bags of this visit.
   for key in pairs(S.durationOverrides) do S.durationOverrides[key] = nil end
