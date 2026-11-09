@@ -93,6 +93,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["UI/SniperFrame_Camelot.lua"] = "UI/SniperFrame.lua",
     -- Sales to a merchant, read off the buyback list: beside the merchant purchases it mirrors.
     ["Core/VendorSales.lua"] = "Core/VendorBuys.lua",
+    -- The sale pace SELL posts by, beside the unsold rounds it is read with.
+    ["Core/ForeverPace.lua"] = "Core/SellRounds.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()

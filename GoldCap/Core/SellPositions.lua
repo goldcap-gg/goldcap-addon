@@ -2,6 +2,11 @@ local _, GC = ...
 
 GC.SellPositions = {}
 
+-- WoW: Forever: how much sale tape (GC.Data.ForeverSales) the post recommendation needs before it
+-- prices above the cheapest ask with it (decoratePosition): hours covered, and sales seen.
+GC.SellPositions.TAPE_OVERCUT_HOURS = 72
+GC.SellPositions.TAPE_OVERCUT_SALES = 5
+
 local MAX_EXACT = 9007199254740991
 local QUOTE_MAX_AGE = 10
 
@@ -302,7 +307,7 @@ function GC.SellPositions.IsCommodity(position)
 end
 
 local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules,
-    defaultPrice, cancelForfeit, oneLevelPerItem)
+    defaultPrice, cancelForfeit, oneLevelPerItem, salesFor)
   table.sort(position.ownedLots, stableLotOrder)
   -- The lot's kind, for every price below that lands on the auction house's grid.
   local commodity = GC.SellPositions.IsCommodity(position)
@@ -396,6 +401,10 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   position.variantKind = position.quoteKey and ((petSpecies or 0) > 0 and "pet" or levelVariant and "level" or nil)
     or nil
   local marketStats = not position.variantKind and statsByItemID and statsByItemID[position.itemID] or nil
+  -- WoW: Forever (`salesFor`, GC.Data.ForeverSales): what this item sold on the player's auction
+  -- house lately, which Core/ForeverPace.lua reads the pace from and the post recommendation below
+  -- its overcut. Per item ID, so a variant has none, as it has no market figures.
+  position.tape = not position.variantKind and salesFor and salesFor(position.itemID) or nil
   -- Followed groups (spec/sell_group_rules_spec.lua): the selling rule of the group the player
   -- follows that holds this item, read at this position's own item level, so a variant under the
   -- group's level gets the rule without its prices (Core/GroupRules.lua). Handed in by the caller
@@ -583,6 +592,19 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     -- knownCost/exposureQty (see that comment for why).
     local paidUnit = position.coverage == "COMPLETE"
       and (position.knownCost and math.floor(position.knownCost / position.knownQty)) or nil
+    -- WoW: Forever (A5): RecommendPost climbs a rung above the cheapest ask only with a sales rate
+    -- and a ceiling, and Forever's market data carries neither. The sale tape gives both -- units a
+    -- day and the median sale price -- once it holds TAPE_OVERCUT_HOURS and TAPE_OVERCUT_SALES, and
+    -- only to this call: the repost advice and the row's recommendation above stay as they were.
+    -- The market's own figures, where there are any, come first. Under overcut's own setting.
+    local tape = position.tape
+    local tapeSold, tapeReach
+    if overcutOn and type(tape) == "table" and type(tape.hours) == "number"
+        and tape.hours >= GC.SellPositions.TAPE_OVERCUT_HOURS and type(tape.sales) == "number"
+        and tape.sales >= GC.SellPositions.TAPE_OVERCUT_SALES and type(tape.median) == "number"
+        and tape.median > 0 then
+      tapeSold, tapeReach = tape.perDay, tape.median
+    end
     -- spikePct travels alongside targetUnit here for the same reason it does in the
     -- `recommendation` branch above: without it, the queue-at-exit deflation this options
     -- table enables (opts.targetUnit + opts.levels + opts.sold) falls back to the shared
@@ -590,9 +612,9 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     -- the Post button could price the SAME bag stock differently depending on which branch
     -- happened to compute it -- one honoring the player's setting, one silently ignoring it.
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
-      { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
+      { levels = levels, sold = position.soldPerDay or tapeSold, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
-        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit,
+        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit or tapeReach, quarterUnit = quarterUnit,
         isCommodity = commodity })
   else
     position.postRecommendation = nil
@@ -1029,7 +1051,7 @@ function GC.SellPositions.Build(args)
     if not onlyIdleVendorLots(position) then
       decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
         args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules, args.defaultPrice, args.cancelForfeit,
-        args.oneLevelPerItem == true)
+        args.oneLevelPerItem == true, type(args.salesFor) == "function" and args.salesFor or nil)
       result[#result + 1] = position
     end
   end
