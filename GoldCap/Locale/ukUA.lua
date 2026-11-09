@@ -1929,6 +1929,8 @@ GC.Locales.ukUA = {
     "Реагент, який продає торговець, отримає ціну, щойно ти відкриєш цього торговця.",
   ["An auction house price needs at least %d listed."] =
     "Для ціни аукціону потрібно щонайменше %d шт. у продажу.",
+  ["Sell for at least %s each to break even."] =
+    "Продавайте не дешевше %s за шт., щоб вийти в нуль.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "Списати",
   ["Sold/used?"] = "Списати?",

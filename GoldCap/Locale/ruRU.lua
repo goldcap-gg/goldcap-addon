@@ -1927,6 +1927,8 @@ GC.Locales.ruRU = {
     "Реагент, который продаёт торговец, получит цену, как только ты откроешь этого торговца.",
   ["An auction house price needs at least %d listed."] =
     "Для цены аукциона нужно не меньше %d шт. в продаже.",
+  ["Sell for at least %s each to break even."] =
+    "Продавайте не дешевле %s за шт., чтобы выйти в ноль.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "Списать",
   ["Sold/used?"] = "Списать?",

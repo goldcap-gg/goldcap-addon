@@ -1861,6 +1861,8 @@ GC.Locales.deDE = {
     "Ein Reagenz, das ein Händler verkauft, bekommt seinen Preis, sobald du diesen Händler öffnest.",
   ["An auction house price needs at least %d listed."] =
     "Ein Auktionshauspreis braucht mindestens %d angebotene Stück.",
+  ["Sell for at least %s each to break even."] =
+    "Verkaufe für mindestens %s pro Stück, um kostendeckend zu sein.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "Ausbuchen",
   ["Sold/used?"] = "Ausbuchen?",

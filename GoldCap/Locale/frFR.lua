@@ -1863,6 +1863,8 @@ GC.Locales.frFR = {
     "Un composant vendu par un marchand reçoit son prix dès que tu ouvres ce marchand.",
   ["An auction house price needs at least %d listed."] =
     "Un prix de l'hôtel des ventes demande au moins %d unités en vente.",
+  ["Sell for at least %s each to break even."] =
+    "Vends au moins %s l'unité pour rentrer dans tes frais.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "Épuisé",
   ["Sold/used?"] = "Épuisé ?",

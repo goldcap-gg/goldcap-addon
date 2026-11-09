@@ -1855,6 +1855,8 @@ GC.Locales.ptBR = {
     "Um reagente vendido por um vendedor recebe o preço assim que você abre esse vendedor.",
   ["An auction house price needs at least %d listed."] =
     "Um preço da casa de leilões precisa de pelo menos %d unidades à venda.",
+  ["Sell for at least %s each to break even."] =
+    "Venda por pelo menos %s cada para empatar.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "Esgotado",
   ["Sold/used?"] = "Esgotado?",

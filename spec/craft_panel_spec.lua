@@ -450,6 +450,8 @@ describe("craft panel", function()
       assert.same(same(K.profit), rgb(card.cells[3].value))
       assert.same({ K.profit[1], K.profit[2], K.profit[3], 0.3 }, W.state(card.cells[3].ring).vertex)
       assert.is_false(card.missing:IsShown())
+      -- retail's card has no break-even line
+      assert.is_nil(GC.CraftPanel.CardNote)
       assert.is_false(card.queued:IsShown())
       assert.equal(GC.L["Add to queue"], card.add.label)
       assert.equal(GC.L["Restock to"], card.restock.label)

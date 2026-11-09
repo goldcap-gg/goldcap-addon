@@ -1861,6 +1861,8 @@ GC.Locales.esES = {
     "Un componente que vende un vendedor recibe su precio en cuanto abres ese vendedor.",
   ["An auction house price needs at least %d listed."] =
     "Un precio de la casa de subastas necesita al menos %d unidades en venta.",
+  ["Sell for at least %s each to break even."] =
+    "Vende a %s cada uno como mínimo para no perder.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "Agotado",
   ["Sold/used?"] = "¿Agotado?",

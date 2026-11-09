@@ -80,9 +80,23 @@ function M.Profit(recipe, unitOf, sellUnitOf, open)
   local output = (type(open) == "table" and open.output) or (type(recipe) == "table" and recipe.output) or nil
   local sellUnit = price(sellUnitOf, output)
   if not sellUnit then missing[#missing + 1] = { itemID = output } end
-  if #missing > 0 then return { missing = missing } end
+  if #missing > 0 then
+    -- Every reagent priced and only the crafted item missing: the cost is still known, and the
+    -- break-even price comes from it.
+    local onlyOutput = not sellUnit and #missing == 1 and missing[1].itemID == output
+    if onlyOutput then return { missing = missing, cost = cost, per = math.max(1, recipe.per or 1) } end
+    return { missing = missing }
+  end
   local sells = math.floor(sellUnit * SELL_SHARE) * math.max(1, recipe.per or 1)
   return { cost = cost, sells = sells, profit = sells - cost }
+end
+
+--- The smallest unit price that covers `cost` for `per` items after the 5% cut: the least `unit`
+--- with floor(unit * 0.95) * per >= cost. Nil when `cost` is not a positive number.
+function M.Breakeven(cost, per)
+  if type(cost) ~= "number" or cost <= 0 then return nil end
+  per = math.max(1, per or 1)
+  return math.floor((cost * 100 + 95 * per - 1) / (95 * per))
 end
 
 --- A crafted item that sells less than once a day on the market. Unknown sales are not slow.

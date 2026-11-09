@@ -1787,6 +1787,8 @@ GC.Locales.koKR = {
     "상인이 판매하는 재료는 그 상인 창을 열면 가격이 생깁니다.",
   ["An auction house price needs at least %d listed."] =
     "경매장 가격은 최소 %d개가 등록되어 있어야 합니다.",
+  ["Sell for at least %s each to break even."] =
+    "본전을 찾으려면 개당 최소 %s에 파세요.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "소진 처리",
   ["Sold/used?"] = "소진 처리?",

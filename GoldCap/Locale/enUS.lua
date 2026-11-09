@@ -1847,6 +1847,8 @@ GC.Locales.enUS = {
     "A reagent a vendor sells gets its price once you open that vendor.",
   ["An auction house price needs at least %d listed."] =
     "An auction house price needs at least %d listed.",
+  ["Sell for at least %s each to break even."] =
+    "Sell for at least %s each to break even.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "Sold/used",
   ["Sold/used?"] = "Sold/used?",

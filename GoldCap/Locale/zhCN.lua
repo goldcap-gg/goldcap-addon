@@ -1752,6 +1752,8 @@ GC.Locales.zhCN = {
     "商人出售的材料，在你打开该商人后就会有价格。",
   ["An auction house price needs at least %d listed."] =
     "拍卖行价格需要至少 %d 件在售。",
+  ["Sell for at least %s each to break even."] =
+    "每件至少卖 %s 才能保本。",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "已售/已用",
   ["Sold/used?"] = "已售/已用？",

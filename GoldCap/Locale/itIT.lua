@@ -1857,6 +1857,8 @@ GC.Locales.itIT = {
     "Un reagente venduto da un mercante riceve il suo prezzo appena apri quel mercante.",
   ["An auction house price needs at least %d listed."] =
     "Un prezzo della casa d'aste richiede almeno %d unità in vendita.",
+  ["Sell for at least %s each to break even."] =
+    "Vendi ad almeno %s l'uno per andare in pari.",
   -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
   ["Sold/used"] = "Esaurito",
   ["Sold/used?"] = "Esaurito?",
