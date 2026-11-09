@@ -19,6 +19,7 @@
 - SELL: rows stay in place for your whole auction house visit. REFRESH, a post or coming back to
   the tab updates the prices without moving them, and pressing REFRESH while a refresh is running
   carries on with it instead of starting over.
+- SELL: gear no longer jumps down the list or shows as "Item 1234" while the game reloads its data.
 - SELL's price panel shows sales per day rounded.
 - WoW: Forever, BUY: gear on your list that comes in versions, such as "of the Eagle", now finds
   its lots and can be bought. It used to say nothing was on the auction house.

@@ -41,7 +41,7 @@ end
 -- C_AuctionHouse.GetItemKeyFromItem answers, for this one bag slot, the ItemKey the auction house
 -- itself files the stack under (item level, suffix, pet species), and PostItem posts by this
 -- same slot. Nothing is guessed: no answer, no key.
-function GC.Sell._SlotKey(itemID, link, bag, slot)
+local function readSlotKey(itemID, link, bag, slot)
   local parsed = normalizedPositionKey(itemID, link)
   if parsed then return parsed, nil end
   if not (bag and slot and C_AuctionHouse and C_AuctionHouse.GetItemKeyFromItem
@@ -57,6 +57,46 @@ function GC.Sell._SlotKey(itemID, link, bag, slot)
   local plain = (itemKey.itemLevel or 0) == 0 and (itemKey.itemSuffix or 0) == 0
     and (itemKey.battlePetSpeciesID or 0) == 0
   return positionKey, not plain and positionKey or nil
+end
+
+-- Whether the client holds this stack's item data now. Without the API to ask, it does, as before.
+local function itemDataLoaded(itemID, bag, slot)
+  if bag and slot and C_Item and C_Item.IsItemDataCached and ItemLocation and ItemLocation.CreateFromBagAndSlot then
+    local ok, cached = pcall(function() return C_Item.IsItemDataCached(ItemLocation:CreateFromBagAndSlot(bag, slot)) end)
+    if ok then return cached == true end
+  end
+  if C_Item and C_Item.IsItemDataCachedByID then
+    local ok, cached = pcall(C_Item.IsItemDataCachedByID, itemID)
+    if ok then return cached == true end
+  end
+  return true
+end
+
+-- The key each bag slot's stack last read while the client held its item's data. This session only.
+local loadedSlotKeys = {}
+
+-- A key is only read from a stack whose item data the client holds. WoW: Forever drops that data for a
+-- moment on every price refresh (a SELL probe, 10.11: 32 to 37 of 44 stacks at once), and in that
+-- moment a gear stack's item level reads 0: the cloak's row "item:4658:8:0:0" became
+-- "item:4658:0:0:0", a different row to everything filed by key, so it took another place in the list
+-- and lost its name ("Item 4658") until the data came back a moment later. Meanwhile the stack keeps
+-- the key its slot last read loaded, when it is the same item there; a stack never read loaded has no
+-- key yet and waits, as stock the tab cannot key does, rather than taking one with level 0.
+function GC.Sell._SlotKey(itemID, link, bag, slot)
+  local payload = type(link) == "string" and (link:match("|H(item:[^|]+)|h") or link:match("^(item:.-)$")) or nil
+  local at = bag and slot and (bag .. ":" .. slot) or nil
+  if not itemDataLoaded(itemID, bag, slot) then
+    local held = at and loadedSlotKeys[at]
+    if held and held.itemID == itemID and (payload == nil or held.payload == payload) then
+      return held.positionKey, held.quoteKey
+    end
+    return nil, nil
+  end
+  local positionKey, quoteKey = readSlotKey(itemID, link, bag, slot)
+  if at and positionKey then
+    loadedSlotKeys[at] = { itemID = itemID, payload = payload, positionKey = positionKey, quoteKey = quoteKey }
+  end
+  return positionKey, quoteKey
 end
 
 -- Whether an item sells as a commodity decides its whole auction identity, and
