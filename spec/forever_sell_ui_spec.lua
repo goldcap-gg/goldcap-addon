@@ -200,6 +200,8 @@ describe("SELL's pace view on WoW: Forever", function()
 
     it("a held item says why and how to post more", function()
       owned({ lot(1), lot(2) })
+      -- The walk passes a held item over: the player's click on its row brings it to the dock.
+      GC.SellState.dockKey = "commodity:10"
       ready(12000)
       assert.equal("Your 2 already up cover about 8 h of sales. Type a number or press MAX to post more.",
         container.paceLines.text)
@@ -293,6 +295,76 @@ describe("SELL's pace view on WoW: Forever", function()
       -- An unmeasurable face falls back to one eleven-point line.
       c.paceLines.GetStringHeight = nil
       assert.equal(one, Forever.Height(c))
+    end)
+  end)
+
+  describe("a held item", function()
+    local LINK = "|cffffffff|Hitem:10:0:0:0:0:0:0:0:60:0:0:0:0:0|h[Belt]|h|r"
+    local KEY = "item:10:5:0:0"
+
+    -- One belt in the bags, one of the same up: the pace holds it as "enough".
+    local function oneBelt()
+      BAGS = { [0] = { { itemID = 10, stackCount = 1, itemName = "Belt", hyperlink = LINK } } }
+      _G.C_Container.GetContainerItemLink = function(bag, slot)
+        local stack = (BAGS[bag] or {})[slot]
+        return stack and stack.hyperlink
+      end
+      _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = false } end
+      _G.C_AuctionHouse.PostItem = function(_, duration, quantity)
+        posted[#posted + 1] = { duration = duration, quantity = quantity }
+        return false
+      end
+      _G.C_Item.GetDetailedItemLevelInfo = function() return 5 end
+      GC.db.sellMarks = { [KEY] = true }
+      owned({ { auctionID = 9, itemKey = { itemID = 10, itemLevel = 5, itemSuffix = 0 }, quantity = 1,
+        buyoutAmount = 12000 } })
+    end
+
+    before_each(function() setup(FOREVER) end)
+
+    it("a one-stack item shows HOW MANY and MAX, and MAX posts it", function()
+      oneBelt()
+      GC.SellState.dockKey = KEY
+      GC.QuoteCache.Set(GC.SellState.quotes, KEY, 12000, time())
+      ready(12000)
+      assert.equal(KEY, GC.SellUI.PostPanel.key)
+      assert.is_truthy(container.paceLines.text:find("Your 1 already up cover", 1, true))
+      assert.is_true(container.qtyMax.shown)
+      assert.is_true(container.qtyBoxBg.shown)
+      assert.equal("ghost", container.qtyMax.variant)
+      container.qtyMax.scripts.OnClick(container.qtyMax)
+      assert.equal(GC.SellPositions.ALL, GC.SellState.quantityOverrides[KEY])
+      assert.equal("active", container.qtyMax.variant)
+      post()
+      assert.equal(1, #posted)
+      assert.equal(1, posted[1].quantity)
+    end)
+
+    it("the POST walk passes over it to the item that should go up", function()
+      BAGS = { [0] = { { itemID = 10, stackCount = 20, itemName = "Herb" },
+        { itemID = 11, stackCount = 5, itemName = "Moss" } } }
+      GC.db.sellMarks = { ["commodity:10"] = true, ["commodity:11"] = true }
+      owned({ lot(1), lot(2) })
+      GC.QuoteCache.Set(GC.SellState.quotes, 11, 5000, time())
+      ready(12000)
+      assert.equal("enough_listed", (function()
+        for _, e in ipairs(GC.SellState.queueSkipped) do
+          if e.positionKey == "commodity:10" then return e.reason end
+        end
+      end)())
+      local current = GC.SellUI.Dock.Current()
+      assert.equal("commodity:11", current.position.positionKey)
+      -- The row still says why: clicking it brings the held item to the dock.
+      GC.SellState.dockKey = "commodity:10"
+      assert.equal("commodity:10", GC.SellUI.Dock.Current().position.positionKey)
+    end)
+
+    it("retail has no enough_listed reason, so its walk is as it was", function()
+      setup(RETAIL)
+      owned({ lot(1), lot(2) })
+      ready(12000)
+      for _, e in ipairs(GC.SellState.queueSkipped) do assert.not_equal("enough_listed", e.reason) end
+      assert.equal("commodity:10", GC.SellUI.Dock.Current().position.positionKey)
     end)
   end)
 

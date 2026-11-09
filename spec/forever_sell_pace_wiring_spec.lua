@@ -352,6 +352,7 @@ describe("SELL by sale pace on WoW: Forever", function()
 
       it("under our own lot posts the item, as the click does", function()
         owned({ { auctionID = 77, itemKey = { itemID = 10 }, quantity = 1, unitPrice = 12000, isCommodity = true } })
+        GC.SellState.dockKey = "commodity:10" -- the walk passes a held item; its row click picks it
         ready(12000)
         assert.equal("enough_listed", reasonOf(GC.SellState.queueSkipped, "commodity:10"))
         assert.equal("commodity:10", GC.SellUI.PostPanel.key)

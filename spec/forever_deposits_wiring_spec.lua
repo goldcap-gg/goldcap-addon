@@ -254,7 +254,7 @@ describe("lost deposits on WoW: Forever, wired", function()
       assert(GC.Acquisitions.RecordManual({ itemID = 10, positionKey = "commodity:10", itemName = "Herb",
         quantity = 30, total = 30 * 5000, acquiredAt = 900, character = "Owner-Dentarg", region = "eu" }))
       _G.C_AuctionHouse.GetOwnedAuctions = function()
-        return { { auctionID = 501, itemKey = { itemID = 10 }, quantity = 10, unitPrice = 20000, isCommodity = true } }
+        return { { auctionID = 501, itemKey = { itemID = 10 }, quantity = 10, buyoutAmount = 20000, timeLeftSeconds = 3600 } }
       end
       GC.Sell.OnOwnedAuctions()
       ready(12000)
@@ -445,8 +445,8 @@ describe("lost deposits on WoW: Forever, wired", function()
   end
 
   local function ownedLot(auctionID, quantity)
-    return { auctionID = auctionID, itemKey = { itemID = 190316 }, isCommodity = true, quantity = quantity,
-      unitPrice = 921200, timeLeftSeconds = 3600 }
+    return { auctionID = auctionID, itemKey = { itemID = 190316 }, status = 0, quantity = quantity,
+      buyoutAmount = 921200, timeLeftSeconds = 3600 }
   end
 
   describe("a cancel answered by the server", function()
@@ -531,7 +531,7 @@ describe("lost deposits on WoW: Forever, wired", function()
       assert.is_nil(posts[501].goneAt)
       rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
       assert.same({ 5000 }, { posts[501].goneAt, posts[502].goneAt, posts[503].goneAt })
-      rig.owned = { { auctionID = 503, itemKey = { itemID = 190316 }, isCommodity = true, status = 1, quantity = 20,
+      rig.owned = { { auctionID = 503, itemKey = { itemID = 190316 }, status = 1, quantity = 20,
         buyoutAmount = 1, timeLeftSeconds = 0 } }
       rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
       assert.equal(5000, posts[503].goneAt)

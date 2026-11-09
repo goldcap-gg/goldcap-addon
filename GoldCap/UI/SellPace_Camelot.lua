@@ -82,6 +82,16 @@ function Forever.Build(c)
     button:SetScript("OnClick", function() pick(index) end)
     c.durationButtons[index] = button
   end
+  -- As wide as the longest hour label in the player's language ("24 Std."), the three alike;
+  -- measured by the client, so where the face cannot be measured they stay BUTTON_W.
+  local labels = { durationLabel(1), durationLabel(2), durationLabel(3) }
+  local function fit()
+    for _, button in ipairs(c.durationButtons) do
+      if button.FitLabels then button:FitLabels(labels, BUTTON_W) end
+    end
+  end
+  fit()
+  if Theme.OnRescale then Theme.OnRescale(fit) end
   -- Wraps, and is never cut: the dock grows to hold it (Forever.Height).
   c.paceLines = Theme.Label(c, 11)
   c.paceLines:SetJustifyH("LEFT"); c.paceLines:SetWordWrap(true)

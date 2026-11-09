@@ -60,6 +60,10 @@ describe("row button labels fit the button", function()
       keys = { "Posting…" } },
     { what = "the 136px dock POST button beside its spinner", budget = 15,
       keys = { "POSTING…" } },
+    -- WoW: Forever's duration buttons (UI/SellPace_Camelot.lua) are fitted to the widest of the
+    -- three by the client; this pins that the hour label stays short, so the row of three and its
+    -- head still fit the item column: "24 Std." is 7 wide.
+    { what = "the Forever duration buttons", budget = 7, keys = { "%d h" } },
   }
 
   -- Codepoints, not bytes: string.len on UTF-8 counts bytes, so "Витрати" would score 14 and

@@ -494,7 +494,9 @@ function PostPanel.Paint(row, nextRow, hint)
   placeNews(c, true)
 
   -- How many, only when there is more than one to choose from.
-  if most > 1 then
+  -- A one-stack item held "enough" needs them too (MAX is the only way to post a second copy),
+  -- and keeps them once MAX is pressed.
+  if most > 1 or (GC.Sell.OnForever() and (why == "enough" or why == "all")) then
     stamp(c.qtyBox, key, tostring(qty))
     c.qtyHead:SetText(GC.L["HOW MANY"])
     setColor(c.qtyHead, typed and Theme.color.gold or Theme.color.fgDim)

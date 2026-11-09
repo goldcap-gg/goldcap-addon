@@ -714,7 +714,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
         local forfeit = cancelForfeit(ownedLot)
         if exact(forfeit) and gain <= forfeit then ownedLot.urgentWorth = false end
       elseif raiseTop and ownedLot.unitPrice < fresh
-          and fresh * 5 >= ownedLot.unitPrice * 6 and raiseTop > ownedLot.unitPrice then
+          and fresh * 100 >= ownedLot.unitPrice * (100 + math.floor(GC.SellPositions.RAISE_GAP * 100 + 0.5)) and raiseTop > ownedLot.unitPrice then
         local win = math.floor((raiseTop - ownedLot.unitPrice) * ownedLot.quantity * 0.95)
         local forfeit = cancelForfeit(ownedLot)
         local deposit = type(relistDeposit) == "function" and relistDeposit(ownedLot) or nil

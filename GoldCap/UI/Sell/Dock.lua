@@ -582,7 +582,7 @@ function Dock.Current()
   -- they cost, and SKIP on the first left the second unoffered). Not one whose last post may
   -- still go up: that one waits.
   for _, skip in ipairs(S.queueSkipped) do
-    if skip.reason ~= "awaiting_answer" then queued[skip.positionKey] = true end
+    if skip.reason ~= "awaiting_answer" and skip.reason ~= "enough_listed" then queued[skip.positionKey] = true end
   end
   local chosen
   local walk, at = {}, {}

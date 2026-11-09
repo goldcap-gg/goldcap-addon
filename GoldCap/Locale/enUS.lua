@@ -1863,9 +1863,9 @@ GC.Locales.enUS = {
   ["Earns under %s"] = "Earns under %s",
   ["Raise: next price is %d%% higher"] = "Raise: next price is %d%% higher",
   ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
-    "Your %d already up cover about %d h of sales. Type a number or press MAX to post more.",
+    "What you already have up (%d) covers about %d h of sales. Type a number or press MAX to post more.",
   -- SELL: sale pace, duration and returns on WoW: Forever.
-  ["About %d sell in %d h on this auction house."] = "About %d sell in %d h on this auction house.",
+  ["About %d sell in %d h on this auction house."] = "Sells about %d in %d h on this auction house.",
   ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
     "Nobody bought this here in the last %d days. Posting 1 to test the price.",
   ["Nobody bought this here in the last day. Posting 1 to test the price."] =
