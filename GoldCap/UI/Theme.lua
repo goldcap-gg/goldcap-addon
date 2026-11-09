@@ -7,25 +7,26 @@ local T = GC.Theme
 -- `green` are what TEXT wears (a loss, a profit), `redFill` is what a BUTTON is filled with,
 -- `cost` is a price paid, `hover` is the gold wash a row wears under the cursor, `watch` is a
 -- state that persists while you look elsewhere (the player's own lots) and so has its own colour.
-local K = GC.Kit.Tokens.color
-local function rgb(color) return { color[1], color[2], color[3] } end
+local Tokens = GC.Kit.Tokens
+local K = Tokens.color
+local rgb = Tokens.rgb
 T.color = {
-  bg      = rgb(K.windowBottom),
-  panel   = rgb(K.windowTop),
-  panelHi = rgb(K.raised),
+  bg      = rgb("windowBottom"),
+  panel   = rgb("windowTop"),
+  panelHi = rgb("raised"),
   border  = K.glassBorder,
-  gold    = rgb(K.gold),
-  goldHi  = rgb(K.goldText),
-  fg      = rgb(K.text1),
-  fgMuted = rgb(K.text2),
-  fgDim   = rgb(K.text3),
-  red     = rgb(K.loss),
-  redFill = rgb(K.lossFill),
-  green   = rgb(K.profit),
-  cost    = rgb(K.cost),
+  gold    = rgb("gold"),
+  goldHi  = rgb("goldText"),
+  fg      = rgb("text1"),
+  fgMuted = rgb("text2"),
+  fgDim   = rgb("text3"),
+  red     = rgb("loss"),
+  redFill = rgb("lossFill"),
+  green   = rgb("profit"),
+  cost    = rgb("cost"),
   zebra   = { 1, 1, 1, 0.035 },
-  hover   = { K.gold[1], K.gold[2], K.gold[3], 0.16 },
-  watch   = rgb(K.yours),
+  hover   = Tokens.alpha("gold", 0.16),
+  watch   = rgb("yours"),
 }
 
 T.tier = {
@@ -43,7 +44,7 @@ T.RAIL_W = 76
 
 -- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
 -- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
-local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
+local HOVER_WASH = Tokens.alpha("gold", 0.18)
 
 -- QuietScrollBar: UIPanelScrollFrameTemplate's scrollbar without Blizzard's chrome -- the two
 -- arrow buttons and the knurled thumb floated beside panels drawn in none of that style (seen
@@ -81,9 +82,9 @@ end
 -- reuses setTabActive's functional contract: the current view's button is
 -- Disable()d (not clickable), visuals ride on top of that.
 local RAIL_BTN_W, RAIL_BTN_H = 60, 54
-local RAIL_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.12 }
-local RAIL_RING = { K.gold[1], K.gold[2], K.gold[3], 0.38 }
-local RAIL_GLOW = { K.gold[1], K.gold[2], K.gold[3], 0.12 }
+local RAIL_FILL = Tokens.alpha("gold", 0.12)
+local RAIL_RING = Tokens.alpha("gold", 0.38)
+local RAIL_GLOW = Tokens.alpha("gold", 0.12)
 local BADGE_TEXT = K.onGold
 
 function T.RailButton(parent, iconName, labelText)

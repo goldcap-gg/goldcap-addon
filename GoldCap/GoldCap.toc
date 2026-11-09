@@ -126,6 +126,7 @@ Services/VendorBags.lua
 Services/CraftClient.lua
 Data/MarketData.lua
 UI/Kit/Tokens.lua
+UI/Kit/Skins.lua
 UI/Kit/Icons.lua
 UI/Kit/Fonts.lua
 UI/Kit/Textures.lua

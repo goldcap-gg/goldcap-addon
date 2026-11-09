@@ -115,6 +115,7 @@ Services/Sell/Session.lua
 Services/CraftClient.lua
 Services/CraftClient_Camelot.lua
 UI/Kit/Tokens.lua
+UI/Kit/Skins.lua
 UI/Kit/Icons.lua
 UI/Kit/Fonts.lua
 UI/Kit/Textures.lua

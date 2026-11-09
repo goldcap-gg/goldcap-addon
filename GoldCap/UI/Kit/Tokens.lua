@@ -35,9 +35,47 @@ local c = {
   -- Lettering on a gold fill.
   onGold = hex("160F04"),
 }
--- The engine's HIGHLIGHT wash: additive gold, the same "the cursor is here" everywhere.
-c.hoverWash = { c.gold[1], c.gold[2], c.gold[3], 0.18 }
 Tokens.color = c
+
+-- What text on a Blizzard surface (a tooltip, a menu, chat) reads: today's palette, copied before
+-- any skin can touch Tokens.color, so a skin never changes a colour the game draws on its own ground.
+Tokens.blizzard = {}
+for key, value in pairs(c) do
+  Tokens.blizzard[key] = { value[1], value[2], value[3], value[4] }
+end
+
+-- Colours derived from a token. Each is registered, so Tokens.refresh() rewrites it in place and
+-- every file that kept a reference sees the applied skin.
+local derived = {}
+
+--- {r, g, b, a} of Tokens.color[key]: alpha `a`, or (nil) the token's own, which then follows it.
+function Tokens.alpha(key, a)
+  local from = c[key]
+  local out = { from[1], from[2], from[3], a or from[4] }
+  derived[#derived + 1] = { out = out, key = key, a = a }
+  return out
+end
+
+--- {r, g, b} of Tokens.color[key].
+function Tokens.rgb(key)
+  local from = c[key]
+  local out = { from[1], from[2], from[3] }
+  derived[#derived + 1] = { out = out, key = key }
+  return out
+end
+
+--- Rewrites every derived colour from the current Tokens.color.
+function Tokens.refresh()
+  for _, d in ipairs(derived) do
+    local from = c[d.key]
+    local out = d.out
+    out[1], out[2], out[3] = from[1], from[2], from[3]
+    if out[4] then out[4] = d.a or from[4] end
+  end
+end
+
+-- The engine's HIGHLIGHT wash: additive gold, the same "the cursor is here" everywhere.
+c.hoverWash = Tokens.alpha("gold", 0.18)
 
 Tokens.radius = { s = 6, m = 8, l = 10, xl = 12 }
 Tokens.space = { xs = 4, s = 8, m = 12, l = 16 }
