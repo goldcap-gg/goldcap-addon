@@ -121,13 +121,15 @@ end
 -- CORNER is how many px of the 64px card.png a corner piece shows, at 1:1. It must stay at least
 -- the art's corner radius (12 at most, docs/addon/tools/gen_art.py) or the curve is cut off.
 local CORNER = 16
-local CUT = CORNER / 64
--- Texture coordinates (left, right, top, bottom), row by row from the top left.
-local PIECES = {
-  { 0, CUT, 0, CUT }, { CUT, 1 - CUT, 0, CUT }, { 1 - CUT, 1, 0, CUT },
-  { 0, CUT, CUT, 1 - CUT }, { CUT, 1 - CUT, CUT, 1 - CUT }, { 1 - CUT, 1, CUT, 1 - CUT },
-  { 0, CUT, 1 - CUT, 1 }, { CUT, 1 - CUT, 1 - CUT, 1 }, { 1 - CUT, 1, 1 - CUT, 1 },
-}
+-- Texture coordinates (left, right, top, bottom), row by row from the top left, for a corner
+-- piece `cut` of the file wide.
+local function piecesFor(cut)
+  return {
+    { 0, cut, 0, cut }, { cut, 1 - cut, 0, cut }, { 1 - cut, 1, 0, cut },
+    { 0, cut, cut, 1 - cut }, { cut, 1 - cut, cut, 1 - cut }, { 1 - cut, 1, cut, 1 - cut },
+    { 0, cut, 1 - cut, 1 }, { cut, 1 - cut, 1 - cut, 1 }, { 1 - cut, 1, 1 - cut, 1 },
+  }
+end
 -- Each edge piece and the centre stretch between the two corners on either side of them:
 -- { piece, corner its top left meets and where, corner its bottom right meets and where }.
 local SPANS = {
@@ -136,28 +138,42 @@ local SPANS = {
   { 8, 7, "TOPRIGHT", 9, "BOTTOMLEFT" },
 }
 
-local function windowFill(f, top, bottom, file)
+--- Colours the nine pieces of a gradient fill: the top row `top`, the bottom row `bottom`, the
+--- middle row a vertical gradient between them.
+function T.PaintGradientFill(p, top, bottom)
+  for i = 1, 3 do p[i]:SetVertexColor(top[1], top[2], top[3], top[4] or 1) end
+  for i = 7, 9 do p[i]:SetVertexColor(bottom[1], bottom[2], bottom[3], bottom[4] or 1) end
+  -- SetGradient takes the bottom colour first (minColor) and the top second.
+  local low = CreateColor(bottom[1], bottom[2], bottom[3], bottom[4] or 1)
+  local high = CreateColor(top[1], top[2], top[3], top[4] or 1)
+  for i = 4, 6 do p[i]:SetGradient("VERTICAL", low, high) end
+end
+
+--- A vertical gradient fill on `f` in `layer`, cut from `file`: a `size`px square (64 for card art,
+--- 32 for plaque art) whose corners are `corner` px at 1:1.
+function T.GradientFill(f, top, bottom, file, corner, size, layer)
+  corner, size = corner or CORNER, size or 64
   local p = {}
-  for i, coords in ipairs(PIECES) do
-    p[i] = f:CreateTexture(nil, "BACKGROUND")
+  for i, coords in ipairs(piecesFor(corner / size)) do
+    p[i] = f:CreateTexture(nil, layer or "BACKGROUND")
     p[i]:SetTexture(file)
     p[i]:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
   end
   for i, point in pairs({ [1] = "TOPLEFT", [3] = "TOPRIGHT", [7] = "BOTTOMLEFT", [9] = "BOTTOMRIGHT" }) do
     p[i]:SetPoint(point)
-    p[i]:SetSize(CORNER, CORNER)
+    p[i]:SetSize(corner, corner)
   end
   for _, s in ipairs(SPANS) do
     p[s[1]]:SetPoint("TOPLEFT", p[s[2]], s[3])
     p[s[1]]:SetPoint("BOTTOMRIGHT", p[s[4]], s[5])
   end
-  for i = 1, 3 do p[i]:SetVertexColor(top[1], top[2], top[3], top[4]) end
-  for i = 7, 9 do p[i]:SetVertexColor(bottom[1], bottom[2], bottom[3], bottom[4]) end
-  -- SetGradient takes the bottom colour first (minColor) and the top second.
-  local low = CreateColor(bottom[1], bottom[2], bottom[3], bottom[4])
-  local high = CreateColor(top[1], top[2], top[3], top[4])
-  for i = 4, 6 do p[i]:SetGradient("VERTICAL", low, high) end
+  T.PaintGradientFill(p, top, bottom)
   return p
+end
+
+local WINDOW_PIECES = piecesFor(CORNER / 64)
+local function windowFill(f, top, bottom, file)
+  return T.GradientFill(f, top, bottom, file, CORNER, 64)
 end
 
 -- The ornament a skin draws on its window, as a list of regions. `inside`: kept clear of the edge,
@@ -304,7 +320,7 @@ function T.Window(window, opts)
     end
     for _, region in ipairs(frame) do setShown(region, not docked) end
     for _, i in ipairs({ 1, 3, 7, 9 }) do
-      local c = docked and PIECES[5] or PIECES[i]
+      local c = docked and WINDOW_PIECES[5] or WINDOW_PIECES[i]
       self.fill[i]:SetTexCoord(c[1], c[2], c[3], c[4])
     end
   end

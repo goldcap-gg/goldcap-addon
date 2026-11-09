@@ -35,10 +35,15 @@ local c = {
   -- Lettering on a gold fill.
   onGold = hex("160F04"),
   -- The rail's label colours, the primary button's two fills and label, and the frame's tint.
-  -- Nothing reads them in the plain look; skins (UI/Kit/Skins.lua) rewrite them in place.
-  railIdle = hex("6F7885"), railActive = hex("F7CF5A"),
-  primaryTop = hex("F2BE57"), primaryBottom = hex("C9922F"), primaryText = hex("160F04"),
+  -- Skins (UI/Kit/Skins.lua) rewrite them in place. The rail's are today's labels (text3 idle,
+  -- goldText selected).
+  railIdle = hex("8B93A0"), railActive = hex("F7CF5A"),
+  -- The primary button is flat gold here, as it always was: equal stops mean a flat fill.
+  primaryTop = hex("E8B04B"), primaryBottom = hex("E8B04B"), primaryText = hex("160F04"),
   frameTint = { 1, 1, 1, 0.14 },
+  -- The fills of a plate (a rail button, a tab, a button in a skin that frames them): top and bottom,
+  -- idle and selected. The plain look draws no plate, so nothing reads these there.
+  plateTop = hex("1B2029"), plateBottom = hex("12151B"), plateOnTop = hex("2A2F3A"), plateOnBottom = hex("1B2029"),
   -- The second, inner line of the pixel skin's frame; the other looks never draw it.
   frameInner = { 0.18, 0.18, 0.18, 1 },
   -- The colour of a faint fill or stroke laid over the window (an empty slot, a meter's track, a

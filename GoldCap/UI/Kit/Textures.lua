@@ -29,14 +29,15 @@ T.SLICE = { card = CARD_SLICE, plaque = PLAQUE_SLICE, badge = BADGE_SLICE }
 -- plaque.png and plaque_ring.png at 8); every other radius a skin uses has a file of its own, drawn
 -- by gen_art.py: card_r<N>.png and ring_r<N>.png (64px), plaque_r<N>.png and plaque_ring_r<N>.png
 -- (32px), and bevel_<skin>.png (a bevel skin's window ring, baked in colour from the skin's frame
--- gradient, drawn untinted).
+-- gradient, drawn untinted), plate_<skin>.png (a plate skin's ring for rail buttons, tabs and buttons,
+-- baked the same way).
 local TODAY = { card = { 12, "card.png" }, ring = { 12, "ring.png" },
   plaque = { 8, "plaque.png" }, plaqueRing = { 8, "plaque_ring.png" } }
 local STEM = { card = "card_r", ring = "ring_r", plaque = "plaque_r", plaqueRing = "plaque_ring_r" }
 
 function T.Art(kind, radius)
   local MEDIA = GC.Kit.MEDIA
-  if kind == "bevel" then return MEDIA .. "bevel_" .. radius .. ".png" end -- `radius` is the skin's id
+  if kind == "bevel" or kind == "plate" then return MEDIA .. kind .. "_" .. radius .. ".png" end -- `radius` is the skin's id
   local today = TODAY[kind]
   if today and today[1] == radius then return MEDIA .. today[2] end
   return MEDIA .. STEM[kind] .. radius .. ".png"
@@ -47,12 +48,38 @@ end
 -- its smallest edge. A bevel ring's margin also covers its whole band: the outline pixel, `width`
 -- and the inner line.
 function T.ArtSlice(kind, radius, width)
-  if kind == "bevel" then return math.max(radius, math.ceil((width or 0) + 2), 2) end
+  if kind == "bevel" or kind == "plate" then return math.max(radius, math.ceil((width or 0) + 2), 2) end
   local today = TODAY[kind]
   if today and today[1] == radius then
     return (kind == "card" or kind == "ring") and CARD_SLICE or PLAQUE_SLICE
   end
   return math.max(radius, 2)
+end
+
+--- The fill, the ring and the slice margin of a small control (a chip, a badge-class button) at
+-- `radius`, the margin at most `cap` so it stays under half the control's height. Radius 6 is
+-- today's badge.png and badge_ring.png, which goldcap's controls keep; any other radius is the
+-- plaque art cut at it.
+function T.SmallArt(radius, cap)
+  local MEDIA = GC.Kit.MEDIA
+  if radius == 6 then return MEDIA .. "badge.png", MEDIA .. "badge_ring.png", T.SLICE.badge end
+  return T.Art("plaque", radius), T.Art("plaqueRing", radius), math.min(T.ArtSlice("plaque", radius), cap)
+end
+
+-- The skins whose plate ring is baked (docs/addon/tools/gen_art.py PLATE_SKINS).
+local BAKED_PLATES = { forever = true, horde = true, alliance = true, leather = true }
+
+--- What the applied skin frames its rail buttons, tabs and buttons with, or nil when it frames none:
+-- { ring = the baked ring (vertex colour white), ringSlice, fill = plaque art at the control radius,
+-- fillSlice (also the corner of the gradient cut from it) }.
+-- Classic has plates too, but of the client's own textures; they come with the classic skin's
+-- client art, and until then it draws none (return them here).
+function T.Plate()
+  local skin = GC.Kit.Skins.Current()
+  if not (skin.plates and BAKED_PLATES[skin.id]) then return nil end
+  local radius = skin.radius[3]
+  return { ring = T.Art("plate", skin.id), ringSlice = T.ArtSlice("plate", radius, 2),
+    fill = T.Art("plaque", radius), fillSlice = T.ArtSlice("plaque", radius) }
 end
 
 --- A solid colour fill.

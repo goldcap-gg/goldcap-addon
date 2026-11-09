@@ -94,11 +94,35 @@ function T.RailButton(parent, iconName, labelText)
   -- Required for the HIGHLIGHT layer, exactly as in T.Button.
   b:EnableMouse(true)
 
-  b.glow = T.Glow(b, RAIL_GLOW, 10)
-  b.bg = T.SlicedTexture(b, "BACKGROUND", T.MEDIA .. "card.png", RAIL_FILL)
-  b.bg:SetAllPoints()
-  b.ring = T.SlicedTexture(b, "BORDER", T.MEDIA .. "ring.png", RAIL_RING)
-  b.ring:SetAllPoints()
+  -- Art is chosen here, as the button is built; the skin is applied before any window exists.
+  local skin = GC.Kit.Skins.Current()
+  local plate = T.Plate()
+  -- A skin without a glow (Pixel, Parchment, Classic) draws no halo at all.
+  if skin.glow then b.glow = T.Glow(b, RAIL_GLOW, 10) end
+  local washFile, washSlice
+  if plate then
+    -- A framed plate: the baked ring (untinted, it carries its own colours) over a vertical
+    -- gradient, drawn all the time and lit when the button is the selected one.
+    b.plate = plate
+    b.plateFill = T.GradientFill(b, K.plateTop, K.plateBottom, plate.fill, plate.fillSlice, 32)
+    b.ring = T.SlicedTexture(b, "BORDER", plate.ring, { 1, 1, 1, 1 }, plate.ringSlice) -- untinted
+    b.ring:SetAllPoints()
+    washFile, washSlice = plate.fill, plate.fillSlice
+  else
+    local radius = skin.railRadius or skin.radius[3]
+    washFile, washSlice = T.Art("card", radius), T.ArtSlice("card", radius)
+    b.bg = T.SlicedTexture(b, "BACKGROUND", washFile, RAIL_FILL, washSlice)
+    b.bg:SetAllPoints()
+    b.ring = T.SlicedTexture(b, "BORDER", T.Art("ring", radius), RAIL_RING, washSlice)
+    b.ring:SetAllPoints()
+  end
+  if skin.railBar then
+    -- Pixel: the selected button is marked by a bar on its left edge, not a halo.
+    b.bar = T.Solid(b, "BORDER", K.gold)
+    b.bar:SetPoint("TOPLEFT")
+    b.bar:SetPoint("BOTTOMLEFT")
+    b.bar:SetWidth(3)
+  end
 
   b.icon = b:CreateTexture(nil, "ARTWORK")
   T.SetIcon(b.icon, iconName)
@@ -112,7 +136,7 @@ function T.RailButton(parent, iconName, labelText)
   -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
   -- the button's whole square, so hovering a rail button drew a square around the rounded
   -- plate the active one wears (owner, Forever beta 2026-10-01).
-  b.highlightTexture = T.SlicedTexture(b, "HIGHLIGHT", T.MEDIA .. "card.png", HOVER_WASH)
+  b.highlightTexture = T.SlicedTexture(b, "HIGHLIGHT", washFile, HOVER_WASH, washSlice)
   b.highlightTexture:SetAllPoints()
   b.highlightTexture:SetBlendMode("ADD")
 
@@ -149,16 +173,26 @@ function T.RailButton(parent, iconName, labelText)
   end
 
   function b:SetActive(active)
-    local c = active and T.color.goldHi or T.color.fgDim
+    local c = active and K.railActive or K.railIdle
     b.icon:SetVertexColor(c[1], c[2], c[3], 1)
     b.text:SetTextColor(c[1], c[2], c[3], 1)
-    if active then
-      b.glow:Show(); b.bg:Show(); b.ring:Show()
-      b:Disable()
+    if b.plateFill then
+      -- The plate stays; only its fill lights.
+      if active then
+        T.PaintGradientFill(b.plateFill, K.plateOnTop, K.plateOnBottom)
+      else
+        T.PaintGradientFill(b.plateFill, K.plateTop, K.plateBottom)
+      end
     else
-      b.glow:Hide(); b.bg:Hide(); b.ring:Hide()
-      b:Enable()
+      if active then b.bg:Show(); b.ring:Show() else b.bg:Hide(); b.ring:Hide() end
     end
+    if b.glow then
+      if active then b.glow:Show() else b.glow:Hide() end
+    end
+    if b.bar then
+      if active then b.bar:Show() else b.bar:Hide() end
+    end
+    if active then b:Disable() else b:Enable() end
   end
   b:SetActive(false)
 

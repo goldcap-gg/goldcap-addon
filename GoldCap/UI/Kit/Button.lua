@@ -4,7 +4,6 @@
 local _, GC = ...
 GC.Theme = GC.Theme or {}
 local T = GC.Theme
-local MEDIA = GC.Kit.MEDIA
 local K = GC.Kit.Tokens.color
 
 local HOVER_WASH = K.hoverWash
@@ -32,7 +31,7 @@ end
 -- is on" with gold TEXT over a faint gold tint, so the label survives no matter what the fill
 -- is doing -- there is no state in which it becomes unreadable.
 local BUTTON_VARIANTS = {
-  primary = { bg = K.gold, text = K.onGold },
+  primary = { bg = K.gold, text = K.primaryText },
   active  = { bg = GC.Kit.Tokens.alpha("gold", 0.14), text = K.goldText },
   ghost   = { bg = nil, text = K.text1 },
   danger  = { bg = K.lossFill, text = K.onLoss },
@@ -53,14 +52,27 @@ local BUTTON_VARIANTS = {
 -- rounded T.Button: file + margin per size class, keyed the same way T.Card's `small`
 -- picks plaque over card -- badge is one size class down again (T.SLICE.badge, no ring: see
 -- T.SLICE.badge's own comment, the same 16px art is too small for a second nine-slice ring
--- on top of its fill without the two notching each other).
-local ROUNDED_BUTTON = {
-  plaque = { bg = MEDIA .. "plaque.png", ring = MEDIA .. "plaque_ring.png", margin = T.SLICE.plaque },
-  -- `askedRing`: badge_ring.png, a 1px outline on badge.png's own radius. Not drawn unless the
-  -- caller asks (b:SetRing below) -- a badge button is a row control, and a list of outlined
-  -- ones is a grid of boxes.
-  badge  = { bg = MEDIA .. "badge.png", ring = nil, askedRing = MEDIA .. "badge_ring.png", margin = T.SLICE.badge },
-}
+-- on top of its fill without the two notching each other). Cut at the applied skin's radii when
+-- the button is built: the plaque class at its control radius (radius[3]; goldcap's 8 is
+-- plaque.png), the badge class at its small radius, at most 6 (goldcap's 6 is badge.png).
+-- `size` is the art's side in px, which a gradient fill cuts its corners from.
+-- `askedRing`: the 1px outline on badge.png's own radius. Not drawn unless the caller asks
+-- (b:SetRing below) -- a badge button is a row control, and a list of outlined ones is a grid of
+-- boxes.
+local function roundedButton(kind)
+  local radius = GC.Kit.Skins.Current().radius
+  if kind == "plaque" then
+    return { bg = T.Art("plaque", radius[3]), ring = T.Art("plaqueRing", radius[3]),
+      margin = T.ArtSlice("plaque", radius[3]), size = 32 }
+  end
+  local r = math.min(radius[4], 6)
+  local fill, ring, margin = T.SmallArt(r, 6)
+  return { bg = fill, ring = nil, askedRing = ring, margin = margin, size = r == 6 and 16 or 32 }
+end
+
+local function sameColour(a, b)
+  return a[1] == b[1] and a[2] == b[2] and a[3] == b[3] and (a[4] or 1) == (b[4] or 1)
+end
 
 -- Square mode's ghost has no fill by design -- T.EdgeBorder (below) draws its outline instead.
 -- Rounded mode drops T.EdgeBorder entirely, and "badge" rounded buttons get no ring either (too
@@ -77,7 +89,12 @@ local ROUNDED_GHOST_FILL = GC.Kit.Tokens.alpha("ink", 0.05)
 -- T.RailButton's own badge).
 function T.Button(parent, variant, rounded)
   local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
-  local roundedSpec = rounded and ROUNDED_BUTTON[rounded]
+  local roundedSpec = (rounded == "plaque" or rounded == "badge") and roundedButton(rounded) or nil
+  -- Art is chosen here, as the button is built; the skin is applied before any window exists.
+  local skin = GC.Kit.Skins.Current()
+  -- A skin that frames its controls (nil in the plain look, and in classic until its client art
+  -- lands): tabs and plaque-class buttons wear the baked ring over a gradient fill.
+  local plate = roundedSpec and rounded == "plaque" and T.Plate() or nil
   -- Held on the button, not captured as upvalues, so SetVariant below can genuinely change how
   -- a live button looks. Capturing them made a repaint impossible: the next OnEnter/OnLeave
   -- would stomp it back, which is why the Auto control used to be two overlaid buttons swapped
@@ -150,6 +167,8 @@ function T.Button(parent, variant, rounded)
     local danger = spec == BUTTON_VARIANTS.danger
     local glows = spec == BUTTON_VARIANTS.primary or (danger and glowAsked == true)
     local want = glows and glowAsked ~= false and not b.dimmed
+    -- A skin without a glow (Pixel, Parchment, Classic) never creates one.
+    want = want and skin.glow
     if want and not b.glow then b.glow = T.Glow(b, PRIMARY_GLOW, 12) end
     if b.glow then
       local c = danger and DANGER_GLOW or PRIMARY_GLOW
@@ -163,7 +182,11 @@ function T.Button(parent, variant, rounded)
   end
 
   if roundedSpec then
-    if roundedSpec.ring then
+    if plate then
+      b.plate = plate
+      b.ring = T.SlicedTexture(b, "BORDER", plate.ring, { 1, 1, 1, 1 }, plate.ringSlice) -- untinted
+      b.ring:SetAllPoints()
+    elseif roundedSpec.ring then
       b.ring = T.SlicedTexture(b, "BORDER", roundedSpec.ring, K.glassBorder, roundedSpec.margin)
       b.ring:SetAllPoints()
     end
@@ -259,8 +282,43 @@ function T.Button(parent, variant, rounded)
   -- re-tinting, never by Texture:SetAlpha: in the client SetAlpha REPLACES the alpha
   -- SetVertexColor set (see T.RailButton), so SetAlpha(0.45) turned a 5% ghost wash into a light
   -- plate and SetAlpha(1) turned it solid on enable.
+  -- The two stops of a gradient fill, top first, or nil for a flat one: the primary button in a
+  -- skin whose primary colours differ, and, under a plate, an idle button (a ghost or a tab) and a
+  -- selected one (`active`). Only a rounded button has one: it is cut from the same art.
+  local function gradientStops()
+    if not b.roundedMargin then return nil end
+    if spec == BUTTON_VARIANTS.primary and not sameColour(K.primaryTop, K.primaryBottom) then
+      return K.primaryTop, K.primaryBottom
+    end
+    if plate then
+      if spec == BUTTON_VARIANTS.active then return K.plateOnTop, K.plateOnBottom end
+      if spec == BUTTON_VARIANTS.ghost or spec == BUTTON_VARIANTS.segment then return K.plateTop, K.plateBottom end
+    end
+    return nil
+  end
+
   local function paintFill()
     local a = (base[4] or 1) * (b.dimmed and DIM or 1)
+    local top, bottom = gradientStops()
+    if top then
+      -- Nine plain pieces, not one sliced texture (T.GradientFill): built on first need, and the
+      -- flat fill steps aside while they draw.
+      local k = b.dimmed and DIM or 1
+      local lo = { bottom[1], bottom[2], bottom[3], (bottom[4] or 1) * k }
+      local hi = { top[1], top[2], top[3], (top[4] or 1) * k }
+      if not b.plateFill then
+        b.plateFill = T.GradientFill(b, hi, lo, roundedSpec.bg, roundedSpec.margin, roundedSpec.size)
+      else
+        T.PaintGradientFill(b.plateFill, hi, lo)
+      end
+      for _, piece in ipairs(b.plateFill) do piece:Show() end
+      b.bg:Hide()
+      return
+    end
+    if b.plateFill then
+      for _, piece in ipairs(b.plateFill) do piece:Hide() end
+      b.bg:Show()
+    end
     -- `b.bg` in rounded mode is a textured region (see roundedMargin above): SetColorTexture
     -- there would erase the texture file and leave a flat fill, so recolor via SetVertexColor
     -- instead, the same way T.Card:SetTint does.
@@ -283,7 +341,7 @@ function T.Button(parent, variant, rounded)
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
     if b.caret then b.caret:SetVertexColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1) end
     if b.ring and not b.ringAsked then
-      if spec.bare then b.ring:Hide() else b.ring:Show() end
+      if spec.bare and not plate then b.ring:Hide() else b.ring:Show() end
     end
     paintGlow()
   end
@@ -293,6 +351,8 @@ function T.Button(parent, variant, rounded)
   -- Post). nil takes it off again: rows are pooled, and the next kind to take the row must not
   -- inherit it. Built on first use and kept, so a render does not mint a texture per call.
   function b:SetRing(c)
+    -- A plate has its frame: the ring it wears is baked in colour, and a tint would spoil it.
+    if plate then return end
     if not c then
       if b.ring then b.ring:Hide() end
       return
@@ -359,6 +419,7 @@ function T.Button(parent, variant, rounded)
   b:SetScript("OnDisable", function()
     b.dimmed = true
     paintFill()
+    if plate then b.ring:SetVertexColor(1, 1, 1, DIM) end -- untinted
     -- Only a ring SetRing drew: a plaque's own border keeps the button's shape while it is dim.
     if b.ringAsked then
       local c = b.ringColor
@@ -375,6 +436,7 @@ function T.Button(parent, variant, rounded)
   b:SetScript("OnEnable", function()
     b.dimmed = nil
     paintFill()
+    if plate then b.ring:SetVertexColor(1, 1, 1, 1) end -- untinted
     if b.ringAsked then
       local c = b.ringColor
       b.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
