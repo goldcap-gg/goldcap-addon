@@ -739,7 +739,7 @@ end
 local function newSwitch(parent, field, values, onClick)
   local T = GC.Theme
   local switch = CreateFrame("Frame", nil, parent)
-  sunkenTrack(switch)
+  sunkenTrack(switch, true)
   switch.sides = {}
   for i, value in ipairs(values) do
     local side = T.Button(switch, "segment", "plaque")

@@ -212,15 +212,18 @@ describe("skin plates", function()
     assert.is_true(contrast(K.railActive, K.railBottom) >= 3)
   end)
 
-  it("a plate skin draws no track behind its tabs", function()
+  it("a plate skin draws no track behind plated tabs, and keeps the Craft switch's", function()
+    local function track(plated)
+      local sw = parent()
+      GC.Theme.Parts.sunkenTrack(sw, plated)
+      return sw.track
+    end
     Skins.Apply("goldcap")
-    local sw = parent()
-    GC.Theme.Parts.sunkenTrack(sw)
-    assert.is_not_nil(sw.track)
+    assert.is_not_nil(track(true)) -- the Hoard's switches
+    assert.is_not_nil(track(nil)) -- the Craft switch's badge-class tabs
     Skins.Apply("forever")
-    sw = parent()
-    GC.Theme.Parts.sunkenTrack(sw)
-    assert.is_nil(sw.track)
+    assert.is_nil(track(true))
+    assert.is_not_nil(track(nil))
   end)
 
   it("a plate ring's slice is its outline and band, and no more", function()
