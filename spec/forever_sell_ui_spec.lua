@@ -275,6 +275,25 @@ describe("SELL's pace view on WoW: Forever", function()
       p.paceHours = 30
       assert.is_truthy(hover():find("No sales here in the last day", 1, true))
     end)
+
+    it("the dock grows by the measured height of the wrapped pace lines", function()
+      ready(12000)
+      local Forever = GC.SellUI.PostPanel.Forever
+      local lines = 1
+      local c = {
+        durationHead = { IsShown = function() return true end },
+        paceLines = { IsShown = function() return true end, SetText = function() end,
+          GetText = function() return "pace" end, GetStringHeight = function() return lines * 14 end },
+      }
+      local one = Forever.Height(c)
+      lines = 2
+      local two = Forever.Height(c)
+      assert.equal(14, two - one)
+      assert.is_true(two > one)
+      -- An unmeasurable face falls back to one eleven-point line.
+      c.paceLines.GetStringHeight = nil
+      assert.equal(one, Forever.Height(c))
+    end)
   end)
 
   describe("on retail", function()

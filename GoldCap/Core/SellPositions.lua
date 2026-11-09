@@ -701,22 +701,25 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- loses; a forfeit nobody can quote leaves it urgent. A raise is a lot a fifth or more under the
   -- next price (RAISE_GAP) yet within it: offered when the 95% net of the step up beats the
   -- forfeit plus the deposit the relist puts up, both quoted (Sell.RelistDeposit). Never both. The
-  -- price is the one the weighing above uses, `weighedUnit`.
-  if type(cancelForfeit) == "function" and weighedUnit then
+  -- urgent weighing uses the price the weighing above does, `weighedUnit`; a raise follows the
+  -- market alone (`fresh`, on the grid the relist sits at): a typed or default post price is the
+  -- player's own ask, no reason to cancel.
+  if type(cancelForfeit) == "function" and fresh then
     local top = GC.Flips.SilverDown(weighedUnit, commodity)
+    local raiseTop = GC.Flips.SilverDown(fresh, commodity)
     for _, ownedLot in ipairs(position.ownedLots) do
       local urgent = position.underpricedUnit ~= nil and ownedLot.unitPrice == position.underpricedUnit
       if urgent then
         local gain = top and top > ownedLot.unitPrice and valueFor(ownedLot.quantity, top - ownedLot.unitPrice) or 0
         local forfeit = cancelForfeit(ownedLot)
         if exact(forfeit) and gain <= forfeit then ownedLot.urgentWorth = false end
-      elseif top and ownedLot.unitPrice < weighedUnit
-          and weighedUnit * 5 >= ownedLot.unitPrice * 6 and top > ownedLot.unitPrice then
-        local win = math.floor((top - ownedLot.unitPrice) * ownedLot.quantity * 0.95)
+      elseif raiseTop and ownedLot.unitPrice < fresh
+          and fresh * 5 >= ownedLot.unitPrice * 6 and raiseTop > ownedLot.unitPrice then
+        local win = math.floor((raiseTop - ownedLot.unitPrice) * ownedLot.quantity * 0.95)
         local forfeit = cancelForfeit(ownedLot)
         local deposit = type(relistDeposit) == "function" and relistDeposit(ownedLot) or nil
         if exact(forfeit) and exact(deposit) and win > forfeit + deposit then
-          ownedLot.raisePct = math.floor((weighedUnit - ownedLot.unitPrice) * 100 / ownedLot.unitPrice)
+          ownedLot.raisePct = math.floor((raiseTop - ownedLot.unitPrice) * 100 / ownedLot.unitPrice)
           position.facts.raise = true
         end
       end

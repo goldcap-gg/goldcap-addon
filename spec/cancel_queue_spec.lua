@@ -490,6 +490,24 @@ describe("CancelQueue", function()
       assert.equal(0, #GC.CancelQueue.Build(one(10, 100, 130, 130, nil, 50)))
     end)
 
+    it("a raise follows the market, not a typed post price, and its percent is the relist price's", function()
+      -- The market's 125c over a 100c lot offers a 25% raise.
+      local positions = one(10, 100, 125, 125, 50, 50)
+      assert.equal(25, positions[1].ownedLots[1].raisePct)
+      local typed = build({
+        ownedLots = { lot(ORE, 10, 100, 801) },
+        bagStock = { { itemID = 2672, positionKey = ORE, quantity = 5, name = "Ore" } },
+        quotes = { [2672] = { unit = 110, at = 9, levels = { { unitPrice = 110, quantity = 5 } } } },
+        statsByItemID = { [2672] = { mv = 110, source = "scan" } },
+        chosenUnits = { [ORE] = 500 },
+        cancelForfeit = function() return 1 end,
+        relistDeposit = function() return 1 end,
+      })
+      -- A typed 500c post price over fresh 110c (10%, under the gap) is no reason to cancel.
+      assert.equal(0, #GC.CancelQueue.Build(typed))
+      assert.is_nil(typed[1].ownedLots[1].raisePct)
+    end)
+
     it("an item lot is never offered a raise it cannot make (whole silver)", function()
       local POUCH = "item:828:5:0:0"
       local positions = build({

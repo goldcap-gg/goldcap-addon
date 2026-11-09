@@ -523,7 +523,8 @@ describe("PostQueue", function()
       helper.loadSell(view)
       view.db = { settings = { sniper = {} } }
       assert.equal(20, view.Sell.MinimumProfit())
-      assert.equal("Earns under " .. view.SellUI.fmt.cell(20), view.SellUI.fmt.skipText("low_profit"))
+      assert.equal("Earns under 20|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
+        view.SellUI.fmt.skipText("low_profit")) -- "20c" in the Sell view's coins
       assert.equal("Keeps coming back", view.SellUI.fmt.skipText("keeps_returning"))
     end)
   end)
