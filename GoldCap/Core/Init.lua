@@ -557,6 +557,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
     -- ready once the database is.
     if GC.VendorBuys then GC.VendorBuys.Install() end
+    -- WoW: Forever's merchant sales (Core/VendorSales.lua, loaded by GoldCap_Camelot.toc only).
+    if GC.VendorSales then GC.VendorSales.Install() end
     if GC.CraftCapture then
       -- Every player cast reaches recipeFor, so the answer for a spell is remembered: a
       -- recipe's reagent slots do not change, and a fireball should cost one lookup ever
@@ -1075,17 +1077,22 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.VendorSellCard then GC.VendorSellCard.OnBagsChanged() end
     -- An item put into or taken out of a bank, by a press or by hand.
     if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
+    -- A sale or a buyback at a merchant moves the buyback page (WoW: Forever only).
+    if GC.VendorSales then GC.VendorSales.OnChanged(time()) end
   elseif event == "CURSOR_CHANGED" then
     if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end
   elseif event == "MERCHANT_SHOW" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantShow() end
     if GC.VendorSellCard then GC.VendorSellCard.OnMerchantShow() end
+    if GC.VendorSales then GC.VendorSales.OnShow(time()) end
   elseif event == "MERCHANT_UPDATE" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantUpdate() end
     if GC.VendorSellCard then GC.VendorSellCard.OnMerchantUpdate() end
+    if GC.VendorSales then GC.VendorSales.OnChanged(time()) end
   elseif event == "MERCHANT_CLOSED" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantClosed() end
     if GC.VendorSellCard then GC.VendorSellCard.OnMerchantClosed() end
+    if GC.VendorSales then GC.VendorSales.OnClosed(time()) end
   elseif event == "MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL" then
     if GC.VendorSellCard then GC.VendorSellCard.OnTradeTimerConfirm() end
   elseif event == "BANKFRAME_OPENED" then
@@ -1135,6 +1142,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_LOGOUT" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
     if GC.ForeverRoad then GC.ForeverRoad.OnLogout() end
+    -- What a merchant visit still open sold is booked before the save is written.
+    if GC.VendorSales then GC.VendorSales.OnClosed(time()) end
   end
 end)
 

@@ -177,6 +177,36 @@ describe("Acquisition store", function()
     assert.equal(67, GC.Acquisitions.Consume("commodity:42", 2, "sale:2", 3, context).cost)
   end)
 
+  -- A sale to a merchant (Core/VendorSales.lua) names its item exactly, so the only question is
+  -- which units: the oldest first, as every other sale is costed.
+  it("a vendor sale spends lots FIFO and refuses a repeated sale key", function()
+    local older = record({ evidenceKey = "tx:old", quantity = 2, total = 200, acquiredAt = 1 })
+    local newer = record({ evidenceKey = "tx:new", quantity = 3, total = 900, acquiredAt = 2 })
+    local sale = { itemID = 42, quantity = 3, proceeds = 600, at = 10, seq = 1,
+      char = context.char, region = context.region }
+    local result = GC.Acquisitions.RecordVendorSale(sale)
+    assert.equal("applied", result.status)
+    assert.equal(3, result.quantity)
+    assert.equal(500, result.cost) -- both of the older lot, one of the newer
+    assert.equal(100, result.profit)
+    assert.equal(0, older.remainingQty)
+    assert.equal(2, newer.remainingQty)
+    assert.equal(600, newer.remainingTotal)
+
+    assert.equal("duplicate", GC.Acquisitions.RecordVendorSale(sale).status)
+    assert.equal(2, newer.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+  end)
+
+  it("books a vendor sale of an item it holds no lot of as nothing", function()
+    record({ quantity = 2, total = 200 })
+    local result = GC.Acquisitions.RecordVendorSale({ itemID = 77, quantity = 1, proceeds = 5, at = 10,
+      seq = 1, char = context.char, region = context.region })
+    assert.equal("unresolved", result.status)
+    assert.same({}, db.acquisitionConsumptionEvidence)
+    assert.same({}, db.acquisitionRealized)
+  end)
+
   it("rejects overspending and repeated sale evidence atomically", function()
     record({ quantity = 2, total = 201 })
     assert.is_nil(GC.Acquisitions.Consume("commodity:42", 3, "sale:1", 1, context))

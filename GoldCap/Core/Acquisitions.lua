@@ -1229,6 +1229,68 @@ function GC.Acquisitions.ReconcileSale(entry)
     cost = realized.cost, proceeds = entry.total, profit = profit }
 end
 
+-- A sale to a merchant (Core/VendorSales.lua, WoW: Forever only; retail never calls this). The
+-- buyback list names the item exactly, so the only question left is which units, and the store's
+-- own convention answers it: the oldest first. Unlike ReconcileSale it takes what the books hold,
+-- min(sold, held): a stack of bought and looted units sold together is the ordinary case, and
+-- refusing it is what left these lots standing for good. It does not guess which variant was sold:
+-- an item whose lots carry two position keys is left alone. `proceeds` is what the merchant paid
+-- for the whole stack, so a part taken is paid its share. The realized row sits beside
+-- ReconcileSale's (source "vendor_sale"); no ledger row is written, since the ledger is auction
+-- house money the companion uploads. The evidence key makes a replay book nothing twice.
+function GC.Acquisitions.RecordVendorSale(args)
+  if not db or type(args) ~= "table" or not isPositiveInteger(args.itemID)
+      or not isPositiveInteger(args.quantity) or not isExactInteger(args.proceeds)
+      or not isExactInteger(args.at) or not isPositiveInteger(args.seq)
+      or not isNonEmptyString(args.char) or not isNonEmptyString(args.region)
+      or not isStringOrNil(args.itemName) then
+    return unresolved("invalid_sale")
+  end
+  local context = { char = args.char, region = args.region }
+  local evidenceKey = table.concat({ "vendorsale", args.region, args.char, ("%d"):format(args.itemID),
+    ("%d"):format(args.at), ("%d"):format(args.seq) }, "\1")
+  if db.acquisitionConsumptionEvidence[evidenceKey] then return { status = "duplicate" } end
+
+  local lots, keys, keyless, held = {}, {}, false, 0
+  for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
+    if batch.itemID == args.itemID then
+      lots[#lots + 1] = batch
+      if isNonEmptyString(batch.positionKey) then keys[batch.positionKey] = true else keyless = true end
+      held = safeAdd(held, batch.remainingQty)
+      if not held then return unresolved("invalid_quantity") end
+    end
+  end
+  if #lots == 0 then return unresolved("no_position") end
+  local positionKey, keyCount = nil, 0
+  for key in pairs(keys) do positionKey, keyCount = key, keyCount + 1 end
+  -- A keyless lot of a commodity is that commodity, which has one identity; beside a variant's key
+  -- it could be another variant.
+  if keyCount > 1 or (keyCount == 1 and keyless
+      and positionKey ~= GC.Acquisitions.PositionKey(args.itemID, nil, true)) then
+    return unresolved("ambiguous_position")
+  end
+  local take = math.min(args.quantity, held)
+  local allocation = allocationFor(lots, take)
+  if not allocation or allocation.coverage ~= "COMPLETE" or not isExactInteger(allocation.knownCost) then
+    return unresolved("insufficient_quantity")
+  end
+  local proceeds = take == args.quantity and args.proceeds or mulDivFloor(args.proceeds, take, args.quantity)
+  local profit = proceeds and proceeds - allocation.knownCost
+  if not isSignedExactInteger(profit) then return unresolved("invalid_profit") end
+  local ids = {}
+  for _, batch in ipairs(lots) do ids[batch.id] = true end
+  if not GC.Acquisitions.Consume(positionKey, take, evidenceKey, args.at, context, allocation, { ids = ids }) then
+    return unresolved("consume_failed")
+  end
+  db.acquisitionRealized[#db.acquisitionRealized + 1] = { evidenceKey = evidenceKey,
+    scopeKey = positionKey and GC.Acquisitions.ScopeKey(positionKey, context) or nil,
+    positionKey = positionKey, itemName = lots[1].itemName or args.itemName, character = args.char,
+    region = args.region, quantity = take, cost = allocation.knownCost, proceeds = proceeds,
+    profit = profit, at = args.at, source = "vendor_sale" }
+  return { status = "applied", positionKey = positionKey, quantity = take, cost = allocation.knownCost,
+    proceeds = proceeds, profit = profit }
+end
+
 --- Converts the unscoped pre-acquisition flip queue without ever pruning or
 -- deleting it. Ledger rows are separately durable evidence: repeated passes
 -- may attach newly-arrived rows, but acquisitionVersion prevents a second flip
