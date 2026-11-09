@@ -95,6 +95,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["Core/VendorSales.lua"] = "Core/VendorBuys.lua",
     -- The sale pace SELL posts by, beside the unsold rounds it is read with.
     ["Core/ForeverPace.lua"] = "Core/SellRounds.lua",
+    -- The deposits lost to expired and cancelled lots, beside the returns log that feeds it.
+    ["Core/ForeverDeposits.lua"] = "Core/MailReturns.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()
