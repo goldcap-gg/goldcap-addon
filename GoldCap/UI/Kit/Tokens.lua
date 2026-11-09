@@ -34,6 +34,11 @@ local c = {
   cost = { 0.788, 0.663, 0.341, 1 },
   -- Lettering on a gold fill.
   onGold = hex("160F04"),
+  -- The rail's label colours, the primary button's two fills and label, and the frame's tint.
+  -- Nothing reads them in the plain look; skins (UI/Kit/Skins.lua) rewrite them in place.
+  railIdle = hex("6F7885"), railActive = hex("F7CF5A"),
+  primaryTop = hex("F2BE57"), primaryBottom = hex("C9922F"), primaryText = hex("160F04"),
+  frameTint = { 1, 1, 1, 0.14 },
 }
 Tokens.color = c
 

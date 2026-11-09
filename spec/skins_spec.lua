@@ -73,6 +73,15 @@ describe("skins", function()
     same(c.hoverWash, { c.gold[1], c.gold[2], c.gold[3], 0.18 }, "hoverWash")
   end)
 
+  it("defines the six skin-only keys as tables right after load, and aliases of them follow Apply", function()
+    local keys = { "railIdle", "railActive", "primaryTop", "primaryBottom", "primaryText", "frameTint" }
+    for _, key in ipairs(keys) do assert.is_table(Tokens.color[key], key) end
+    local alias = Tokens.color.primaryTop
+    Skins.Apply("horde")
+    assert.equal(alias, Tokens.color.primaryTop)
+    same(alias, Tokens.hex("CF3B2D"), "primaryTop")
+  end)
+
   it("apply writes in place", function()
     local g = Tokens.color.gold
     Skins.Apply("horde")

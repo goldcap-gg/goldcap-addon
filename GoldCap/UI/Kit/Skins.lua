@@ -8,6 +8,7 @@ local _, GC = ...
 GC.Kit = GC.Kit or {}
 local Tokens = GC.Kit.Tokens
 local hex = Tokens.hex
+local blizzard = Tokens.blizzard
 
 local Skins = {}
 GC.Kit.Skins = Skins
@@ -38,9 +39,10 @@ defs.goldcap = {
     warn = hex("F5C469"), yours = hex("7CC0FF"),
     cost = { 0.788, 0.663, 0.341, 1 },
     onGold = hex("160F04"),
-    railIdle = hex("6F7885"), railActive = hex("F7CF5A"),
-    primaryTop = hex("F2BE57"), primaryBottom = hex("C9922F"), primaryText = hex("160F04"),
-    frameTint = { 1, 1, 1, 0.14 },
+    -- Tokens.lua holds goldcap's values for these; Tokens.blizzard is its untouched copy.
+    railIdle = blizzard.railIdle, railActive = blizzard.railActive,
+    primaryTop = blizzard.primaryTop, primaryBottom = blizzard.primaryBottom, primaryText = blizzard.primaryText,
+    frameTint = blizzard.frameTint,
   },
   quality = nil,
   radius = { 12, 10, 8, 12 },
