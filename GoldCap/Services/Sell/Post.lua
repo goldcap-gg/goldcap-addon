@@ -691,6 +691,12 @@ function GC.Sell.OnAuctionCreated(auctionID)
     list[#list + 1] = { auctionID = auctionID, quantity = owner.quantity, unitPrice = owner.unitPrice }
     S.pacePosted[owner.positionKey] = list
   end
+  -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): what this post
+  -- put up, for the day it expires or is cancelled. Only when it is certainly this post's: a guess
+  -- records nothing, and a lot with no record later costs only what can be quoted again.
+  if certain and GC.ForeverDeposits then
+    GC.ForeverDeposits.RecordPost(auctionID, owner, GC.Ledger.Context(), time())
+  end
   GC.Sell._SpendPrice(owner)
   if owner ~= wire then
     -- A post we stopped waiting for, going up late (GC.Sell._lateAnswers): the dock said the

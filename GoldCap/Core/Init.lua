@@ -986,8 +986,16 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "AUCTION_CANCELED" then
     -- The lot the event names goes to the Sell tab FIRST: the owned-auctions list it re-reads
     -- next is a cache that still holds that lot (see GC.Sell.OnAuctionCanceled).
+    local cancelledID
     if GC.Sell.OnAuctionCanceled then
-      GC.Sell.OnAuctionCanceled((...))
+      cancelledID = GC.Sell.OnAuctionCanceled((...))
+    end
+    -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): the cancel
+    -- the server answered loses its deposit, one ledger row, whoever sent it -- GoldCap's own cancel
+    -- left a note of its lot, a cancel from Blizzard's window is read off the saved owned list.
+    if GC.ForeverDeposits and cancelledID then
+      local lot = GC.Sell.OwnedLot(cancelledID)
+      GC.ForeverDeposits.Cancelled(cancelledID, lot, lot and GC.Sell.LotForfeit(lot), GC.Ledger.Context(), time())
     end
     if GC.Sell.OnOwnedAuctions then
       GC.Sell.OnOwnedAuctions()

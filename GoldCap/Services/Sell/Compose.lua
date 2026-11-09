@@ -127,11 +127,16 @@ function Compose.Positions(skipPaint)
   -- of each item one post lists, and which posts go up for 24 h, before the queue below reads them.
   -- This visit's posts certain to be ours count as listed until the owned list holds them, and
   -- then drop out of S.pacePosted: a lot that sells or is cancelled off that list later is no
-  -- longer up, and must not count again. No unsold rounds are counted per item here yet: every
-  -- item reads none.
+  -- longer up, and must not count again. Each item's run of lots that came back unsold since its
+  -- last sale, on this character, is Core/ForeverDeposits.lua's (also Camelot only); without it
+  -- every item reads none.
   if GC.ForeverPace then
     local ctx = { hoursOf = GC.GroupRules and GC.GroupRules.HoursOf, settingIndex = GC.Flips.PostDurationIndex(),
-      slowOn = GC.Sell.SlowSellersOn(), streakFor = function() return 0, 0, nil end, recent = S.pacePosted }
+      slowOn = GC.Sell.SlowSellersOn(), recent = S.pacePosted,
+      streakFor = function(itemID)
+        if GC.ForeverDeposits then return GC.ForeverDeposits.Streak(itemID, GC.Ledger.Context(), time()) end
+        return 0, 0, nil
+      end }
     for _, position in ipairs(S.positions) do
       GC.ForeverPace.Decorate(position, ctx)
       local key = position.positionKey

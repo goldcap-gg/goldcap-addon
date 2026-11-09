@@ -100,6 +100,7 @@ GC.Sell.cancelledLots = {}
 -- How long a cancel nothing confirmed is believed over a list that still holds the lot.
 GC.Sell.CANCEL_SENT_WAIT = 15
 
+-- Returns the auction ID it settled on (the event's own, or the one cancel waiting), or nil.
 function GC.Sell.OnAuctionCanceled(auctionID)
   local lots = GC.Sell.cancelledLots
   if not exact(auctionID) or auctionID <= 0 then
@@ -118,6 +119,34 @@ function GC.Sell.OnAuctionCanceled(auctionID)
   local known = lots[auctionID] ~= nil
   lots[auctionID] = { at = time(), confirmed = true }
   if known then View.status(GC.L["Lot cancelled; wait for it to return to bags"]) end
+  return auctionID
+end
+
+-- The lot `auctionID` was, as the saved owned list last read it (GoldCapDB.ownedLots,
+-- GC.Data.RecordOwnedLots): this character's and region's newest row of it, cancelled or not, as
+-- { auctionID, itemID, quantity, itemName, positionKey }, positionKey only for a commodity (an
+-- item's depends on a variant the row does not keep). nil when the list never held it. Read for a
+-- cancel the server answered (Core/Init.lua's AUCTION_CANCELED), whoever sent it.
+function GC.Sell.OwnedLot(auctionID)
+  local rows = type(GC.db) == "table" and GC.db.ownedLots
+  local scope = context()
+  if type(rows) ~= "table" or not exact(auctionID) or auctionID <= 0 or type(scope) ~= "table" then return nil end
+  local newest
+  for _, row in ipairs(rows) do
+    if type(row) == "table" and row.auctionID == auctionID and row.char == scope.char and row.region == scope.region
+        and exact(row.itemID) and row.itemID > 0 and exact(row.quantity) and row.quantity > 0
+        and (not newest or (row.seenAt or 0) > (newest.seenAt or 0)) then
+      newest = row
+    end
+  end
+  if not newest then return nil end
+  local name
+  if C_Item and C_Item.GetItemNameByID then
+    local ok, read = pcall(C_Item.GetItemNameByID, newest.itemID)
+    if ok and type(read) == "string" and read ~= "" then name = read end
+  end
+  return { auctionID = auctionID, itemID = newest.itemID, quantity = newest.quantity, itemName = name,
+    positionKey = newest.isCommodity == true and ("commodity:" .. newest.itemID) or nil }
 end
 
 function GC.Sell.OnOwnedAuctions()
