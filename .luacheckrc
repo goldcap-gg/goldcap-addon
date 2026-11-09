@@ -9,11 +9,11 @@ files["addon/spec/"] = { std = "lua51+busted" }
 
 -- The three GoldCap_OnAddonCompartment* globals are named by GoldCap.toc's
 -- AddonCompartment* directives, which is the only way the client can reach them.
-globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLedger", "GoldCap_AppRuns", "SLASH_GOLDCAP1", "SLASH_GOLDCAP2", "SlashCmdList", "GoldCapSniperFrame",
+globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLedger", "GoldCap_AppRuns", "SLASH_GOLDCAP1", "SLASH_GOLDCAP2", "SLASH_GOLDCAPPROBE1", "SlashCmdList", "GoldCapSniperFrame",
   "GoldCap_OnAddonCompartmentClick", "GoldCap_OnAddonCompartmentEnter", "GoldCap_OnAddonCompartmentLeave" }
 
 read_globals = {
-  "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip",
+  "CreateFrame", "UIParent", "CreateFontFamily", "GameFontNormal", "GameTooltip", "ItemRefTooltip",
   -- A board row's item tooltip without the comparison windows (UI/SniperFrame.lua's _ShowItemTooltip).
   "GameTooltip_SuppressAutomaticCompareItem",
   -- BUY 2.0 week 2: the merchant (UI/BuyVendorPanel.lua).

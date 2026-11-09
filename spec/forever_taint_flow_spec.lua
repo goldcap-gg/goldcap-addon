@@ -297,7 +297,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     local toc = assert(io.open(retail and "GoldCap/GoldCap.toc" or "GoldCap/GoldCap_Camelot.toc", "r"))
     for rawLine in toc:lines() do
       local line = rawLine:gsub("%s+$", "")
-      if line ~= "" and not line:match("^##") and not line:match("^#") then
+      if line ~= "" and not line:match("^#") and not line:match("^#") then
         local chunk, err = loadfile("GoldCap/" .. line:gsub("\\", "/"))
         assert(chunk, err)
         chunk("GoldCap", GC)

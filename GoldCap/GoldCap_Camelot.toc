@@ -160,3 +160,6 @@ UI/CraftQueueView.lua
 UI/CraftPanel_Camelot.lua
 UI/SettingsFrame.lua
 Core/Init.lua
+#@debug@
+Dev/SkinProbe.lua
+#@end-debug@

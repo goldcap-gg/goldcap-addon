@@ -201,7 +201,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     local files = {}
     for rawLine in toc:lines() do
       local line = rawLine:gsub("%s+$", "")
-      if line ~= "" and not line:match("^##") then
+      if line ~= "" and not line:match("^#") then
         files[#files + 1] = line
       end
     end
