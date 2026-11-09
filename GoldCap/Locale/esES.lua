@@ -1868,4 +1868,8 @@ GC.Locales.esES = {
     "Vendido a un mercader, gastado o regalado: GoldCap deja de contar estas unidades como existencias. Lo que pagaste queda en su historial.",
   ["Click again to stop counting these units as stock. There is no undo."] =
     "Pulsa otra vez para dejar de contar estas unidades como existencias. No se puede deshacer.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Ya hay bastantes",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "Tus %d ya publicados cubren unas %d h de ventas. Escribe un número o pulsa MÁX. para publicar más.",
 }

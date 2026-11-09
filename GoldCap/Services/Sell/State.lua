@@ -225,23 +225,21 @@ local function effectivePostUnit(position)
   return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit, commodity)) or unit, chosen ~= nil
 end
 
--- How many units Post would list for this position right now, the most it could, and whether
--- the first is the seller's own number. The most is what one click can list (the largest stack
--- of a normal item, a commodity's whole pool: SellPositions' postableQty, else the bag count);
--- a number the seller gave counts only under it. Read live, like effectivePostUnit, so the row,
--- the panel and the queue move as the number is typed.
+-- How many units Post would list for this position right now, the most it could, whether the
+-- first is the seller's own number, and why (GC.SellPositions.PostQuantity's word). The most is
+-- what one click can list (the largest stack of a normal item, a commodity's whole pool:
+-- SellPositions' postableQty, else the bag count); a number the seller gave counts only under it.
+-- The rest is the one quantity rule the post plan and the queue read too, at the price and the
+-- duration this post would go up at. Read live, like effectivePostUnit, so the row, the panel and
+-- the queue move as the number is typed.
 local function postQuantity(position)
   local most = exact(position.postableQty) and position.postableQty > 0 and position.postableQty
     or exact(position.bagQty) and position.bagQty or 0
   local key = overrideKey(position)
   local chosen = key and GC.SellState.quantityOverrides[key] or nil
-  if exact(chosen) and chosen > 0 and chosen < most then return chosen, most, true end
-  -- A followed group's "1 at a time" is where the count starts when nothing is typed.
-  local ruleQty = position.rulePostQty
-  if not (exact(chosen) and chosen > 0) and exact(ruleQty) and ruleQty > 0 and ruleQty < most then
-    return ruleQty, most, false
-  end
-  return most, most, false
+  local qty, why = GC.SellPositions.PostQuantity(position, chosen, most, (effectivePostUnit(position)),
+    (GC.Sell.PostDurationFor(position)))
+  return qty, most, why == "typed", why
 end
 
 -- A listing duration index the posting calls take (1, 2 or 3), or nil for anything else.
@@ -352,6 +350,16 @@ function GC.Sell.PostDurationFor(position)
   if slow then return slow, "slow" end
   local settings = type(GC.db) == "table" and type(GC.db.settings) == "table" and GC.db.settings.sniper
   return validIndex(type(settings) == "table" and settings.postDuration) or 2, "setting"
+end
+
+-- What a post held for its sale pace says (GC.SellPositions.PostQuantity's "enough"): the units
+-- already up at or under the price (`listed`) and the hours the post would have run. The position
+-- is the one the click and the panel hold; nothing here reads it yet.
+function GC.Sell.EnoughListedText(_position, listed, durationIndex)
+  local hours = GC.GroupRules and GC.GroupRules.HoursOf and GC.GroupRules.HoursOf(durationIndex)
+  if not (exact(listed) and hours) then return GC.L["Cannot post this position"] end
+  return (GC.L["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."]):format(
+    listed, hours)
 end
 
 -- WoW: Forever, the way this tab has always told it (Core/ForeverScan.lua's Enabled, set at

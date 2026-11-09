@@ -353,6 +353,49 @@ end
 fmt.goldPositive, fmt.goldText = dialogGoldPositive, copperToGoldText
 fmt.priceText, fmt.priceBoxCopper = copperToPriceText, priceBoxCopper
 
+-- Skip reasons in words a seller would actually read, never GC.PostQueue's own internal token
+-- -- see that module's own `evaluate` comment for what each one means structurally. A silently
+-- short queue is the same lie as a silently short deals list; naming the reason in plain words
+-- is what keeps it from being a DIFFERENT lie instead.
+-- @localised-keys: literals in this table ARE GC.L keys, looked up where the table is
+-- READ, not here. This is file scope, and GC.L only resolves once ApplyLocale has run
+-- at ADDON_LOADED -- a lookup here captures the English fallback and keeps it in every
+-- language. The table has to close with a `}` on its own line: that is where the
+-- contract spec's scanner stops.
+UI.SKIP_TEXT = {
+  no_fresh_price = "needs a fresh price. Press REFRESH",
+  below_breakeven = "would sell at a loss",
+  unresolved_identity = "GoldCap can't pin down which bag stack this is",
+  -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for
+  -- it after the AH's cut.
+  below_vendor = "a vendor pays more: sell it there",
+  -- WoW: Forever only (Core/PostQueue.lua's below_deposit): the tooltip's own verdict, in its
+  -- own words, for the whole post.
+  below_deposit = "The deposit outweighs the gain and is lost if unsold",
+  -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
+  -- held-back listing needs its why stated even more than a held-back post does.
+  advised_hold = "relisting now would lock in a loss or a stall. Hold",
+  -- Held by this tab, not by the queue module: the item's last post may still go up
+  -- (GC.Sell._lateAnswers).
+  awaiting_answer = "Last post may still go up. Wait a minute",
+  no_advice = "cost basis incomplete. Set costs to get repost advice",
+  below_rule_floor = "the market is under your group's floor. Type a price to post anyway",
+  below_floor = "relisting would go under your group's floor. Hold",
+  small_undercut = "undercut by less than your cancel setting. Hold",
+  -- WoW: Forever only (Core/SellPositions.lua's deposit weighing). It says may, because a
+  -- deposit the client cannot quote holds the lot too.
+  deposit = "the deposit a cancel loses may be more than relisting wins back. Hold",
+  -- WoW: Forever only (Core/PostQueue.lua's enough_listed): the sale pace is covered by what is
+  -- already up.
+  enough_listed = "Enough listed",
+}
+
+-- Why a queue held a position back, in the words above; nil for a reason they do not name.
+function fmt.skipText(reason)
+  local key = UI.SKIP_TEXT[reason]
+  return key and GC.L[key] or nil
+end
+
 function GC.Sell.Show()
   if UI.container then UI.container:Show() end
   -- The headings are otherwise only ever stamped when the DECK changes (List.RenderRows), and this

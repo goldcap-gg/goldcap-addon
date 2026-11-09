@@ -1862,4 +1862,8 @@ GC.Locales.ptBR = {
     "Vendido a um mercador, usado ou dado: o GoldCap deixa de contar estas unidades como estoque. O que você pagou continua no histórico delas.",
   ["Click again to stop counting these units as stock. There is no undo."] =
     "Clique de novo para deixar de contar estas unidades como estoque. Não dá para desfazer.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Já há o bastante",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "Seus %d já anunciados cobrem cerca de %d h de vendas. Digite um número ou clique em MÁX. para anunciar mais.",
 }

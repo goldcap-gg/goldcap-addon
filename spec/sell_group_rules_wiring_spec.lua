@@ -131,10 +131,10 @@ describe("Sell tab with followed groups' rules", function()
     services()
     local postQuantity = GC.SellUtil.postQuantity
     local position = { positionKey = "commodity:10", rulePostQty = 1, postableQty = 5 }
-    assert.same({ 1, 5, false }, { postQuantity(position) })
+    assert.same({ 1, 5, false, "rule" }, { postQuantity(position) })
     GC.SellState.quantityOverrides["commodity:10"] = 3
-    assert.same({ 3, 5, true }, { postQuantity(position) })
-    assert.same({ 5, 5, false }, { postQuantity({ positionKey = "commodity:11", postableQty = 5 }) })
+    assert.same({ 3, 5, true, "typed" }, { postQuantity(position) })
+    assert.same({ 5, 5, false, "most" }, { postQuantity({ positionKey = "commodity:11", postableQty = 5 }) })
   end)
 
   -- The deposit estimates read the rule's duration through a plain table: the Sniper's runs inside

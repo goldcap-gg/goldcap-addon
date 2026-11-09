@@ -33,6 +33,7 @@ local ROW_TAG_TEXT = {
   below_floor = "under group floor",
   small_undercut = "small undercut",
   deposit = "hold",
+  enough_listed = "Enough listed",
 }
 
 local rowTag

@@ -1868,4 +1868,8 @@ GC.Locales.deDE = {
     "An einen Händler verkauft, verbraucht oder verschenkt: GoldCap zählt diese Einheiten nicht mehr als Bestand. Was du bezahlt hast, bleibt in ihrem Verlauf.",
   ["Click again to stop counting these units as stock. There is no undo."] =
     "Klicke noch einmal, damit GoldCap diese Einheiten nicht mehr als Bestand zählt. Das lässt sich nicht rückgängig machen.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Genug eingestellt",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "Deine %d eingestellten decken etwa %d Std. Verkäufe ab. Gib eine Zahl ein oder drück MAX, um mehr einzustellen.",
 }

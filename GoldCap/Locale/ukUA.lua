@@ -1936,4 +1936,8 @@ GC.Locales.ukUA = {
     "Продано торговцю, витрачено або віддано: GoldCap більше не рахує ці одиниці запасом. Те, що ви заплатили, лишається в їхній історії.",
   ["Click again to stop counting these units as stock. There is no undo."] =
     "Натисніть ще раз, щоб більше не рахувати ці одиниці запасом. Скасувати це не можна.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Виставлено досить",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "Уже виставлених %d шт. вистачить приблизно на %d год продажів. Введіть число або натисніть УСЕ, щоб виставити більше.",
 }

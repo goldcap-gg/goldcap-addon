@@ -345,10 +345,16 @@ function Post.PreparePost(row)
     unit = effectivePostUnit(position)
     if not unit then View.status(GC.L["Nothing listed on the AH right now"]); return end
   end
-  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = unit, fresh = true },
-    { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty })
+  local plan, reason, listed = GC.SellPositions.BuildPostPlan(position, bagState, { unit = unit, fresh = true },
+    { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty,
+      durationIndex = duration })
   if not plan then
-    View.status(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
+    -- Refused: no protected call follows, so the sentence may be built here.
+    if reason == "enough_listed" then
+      View.status(GC.Sell.EnoughListedText(position, listed, duration))
+    else
+      View.status(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
+    end
     return
   end
   local scope, scopeKey = activeScope(position)
@@ -418,7 +424,8 @@ function Post.PreparePost(row)
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
     duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty,
-    pickedDuration = pickedDuration, deposit = quoted and quoted.quantity == plan.quantity and quoted.deposit or nil }
+    pickedDuration = pickedDuration, deposit = quoted and quoted.quantity == plan.quantity and quoted.deposit or nil,
+    paceCapped = plan.quantityWhy == "pace" }
   -- Plain field write only, before the call: row.postStage = "posting" is what the re-entrancy
   -- guard at the top of this function reads. The busy look -- Disable() (runs GoldCap's own
   -- OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy() (lazily creates

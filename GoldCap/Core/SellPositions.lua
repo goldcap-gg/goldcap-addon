@@ -1082,6 +1082,53 @@ function GC.SellPositions.Margin(unit, paidUnit)
   return math.floor(over / paidUnit + 0.5), over < 0
 end
 
+-- The typed quantity that means every unit in the bags (MAX; stored only on WoW: Forever).
+GC.SellPositions.ALL = "all"
+
+local function listedIn(lots, unit)
+  local units = 0
+  for _, lot in ipairs(type(lots) == "table" and lots or {}) do
+    if type(lot) == "table" and exact(lot.quantity)
+        and (unit == nil or (exact(lot.unitPrice) and lot.unitPrice <= unit)) then
+      units = units + lot.quantity
+    end
+  end
+  return units
+end
+
+-- The units of this position already up at a unit price at or under `unit` (they sell first):
+-- its owned lots, and the posts of this visit the owned list has not caught up with yet
+-- (`paceRecent`, WoW: Forever). Every lot when `unit` is nil.
+function GC.SellPositions.ListedAtOrBelow(position, unit)
+  if type(position) ~= "table" then return 0 end
+  return listedIn(position.ownedLots, unit) + listedIn(position.paceRecent, unit)
+end
+
+-- How many units one post of this position lists, and why: the one rule the post plan
+-- (BuildPostPlan), the panel (GC.SellUtil.postQuantity) and the queue (Core/PostQueue.lua) read.
+-- `typed` is the player's number (ALL for every unit), `most` what one click can list, `unit` the
+-- price and `durationIndex` the duration (1 to 3) the post goes up at. A typed number wins, then a
+-- followed group's "1 at a time", then WoW: Forever's sale pace (`paceTargets`, the units that sell
+-- within each duration, set only by Core/ForeverPace.lua) less what is already up at or under the
+-- price, then everything. `why`: "all" | "typed" | "rule" | "pace" | "enough" | "most"; 0 with
+-- "enough" when what is up covers the pace.
+function GC.SellPositions.PostQuantity(position, typed, most, unit, durationIndex)
+  if typed == GC.SellPositions.ALL then return most, "all" end
+  if exact(typed) and typed > 0 then
+    if typed < most then return typed, "typed" end
+    return most, "all"
+  end
+  local rule = position.rulePostQty
+  if exact(rule) and rule > 0 and rule < most then return rule, "rule" end
+  local target = type(position.paceTargets) == "table" and durationIndex and position.paceTargets[durationIndex]
+  if exact(target) and target > 0 then
+    local left = target - GC.SellPositions.ListedAtOrBelow(position, unit)
+    if left <= 0 then return 0, "enough" end
+    return math.min(left, most), "pace"
+  end
+  return most, "most"
+end
+
 -- What Post will actually list, priced at the fresh quote.
 --
 -- This used to refuse anything GoldCap could not fully cost: a position needed a tracked
@@ -1091,10 +1138,13 @@ end
 -- anyway. Not knowing what something cost is a reason to report the profit as unknown, not a
 -- reason to refuse to sell it. Cost coverage is now reported (`costKnown`) instead of enforced.
 --
--- The quantity is the bag quantity, full stop. Listed units are on the auction house and not in
--- the bags, so "what is in the bags" is already exactly "what is not yet listed" -- the old
+-- The most it lists is the bag quantity, full stop. Listed units are on the auction house and not
+-- in the bags, so "what is in the bags" is already exactly "what is not yet listed" -- the old
 -- min(trackedQty - listedQty, bags) capped a real 200-unit stack at the 5 units GoldCap happened
--- to have a receipt for.
+-- to have a receipt for. How many of those it lists is PostQuantity's (above), decided once the
+-- price is (the price never reads it): `opts.overrideQuantity` is the player's number,
+-- `opts.durationIndex` the duration the post goes up at. Nothing to list because enough is
+-- already up returns nil, "enough_listed" and the units up at or under the price.
 function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
@@ -1115,16 +1165,8 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
       and bagState.positionKey ~= position.positionKey then
     return nil, "ambiguous_variant"
   end
-  local quantity = bagState.exactQty
-  if quantity <= 0 then return nil, "no_unlisted_quantity" end
-  -- Fewer when the seller asked for fewer (the Sell tab's "how many"), never more than is here.
-  if positive(opts and opts.overrideQuantity) then
-    if opts.overrideQuantity < quantity then quantity = opts.overrideQuantity end
-  elseif positive(position.rulePostQty) and position.rulePostQty < quantity then
-    -- A followed group's "1 at a time" ("one at a time" in spec/sell_group_rules_spec.lua): the
-    -- default when the seller typed no quantity of their own.
-    quantity = position.rulePostQty
-  end
+  local most = bagState.exactQty
+  if most <= 0 then return nil, "no_unlisted_quantity" end
   -- A price the seller typed replaces the derived one outright -- both raises below included.
   -- Those raises exist to stop the ADDON from underpricing on its own, against a thin cheap
   -- lot it cannot tell from a real market; they were never meant as a veto on a seller who
@@ -1201,13 +1243,19 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
     end
   end
   unit = graded
+  -- Fewer when the seller asked for fewer (the Sell tab's "how many"), a followed group's "1 at a
+  -- time" ("one at a time" in spec/sell_group_rules_spec.lua) or the sale pace says so, never more
+  -- than is here.
+  local quantity, quantityWhy = GC.SellPositions.PostQuantity(position, opts and opts.overrideQuantity, most, unit,
+    opts and opts.durationIndex)
+  if quantity <= 0 then return nil, "enough_listed", GC.SellPositions.ListedAtOrBelow(position, unit) end
   local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty or 0, quantity)
   local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
   -- Measured AFTER SilverUp, against the final number this plan will actually list at -- the
   -- caller's warning has to describe the price that gets sent, not the one before rounding.
   local risk = GC.SellPositions.PriceRisk(position, unit)
   return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,
-    quantity = quantity, cost = complete and allocation.knownCost or nil, costKnown = complete,
+    quantity = quantity, quantityWhy = quantityWhy, cost = complete and allocation.knownCost or nil, costKnown = complete,
     allocations = allocation and allocation.allocations or {}, unitPrice = unit,
     chosen = chosen ~= nil, belowFloor = risk.belowFloor, belowCost = risk.belowCost }
 end

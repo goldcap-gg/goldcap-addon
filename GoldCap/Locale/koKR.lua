@@ -1794,4 +1794,8 @@ GC.Locales.koKR = {
     "상인에게 팔았거나, 다 썼거나, 남에게 준 경우: GoldCap이 이 물량을 더 이상 재고로 세지 않습니다. 지불한 금액은 기록에 남습니다.",
   ["Click again to stop counting these units as stock. There is no undo."] =
     "한 번 더 누르면 이 물량을 더 이상 재고로 세지 않습니다. 되돌릴 수 없습니다.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "충분히 올림",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "이미 올린 %d개로 약 %d시간 판매량을 채웁니다. 더 올리려면 숫자를 입력하거나 최대를 누르세요.",
 }

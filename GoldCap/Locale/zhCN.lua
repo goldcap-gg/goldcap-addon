@@ -1759,4 +1759,8 @@ GC.Locales.zhCN = {
     "卖给了商人、用掉了或送人了：GoldCap 不再把这些物品算作库存。你付出的成本仍保留在它们的记录里。",
   ["Click again to stop counting these units as stock. There is no undo."] =
     "再点一次，就不再把这些物品算作库存。此操作无法撤销。",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "已上架足够",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "已上架的 %d 件约够 %d 小时的销量。输入数量或点击最大以上架更多。",
 }

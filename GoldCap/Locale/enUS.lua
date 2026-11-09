@@ -1854,4 +1854,8 @@ GC.Locales.enUS = {
     "Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history.",
   ["Click again to stop counting these units as stock. There is no undo."] =
     "Click again to stop counting these units as stock. There is no undo.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Enough listed",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "Your %d already up cover about %d h of sales. Type a number or press MAX to post more.",
 }

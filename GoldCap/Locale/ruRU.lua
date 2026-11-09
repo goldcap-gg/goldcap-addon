@@ -1934,4 +1934,8 @@ GC.Locales.ruRU = {
     "Продано торговцу, израсходовано или отдано: GoldCap больше не считает эти единицы запасом. То, что вы заплатили, остаётся в их истории.",
   ["Click again to stop counting these units as stock. There is no undo."] =
     "Нажмите ещё раз, чтобы больше не считать эти единицы запасом. Отменить это нельзя.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Хватает выставленных",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "Уже выставленных %d шт. хватит примерно на %d ч продаж. Введите число или нажмите ВСЁ, чтобы выставить больше.",
 }
