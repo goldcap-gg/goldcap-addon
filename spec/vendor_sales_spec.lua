@@ -13,8 +13,11 @@ describe("merchant sales spend purchase lots", function()
   local GC, db, shelf, ledgerRows, bag, hidden
   local me = { char = "Seller-Realm", region = "110" }
 
+  -- With a suffix, a piece of gear's link: the suffix id in its own field and a bonus count of 0,
+  -- the form SELL's own link rule files a stack by (GC.Sell._SlotKey).
   local function link(itemID, suffix)
-    return ("|cffffffff|Hitem:%d::::::%s:::::::::|h[Item %d]|h|r"):format(itemID, suffix or "", itemID)
+    if suffix then return ("|cff1eff00|Hitem:%d::::::%d:0:60::::0|h[Item %d]|h|r"):format(itemID, suffix, itemID) end
+    return ("|cffffffff|Hitem:%d:::::::::::::::|h[Item %d]|h|r"):format(itemID, itemID)
   end
 
   local function hold(itemID, count) bag[itemID] = count end
@@ -327,6 +330,104 @@ describe("merchant sales spend purchase lots", function()
     GC.VendorSales.OnChanged(202)
     GC.VendorSales.OnClosed(203)
     assert.equal(0, vials.remainingQty)
+  end)
+
+  -- The bags prove units left them, not that they were the bought ones: units on the auction house
+  -- are not in the bags, so a merchant sale of looted ones must leave them to the invoice.
+  describe("with units on the auction house", function()
+    -- One row of this character's owned-auctions roster, as GC.Data.RecordOwnedLots keeps it.
+    local function listed(fields)
+      local row = { auctionID = 9001, itemID = 1206, isCommodity = true, quantity = 20, unitPrice = 150,
+        expiresAt = 100000, char = me.char, region = me.region, seenAt = 150 }
+      for key, value in pairs(fields or {}) do row[key] = value end
+      db.ownedLots = db.ownedLots or {}
+      db.ownedLots[#db.ownedLots + 1] = row
+    end
+
+    it("leaves listed units to the auction house sale, which still finds them", function()
+      local batch = lot({ quantity = 20, total = 2000 })
+      GC.Acquisitions.RecordPost("commodity:1206", 1206, "Moss Agate", me.char, me.region, 20, 150, 150)
+      listed()
+      hold(1206, 6) -- looted after the 20 went up
+      GC.VendorSales.OnShow(200)
+      sell(1206, 6, 60)
+      GC.VendorSales.OnChanged(201)
+      GC.VendorSales.OnClosed(202)
+      assert.equal(20, batch.remainingQty)
+      assert.equal(0, #saleKeys())
+
+      local result = GC.Acquisitions.ReconcileSale({ kind = "sale", source = "mail", key = "mail:sale:1",
+        itemName = "Moss Agate", qty = 20, total = 3000, at = 300, char = me.char, region = me.region,
+        pending = false })
+      assert.equal("applied", result.status)
+      assert.equal(0, batch.remainingQty)
+    end)
+
+    it("counts only the units of this character's latest roster that still stand", function()
+      local batch = lot({ quantity = 20, total = 2000 })
+      listed({ quantity = 12 })
+      listed({ auctionID = 9002, quantity = 3, seenAt = 120 }) -- gone by the latest read
+      listed({ auctionID = 9003, quantity = 3, cancelledAt = 160 })
+      listed({ auctionID = 9004, quantity = 3, expiresAt = 180 })
+      listed({ auctionID = 9005, quantity = 3, char = "Alt-Realm", seenAt = 190 })
+      hold(1206, 11)
+      GC.VendorSales.OnShow(200)
+      sell(1206, 11, 110)
+      GC.VendorSales.OnChanged(201)
+      GC.VendorSales.OnClosed(202)
+      assert.equal(12, batch.remainingQty) -- 20 held, 12 listed: 8 of the 11 sold
+      local realized = GC.Acquisitions.GetRealized(me)[1]
+      assert.equal(8, realized.quantity)
+      assert.equal(80, realized.proceeds)
+    end)
+  end)
+
+  -- The bags count units by item id and cannot tell one version of a piece of gear from another.
+  describe("a piece of gear", function()
+    before_each(function()
+      _G.C_Item = { GetDetailedItemLevelInfo = function() return 14 end }
+      helper.loadModule("Services/Sell/State.lua", GC)
+      helper.loadModule("Services/Sell/Bags.lua", GC)
+    end)
+
+    after_each(function() _G.C_Item = nil end)
+
+    local function bracers()
+      return lot({ itemID = 2632, positionKey = "item:2632:14:14311:0", itemName = "Bracers",
+        quantity = 1, total = 5000 })
+    end
+
+    it("leaves a version's lot alone when the merchant bought another version", function()
+      local batch = bracers() -- of the Bear, bought
+      hold(2632, 2)
+      GC.VendorSales.OnShow(200)
+      sell(2632, 1, 300, 14303) -- of the Owl, looted
+      GC.VendorSales.OnChanged(201)
+      GC.VendorSales.OnClosed(202)
+      assert.equal(1, batch.remainingQty)
+      assert.equal(0, #saleKeys())
+    end)
+
+    it("spends a version's lot when the merchant bought that version", function()
+      local batch = bracers()
+      hold(2632, 2)
+      GC.VendorSales.OnShow(200)
+      sell(2632, 1, 300, 14311)
+      GC.VendorSales.OnChanged(201)
+      GC.VendorSales.OnClosed(202)
+      assert.equal(0, batch.remainingQty)
+      assert.equal("item:2632:14:14311:0", GC.Acquisitions.GetRealized(me)[1].positionKey)
+    end)
+
+    it("leaves a version's lot alone when the link cannot say which version was sold", function()
+      local batch = bracers()
+      hold(2632, 1)
+      GC.VendorSales.OnShow(200)
+      sell(2632, 1, 300)
+      GC.VendorSales.OnChanged(201)
+      GC.VendorSales.OnClosed(202)
+      assert.equal(1, batch.remainingQty)
+    end)
   end)
 
   it("books every sale of a visit even when one booking fails", function()

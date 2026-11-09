@@ -1257,21 +1257,48 @@ function GC.Acquisitions.ReconcileSale(entry)
     cost = realized.cost, proceeds = entry.total, profit = profit }
 end
 
+-- Units of an item on the auction house by this character's latest owned-auctions roster
+-- (GoldCapDB.ownedLots, GC.Data.RecordOwnedLots): the rows of its newest read, not cancelled and not
+-- run out by `at`. A roster read before units sold still counts them, which can only under-book.
+local function unitsOnAuction(itemID, context, at)
+  local rows = type(db.ownedLots) == "table" and db.ownedLots or {}
+  local latest
+  for _, row in ipairs(rows) do
+    if type(row) == "table" and row.char == context.char and row.region == context.region
+        and isExactInteger(row.seenAt) and (latest == nil or row.seenAt > latest) then
+      latest = row.seenAt
+    end
+  end
+  local units = 0
+  for _, row in ipairs(rows) do
+    if type(row) == "table" and row.char == context.char and row.region == context.region
+        and row.seenAt == latest and row.itemID == itemID and row.cancelledAt == nil
+        and isPositiveInteger(row.quantity) and not (isExactInteger(row.expiresAt) and row.expiresAt <= at) then
+      units = safeAdd(units, row.quantity) or units
+    end
+  end
+  return units
+end
+
 -- A sale to a merchant (Core/VendorSales.lua, WoW: Forever only; retail never calls this). The
 -- buyback list names the item exactly, so the only question left is which units, and the store's
 -- own convention answers it: the oldest first. Unlike ReconcileSale it takes what the books hold,
 -- min(sold, held): a stack of bought and looted units sold together is the ordinary case, and
--- refusing it is what left these lots standing for good. It does not guess which variant was sold:
--- an item whose lots carry two position keys is left alone. `proceeds` is what the merchant paid
--- for the whole stack, so a part taken is paid its share. The realized row sits beside
--- ReconcileSale's (source "vendor_sale"); no ledger row is written, since the ledger is auction
--- house money the companion uploads. The evidence key makes a replay book nothing twice.
+-- refusing it is what left these lots standing for good. Units on the auction house are no part of
+-- it: they are in no bag, so a sale the bags bear out was of others, and those units are the
+-- invoice's to spend (unitsOnAuction). It does not guess which variant was sold: an item whose lots
+-- carry two position keys is left alone, and so is a version's key (an item level, a suffix or a
+-- pet species) unless `positionKey`, the key SELL files the sold link under, is that same key.
+-- `proceeds` is what the merchant paid for the whole stack, so a part taken is paid its share. The
+-- realized row sits beside ReconcileSale's (source "vendor_sale"); no ledger row is written, since
+-- the ledger is auction house money the companion uploads. The evidence key makes a replay book
+-- nothing twice.
 function GC.Acquisitions.RecordVendorSale(args)
   if not db or type(args) ~= "table" or not isPositiveInteger(args.itemID)
       or not isPositiveInteger(args.quantity) or not isExactInteger(args.proceeds)
       or not isExactInteger(args.at) or not isPositiveInteger(args.seq)
       or not isNonEmptyString(args.char) or not isNonEmptyString(args.region)
-      or not isStringOrNil(args.itemName) then
+      or not isStringOrNil(args.itemName) or not isStringOrNil(args.positionKey) then
     return unresolved("invalid_sale")
   end
   local context = { char = args.char, region = args.region }
@@ -1297,7 +1324,14 @@ function GC.Acquisitions.RecordVendorSale(args)
       and positionKey ~= GC.Acquisitions.PositionKey(args.itemID, nil, true)) then
     return unresolved("ambiguous_position")
   end
-  local take = math.min(args.quantity, held)
+  -- The bags count by item id, which cannot tell "of the Bear" from "of the Owl".
+  local level, suffix, pet = tostring(positionKey):match("^item:%d+:(-?%d+):(-?%d+):(-?%d+)$")
+  if level and (tonumber(level) ~= 0 or tonumber(suffix) ~= 0 or tonumber(pet) ~= 0)
+      and args.positionKey ~= positionKey then
+    return unresolved("other_version")
+  end
+  local take = math.min(args.quantity, held - unitsOnAuction(args.itemID, context, args.at))
+  if take <= 0 then return unresolved("listed") end
   local allocation = allocationFor(lots, take)
   if not allocation or allocation.coverage ~= "COMPLETE" or not isExactInteger(allocation.knownCost) then
     return unresolved("insufficient_quantity")

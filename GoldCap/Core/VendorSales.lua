@@ -254,8 +254,15 @@ function V.Install()
       if not (GC.Acquisitions and GC.Acquisitions.RecordVendorSale) then return end
       local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
       if not context then return end
+      -- The key SELL files a stack of this link under, read off the link alone (the stack is the
+      -- merchant's now, in no bag slot); nil for a link it cannot read, and then no version is spent.
+      local key
+      if GC.Sell and GC.Sell._SlotKey then
+        local ok, value = pcall(GC.Sell._SlotKey, sale.itemID, sale.link)
+        key = ok and type(value) == "string" and value or nil
+      end
       GC.Acquisitions.RecordVendorSale({ itemID = sale.itemID, quantity = sale.quantity, proceeds = sale.price,
-        at = sale.at, seq = sale.seq, char = context.char, region = context.region })
+        at = sale.at, seq = sale.seq, char = context.char, region = context.region, positionKey = key })
     end,
   })
 end
