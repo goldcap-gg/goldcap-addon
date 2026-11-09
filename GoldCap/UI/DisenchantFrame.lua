@@ -400,8 +400,9 @@ local function nameOf(stack)
   return name
 end
 
-local function qualityColour(quality)
-  local c = _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality]
+-- `onBlizzard`: the colour is for a Blizzard menu, which keeps the game's own.
+local function qualityColour(quality, onBlizzard)
+  local c = not onBlizzard and GC.Theme.SkinQuality(quality) or _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality]
   if type(c) ~= "table" then return K.text1 end
   return { c.r, c.g, c.b, 1 }
 end
@@ -659,7 +660,7 @@ end
 -- A kept item's line in the menu: its icon and its name in its quality's colour.
 local function keptLabel(itemID, stack)
   local quality = stack and stack.quality or (C_Item and ask(C_Item.GetItemQualityByID, itemID))
-  local name = GC.Util.Colored(qualityColour(quality), nameOf({ itemID = itemID, link = stack and stack.link }))
+  local name = GC.Util.Colored(qualityColour(quality, true), nameOf({ itemID = itemID, link = stack and stack.link }))
   local icon = iconOf(itemID)
   if icon then return ("|T%s:14|t %s"):format(tostring(icon), name) end
   return name

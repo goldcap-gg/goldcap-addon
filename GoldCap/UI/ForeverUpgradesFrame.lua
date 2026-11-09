@@ -138,7 +138,7 @@ function GC.ForeverUpgradesUI.Render(r, now)
     if data then
       row.link = data.link or data.itemString
       setText(row.slot, _G[data.labelKey] or data.labelKey or "")
-      setText(row.item, row.link)
+      setText(row.item, GC.Theme.RecolorLink(row.link))
       local gain = GC.ForeverUpgrades.DiffText(data.diffs)
       if data.later then gain = gain .. "  " .. GC.L["at level %d"]:format(data.later) end
       setText(row.gain, gain)

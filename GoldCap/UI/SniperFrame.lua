@@ -1551,7 +1551,7 @@ function GC.Sniper._StampItem(row, deal, stamp)
     if row.deal ~= deal then return end -- row was repurposed before the async load finished
     local icon = item:GetItemIcon()
     local quality = item:GetItemQuality()
-    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+    local qc = quality and (Theme.SkinQuality(quality) or ITEM_QUALITY_COLORS[quality] or {}).color
     local label = item:GetItemName() or ("item " .. deal.itemID)
     -- Reagent quality beside the name. Two tiers of the same reagent are
     -- separate itemIDs and so already price separately -- this is identification,
@@ -5022,7 +5022,7 @@ local function setDialogHeader(deal, decision)
     if dialog.deal ~= deal then return end -- dialog moved on before the async load finished
     dialog.icon:SetTexture(item:GetItemIcon())
     local quality = item:GetItemQuality()
-    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+    local qc = quality and (Theme.SkinQuality(quality) or ITEM_QUALITY_COLORS[quality] or {}).color
     local label = item:GetItemName() or ("item " .. deal.itemID)
     dialog.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. suffix)
     if dialog.fitHeader then dialog.fitHeader() end

@@ -231,7 +231,7 @@ local function paintRow(row, stack)
   end
   if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
   row.name:SetText(("%s ×%d"):format(itemName(stack), stack.count))
-  local color = _G.ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[stack.quality]
+  local color = GC.Theme.SkinQuality(stack.quality) or _G.ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[stack.quality]
   if color then row.name:SetTextColor(color.r, color.g, color.b) end
   row.price:SetText(GC.Util.CoinText(stack.copper))
 end

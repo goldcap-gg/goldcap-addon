@@ -463,15 +463,48 @@ function T.QualityMarkup(itemID, size)
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)
 end
 
---- The game's colour for `itemID`'s quality (ITEM_QUALITY_COLORS: r, g, b, hex), uncommon and
--- better; nil for common and poor, whose colours are no brighter than the interface's own text,
--- and when the client will not say.
-function T.QualityColor(itemID)
-  local api = _G.C_Item and _G.C_Item.GetItemQualityByID
-  if not (api and itemID) then return nil end
-  local ok, quality = pcall(api, itemID)
-  if not (ok and type(quality) == "number" and quality >= 2) then return nil end
+--- The applied skin's colour for item quality `quality` ({ r, g, b, hex = "|cff......", color }), or
+-- nil when the skin sets none (only the skins whose window is light, or whose blue the game's does
+-- not read on, do: Skins.lua `quality`).
+function T.SkinQuality(quality)
+  local set = GC.Kit.Skins.Current().quality
+  local value = set and set[quality]
+  if not value then return nil end
+  local c = GC.Kit.Tokens.hex(value)
+  return { r = c[1], g = c[2], b = c[3], hex = "|cff" .. value:lower(),
+    color = _G.CreateColor and _G.CreateColor(c[1], c[2], c[3], 1) or nil }
+end
+
+--- The colour for an item's quality, for text on one of GoldCap's windows: an item id, or with
+-- `isQuality` the quality number itself (Enum.ItemQuality; an id can be as small as one). The applied skin's own colour where it sets one for it; else the game's
+-- (ITEM_QUALITY_COLORS: r, g, b, hex), uncommon and better; nil for common and poor, whose colours
+-- are no brighter than the interface's own text, and when the client will not say.
+function T.QualityColor(itemOrQuality, isQuality)
+  if type(itemOrQuality) ~= "number" then return nil end
+  local quality = itemOrQuality
+  if not isQuality then
+    local api = _G.C_Item and _G.C_Item.GetItemQualityByID
+    if not api then return nil end
+    local ok, found = pcall(api, itemOrQuality)
+    if not ok then return nil end
+    quality = found
+  end
+  if type(quality) ~= "number" then return nil end
+  local skinned = T.SkinQuality(quality)
+  if skinned then return skinned end
+  if quality < 2 then return nil end
   return _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality] or nil
+end
+
+--- `text` with the colour of every item link in it set to the skin's for that item's quality, so a
+-- link shown on a window reads as well as a name does. `text` unchanged under a skin that sets no
+-- quality colours, and for a link whose item the client does not know.
+function T.RecolorLink(text)
+  if type(text) ~= "string" or not GC.Kit.Skins.Current().quality then return text end
+  return (text:gsub("|c%x%x%x%x%x%x%x%x(|Hitem:(%d+)[^|]*|h)", function(link, id)
+    local c = T.QualityColor(tonumber(id))
+    return c and (c.hex .. link) or nil
+  end))
 end
 
 --- `name` as a list shows an item: in its item quality's colour (uncommon and better -- the

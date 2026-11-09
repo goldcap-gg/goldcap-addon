@@ -234,6 +234,8 @@ end
 
 local function qualityColor(quality)
   if type(quality) ~= "number" or quality < 2 then return nil end
+  local skinned = Theme.SkinQuality(quality)
+  if skinned then return { skinned.r, skinned.g, skinned.b } end
   local api = _G.C_Item
   if api and api.GetItemQualityColor then
     local ok, r, g, b = pcall(api.GetItemQualityColor, quality)
