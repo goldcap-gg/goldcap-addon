@@ -662,8 +662,9 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   if not allShown then complete = false end
   local noInvoice = noInvoicePatterns(api.noInvoiceSubjects)
   -- The lots that came back, for SELL's unsold rounds: this scan sees every lapsed-auction mail
-  -- whoever takes it, so the returns log is written here and nowhere else. Retail only: where
-  -- Core/MailReturns.lua is not loaded (WoW: Forever) no attachment is read.
+  -- whoever takes it, so the returns log is written here and nowhere else. Both games load
+  -- Core/MailReturns.lua; where it is not loaded no attachment is read. On WoW: Forever the
+  -- subjects are unverified: a subject global the client lacks matches no mail and logs nothing.
   local kinds = GC.MailReturns and returnPatterns(api.noInvoiceSubjects) or nil
   local lots, lotsRead = {}, true
   for index = 1, count do
@@ -699,7 +700,7 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
         reconciled = GC.Acquisitions.ReconcileSale(stored)
       end
       -- A new sale ends the item's run of unsold rounds: a followed flip group's next post
-      -- starts at the usual price again. Retail only (both modules are guarded).
+      -- starts at the usual price again. Both games (both modules are guarded).
       if isNew and stored.kind == "sale" and GC.SellRounds and GC.SoldView then
         local soldID = soldItemID(stored, reconciled, context, listed)
         if soldID then GC.SellRounds.Sold(soldID, stored.at) end

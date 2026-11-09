@@ -1,8 +1,8 @@
 local helper = require("spec.spec_helper")
 
 -- Followed groups (plan 2026-10-22): SELL wired to the groups' rules, through the real Sell
--- services. GroupRules, SellRounds and the mail returns log are each optional: WoW: Forever loads
--- none of them, and an addon without the mail branch has no returns log at all.
+-- services. GroupRules, SellRounds and the mail returns log are each optional: both games load all
+-- three, every caller asks first, and an addon without the mail branch has no returns log at all.
 describe("Sell tab with followed groups' rules", function()
   local GC
 
@@ -85,7 +85,7 @@ describe("Sell tab with followed groups' rules", function()
     end)
   end)
   -- Task 11: Compose hands SellPositions the followed groups' rules, only where GroupRules is
-  -- loaded (retail's TOC). WoW: Forever loads none of it and SELL composes as it always has.
+  -- loaded (both TOCs). Without it SELL composes as it always has.
   describe("Compose", function()
     before_each(function() services() end)
 
@@ -278,7 +278,7 @@ describe("Sell tab with followed groups' rules", function()
     end)
 
     local function ready(ask)
-      GC.QuoteCache.Set(GC.SellState.quotes, 10, ask, 1000)
+      GC.QuoteCache.Set(GC.SellState.quotes, 10, ask, time())
       GC.SellCompose.Positions()
       GC.SellUI.List.RenderRows()
     end
@@ -338,22 +338,35 @@ describe("Sell tab with followed groups' rules", function()
       S.queueSkipped, S.notSelling = saved.skipped, saved.rest
     end)
 
-    -- WoW: Forever loads GroupRules and not SellRounds (spec/camelot_toc_spec.lua): the rules'
-    -- floor, duration and one at a time hold there, with no step-down rounds. The file's `d` is in
-    -- that game's hours, so 24 is its longest auction (index 3), and the GROUPS row shows.
-    describe("on WoW: Forever, GroupRules loaded and SellRounds not", function()
+    -- WoW: Forever loads GroupRules, SellRounds and the returns log as retail does
+    -- (spec/camelot_toc_spec.lua): the rules' floor, duration, one at a time and step-down hold
+    -- there. The file's `d` is in that game's hours, so 24 is its longest auction (index 3), and
+    -- the GROUPS row shows.
+    describe("on WoW: Forever, GroupRules and SellRounds loaded", function()
       before_each(function()
         GC.Game = { Passport = function() return { interface = 16001 } end,
           IsForever = function(p) return p.interface >= 16000 and p.interface <= 16999 end }
-        assert.is_nil(GC.SellRounds)
+        helper.loadModule("Core/MailReturns.lua", GC)
+        helper.loadModule("Core/SellRounds.lua", GC)
+        GC.MailReturns.Init(GC.db)
+        GC.SellRounds.Init(GC.db)
         GC.GroupRules.Adopt({ v = 3, groups = { "Herbs" },
           caps = { { i = 10, c = 8000, g = 1, u = 10000, r = 1, k = true } },
           rules = { { n = "Herbs", p = "gather", d = 24, q = 1, fp = 80, s = 5 } } })
       end)
 
-      it("posts at the rule's longest auction, one at a time, and counts no rounds", function()
+      it("steps down after two unsold rounds, as on retail", function()
+        -- Two lots that came back an hour apart (one round each), both settled by the time SELL
+        -- composes.
+        local now = 10 * 3600
+        _G.time = function() return now end
+        local settled = now - GC.SellRounds.SETTLE_SECONDS
+        GC.MailReturns.Record(10, 1, "expired", settled - 2 * GC.SellRounds.ROUND_GAP_SECONDS)
+        GC.MailReturns.Record(10, 1, "expired", settled - GC.SellRounds.ROUND_GAP_SECONDS)
         ready(12000)
-        assert.equal(0, GC.SellState.positions[1].sellRounds)
+        local position = GC.SellState.positions[1]
+        assert.equal(2, position.sellRounds)
+        assert.equal(2, position.postRecommendation.ruleRounds)
         container.queueButton.scripts.OnClick(container.queueButton)
         assert.equal(1, #posted)
         assert.equal(3, posted[1].duration) -- 24 h is the third of Forever's 2, 8 and 24, not retail's second

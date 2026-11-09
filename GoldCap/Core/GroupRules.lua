@@ -5,8 +5,9 @@
 -- round, and for a subgroup only pi = its parent group's slug, pn = the parent's name, cn = the
 -- subgroup's own short label }. The cap itself carries the usual price `u` and, for a craft group, the cost to craft `f`.
 -- The Companion writes all of it into GoldCap_AppRuns (Core/Caps.lua reads the same caps for
--- DEALS). Both games load it (WoW: Forever too); SellRounds, the mail, bank and Hoard files that
--- read it stay retail only, so a caller of those asks `if GC.SellRounds` and the like.
+-- DEALS). Both games load it (WoW: Forever too), and so do SellRounds and the returns log
+-- (Core/MailReturns.lua); the mail, bank and Hoard files that read it stay retail only. A caller of
+-- any of those still asks `if GC.SellRounds` and the like.
 --
 -- `d` is the rule's duration in HOURS OF THE GAME IT IS FOR: 12, 24 or 48 on retail, 2, 8 or 24 on
 -- WoW: Forever, whose auction house offers those three (AUCTION_DURATION_ONE to THREE, index 1 to

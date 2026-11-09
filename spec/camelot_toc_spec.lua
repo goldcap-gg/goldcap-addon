@@ -17,13 +17,15 @@ local function split(lines)
 end
 
 describe("GoldCap_Camelot.toc (WoW: Forever)", function()
-  it("loads the followed groups' rules but not what steps a price down or reads the mail", function()
+  it("loads the followed groups' rules, their unsold rounds and the returns log, but not cancel runs or the mail tools", function()
     local _, files = split(read("GoldCap/GoldCap_Camelot.toc"))
     local at = {}
     for i, f in ipairs(files) do at[f] = i end
     assert.is_not_nil(at["Core/GroupRules.lua"])
     assert.is_true(at["Core/Caps.lua"] < at["Core/GroupRules.lua"])
-    for _, f in ipairs({ "Core/SellRounds.lua", "Core/MailReturns.lua", "Core/CancelRun.lua", "Core/Hoard.lua",
+    assert.equal(at["Core/Ledger.lua"] + 1, at["Core/MailReturns.lua"])
+    assert.equal(at["Core/GroupRules.lua"] + 1, at["Core/SellRounds.lua"])
+    for _, f in ipairs({ "Core/CancelRun.lua", "Core/Hoard.lua",
       "Core/BankGroups.lua", "Core/MailGroups.lua", "Core/Alts.lua" }) do
       assert.is_nil(at[f], f)
     end
@@ -47,14 +49,15 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
 
   -- Minus retail's price snapshot, and the carry list at the Warband Bank (UI/BankRoute.lua):
   -- goldcap.gg works out where flips sell for retail realms alone. The followed groups' selling
-  -- rules (Core/GroupRules.lua) load in both games; their step-down rounds (Core/SellRounds.lua)
-  -- and the mail, bank and Hoard files stay retail only. The mail files
-  -- (Core/Mail*.lua) and the vendor sell files are retail only in this wave:
-  -- WoW: Forever must not change. Crafting in the profession window loads in both games, with
-  -- Forever's differences in files of its own (FOREVER_ONLY below).
+  -- rules (Core/GroupRules.lua), their unsold rounds (Core/SellRounds.lua) and the returns log
+  -- (Core/MailReturns.lua) load in both games: both are pure, and every caller asks first. The
+  -- cancel runs, the bank and Hoard files, the other mail files (Core/MailClassify.lua,
+  -- Core/MailStock.lua, ...) and the vendor sell files stay retail only. Crafting in the
+  -- profession window loads in both games, with Forever's differences in files of its own
+  -- (FOREVER_ONLY below).
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
-    ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true,
-    ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true,
+    ["Core/CancelRun.lua"] = true,
+    ["Core/MailClassify.lua"] = true,
     ["Core/MailStock.lua"] = true,
     ["Core/VendorSelect.lua"] = true, ["Data/NoDisenchant.lua"] = true, ["Core/Disenchant.lua"] = true,
     ["Core/VendorPress.lua"] = true,

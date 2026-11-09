@@ -547,10 +547,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
       GC.Sniper._RebuildKeyTargets()
     end
-    -- The followed groups' selling rules ride in the same file (Core/GroupRules.lua, retail only).
+    -- The followed groups' selling rules ride in the same file (Core/GroupRules.lua, both games).
     if GC.GroupRules then GC.GroupRules.Adopt() end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
-    -- SELL's unsold rounds for followed groups (Core/SellRounds.lua, retail only).
+    -- SELL's unsold rounds for followed groups (Core/SellRounds.lua) and the returns log they
+    -- count (Core/MailReturns.lua), both games.
     if GC.SellRounds then GC.SellRounds.Init(GC.db) end
     if GC.MailReturns then GC.MailReturns.Init(GC.db) end
     -- Craft capture's view of the client. Installed here because everything it reads -- the

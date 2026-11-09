@@ -82,7 +82,7 @@ function Compose.Positions(skipPaint)
     and GC.Acquisitions.GetIdentityEvidence(scope) or {}
   -- Followed groups: the lots that came back unsold since the last compose count as rounds before
   -- the positions are priced (Core/SellRounds.lua). The returns log is the mail module's; a
-  -- client without it has no returns. Retail only.
+  -- build without it has no returns. Both games.
   if GC.SellRounds then
     GC.SellRounds.Ingest(GC.MailReturns and GC.MailReturns.Entries() or (GC.db and GC.db.mailReturns), time())
   end
@@ -115,8 +115,8 @@ function Compose.Positions(skipPaint)
     -- and the item's own market figures apply (Core/SellPositions.lua's decoratePosition).
     oneLevelPerItem = GC.Sell.OnForever and GC.Sell.OnForever() or nil,
     -- Followed groups: each item's selling rule and its unsold rounds (Core/GroupRules.lua,
-    -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. On WoW: Forever
-    -- only GroupRules loads (no step-down there yet), so every position reads zero rounds.
+    -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. Both games load
+    -- both; without SellRounds every position reads zero rounds.
     rules = GC.GroupRules and { ruleFor = GC.GroupRules.RuleFor,
       roundsFor = GC.SellRounds and GC.SellRounds.Rounds or function() return 0 end } or nil,
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })

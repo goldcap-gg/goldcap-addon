@@ -51,6 +51,7 @@ Core/AppLedger.lua
 Core/Acquisitions.lua
 Core/PurchaseCapture.lua
 Core/Ledger.lua
+Core/MailReturns.lua
 Core/SoldView.lua
 Core/QuoteCache.lua
 Core/Flips.lua
@@ -98,6 +99,7 @@ Core/ListStrings.lua
 Core/AppRuns.lua
 Core/Caps.lua
 Core/GroupRules.lua
+Core/SellRounds.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua

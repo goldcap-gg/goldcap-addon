@@ -291,7 +291,7 @@ end
 
 -- The followed group a position's item is in, its key and its name (Core/GroupRules.lua's
 -- GroupOf, read by the item ID its key starts with: "commodity:<id>", "item:<id>:..."), or nil:
--- in no group, a key naming no item, or WoW: Forever, where GroupRules does not load.
+-- in no group, a key naming no item, or no GroupRules loaded (both games load it).
 function GC.Sell.GroupKeyOf(positionKey)
   local itemID = type(positionKey) == "string" and tonumber(positionKey:match("^%a+:(%d+)")) or nil
   if not (itemID and GC.GroupRules and GC.GroupRules.GroupOf) then return nil end

@@ -11,8 +11,10 @@ local _, GC = ...
 -- the lot comes back in several stacks, with `count` the stacks' sum and `at` the wall clock time
 -- of the scan that first read it. They are pruned after 14 days and the log is versioned: a newer
 -- save is read-only here, so an older build never rewrites a shape it does not know. The log is
--- created lazily, not through DEFAULTS, so a client that never loads this file (WoW: Forever)
--- keeps its SavedVariables untouched.
+-- created lazily, not through DEFAULTS, so a build without this file keeps its SavedVariables
+-- untouched. Both games load it. On WoW: Forever the lapsed-auction mail subjects are unverified:
+-- the scan reads them through a guarded global (Core/Init.lua's noInvoiceSubjects), and a client
+-- that lacks one logs nothing for that reason.
 
 GC.MailReturns = {}
 
