@@ -284,8 +284,8 @@ function T.Rail(parent)
   logo.mark = logo:CreateTexture(nil, "ARTWORK")
   logo.mark:SetTexture(T.MEDIA .. "GoldCap")
   logo.mark:SetAllPoints()
-  -- A soft gold glow behind the mark, the window's one warm light.
-  logo.glow = T.Glow(logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10)
+  -- A soft gold glow behind the mark, the window's one warm light; none in a skin without a glow.
+  if skin.glow then logo.glow = T.Glow(logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10) end
   local LOGO_GAP = 14
 
   local buttons = {}

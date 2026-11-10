@@ -215,13 +215,16 @@ local function build()
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
   f.glass = Theme.Window(f)
 
-  -- The GoldCap mark with the window's one warm light, as the rail draws it.
+  -- The GoldCap mark with the window's one warm light, as the rail draws it (none in a skin
+  -- without a glow).
   f.logo = CreateFrame("Frame", nil, f)
   f.logo:SetSize(G.LOGO, G.LOGO)
   f.logo.mark = f.logo:CreateTexture(nil, "ARTWORK")
   f.logo.mark:SetTexture(Theme.MEDIA .. "GoldCap")
   f.logo.mark:SetAllPoints()
-  f.logo.glow = Theme.Glow(f.logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10)
+  if GC.Kit.Skins.Current().glow then
+    f.logo.glow = Theme.Glow(f.logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10)
+  end
 
   f.title = heading(f, 17, K.text1)
   f.sub = label(f, 12, K.text2)
