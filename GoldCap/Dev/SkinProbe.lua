@@ -176,9 +176,12 @@ local function recordBoot()
   local skin, T = GC.Kit.Skins.Current(), GC.Theme
   local fonts = skin.fonts or {}
   local list = store("fontBoots")
-  list[#list + 1] = { at = stamp(), skin = skin.id,
+  local entry = { at = stamp(), skin = skin.id,
     wantHead = plain(fonts.head), head = base(T.FONT_HEAD),
     wantText = plain(fonts.text and fonts.text.regular), text = base(T.FONT_TEXT) }
+  list[#list + 1] = entry
+  -- And ten seconds on, when a face that was still loading has been asked again (UI/Kit/Fonts.lua).
+  C_Timer.After(10, function() entry.headLater, entry.textLater = base(T.FONT_HEAD), base(T.FONT_TEXT) end)
 end
 if C_Timer and C_Timer.After then C_Timer.After(1, recordBoot) end
 

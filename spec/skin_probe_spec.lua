@@ -70,6 +70,8 @@ describe("skin probe", function()
       assert.equal("leather", record.skin)
       assert.equal("OldStandard-Bold.ttf", record.wantHead)
       assert.equal("OldStandard-Bold.ttf", record.head)
+      later() -- ten seconds on
+      assert.equal("OldStandard-Bold.ttf", record.headLater)
     end)
   end)
 end)
