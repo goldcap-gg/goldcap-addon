@@ -478,7 +478,7 @@ function T.Label(parent, size)
   if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
   if clientFonts and T.UseClientFont(fs, size) then
-    -- Font objects carry their size; the font-scale slider does not reach them.
+    -- A font object carries its size; SetScale re-applies a family at size * scale.
     widgetFonts[fs] = { role = "label", size = size, object = true }
     fs:SetJustifyH("LEFT")
     return fs
