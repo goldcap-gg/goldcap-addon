@@ -15,6 +15,8 @@ local TEXTURES = {
   "Interface\\Buttons\\UI-CheckBox-Check",
   "Interface\\Buttons\\UI-Panel-Button-Up",
   "atlas:QuestBG-Parchment",
+  -- A file that is not there: what SetTexture returns for it is what the skins' fallbacks test.
+  "Interface\\AddOns\\GoldCap\\Media\\does_not_exist",
 }
 
 local SEGMENTS = { "Classic", "Аа Ґґ Її", "한국어", "简体中文", "繁體中文" }
