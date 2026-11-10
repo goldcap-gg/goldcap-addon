@@ -163,4 +163,5 @@ UI/SettingsFrame.lua
 Core/Init.lua
 #@debug@
 Dev/SkinProbe.lua
+Dev/SkinCycle.lua
 #@end-debug@
