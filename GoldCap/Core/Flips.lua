@@ -179,6 +179,13 @@ GC.Flips.MOVED_MARKET_LEVELS = 3
 -- some waiting -- the cheap lot sells, then yours does. Chasing it costs the
 -- difference, in gold, immediately and irreversibly.
 --
+-- Measured on prod (2026-11-10, three days of dips, the site's
+-- scripts/analytics/post-floor-backtest.sql): with under a tenth of a day of sales below the
+-- floor the cheapest ask was back at the floor inside 24 hours in 77 dips of 100; with a tenth to
+-- a half, 50; a half to a day, 38; over a day (matched), 28 and fewer. Where it did not come
+-- back the ask a day later was no lower than at the dip, so holding cost time and not gold, and
+-- the day of sales stays the line.
+--
 -- args = { marketUnit (the cheapest competing ask), mv, levels, sold, heldQty }.
 -- Returns floor, qtyBelowFloor -- or nil when the book needs no correcting.
 --
