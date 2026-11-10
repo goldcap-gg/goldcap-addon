@@ -278,7 +278,7 @@ function GC.ForeverDeals.Build(fold, ctx)
       -- placement below, and only when one of them needs it. Gear is never a commodity, and is
       -- not asked. Both candidates are built before either is judged: a vendor row too small for
       -- the Forever minimum (or otherwise refused) must not block a market row that would
-      -- otherwise qualify. The vendor row wins only when it is itself admitted; never both.
+      -- otherwise qualify. One row an item; which of the two is decided below.
       local askedCommodity, commodity = false, nil
       local function isCommodity()
         if not askedCommodity then
@@ -295,12 +295,18 @@ function GC.ForeverDeals.Build(fold, ctx)
         { price = groupPrice, usual = groupUsual }, ctx, isCommodity) or nil
       local marketRow = underMarket(itemID, e, ctx, isCommodity)
       local row
-      if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) and oneBuyAdmits(vendorRow, isCommodity, admit) then
-        row = vendorRow
-      elseif groupRow and GC.DealMath.BoardAdmits(groupRow, admit) then
+      if groupRow and GC.DealMath.BoardAdmits(groupRow, admit) then
         row = groupRow
       elseif marketRow and GC.DealMath.BoardAdmits(marketRow, admit) then
         row = marketRow
+      end
+      -- The vendor row wins unless the resale pays more. A resale row's ceiling is over the vendor
+      -- price whenever it does, so its buy takes the vendor row's units too, and those keep the
+      -- vendor for a way out. The vendor row always winning left every level between the vendor
+      -- price and the resale ceiling unbought: 5 units for 25c on the board over 105 for 78s.
+      if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) and oneBuyAdmits(vendorRow, isCommodity, admit)
+          and not (row and row.profit > vendorRow.profit) then
+        row = vendorRow
       end
       if row then
         if groupName then row.capGroup, row.capFollowed = groupName, true end

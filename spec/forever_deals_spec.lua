@@ -160,6 +160,33 @@ describe("ForeverDeals", function()
     end)
   end)
 
+  describe("Build, a lot under the vendor price on an item that resells for far more", function()
+    -- 5 at 8c, 100 at 20c, 300 at 1s; a vendor pays 13c and it sells at 1s, 200 a day.
+    local DEEP = "8,405,5,;0x5 12x100 80x300|12,92,3"
+    local sells = function() return { sales = 10, median = 100, perDay = 200 } end
+
+    it("is the market row when that pays more than the five units a vendor would take", function()
+      vendor[2589], commodity[2589] = 13, true
+      local rows = D.Build(fold({ [2589] = DEEP }),
+        ctx({ depositFor = function() return 0 end, salesFor = sells }))
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.equal("market", r.forever)
+      assert.equal(105, r.qty)          -- the vendor's 5 and the 100 at 20c
+      assert.equal(2040, r.capTotal)
+      assert.equal(7835, r.profit)      -- 99c x105 - 5% - 2040
+    end)
+
+    it("stays the vendor row when the resale pays less", function()
+      vendor[2589], commodity[2589] = 13, true
+      local rows = D.Build(fold({ [2589] = DEEP }), ctx({ depositFor = function() return 0 end,
+        salesFor = function() return { sales = 10, median = 100, perDay = 1 } end }))
+      assert.equal(1, #rows)
+      assert.equal("vendor", rows[1].forever)
+      assert.equal(25, rows[1].profit)
+    end)
+  end)
+
   describe("Build, kind vendor", function()
     -- Linen-shaped: 8c x5, 9c x10, 12c x40, 13c x100, 15c x200; a vendor pays 13c.
     local LINEN = "8,355,5,;0x5 1x10 3x40 1x100 2x200"
@@ -373,10 +400,22 @@ describe("ForeverDeals", function()
       assert.equal(1000, thick[1].refUnit); assert.equal("crowd", thick[1].refSource)
     end)
 
-    it("prefers a vendor deal when both hold", function()
+    it("takes the resale when both hold and it pays more", function()
+      -- A vendor pays 41c: 6 units make 36c there. Resold under the 1s level they make far more.
       commodity[2592], vendor[2592] = true, 41
       local rows = D.Build(fold({ [2592] = WOOL }), marketCtx())
+      assert.equal(1, #rows)
+      assert.equal("market", rows[1].forever)
+      assert.is_true(rows[1].profit > 36)
+    end)
+
+    it("prefers a vendor deal when both hold and it pays no less", function()
+      -- A vendor pays 95c: the same 6 units make 360c there, more than their resale.
+      commodity[2592], vendor[2592] = true, 95
+      local rows = D.Build(fold({ [2592] = WOOL }), marketCtx())
+      assert.equal(1, #rows)
       assert.equal("vendor", rows[1].forever)
+      assert.equal(360, rows[1].profit)
     end)
 
     it("falls through to a market row when the vendor row fails the minimum profit", function()

@@ -1,5 +1,19 @@
 # GoldCap
 
+## 0.27.1 (unreleased)
+
+- Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
+  the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- WoW: Forever: when a lot sits under the vendor price on an item that resells for much more, the
+  Deals board now offers the bigger buy, not only the few units a vendor would take.
+
+## 0.27.1 (unreleased)
+
+- Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
+  the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- WoW: Forever: when a lot sits under the vendor price on an item that resells for much more, the
+  Deals board now offers the bigger buy, not only the few units a vendor would take.
+
 ## 0.27.0 (2026-11-10)
 
 - Skins: pick how GoldCap's windows look in Settings, DISPLAY, Skin. Nine to choose from: GoldCap

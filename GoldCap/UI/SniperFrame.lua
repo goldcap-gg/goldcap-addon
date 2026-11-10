@@ -3892,8 +3892,8 @@ GC.Sniper._bookPass = GC.BookPass.New({
   end,
   hasFullBrowseResults = function() return C_AuctionHouse.HasFullBrowseResults() end,
   getBrowseResults = function() return C_AuctionHouse.GetBrowseResults() end,
-  triggerFor = function(itemID)
-    return GC.Trigger.For(GC.Data.GetItemValue(itemID), GC.db.settings.sniper)
+  triggerFor = function(itemID, listedQty)
+    return GC.Trigger.For(GC.Data.GetItemValue(itemID), GC.db.settings.sniper, listedQty)
   end,
   -- Scores a hit the SAME way discovery already scores a browse row (Core/FullScan.lua's
   -- own RowsFromBrowse + DealMath.Evaluate pipeline), so the drill queue's priority mirrors

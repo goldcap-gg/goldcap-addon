@@ -91,7 +91,7 @@ function GC.BookPass.New(driver, opts)
     local qty = row.totalQuantity
     local prev = book[itemID]
     local now = driver.now()
-    local trigger = driver.triggerFor(itemID)
+    local trigger = driver.triggerFor(itemID, qty)
     local changed = not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0)
     local again = not changed and lost[itemID] == true
       and (now - (reportedAt[itemID] or 0)) >= rehitSeconds
