@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.26.0 (unreleased)
+## 0.26.0 (2026-11-10)
 
 - WoW: Forever: SELL posts about as many as sell within the auction's time, from the sales the
   Companion brings, and says how many. Type a number or press MAX to post more.
