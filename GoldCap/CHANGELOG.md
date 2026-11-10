@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.27.1 (unreleased)
+## 0.27.1 (2026-11-10)
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
   the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
