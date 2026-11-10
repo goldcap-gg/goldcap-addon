@@ -4,6 +4,8 @@
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
   the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- Sell: a row where only some units have a cost now says how many do not ("no cost for 4")
+  instead of a bare "no cost".
 - WoW: Forever: an item you craft now has a cost in Sell, worked out from the reagents it used.
   It read "no cost" for every craft.
 - WoW: Forever: the Deals list no longer flickers, with rows leaving and coming back every few

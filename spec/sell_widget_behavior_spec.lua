@@ -3238,7 +3238,7 @@ describe("Sell widget geometry and manual cost", function()
       local rows = topRows(GC, { stock() })
       assert.equal("+72%", rows[1].grossNote.text) -- 18g15s less the 5% cut, over 10g paid
       assert.same({ 0, 1, 0, 1 }, rows[1].grossNote.color)
-      rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
+      rows = topRows(GC, { stock({ coverage = "UNKNOWN", knownQty = 0 }) })
       assert.equal("no cost", rows[1].grossNote.text)
     end)
 
@@ -3250,7 +3250,7 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       GC.Locales.longtest = { ["no cost"] = string.rep("n", 30), ["YOU GET"] = string.rep("y", 20) }
       GC.ActivateLocale("longtest")
-      local rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
+      local rows = topRows(GC, { stock({ coverage = "UNKNOWN", knownQty = 0 }) })
       local row = rows[1]
       textWidth = nil
       GC.ActivateLocale(nil)
@@ -3291,6 +3291,17 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
       assert.matches("no cost for 30", rows[1].itemStock.text, 1, true)
+    end)
+
+    -- Owner's client, 2026-11-10: a position with a cost on 2 of its 6 units, and a queue reason
+    -- in the tag's place, read a bare "no cost" under YOU GET, as if nothing were known of it.
+    it("says under YOU GET how many units have no cost when only some do, whatever the tag says", function()
+      local GC = load(620, { calls = {} })
+      GC.SellState.queueSkipped = { { positionKey = "commodity:42", reason = "below_deposit" } }
+      local rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
+      assert.equal("no cost for 30", rows[1].grossNote.text)
+      local none = topRows(GC, { stock({ coverage = "UNKNOWN", knownQty = 0 }) })
+      assert.equal("no cost", none[1].grossNote.text)
     end)
 
     it("leads with a lot standing far below market, over every other tag", function()

@@ -683,7 +683,12 @@ function Row.PaintPosition(row, entry, ctx)
   else
     -- Nothing is "no price yet"; the words are "no receipt, so the margin is not a number
     -- anybody can know". Conflating them is what made Unknown read as broken.
-    row.grossNote:SetText(rowUnit and not paidUnit and GC.L["no cost"] or "")
+    -- Some units with a cost and some without says so, with the count: a bare "no cost" there
+    -- read as nothing known, on a position whose inspector listed what two of its six had cost
+    -- (owner's client, 2026-11-10). The words are the row tag's, which a queue reason displaces.
+    local uncosted = p.coverage == "PARTIAL" and math.max(0, (p.exposureQty or 0) - (p.knownQty or 0)) or 0
+    row.grossNote:SetText(rowUnit and not paidUnit
+      and (uncosted > 0 and (GC.L["no cost for %d"]):format(uncosted) or GC.L["no cost"]) or "")
     setColor(row.grossNote, Theme.color.fgDim)
   end
   -- Where rowUnit stands in the live book. The marks count price levels from the
