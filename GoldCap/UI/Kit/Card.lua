@@ -19,18 +19,12 @@ end
 
 -- Card: rounded panel (fill + 1px ring). The rounded sibling of T.Panel; use
 -- it for chrome that should read as a surface, keep T.Panel for flat fills.
--- `small`: use plaque.png/plaque_ring.png (radius 8, T.SLICE.plaque margins)
+-- `small`: the control art (T.Shape "control": plaque.png/plaque_ring.png at radius 8 in goldcap)
 -- instead of the panel art -- for chrome small enough that the card margins would overlap and
 -- notch. The panel art is the applied skin's panel radius: card.png/ring.png at 12 (goldcap).
 function T.Card(parent, fill, border, small)
   local f = CreateFrame("Frame", nil, parent)
-  local bgFile, ringFile, margin
-  if small then
-    bgFile, ringFile, margin = MEDIA .. "plaque.png", MEDIA .. "plaque_ring.png", T.SLICE.plaque
-  else
-    local radius = GC.Kit.Skins.Current().radius[2]
-    bgFile, ringFile, margin = T.Art("card", radius), T.Art("ring", radius), T.ArtSlice("card", radius)
-  end
+  local bgFile, ringFile, margin = T.Shape(small and "control" or "panel")
   f.bg = T.SlicedTexture(f, "BACKGROUND", bgFile, fill or PANEL, margin)
   f.bg:SetAllPoints()
   f.ring = T.SlicedTexture(f, "BORDER", ringFile, border or K.glassBorder, margin)
@@ -171,18 +165,28 @@ function T.GradientFill(f, top, bottom, file, corner, size, layer)
   return p
 end
 
-local WINDOW_PIECES = piecesFor(CORNER / 64)
+--- Squares the corners of the nine pieces T.GradientFill cut with `corner` of a `size` file (each
+--- corner piece shows the centre's pixels), or gives them back their own.
+function T.SquareCorners(p, square, corner, size)
+  local pieces = piecesFor((corner or CORNER) / (size or 64))
+  for _, i in ipairs({ 1, 3, 7, 9 }) do
+    local c = square and pieces[5] or pieces[i]
+    p[i]:SetTexCoord(c[1], c[2], c[3], c[4])
+  end
+end
+
 local function windowFill(f, top, bottom, file)
   return T.GradientFill(f, top, bottom, file, CORNER, 64)
 end
 
--- The ornament a skin draws on its window, as a list of regions. `inside`: kept clear of the edge,
--- for a window against a Blizzard frame. Positions are the mock's (.sk-<id> .gcw > .orn), but for
--- the middle rivets, which the mock clips at the edge and are drawn 2px out.
-local function ornamentOf(window, kind, inside)
+-- The ornament a skin draws on its window, as a list of regions of `host` (the window's frame
+-- overlay) placed on `window`. `inside`: kept clear of the edge, for a window against a Blizzard
+-- frame. Positions are the mock's (.sk-<id> .gcw > .orn), but for the middle rivets, which the mock
+-- clips at the edge and are drawn 2px out.
+local function ornamentOf(window, host, kind, inside)
   local list = {}
   local function add(layer)
-    local t = window:CreateTexture(nil, layer or "ARTWORK")
+    local t = host:CreateTexture(nil, layer or "ARTWORK")
     list[#list + 1] = t
     return t
   end
@@ -245,10 +249,18 @@ local function ornamentOf(window, kind, inside)
   return #list > 0 and list or nil
 end
 
+-- How far above the window its frame overlay sits. The deepest the addon builds in a window is the
+-- Settings view and the check drawer, at the window's level + 50, and their own frames a few levels
+-- over that (UI/SettingsFrame.lua, UI/SniperFrame.lua); the item panel and the add box go to + 20.
+-- A frame keeps its window's strata, so the dialogs a strata above (the cost dialog, the drawer)
+-- still draw over the frame.
+local FRAME_LIFT = 80
+
 --- The main window's surface, in the applied skin: a fill that shades from top to bottom, a frame (a
 -- hairline ring, a tinted metal bevel, a pixel line, or Classic's), the skin's ornament, and a soft
 -- shadow outside it, drawn by `window` itself over its whole rect. Returns the pieces: fill, ring,
--- shadow, glow, ornament (a list of regions, or nil), frameExtra, grain, and :SetDocked.
+-- shadow, glow, ornament (a list of regions, or nil), frameExtra, grain, overlay, and :SetDocked,
+-- :Lift and :CoverTitle.
 --
 -- `opts.inside`: a window that sits against a Blizzard frame draws nothing outside its own edge, so
 -- no shadow and no glow (goldcap's hairline look keeps its shadow, as it always had).
@@ -257,16 +269,34 @@ end
 -- ring, the ornament, the shadow and the glow go and the corners are square. Goldcap's look has
 -- always kept its ring and rounded corners there and drops only the shadow.
 --
--- Regions of the window, never a child frame: a child frame sits at the level every control in
--- the window gets (the window's plus one), and the client draws frames of one level layer by
--- layer together, so the glass's fill covered each button's own fill -- an active button's gold
--- plate -- and the window's own lines (seen in WoW: Forever, 2026-10-09). A frame's own regions
--- are under all of its children, whatever their levels.
+-- The fill and the shadow are regions of the window, never a child frame: a child frame sits at the
+-- level every control in the window gets (the window's plus one), and the client draws frames of
+-- one level layer by layer together, so the glass's fill covered each button's own fill -- an
+-- active button's gold plate -- and the window's own lines (seen in WoW: Forever, 2026-10-09). A
+-- frame's own regions are under all of its children, whatever their levels.
+--
+-- A frame of the skin's own (the bevel, the pixel line, Classic's gold border and plate) and its
+-- ornament go over the content instead, on one frame of the window (win.overlay) FRAME_LIFT levels
+-- up and deaf to the mouse: the rail is a child frame, and its fill hid Parchment's bevel down the
+-- whole left side and the rivets and brackets at the left corners. Goldcap's hairline ring stays a
+-- region of the window, as it always was.
 function T.Window(window, opts)
   local skin = GC.Kit.Skins.Current()
   local inside = opts and opts.inside
   local radius = skin.radius[1]
   local classic = skin.frame == "classic"
+  local hairline = skin.frame == "hairline"
+  local overlay
+  if not hairline then
+    overlay = CreateFrame("Frame", nil, window)
+    overlay:SetAllPoints(window)
+    overlay:EnableMouse(false)
+  end
+  -- Above the window's content; again after a change of strata, which reassigns its children's levels.
+  local function lift()
+    if overlay then overlay:SetFrameLevel((window:GetFrameLevel() or 0) + FRAME_LIFT) end
+  end
+  lift()
   local win
   if classic then
     -- The client's marble, tiled in its own colours, in one piece (a tiled texture cannot be cut
@@ -295,15 +325,16 @@ function T.Window(window, opts)
   else
     win = { fill = windowFill(window, K.windowTop, K.windowBottom, T.Art("card", radius)) }
   end
+  win.overlay = overlay
 
   if classic then
     -- The client's gold dialog border: a backdrop edge (the file's pieces are 32px) drawn at 40px,
     -- 14px outside the window; against a Blizzard frame it sits on the window's own edge. A frame of
-    -- its own, since only a frame has a backdrop; made now, so the controls made later draw over it.
+    -- its own, since only a frame has a backdrop, on the overlay.
     local out = inside and 0 or 14
-    local border = CreateFrame("Frame", nil, window, "BackdropTemplate")
+    local border = CreateFrame("Frame", nil, overlay, "BackdropTemplate")
     border:SetBackdrop({ edgeFile = T.CLASSIC.goldBorder, edgeSize = inside and 32 or 40 })
-    border:SetUsingParentLevel(true) -- on the window's own level, under every control of it
+    border:SetUsingParentLevel(true) -- on the overlay's level, over every control of the window
     border:SetPoint("TOPLEFT", window, "TOPLEFT", -out, out)
     border:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", out, -out)
     win.ring = border
@@ -328,11 +359,11 @@ function T.Window(window, opts)
     end
   elseif skin.frame == "bevel" then
     -- Baked in colour (outline, band from the skin's frame gradient, inner line), so drawn untinted.
-    win.ring = T.SlicedTexture(window, "BORDER", T.Art("bevel", skin.id), { 1, 1, 1, 1 }, -- untinted
+    win.ring = T.SlicedTexture(overlay, "BORDER", T.Art("bevel", skin.id), { 1, 1, 1, 1 }, -- untinted
       T.ArtSlice("bevel", radius, skin.frameWidth))
   elseif skin.frame == "pixel" then
-    win.ring = T.SlicedTexture(window, "BORDER", MEDIA .. "pixel_line.png", K.frameTint, T.ArtSlice("ring", 0))
-    local inner = T.SlicedTexture(window, "BORDER", MEDIA .. "pixel_line.png", K.frameInner, T.ArtSlice("ring", 0))
+    win.ring = T.SlicedTexture(overlay, "BORDER", MEDIA .. "pixel_line.png", K.frameTint, T.ArtSlice("ring", 0))
+    local inner = T.SlicedTexture(overlay, "BORDER", MEDIA .. "pixel_line.png", K.frameInner, T.ArtSlice("ring", 0))
     inner:SetPoint("TOPLEFT", window, "TOPLEFT", 1, -1)
     inner:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -1, 1)
     win.frameExtra = { inner }
@@ -352,9 +383,8 @@ function T.Window(window, opts)
     win.grain = grain
   end
 
-  win.ornament = ornamentOf(window, skin.ornament, inside)
+  win.ornament = overlay and ornamentOf(window, overlay, skin.ornament, inside)
 
-  local hairline = skin.frame == "hairline"
   -- Every look drops the same soft shadow (the mock gives all nine); a window against a Blizzard
   -- frame draws none outside itself, but for goldcap's, which always had it.
   if hairline or not inside then win.shadow = T.Shadow(window, 18, 0.65) end
@@ -372,27 +402,44 @@ function T.Window(window, opts)
   local function setShown(region, shown)
     if shown then region:Show() else region:Hide() end
   end
+  -- A piece drawn 2px in from the edge while the window has its ring and rounded corners (the paper,
+  -- leather's grain), over the whole window when docked, whose corners are square.
+  local function inset(region, docked)
+    region:ClearAllPoints()
+    if docked then
+      region:SetAllPoints(window)
+    else
+      region:SetPoint("TOPLEFT", window, "TOPLEFT", 2, -2)
+      region:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -2, 2)
+    end
+  end
+  -- A FontString the title plate stands in for (CoverTitle), shown only while the plate is not.
+  local covered
   function win:SetDocked(docked)
     if hairline then
       if self.shadow then setShown(self.shadow, not docked) end
       return
     end
+    lift()
     for _, region in ipairs(frame) do setShown(region, not docked) end
+    if covered then setShown(covered, docked) end
+    if self.grain then inset(self.grain, docked) end
     if self.paper then
-      self.paper:ClearAllPoints()
-      if docked then
-        self.paper:SetAllPoints(window)
-      else
-        self.paper:SetPoint("TOPLEFT", window, "TOPLEFT", 2, -2)
-        self.paper:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -2, 2)
-      end
+      inset(self.paper, docked)
       return
     end
     if classic then return end -- the marble has no corners to square
-    for _, i in ipairs({ 1, 3, 7, 9 }) do
-      local c = docked and WINDOW_PIECES[5] or WINDOW_PIECES[i]
-      self.fill[i]:SetTexCoord(c[1], c[2], c[3], c[4])
-    end
+    T.SquareCorners(self.fill, docked, CORNER, 64)
+  end
+  --- Puts the frame overlay back above the window's content: for a window whose strata changes after
+  --- it is built (the engine reassigns its children's levels then). SetDocked does it on its own.
+  function win:Lift() lift() end
+  --- `fs` (the window's own title) says what the title plate does: hidden while the plate shows (a
+  --- floating Classic window), shown when it does not (docked, or any other skin).
+  function win:CoverTitle(fs)
+    if not (self.title and fs) then return end
+    covered = fs
+    setShown(fs, not self.title:IsShown())
   end
   return win
 end

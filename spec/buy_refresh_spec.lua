@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- The BUY tab's floor refresh: one C_AuctionHouse.SearchForItemKeys batch for the lines the
 -- run still has to buy, sent through the very same arbiter and the very same one-batch-at-a-
@@ -174,6 +175,8 @@ describe("BUY floor refresh", function()
         Num = function(parent) return region("FontString", parent) end,
         Button = function(parent) return button(parent) end,
         SlicedTexture = function(parent) return region("Texture", parent) end,
+        ShapeTexture = function(parent) return region("Texture", parent) end,
+        Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
         Chip = function(parent) return chip(parent) end,
         WithQuality = function(name) return name end,
       },

@@ -814,7 +814,7 @@ local function createRow(parent)
   -- in the HIGHLIGHT layer it drew over the name and the figures and tinted them. paintRow's
   -- clearRow hides it on every repaint, so a row hidden under a still cursor cannot keep it.
   local hc = Theme.color.hover
-  row.highlight = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png", hc, 12)
+  row.highlight = Theme.ShapeTexture(row, "BACKGROUND", "control", hc)
   row.highlight:SetDrawLayer("BACKGROUND", 1)
   row.highlight:SetPoint("TOPLEFT", 2, -1)
   row.highlight:SetPoint("BOTTOMRIGHT", -2, 1)

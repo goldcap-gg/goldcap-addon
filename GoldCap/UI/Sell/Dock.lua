@@ -779,16 +779,16 @@ end
 -- The dock's surface, built before the toolbar as it always was.
 function Dock.BuildFill()
   local container = UI.container
-  -- The dock: one raised surface along the bottom carrying the deck's bulk action, what it
-  -- will do next, what is happening, and the session's totals. It used to be a bare strip
-  -- of widgets on the window's own background, which read as leftovers under the list rather
-  -- than as the place the tab is driven from.
+  -- The dock: one raised surface along the bottom carrying the deck's bulk action, what it will do
+  -- next, what is happening, and the session's totals. It used to be a bare strip of widgets on the
+  -- window's own background, which read as leftovers under the list, not as where the tab is driven.
   local phc = Theme.color.panelHi
   local dockFill = Theme.ClientPanel and Theme.ClientPanel(container, 0.94) -- Classic: a frame in the client's border
-    or Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png", { phc[1], phc[2], phc[3], 1 }, 12)
+    or Theme.ShapeTexture(container, "BACKGROUND", "control", { phc[1], phc[2], phc[3], 1 })
   dockFill:SetPoint("BOTTOMLEFT"); dockFill:SetPoint("BOTTOMRIGHT")
   dockFill:SetHeight(Dock.Height())
   container.dockFill = dockFill
+  container.dockBevel = Theme.PanelBevel and Theme.PanelBevel(container, "dock", dockFill) -- a bevel skin's frame
 end
 
 -- How tall the dock stands: one row, taller while the posting deck's item has a name or news that

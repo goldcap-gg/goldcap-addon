@@ -317,11 +317,11 @@ function Toolbar.Build()
   local trackW = 2 * DECK_W + 3 * DECK_PAD
   -- A skin that frames its tabs (Theme.Plate) draws no track: each tab wears its own plate.
   if not Theme.Plate() then
-    local trackFill = Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png", { 0, 0, 0, 0.3 }, 12) -- untinted
+    local trackFill = Theme.ShapeTexture(container, "BACKGROUND", "control", { 0, 0, 0, 0.3 }) -- untinted
     trackFill:SetPoint("TOPLEFT"); trackFill:SetSize(trackW, 26)
     local tb = Theme.color.border
-    local trackRing = Theme.SlicedTexture(container, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-      { tb[1], tb[2], tb[3], tb[4] or 0.075 }, 12)
+    local trackRing = Theme.ShapeTexture(container, "BORDER", "control",
+      { tb[1], tb[2], tb[3], tb[4] or 0.075 }, true)
     trackRing:SetPoint("TOPLEFT"); trackRing:SetSize(trackW, 26)
     container.deckTrack = trackFill
   end
@@ -367,10 +367,10 @@ function Toolbar.Build()
   searchWell:SetHeight(26)
   searchWell:SetPoint("LEFT", deckPrevious, "RIGHT", 12 + DECK_PAD, 0)
   local swc = Theme.color.bg or Theme.color.panel
-  Theme.SlicedTexture(searchWell, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { swc[1], swc[2], swc[3], 1 }, 12):SetAllPoints(searchWell)
-  Theme.SlicedTexture(searchWell, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    GC.Kit.Tokens.ink(0.12), 12):SetAllPoints(searchWell)
+  Theme.ShapeTexture(searchWell, "BACKGROUND", "control",
+    { swc[1], swc[2], swc[3], 1 }):SetAllPoints(searchWell)
+  Theme.ShapeTexture(searchWell, "BORDER", "control",
+    GC.Kit.Tokens.ink(0.12), true):SetAllPoints(searchWell)
   local search = CreateFrame("EditBox", nil, searchWell)
   search:SetAutoFocus(false)
   search:SetPoint("TOPLEFT", 10, -2)

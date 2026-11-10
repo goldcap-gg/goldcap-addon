@@ -98,32 +98,30 @@ end
 function KP.sunkenTrack(switch, plated)
   local T = GC.Theme
   if plated and T.Plate() then return end
-  switch.track = T.SlicedTexture(switch, "BACKGROUND", T.MEDIA .. "plaque.png", SWITCH_TRACK, T.SLICE.plaque)
+  switch.track = T.ShapeTexture(switch, "BACKGROUND", "control", SWITCH_TRACK)
   switch.track:SetAllPoints(switch)
-  switch.edge = T.SlicedTexture(switch, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)
+  switch.edge = T.ShapeTexture(switch, "BORDER", "control", K.glassBorder, true)
   switch.edge:SetAllPoints(switch)
 end
 
--- The kit's rounded art a plate is cut from, by its size class: plaque for a widget taller than
--- twice its 12px slice, badge (6px) for one down to 13px (UI/Kit/Textures.lua's slice rule).
-local PLATE_ART = {
-  plaque = { fill = "plaque.png", ring = "plaque_ring.png" },
-  badge = { fill = "badge.png", ring = "badge_ring.png" },
-}
+-- The kit's rounded art a plate is cut from, by its size class: plaque (the control shape) for a
+-- widget taller than twice its 12px slice, badge (the chip shape, 6px) for one down to 13px
+-- (UI/Kit/Textures.lua's slice rule), each at the applied skin's radius for it (Theme.Shape).
+local PLATE_ROLE = { plaque = "control", badge = "chip" }
 
 -- A quiet clickable plate: a ring when asked, and the engine's gold wash under the cursor.
 function KP.plate(parent, ring, art)
   local T = GC.Theme
-  local files, slice = PLATE_ART[art], T.SLICE[art]
+  local role = PLATE_ROLE[art]
   local b = CreateFrame("Button", nil, parent)
   b:RegisterForClicks("LeftButtonUp")
   -- Required for the HIGHLIGHT layer (docs/addon/AGENTS.md "Buttons and hover").
   b:EnableMouse(true)
   if ring then
-    b.ring = T.SlicedTexture(b, "BORDER", T.MEDIA .. files.ring, ring, slice)
+    b.ring = T.ShapeTexture(b, "BORDER", role, ring, true)
     b.ring:SetAllPoints()
   end
-  b.wash = T.SlicedTexture(b, "HIGHLIGHT", T.MEDIA .. files.fill, K.hoverWash, slice)
+  b.wash = T.ShapeTexture(b, "HIGHLIGHT", role, K.hoverWash)
   b.wash:SetAllPoints()
   b.wash:SetBlendMode("ADD")
   return b

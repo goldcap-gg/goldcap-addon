@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- Final review "Specs": spec/forever_clean_click_order_spec.lua guards handler SOURCE TEXT --
 -- it cannot see what a handler's own helpers go on to call, which is exactly how C1-C3 slipped
@@ -168,6 +169,8 @@ describe("Clean click ordering, driven end to end", function()
           Card = function(p) local card = region("Frame", p); function card:SetTint() end return card end,
           Plate = function() return nil end, -- no skin plates in this fake
           SlicedTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+          ShapeTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+          Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
         },
         Ledger = { Context = function() return { char = "Owner-Dentarg", region = "eu" } end,
           GetEntries = function() return {} end },
@@ -412,6 +415,8 @@ describe("Clean click ordering, driven end to end", function()
           Card = function(p) local card = region("Frame", p); function card:SetTint() end return card end,
           Plate = function() return nil end, -- no skin plates in this fake
           SlicedTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+          ShapeTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+          Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
         },
         Ledger = { Context = function() return { char = "Owner-Dentarg", region = "eu" } end,
           GetEntries = function() return {} end },

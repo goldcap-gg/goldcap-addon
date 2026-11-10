@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- The BUY tab's search of the auction house (UI/BuySearch.lua), end to end over the real BUY tab:
 -- the item box sends a name, the list goes aside for the results, a result opens in BUY's own dock
@@ -221,6 +222,8 @@ describe("BUY search", function()
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
       SlicedTexture = function(parent) return region("Texture", parent) end,
+      ShapeTexture = function(parent) return region("Texture", parent) end,
+      Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       WithQuality = function(name, _, _, onBlizzard) GC._tipOnBlizzard = onBlizzard; return name end,
       ItemTooltipOutside = function() end,
     }

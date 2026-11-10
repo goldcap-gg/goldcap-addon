@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- End to end through the real modules: bags -> positions -> GC.PostQueue.Build -> the rows ->
 -- the dock (UI/Sell/PostPanel.lua) -> onPostClick. This is the seam that proves the queue, the
@@ -85,6 +86,8 @@ describe("Sell tab, the posting queue control", function()
         Card = function(p) local card = region("Frame", p); function card:SetTint() end return card end,
         Plate = function() return nil end, -- no skin plates in this fake
         SlicedTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+        ShapeTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+        Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       },
       Ledger = { Context = function() return { char = "Owner-Dentarg", region = "eu" } end,
         GetEntries = function() return {} end },

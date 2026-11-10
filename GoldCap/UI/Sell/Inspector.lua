@@ -259,8 +259,8 @@ function Inspector.Decorate(row)
   -- ground colour, a step darker than the panel; several of this suite's theme doubles carry no
   -- `bg`, hence the fallback.
   local wellc = Theme.color.bg or Theme.color.panel
-  row.chipsBg = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  row.chipsBg = Theme.ShapeTexture(row, "BACKGROUND", "control",
+    { wellc[1], wellc[2], wellc[3], 1 })
   row.chipsBg:Hide()
   row.headRules = {}
   for i = 1, 1 do
@@ -608,12 +608,16 @@ function Inspector.Build()
     clientPanel:SetAllPoints(inspector)
   else
     local ipc = Theme.color.panel
-    local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
-      { ipc[1], ipc[2], ipc[3], 1 }, 24)
+    local inspectorFill = Theme.ShapeTexture(inspector, "BACKGROUND", "panel",
+      { ipc[1], ipc[2], ipc[3], 1 })
     inspectorFill:SetAllPoints(inspector)
-    local inspectorEdge = Theme.SlicedTexture(inspector, "BORDER", Theme.MEDIA .. "ring.png",
-      GC.Kit.Tokens.ink((ibc[4] or 0.06) * 2), 24)
-    inspectorEdge:SetAllPoints(inspector)
+    -- A bevel skin frames the panel in its own bevel, which takes the ring's place.
+    inspector.bevel = Theme.PanelBevel and Theme.PanelBevel(inspector, "panel", inspector)
+    if not inspector.bevel then
+      local inspectorEdge = Theme.ShapeTexture(inspector, "BORDER", "panel",
+        GC.Kit.Tokens.ink((ibc[4] or 0.06) * 2), true)
+      inspectorEdge:SetAllPoints(inspector)
+    end
   end
 
   inspector.icon = inspector:CreateTexture(nil, "ARTWORK")

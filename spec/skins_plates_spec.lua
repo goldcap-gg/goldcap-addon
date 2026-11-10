@@ -195,6 +195,46 @@ describe("skin plates", function()
     assert.same({ 0, 0, 0, 0.22 }, W.state(rail.frame.fill).vertex)
   end)
 
+  -- The rail lies flush against the window's left edge: its left corners are the window's, so no
+  -- wedge of the window shows past them.
+  it("cuts the rail's left corners at the window's radius, today's file for goldcap", function()
+    local want = { goldcap = "card_left.png", forever = "card_left_r8.png", pixel = "card_left_r0.png",
+      parchment = "card_left_r5.png", horde = "card_left_r5.png", alliance = "card_left_r8.png",
+      midnight = "card_left_r10.png", classic = "card_left_r4.png", leather = "card_left_r6.png" }
+    for _, id in ipairs(Skins.ORDER) do
+      Skins.Apply(id)
+      local fill = T.Rail(parent()).frame.fill
+      local file = W.state(fill[1] or fill).file
+      assert.equal(MEDIA .. want[id], file, id)
+      assert.is_true(helper.shipsMedia(file, MEDIA), id)
+    end
+    Skins.Apply("goldcap")
+    assert.same({ 24, 24, 24, 24 }, W.state(T.Rail(parent()).frame.fill).slice)
+  end)
+
+  it("squares the rail's corners docked, where the window's are, and keeps goldcap's", function()
+    Skins.Apply("parchment") -- a gradient rail
+    local rail = T.Rail(parent())
+    local corner = { unpack(W.state(rail.frame.fill[1]).texCoord) }
+    rail.SetDocked(true)
+    assert.same(W.state(rail.frame.fill[5]).texCoord, W.state(rail.frame.fill[1]).texCoord)
+    rail.SetDocked(false)
+    assert.same(corner, W.state(rail.frame.fill[1]).texCoord)
+    Skins.Apply("classic") -- a flat one
+    local flat = T.Rail(parent())
+    flat.SetDocked(true)
+    assert.equal(MEDIA .. "card_left_r0.png", W.state(flat.frame.fill).file)
+    assert.same({ 2, 2, 2, 2 }, W.state(flat.frame.fill).slice)
+    flat.SetDocked(false)
+    assert.equal(MEDIA .. "card_left_r4.png", W.state(flat.frame.fill).file)
+    assert.same({ 4, 4, 4, 4 }, W.state(flat.frame.fill).slice)
+    Skins.Apply("goldcap")
+    local today = T.Rail(parent())
+    today.SetDocked(true)
+    assert.equal(MEDIA .. "card_left.png", W.state(today.frame.fill).file)
+    assert.same({ 24, 24, 24, 24 }, W.state(today.frame.fill).slice)
+  end)
+
   it("parchment's rail is the wood gradient and its labels read against it", function()
     Skins.Apply("parchment")
     local rail = T.Rail(parent())

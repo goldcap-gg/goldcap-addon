@@ -6,14 +6,28 @@ local W = require("spec.support.wow_frames")
 describe("skin frames", function()
   local GC, T, Skins, K, restore, MEDIA
 
-  -- A window frame that remembers every texture drawn on it.
+  -- A window frame that remembers every texture drawn on it or on a frame of its own (the frame
+  -- overlay, Classic's border).
   local function windowFrame()
     local f = W.CreateFrame("Frame")
-    local made, create = {}, f.CreateTexture
-    function f:CreateTexture(...)
-      local t = create(self, ...)
-      made[#made + 1] = t
-      return t
+    local made, tracked = {}, { [f] = true }
+    local function watch(frame)
+      local create = frame.CreateTexture
+      function frame:CreateTexture(...)
+        local t = create(self, ...)
+        made[#made + 1] = t
+        return t
+      end
+    end
+    watch(f)
+    local make = _G.CreateFrame
+    _G.CreateFrame = function(kind, name, parent, ...)
+      local frame = make(kind, name, parent, ...)
+      if tracked[parent] then
+        tracked[frame] = true
+        watch(frame)
+      end
+      return frame
     end
     return f, made
   end
@@ -86,6 +100,79 @@ describe("skin frames", function()
     assert.same({ 24, 24, 24, 24 }, W.state(win.ring).slice)
     assert.is_true(shown(win.shadow))
     assert.is_nil(win.ornament)
+  end)
+
+  -- The frame of a skin with one of its own sits over the window's content, on one frame above every
+  -- frame the addon builds in the window (the Settings view and the check drawer go to its level + 50)
+  -- and deaf to the mouse; goldcap's hairline ring stays a region of the window, as it always was.
+  local function framePiecesOf(win)
+    local list = { win.ring }
+    for _, extra in ipairs(win.frameExtra or {}) do list[#list + 1] = extra end
+    for _, region in ipairs(win.ornament or {}) do list[#list + 1] = region end
+    if win.title then list[#list + 1] = win.title; list[#list + 1] = win.titleText end
+    return list
+  end
+
+  it("draws the frame of every skin but goldcap on an overlay above the window's content", function()
+    for _, id in ipairs(Skins.ORDER) do
+      if id ~= "goldcap" then
+        Skins.Apply(id)
+        local f = W.CreateFrame("Frame")
+        f:SetFrameLevel(10)
+        local win = T.Window(f)
+        local overlay = assert(win.overlay, id)
+        assert.equal(f, W.state(overlay).parent, id)
+        assert.is_false(W.state(overlay).mouse, id)
+        assert.equal(10 + 80, overlay:GetFrameLevel(), id)
+        local settings = W.CreateFrame("Frame", nil, f)
+        settings:SetFrameLevel(f:GetFrameLevel() + 50)
+        local row = W.CreateFrame("Button", nil, W.CreateFrame("Frame", nil, settings))
+        assert.is_true(overlay:GetFrameLevel() > row:GetFrameLevel() + 20, id)
+        for i, piece in ipairs(framePiecesOf(win)) do
+          local owner = W.state(piece).parent
+          assert.is_true(owner == overlay or W.state(owner).parent == overlay, id .. " piece " .. i)
+        end
+        for _, piece in ipairs(win.fill) do assert.equal(f, W.state(piece).parent, id) end
+        assert.equal(f, W.state(win.shadow).parent, id)
+      end
+    end
+  end)
+
+  it("keeps goldcap's ring a region of the window, with no overlay", function()
+    Skins.Apply("goldcap")
+    local f = W.CreateFrame("Frame")
+    local win = T.Window(f)
+    assert.is_nil(win.overlay)
+    assert.equal(f, W.state(win.ring).parent)
+    assert.equal("BORDER", W.state(win.ring).layer)
+    assert.is_nil(W.state(f).hooks)
+    assert.equal(0, #W.state(f).children)
+  end)
+
+  it("lifts the overlay again when the window docks or floats, whose strata moves its children", function()
+    Skins.Apply("parchment")
+    local f = W.CreateFrame("Frame")
+    local win = T.Window(f)
+    f:SetFrameLevel(300)
+    win:SetDocked(true)
+    assert.equal(380, win.overlay:GetFrameLevel())
+    f:SetFrameLevel(7)
+    win:SetDocked(false)
+    assert.equal(87, win.overlay:GetFrameLevel())
+  end)
+
+  it("moves leather's grain with the fill: 2px in while floating, the whole window docked", function()
+    Skins.Apply("leather")
+    local f = W.CreateFrame("Frame")
+    local win = T.Window(f)
+    local function inset() return W.state(win.grain).points[1][4] end
+    assert.equal(2, inset())
+    win:SetDocked(true)
+    assert.equal(f, W.state(win.grain).allPoints)
+    assert.equal(0, #W.state(win.grain).points)
+    win:SetDocked(false)
+    assert.equal(2, inset())
+    assert.is_nil(W.state(win.grain).allPoints)
   end)
 
   it("forever builds a bronze bevel", function()

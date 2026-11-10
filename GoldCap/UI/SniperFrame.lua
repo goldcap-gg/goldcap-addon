@@ -10126,10 +10126,10 @@ end
 -- only a 1px rounded rim of the outer layer ever shows.
 local function qtyBorderedBox(parent)
   local f = CreateFrame("Frame", nil, parent)
-  local outer = Theme.SlicedTexture(f, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.border, 6)
+  local outer = Theme.ShapeTexture(f, "BACKGROUND", "chip", Theme.color.border)
   outer:SetAllPoints()
 
-  local inner = Theme.SlicedTexture(f, "BORDER", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
+  local inner = Theme.ShapeTexture(f, "BORDER", "chip", Theme.color.bg)
   inner:SetPoint("TOPLEFT", 1, -1)
   inner:SetPoint("BOTTOMRIGHT", -1, 1)
 
@@ -10263,11 +10263,11 @@ local function createDialog()
   -- just enough to read as a rendering bug in the first in-game pass. The panel now also
   -- shifts the list out from behind it on wide windows (applyPanelInset, createFrame) --
   -- opacity is what keeps the narrower/docked case, which still overlays, honest instead.
-  d.sheet = Theme.SlicedTexture(d, "BACKGROUND", Theme.MEDIA .. "card.png",
-    { Theme.color.panel[1], Theme.color.panel[2], Theme.color.panel[3], 1 }, 24)
+  d.sheet = Theme.ShapeTexture(d, "BACKGROUND", "panel",
+    { Theme.color.panel[1], Theme.color.panel[2], Theme.color.panel[3], 1 })
   d.sheet:SetAllPoints()
-  d.ring = Theme.SlicedTexture(d, "BORDER", Theme.MEDIA .. "ring.png",
-    GC.Kit.Tokens.ink((Theme.color.border[4] or 0.06) * 2), 24)
+  d.ring = Theme.ShapeTexture(d, "BORDER", "panel",
+    GC.Kit.Tokens.ink((Theme.color.border[4] or 0.06) * 2), true)
   d.ring:SetAllPoints()
   d:EnableMouse(true)
   -- In from the right as it opens, as the Sell item panel does. It goes at once: its hide is what
@@ -11509,8 +11509,7 @@ createRow = function(parent, index)
   -- (32px row height minus 2px), so margin 12 <= 15 = half of 30, satisfying the constraint.
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
-  zebra:SetTexture(Theme.MEDIA .. "plaque.png")
-  zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(zebra, "control")
   zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and zc[4] or 0)
   zebra:SetPoint("TOPLEFT", 2, -1)
   zebra:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -11524,8 +11523,7 @@ createRow = function(parent, index)
   -- pin state; the watch color at low alpha, matching the rail it accompanies.
   local pc = Theme.color.watch
   local pinBg = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  pinBg:SetTexture(Theme.MEDIA .. "plaque.png")
-  pinBg:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(pinBg, "control")
   pinBg:SetVertexColor(pc[1], pc[2], pc[3], 0.09)
   pinBg:SetPoint("TOPLEFT", 2, -1)
   pinBg:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -11534,8 +11532,7 @@ createRow = function(parent, index)
 
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- sublevel 1: above zebra, still under ARTWORK
-  highlight:SetTexture(Theme.MEDIA .. "plaque.png")
-  highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(highlight, "control")
   highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4])
   highlight:SetPoint("TOPLEFT", 2, -1)
   highlight:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -11545,8 +11542,7 @@ createRow = function(parent, index)
   -- The new-HOT-deal ping fades its OWN texture. It used to animate row.highlight's alpha,
   -- which left the hover wash inheriting whatever alpha the animation last wrote.
   local flash = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  flash:SetTexture(Theme.MEDIA .. "plaque.png")
-  flash:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(flash, "control")
   flash:SetVertexColor(hc[1], hc[2], hc[3], 0.35)
   flash:SetPoint("TOPLEFT", 2, -1)
   flash:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -12219,10 +12215,15 @@ local function createFrame()
   -- undoes both while the window is a child of the auction house panel.
   f:SetFrameStrata("HIGH")
   f:SetToplevel(true)
+  -- The skin's frame overlay goes back above the content: the strata change moved its level.
+  f.windowPanel:Lift()
 
   -- Chrome: Theme.TitleBar owns the drag region (title bar only, not the whole window),
   -- the close button (outer top-right), and the gear (inboard-left of close).
   local titleBar = Theme.TitleBar(f, GC.L["GoldCap Sniper"])
+  -- Classic's title plate says "GoldCap" over the top edge of the floating window: its own title
+  -- would say it twice, so it shows only docked, where the plate is gone.
+  f.windowPanel:CoverTitle(titleBar.title)
   f.closeBtn = titleBar.close
   -- Kept as a field so docked mode (GC.Sniper.SetDocked below) can blank the duplicate
   -- chrome: inside the auction house the AH frame already provides the title and the close.
@@ -12854,6 +12855,7 @@ function GC.Sniper.SetDocked(host)
     frame:SetPoint("TOPLEFT")
     frame:SetPoint("BOTTOMRIGHT")
     if frame.rail and frame.rail.SetTopInset then frame.rail.SetTopInset(CH.DOCK_RAIL_INSET) end
+    if frame.rail and frame.rail.SetDocked then frame.rail.SetDocked(true) end -- square, as the window
     if not frame:IsShown() then
       GC.Sniper.Toggle() -- the ordinary open path: stale banner, bag counts, the tab badge
     end
@@ -12891,6 +12893,7 @@ function GC.Sniper.SetDocked(host)
       or WIN.FRAME_HEIGHT
     pcall(frame.SetSize, frame, width, height)
     if frame.rail and frame.rail.SetTopInset then frame.rail.SetTopInset(0) end
+    if frame.rail and frame.rail.SetDocked then frame.rail.SetDocked(false) end
   end
 end
 

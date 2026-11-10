@@ -254,7 +254,7 @@ local function newRow(v)
   local T = GC.Theme
   local frame = U.plate(v.content, K.hairline, "plaque")
   frame:SetWidth(LAYOUT.ROW_W)
-  frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassTop, T.SLICE.plaque)
+  frame.fill = T.ShapeTexture(frame, "BACKGROUND", "control", K.glassTop)
   frame.fill:SetAllPoints()
   local row = { frame = frame }
   row.slot = U.NewIcon(frame, LAYOUT.ROW_ICON)

@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- Who owns the browse list while the BUY tab's search is out, against the real UI/SniperFrame.lua:
 -- its keys batches (the realm poll, the caps, BUY's own refresh, the Sell tab's fill) and its book
@@ -96,6 +97,8 @@ describe("BUY search and the shared browse list", function()
         Num = function(parent) return region("FontString", parent) end,
         Button = function(parent) return button(parent) end,
         SlicedTexture = function(parent) return region("Texture", parent) end,
+        ShapeTexture = function(parent) return region("Texture", parent) end,
+        Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
         WithQuality = function(name) return name end,
       },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,

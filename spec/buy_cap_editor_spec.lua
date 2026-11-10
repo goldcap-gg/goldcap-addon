@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- BUY 2.0's price box (UI/BuyCapEditor.lua): the player types the most one unit of a line may
 -- cost. Parsing is GC.Util.ParseMoney's; this is about the box itself.
@@ -64,6 +65,8 @@ describe("BuyCapEditor", function()
       Num = function(p) return region("FontString", p) end,
       Button = function(p) return button(p) end,
       SlicedTexture = function(p) return region("Texture", p) end,
+      ShapeTexture = function(p) return region("Texture", p) end,
+      Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       Scale = function() return 1 end,
     }
     helper.loadModule("UI/BuyCapEditor.lua", GC)

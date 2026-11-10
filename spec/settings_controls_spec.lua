@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- Loads UI/SettingsFrame.lua standalone (like sell_widget_behavior_spec.lua loads
 -- the Sell view) against a minimal fake Theme -- this spec is about the controls
@@ -154,6 +155,8 @@ describe("Settings controls", function()
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent, _, rounded) local b = region("Button", parent); b.rounded = rounded; return b end,
       SlicedTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
+      ShapeTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
+      Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       -- Every numeric field/toggle wires a hover explanation through this -- the double just
       -- has to hand back something SOMETHING can call, not pick a real side (that geometry is
       -- theme_tooltip_anchor_spec.lua's job against the real Theme.lua).

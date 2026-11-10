@@ -147,8 +147,7 @@ local function createRow(parent)
   local inset = ROW.GAP / 2
   local zc = Theme.color.zebra
   row.zebra = row:CreateTexture(nil, "BACKGROUND")
-  row.zebra:SetTexture(Theme.MEDIA .. "plaque.png")
-  row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(row.zebra, "control")
   row.zebra:SetPoint("TOPLEFT", 2, -inset); row.zebra:SetPoint("BOTTOMRIGHT", -2, inset)
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
   -- Classic: the client's auction name frame under the zebra's place, shown with it (Row.Style).
@@ -158,14 +157,14 @@ local function createRow(parent)
   end
   -- The card's edge: the glass border (Theme.color.border) every panel in the kit wears.
   local gb = Theme.color.border
-  row.cardRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { gb[1], gb[2], gb[3], gb[4] or 0.075 }, 12)
+  row.cardRing = Theme.ShapeTexture(row, "BORDER", "control",
+    { gb[1], gb[2], gb[3], gb[4] or 0.075 }, true)
   row.cardRing:SetPoint("TOPLEFT", 2, -inset); row.cardRing:SetPoint("BOTTOMRIGHT", -2, inset)
   row.cardRing:Hide()
   -- The open position's outline, over the same rect as its fill: gold at the design's 38%.
   -- Built through the kit's own sliced texture so a spec's Theme double serves it too.
-  row.selectRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.38 }, 12)
+  row.selectRing = Theme.ShapeTexture(row, "BORDER", "control",
+    { Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.38 }, true)
   row.selectRing:SetPoint("TOPLEFT", 2, -inset); row.selectRing:SetPoint("BOTTOMRIGHT", -2, inset)
   row.selectRing:Hide()
   if row.nameFrame then
@@ -182,15 +181,13 @@ local function createRow(parent)
   -- plaque and insets as the zebra it replaces -- only shown for sub-rows (the kind branch in
   -- Row.Style), never alongside it.
   row.well = row:CreateTexture(nil, "BACKGROUND")
-  row.well:SetTexture(Theme.MEDIA .. "plaque.png")
-  row.well:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(row.well, "control")
   row.well:SetPoint("TOPLEFT", 2, -1); row.well:SetPoint("BOTTOMRIGHT", -2, 1)
   local phc = Theme.color.panelHi
   row.well:SetVertexColor(phc[1], phc[2], phc[3], 0.5)
   row.well:Hide()
   row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  row.highlight:SetTexture(Theme.MEDIA .. "plaque.png")
-  row.highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(row.highlight, "control")
   row.highlight:SetPoint("TOPLEFT", 2, -inset); row.highlight:SetPoint("BOTTOMRIGHT", -2, inset)
   local hc = Theme.color.hover
   row.highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)

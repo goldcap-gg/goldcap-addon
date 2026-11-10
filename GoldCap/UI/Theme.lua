@@ -180,7 +180,7 @@ function T.RailButton(parent, iconName, labelText)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
   -- badge.png/T.SLICE.badge, not card.png/T.SLICE.card or plaque.png/T.SLICE.plaque: the badge is
   -- 14px tall and both of those margins exceed half that (see T.SLICE.badge's own comment).
-  b.badge.bg = T.SlicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, T.SLICE.badge)
+  b.badge.bg = T.ShapeTexture(b.badge, "BACKGROUND", "chip", T.color.gold)
   b.badge.bg:SetAllPoints()
   b.badge.text = T.Heading(b.badge, 9.5)
   b.badge.text:SetPoint("CENTER")
@@ -239,16 +239,32 @@ function T.Rail(parent)
   frame:SetWidth(T.RAIL_W)
   -- card_left.png: left corners rounded to match the window card's own radius 12, right edge
   -- square (it borders content, not window chrome) -- a flat rectangle here would poke square
-  -- corners past the window's rounded top-left/bottom-left arcs.
+  -- corners past the window's rounded top-left/bottom-left arcs. Cut at the applied skin's window
+  -- radius (card_left_r<N>.png), so the corners stay the window's in every skin.
   -- The skin's rail fill (K.railTop to K.railBottom): flat, as it always was, where the two are the
   -- same; else a vertical gradient cut from the same art (T.GradientFill).
+  local skin = GC.Kit.Skins.Current()
+  local radius = skin.radius[1]
   local top, bottom = K.railTop, K.railBottom
   local flat = top[1] == bottom[1] and top[2] == bottom[2] and top[3] == bottom[3] and top[4] == bottom[4]
   if flat then
-    frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", top)
+    frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.Art("cardLeft", radius), top, T.ArtSlice("cardLeft", radius))
     frame.fill:SetAllPoints()
   else
-    frame.fill = T.GradientFill(frame, top, bottom, T.MEDIA .. "card_left.png", 16, 64)
+    frame.fill = T.GradientFill(frame, top, bottom, T.Art("cardLeft", radius), 16, 64)
+  end
+  -- Docked, a skin's window has square corners (UI/Kit/Card.lua's SetDocked), and so has its rail;
+  -- goldcap's keeps its rounded ones, as it always has.
+  local function setDocked(docked)
+    if skin.frame == "hairline" then return end
+    if flat then
+      local r = docked and 0 or radius
+      local margin = T.ArtSlice("cardLeft", r)
+      frame.fill:SetTexture(T.Art("cardLeft", r))
+      frame.fill:SetTextureSliceMargins(margin, margin, margin, margin)
+    else
+      T.SquareCorners(frame.fill, docked, 16, 64)
+    end
   end
   local edge = frame:CreateTexture(nil, "BORDER")
   edge:SetColorTexture(K.hairline[1], K.hairline[2], K.hairline[3], K.hairline[4])
@@ -313,7 +329,8 @@ function T.Rail(parent)
     logo:SetPoint("TOP", 0, -(16 + (px or 0)))
   end
 
-  return { frame = frame, buttons = buttons, gear = gear, logo = logo, SetTopInset = setTopInset }
+  return { frame = frame, buttons = buttons, gear = gear, logo = logo, SetTopInset = setTopInset,
+    SetDocked = setDocked }
 end
 
 -- TitleBar: 32px drag region at top of `frame`, title Label 13; close sits at the outer

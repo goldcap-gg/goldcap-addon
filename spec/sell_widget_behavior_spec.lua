@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 describe("Sell widget geometry and manual cost", function()
   local made
@@ -97,6 +98,15 @@ describe("Sell widget geometry and manual cost", function()
         t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
         return t
       end,
+      ShapeTexture = function(parent, layer, role, c, ring)
+        local fill, outline, margin = ThemeShape.Shape(role)
+        local t = region("Texture", parent)
+        t.layer = layer
+        t:SetTexture(ring and outline or fill); t:SetTextureSliceMargins(margin, margin, margin, margin)
+        t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+        return t
+      end,
+      Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       -- The real one reads the owner's place on screen; the double lets a test plant the answer
       -- on the owner and checks the widget passes it through rather than assuming a side.
       TooltipAnchor = function(owner) return owner.tooltipAnchor or "ANCHOR_RIGHT" end,
@@ -105,6 +115,8 @@ describe("Sell widget geometry and manual cost", function()
       -- to open SOME tooltip so the row's OnEnter can go on to AddLine the rest of its content.
       ItemTooltipOutside = function(owner) GameTooltip:SetOwner(owner, "ANCHOR_RIGHT") end,
     }
+    -- A test's own kit calls, laid over the double (`record.theme`).
+    for key, fn in pairs(record.theme or {}) do theme[key] = fn end
     -- Loaded into its own table so borrowing Deck below cannot drag the rest of the real view
     -- model (SourceText, CostText) into a double these tests deliberately control.
     local realViewModel = helper.loadModule("UI/SellViewModel.lua")
@@ -1885,6 +1897,32 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(56, rows[2].height)
     assert.equal(66, rows[2].points[1].y * -1) -- the second card starts where the first one ends
     assert.is_true(rows[1].cardRing.shown)
+  end)
+
+  -- A bevel skin frames the item panel and the dock in its bevel (Theme.PanelBevel), the panel's in
+  -- place of its ring; a skin without one keeps the ring.
+  it("frames the item panel and the dock in the skin's bevel, the panel's in place of its ring", function()
+    local asked = {}
+    local function bevel(parent, which, over)
+      local t = region("Texture", parent)
+      t:SetAllPoints(over)
+      asked[#asked + 1] = which
+      return t
+    end
+    local GC = load(620, { calls = {}, theme = { PanelBevel = bevel } })
+    local container = GC.SellUI.container
+    assert.same({ "dock", "panel" }, asked)
+    assert.equal(container.inspector, container.inspector.bevel.allPoints)
+    assert.equal(container.dockFill, container.dockBevel.allPoints)
+    local rings = 0
+    for _, t in ipairs(container.inspector.children) do if t.texture == "ring.png" then rings = rings + 1 end end
+    assert.equal(0, rings)
+    local plain = load(620, { calls = {}, theme = { PanelBevel = function() return nil end } })
+    assert.is_nil(plain.SellUI.container.inspector.bevel)
+    assert.is_nil(plain.SellUI.container.dockBevel)
+    rings = 0
+    for _, t in ipairs(plain.SellUI.container.inspector.children) do if t.texture == "ring.png" then rings = rings + 1 end end
+    assert.equal(1, rings)
   end)
 
   -- The panel's head says which item it is: a long name wraps and the head grows to hold it.

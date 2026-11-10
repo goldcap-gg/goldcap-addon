@@ -162,9 +162,9 @@ end
 local function newRow(parent)
   local T = GC.Theme
   local row = CreateFrame("Frame", nil, parent)
-  row.bg = T.SlicedTexture(row, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassBottom, T.SLICE.plaque)
+  row.bg = T.ShapeTexture(row, "BACKGROUND", "control", K.glassBottom)
   row.bg:SetAllPoints()
-  row.ring = T.SlicedTexture(row, "BORDER", T.MEDIA .. "plaque_ring.png", K.hairline, T.SLICE.plaque)
+  row.ring = T.ShapeTexture(row, "BORDER", "control", K.hairline, true)
   row.ring:SetAllPoints()
   -- The click that opens the row is on its top line, under its buttons.
   row.head = U.plate(row, nil, "plaque")
@@ -181,7 +181,7 @@ local function newRow(parent)
   track(row, row.chip.text)
   row.icons = {}
   for i = 1, GC.Hoard.ICONS do row.icons[i] = newIcon(row, L.ICON, true) end
-  row.more = T.SlicedTexture(row, "ARTWORK", T.MEDIA .. "badge.png", K.hairline, T.SLICE.badge)
+  row.more = T.ShapeTexture(row, "ARTWORK", "chip", K.hairline)
   row.moreText = track(row, T.Num(row, 9))
   row.moreText:SetJustifyH("CENTER")
   colour(row.moreText, K.text2)

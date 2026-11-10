@@ -957,9 +957,9 @@ function List.Build()
   empty:SetSize(64, 64)
   empty:SetPoint("BOTTOM", scroll, "CENTER", 0, 10)
   local gc = Theme.color.gold
-  Theme.SlicedTexture(empty, "BACKGROUND", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.08 }, 12)
+  Theme.ShapeTexture(empty, "BACKGROUND", "control", { gc[1], gc[2], gc[3], 0.08 })
     :SetAllPoints(empty)
-  Theme.SlicedTexture(empty, "BORDER", Theme.MEDIA .. "plaque_ring.png", { gc[1], gc[2], gc[3], 0.3 }, 12)
+  Theme.ShapeTexture(empty, "BORDER", "control", { gc[1], gc[2], gc[3], 0.3 }, true)
     :SetAllPoints(empty)
   if Theme.Glow then Theme.Glow(empty, { gc[1], gc[2], gc[3], 0.12 }, 16) end
   empty.icon = empty:CreateTexture(nil, "ARTWORK")

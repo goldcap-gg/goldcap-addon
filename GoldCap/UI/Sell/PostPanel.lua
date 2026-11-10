@@ -28,10 +28,10 @@ local function well(container, width)
   bg:SetSize(width, DOCK.BOX_H)
   -- The window's own ground colour; several of this suite's theme doubles carry no `bg`.
   local wellc = Theme.color.bg or Theme.color.panel
-  local fill = Theme.SlicedTexture(bg, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  local fill = Theme.ShapeTexture(bg, "BACKGROUND", "control",
+    { wellc[1], wellc[2], wellc[3], 1 })
   fill:SetAllPoints(bg)
-  bg.ring = Theme.SlicedTexture(bg, "BORDER", Theme.MEDIA .. "plaque_ring.png", GC.Kit.Tokens.ink(0.14), 12)
+  bg.ring = Theme.ShapeTexture(bg, "BORDER", "control", GC.Kit.Tokens.ink(0.14), true)
   bg.ring:SetAllPoints(bg)
   local box = CreateFrame("EditBox", nil, bg)
   box:SetAutoFocus(false)

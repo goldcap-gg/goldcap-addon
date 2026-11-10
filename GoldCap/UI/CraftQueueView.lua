@@ -260,7 +260,7 @@ local function newLine(v)
   local T = GC.Theme
   local frame = U.plate(v.content, K.glassBorder, "plaque")
   frame:SetWidth(contentWidth())
-  frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassTop, T.SLICE.plaque)
+  frame.fill = T.ShapeTexture(frame, "BACKGROUND", "control", K.glassTop)
   frame.fill:SetAllPoints()
   local line = { frame = frame }
   line.slot = U.NewIcon(frame, LAYOUT.ICON)

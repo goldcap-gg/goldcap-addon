@@ -272,10 +272,10 @@ function CostDialog.Build()
   -- dialog frame itself, not a child Card frame: a child frame would draw over the dialog's
   -- own FontStrings.
   local pc = Theme.color.panel
-  local dialogBG = Theme.SlicedTexture(dialog, "BACKGROUND", Theme.MEDIA .. "card.png", { pc[1], pc[2], pc[3], 0.98 }, 24)
+  local dialogBG = Theme.ShapeTexture(dialog, "BACKGROUND", "panel", { pc[1], pc[2], pc[3], 0.98 })
   dialogBG:SetAllPoints(dialog)
   local gc2 = Theme.color.gold
-  local dialogEdge = Theme.SlicedTexture(dialog, "BORDER", Theme.MEDIA .. "ring.png", { gc2[1], gc2[2], gc2[3], 0.5 }, 24)
+  local dialogEdge = Theme.ShapeTexture(dialog, "BORDER", "panel", { gc2[1], gc2[2], gc2[3], 0.5 }, true)
   dialogEdge:SetAllPoints(dialog)
   -- Which item, and how many units it is missing a cost for -- filled in by openCostDialog
   -- every time it opens, since the dialog is pooled across positions. Reserves two lines'

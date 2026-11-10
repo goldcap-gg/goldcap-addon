@@ -47,7 +47,7 @@ end
 -- separate recolorable edge anymore.
 local function editBoxBg(parent)
   local f = CreateFrame("Frame", nil, parent)
-  local bg = Theme.SlicedTexture(f, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
+  local bg = Theme.ShapeTexture(f, "BACKGROUND", "chip", Theme.color.bg)
   bg:SetAllPoints()
 
   function f:SetFocusTint(on)
@@ -108,10 +108,10 @@ local function makeToggle(parent)
   local box = CreateFrame("Frame", nil, parent)
   box:SetSize(36, 20)
 
-  box.track = Theme.SlicedTexture(box, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
+  box.track = Theme.ShapeTexture(box, "BACKGROUND", "chip", Theme.color.bg)
   box.track:SetAllPoints()
 
-  box.knob = Theme.SlicedTexture(box, "OVERLAY", Theme.MEDIA .. "badge.png", Theme.color.fgDim, 6)
+  box.knob = Theme.ShapeTexture(box, "OVERLAY", "chip", Theme.color.fgDim)
   box.knob:SetSize(16, 16)
 
   local cb = CreateFrame("CheckButton", nil, box)
@@ -125,8 +125,7 @@ local function makeToggle(parent)
   -- painted in OnEnter/OnLeave -- the addon's engineering notes' "never paint hover by hand" rule.
   cb:EnableMouse(true)
   local hover = cb:CreateTexture(nil, "HIGHLIGHT")
-  hover:SetTexture(Theme.MEDIA .. "badge.png")
-  hover:SetTextureSliceMargins(6, 6, 6, 6)
+  Theme.SetShape(hover, "chip")
   hover:SetAllPoints()
   hover:SetBlendMode("ADD")
   local hg = Theme.color.gold
@@ -173,7 +172,7 @@ local function makeSlider(parent, width, min, max, step)
   slider:SetValueStep(step)
   slider:SetObeyStepOnDrag(true)
 
-  local thumb = Theme.SlicedTexture(slider, "OVERLAY", Theme.MEDIA .. "badge.png", Theme.color.gold, 6)
+  local thumb = Theme.ShapeTexture(slider, "OVERLAY", "chip", Theme.color.gold)
   thumb:SetSize(12, 16)
   slider:SetThumbTexture(thumb)
 

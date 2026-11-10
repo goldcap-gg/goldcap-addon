@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- The BUY tab's render, exercised the way spec/soldframe_spec.lua exercises Sold's: the real
 -- Core/BuyRun.lua and Core/BagStock.lua underneath, fake widgets above, and the row pool / header
@@ -154,6 +155,8 @@ describe("BuyFrame", function()
       Num = function(parent, _, _) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
       SlicedTexture = function(parent) return region("Texture", parent) end,
+      ShapeTexture = function(parent) return region("Texture", parent) end,
+      Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       WithQuality = function(name) return name end,
       -- UI/Theme.lua's own opens GameTooltip on the row, placed beside the window.
       ItemTooltipOutside = function(row) _G.GameTooltip:SetOwner(row, "ANCHOR_NONE") end,

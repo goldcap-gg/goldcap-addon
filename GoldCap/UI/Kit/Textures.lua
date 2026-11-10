@@ -28,12 +28,13 @@ T.SLICE = { card = CARD_SLICE, plaque = PLAQUE_SLICE, badge = BADGE_SLICE }
 -- The art for a shape at a radius. Today's radii keep today's files (card.png and ring.png at 12,
 -- plaque.png and plaque_ring.png at 8); every other radius a skin uses has a file of its own, drawn
 -- by gen_art.py: card_r<N>.png and ring_r<N>.png (64px), plaque_r<N>.png and plaque_ring_r<N>.png
--- (32px), and bevel_<skin>.png (a bevel skin's window ring, baked in colour from the skin's frame
--- gradient, drawn untinted), plate_<skin>.png (a plate skin's ring for rail buttons, tabs and buttons,
--- baked the same way).
-local TODAY = { card = { 12, "card.png" }, ring = { 12, "ring.png" },
+-- (32px), card_left_r<N>.png (the rail's fill, its left corners rounded, 64px), and bevel_<skin>.png
+-- (a bevel skin's window ring, baked in colour from the skin's frame gradient, drawn untinted),
+-- plate_<skin>.png (a plate skin's ring for rail buttons, tabs and buttons, baked the same way).
+local TODAY = { card = { 12, "card.png" }, ring = { 12, "ring.png" }, cardLeft = { 12, "card_left.png" },
   plaque = { 8, "plaque.png" }, plaqueRing = { 8, "plaque_ring.png" } }
-local STEM = { card = "card_r", ring = "ring_r", plaque = "plaque_r", plaqueRing = "plaque_ring_r" }
+local STEM = { card = "card_r", ring = "ring_r", cardLeft = "card_left_r", plaque = "plaque_r",
+  plaqueRing = "plaque_ring_r" }
 
 function T.Art(kind, radius)
   local MEDIA = GC.Kit.MEDIA
@@ -53,7 +54,7 @@ function T.ArtSlice(kind, radius, width)
   if kind == "plate" then return math.max(radius, 1 + (width or 0), 2) end
   local today = TODAY[kind]
   if today and today[1] == radius then
-    return (kind == "card" or kind == "ring") and CARD_SLICE or PLAQUE_SLICE
+    return (kind == "plaque" or kind == "plaqueRing") and PLAQUE_SLICE or CARD_SLICE
   end
   return math.max(radius, 2)
 end
@@ -66,6 +67,61 @@ function T.SmallArt(radius, cap)
   local MEDIA = GC.Kit.MEDIA
   if radius == 6 then return MEDIA .. "badge.png", MEDIA .. "badge_ring.png", T.SLICE.badge end
   return T.Art("plaque", radius), T.Art("plaqueRing", radius), math.min(T.ArtSlice("plaque", radius), cap)
+end
+
+--- The applied skin's art for a shape of `role`, as the fill, the ring and the slice margin:
+--   "panel":   a panel, a sheet, a dialog: the skin's panel radius (radius[2]); goldcap's is today's
+--              card.png and ring.png, cut by T.SLICE.card;
+--   "control": a row, a well, a dock, a plate: its control radius (radius[3]); goldcap's is today's
+--              plaque.png and plaque_ring.png, cut by T.SLICE.plaque;
+--   "chip":    a pill, a badge, a switch: its chip radius (radius[4]); goldcap's is today's badge.png
+--              and badge_ring.png, cut by T.SLICE.badge.
+-- Every other skin's margin is at most goldcap's for the same role, so a widget whose margin is under
+-- half its smallest edge today stays so.
+function T.Shape(role)
+  local radius = GC.Kit.Skins.Current().radius
+  if role == "panel" then
+    return T.Art("card", radius[2]), T.Art("ring", radius[2]), T.ArtSlice("card", radius[2])
+  elseif role == "control" then
+    return T.Art("plaque", radius[3]), T.Art("plaqueRing", radius[3]), T.ArtSlice("plaque", radius[3])
+  end
+  return T.SmallArt(radius[4], T.SLICE.badge)
+end
+
+-- The bevel round the Sell tab's dock is thinner than a window's, in every bevel skin (the mock's
+-- `.dock { --fw: 1.5px }`).
+local DOCK_BEVEL = 1.5
+
+--- The applied skin's bevel round a panel inside a window, or nil in a skin without a bevel: `which`
+-- "panel" (the Sell tab's item panel: the skin's panel radius, which its fill is cut at, and its
+-- frame width) or "dock" (the Sell tab's dock: the control radius its fill is cut at, 1.5px). Baked
+-- in colour as the window's is (gen_art.py: bevel_<skin>_panel.png, bevel_<skin>_dock.png), so drawn
+-- untinted, on the BORDER layer of `parent`, over the whole of `over` (the panel, or its fill).
+function T.PanelBevel(parent, which, over)
+  local skin = GC.Kit.Skins.Current()
+  if skin.frame ~= "bevel" then return nil end
+  local dock = which == "dock"
+  local radius = dock and skin.radius[3] or skin.radius[2]
+  local width = dock and DOCK_BEVEL or skin.frameWidth
+  local bevel = T.SlicedTexture(parent, "BORDER", GC.Kit.MEDIA .. "bevel_" .. skin.id .. "_" .. (dock and "dock" or "panel") .. ".png",
+    { 1, 1, 1, 1 }, T.ArtSlice("bevel", radius, width)) -- untinted
+  bevel:SetAllPoints(over or parent)
+  return bevel
+end
+
+--- Points texture `tx` at the skin's art for `role` (T.Shape), its fill or, when `ring`, its ring, cut
+--- by the role's slice margin.
+function T.SetShape(tx, role, ring)
+  local fill, outline, margin = T.Shape(role)
+  tx:SetTexture(ring and outline or fill)
+  tx:SetTextureSliceMargins(margin, margin, margin, margin)
+end
+
+--- A sliced texture of `parent` in the skin's art for `role` (T.Shape), tinted `c`: its fill, or its
+--- ring when `ring`.
+function T.ShapeTexture(parent, layer, role, c, ring)
+  local fill, outline, margin = T.Shape(role)
+  return T.SlicedTexture(parent, layer, ring and outline or fill, c, margin)
 end
 
 -- A plate ring's band, in px, inside its 1px outline (docs/addon/tools/gen_art.py PLATE_BAND).
