@@ -65,6 +65,17 @@ function S.Attach() end
 
 local retailLines = S.Lines
 
+local function breakevenSentence(cost, per)
+  local unit = GC.CraftMath.Breakeven(cost, per)
+  return unit and GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(unit)) or nil
+end
+
+--- The note under a priced card's cells: what to ask for one to cover its reagents.
+function P.CardNote(result, recipe)
+  if type(result) ~= "table" then return nil end
+  return breakevenSentence(result.cost, type(recipe) == "table" and recipe.per or 1)
+end
+
 --- The strip's lines, as This recipe shows the first: "No GoldCap price for ...", and on Forever how
 --- a merchant gives a vendor's reagent its price and how many listed an auction house price needs.
 function S.Lines(result)
@@ -76,6 +87,10 @@ function S.Lines(result)
   if result.thin then
     lines[1].text = lines[1].text .. " "
       .. GC.L["An auction house price needs at least %d listed."]:format(GC.ForeverDeals.C.MARKET_MIN_UNITS)
+  end
+  if result.cost and result.per then
+    local sentence = breakevenSentence(result.cost, result.per)
+    if sentence then lines[1].text = lines[1].text .. " " .. sentence end
   end
   return lines
 end

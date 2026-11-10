@@ -1929,4 +1929,40 @@ GC.Locales.ukUA = {
     "Реагент, який продає торговець, отримає ціну, щойно ти відкриєш цього торговця.",
   ["An auction house price needs at least %d listed."] =
     "Для ціни аукціону потрібно щонайменше %d шт. у продажу.",
+  ["Sell for at least %s each to break even."] =
+    "Продавайте не дешевше %s за шт., щоб вийти в нуль.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Списати",
+  ["Sold/used?"] = "Списати?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Продано торговцю, витрачено або віддано: GoldCap більше не рахує ці одиниці запасом. Те, що ви заплатили, лишається в їхній історії.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Натисніть ще раз, щоб більше не рахувати ці одиниці запасом. Скасувати це не можна.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Виставлено досить",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Постійно повертається",
+  ["Earns under %s"] = "Дохід менше %s",
+  ["Raise: next price is %d%% higher"] = "Підняти: наступна ціна вища на %d%%",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "Уже виставлених %d шт. вистачить приблизно на %d год продажів. Введіть число або натисніть УСЕ, щоб виставити більше.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] =
+    "Близько %d шт. продається за %d год на цьому аукціоні.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "Тут це ніхто не купував останні %d дн. Виставляється 1 шт., щоб перевірити ціну.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "Тут це ніхто не купував за останню добу. Виставляється 1 шт., щоб перевірити ціну.",
+  ["Sells about %s a day here"] = "Тут продається близько %s шт. на день",
+  ["No sales here in %d days"] = "Тут немає продажів уже %d дн.",
+  ["No sales here in the last day"] = "Тут немає продажів за останню добу",
+  ["24 h: about %s sell a day here."] = "24 год: тут продається близько %s шт. на день.",
+  ["24 h: came back unsold %d times at %d h."] = "24 год: повернень без продажу %d із терміном %d год.",
+  ["Deposit %s instead of %s, returned when it sells."] =
+    "Застава %s замість %s, повертається після продажу.",
+  ["Post slow sellers for 24 h"] = "Повільний товар на 24 год",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "Якщо ви не обрали строк і група його не задає, товар, що продається рідше разу за виставлення або двічі повернувся непроданим, виставляється на 24 год.",
+  ["Came back unsold %d times since its last sale."] = "Повернень без продажу від останнього продажу: %d.",
+  ["Came back unsold once since its last sale."] = "Від останнього продажу один раз повернувся непроданим.",
 }

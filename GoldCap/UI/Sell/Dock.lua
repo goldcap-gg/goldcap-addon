@@ -136,41 +136,7 @@ function Dock.Answer(text)
   GC.Sell._NotePost(text, "fg", ANSWER_SECONDS)
 end
 
--- Skip reasons in words a seller would actually read, never GC.PostQueue's own internal token
--- -- see that module's own `evaluate` comment for what each one means structurally. A silently
--- short queue is the same lie as a silently short deals list; naming the reason in plain words
--- is what keeps it from being a DIFFERENT lie instead.
--- @localised-keys: literals in this table ARE GC.L keys, looked up where the table is
--- READ, not here. This is file scope, and GC.L only resolves once ApplyLocale has run
--- at ADDON_LOADED -- a lookup here captures the English fallback and keeps it in every
--- language. The table has to close with a `}` on its own line: that is where the
--- contract spec's scanner stops.
-local QUEUE_SKIP_TEXT = {
-  no_fresh_price = "needs a fresh price. Press REFRESH",
-  below_breakeven = "would sell at a loss",
-  unresolved_identity = "GoldCap can't pin down which bag stack this is",
-  -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for
-  -- it after the AH's cut.
-  below_vendor = "a vendor pays more: sell it there",
-  -- WoW: Forever only (Core/PostQueue.lua's below_deposit): the tooltip's own verdict, in its
-  -- own words, for the whole post.
-  below_deposit = "The deposit outweighs the gain and is lost if unsold",
-  -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
-  -- held-back listing needs its why stated even more than a held-back post does.
-  advised_hold = "relisting now would lock in a loss or a stall. Hold",
-  -- Held by this tab, not by the queue module: the item's last post may still go up
-  -- (GC.Sell._lateAnswers).
-  awaiting_answer = "Last post may still go up. Wait a minute",
-  no_advice = "cost basis incomplete. Set costs to get repost advice",
-  below_rule_floor = "the market is under your group's floor. Type a price to post anyway",
-  below_floor = "relisting would go under your group's floor. Hold",
-  small_undercut = "undercut by less than your cancel setting. Hold",
-  -- WoW: Forever only (Core/SellPositions.lua's deposit weighing). It says may, because a
-  -- deposit the client cannot quote holds the lot too.
-  deposit = "the deposit a cancel loses may be more than relisting wins back. Hold",
-}
-
--- Why the queue held a position back, in the words above; nil when it did not.
+-- Why the queue held a position back, in the words of UI.SKIP_TEXT (UI/Sell/Frame.lua); nil when it did not.
 -- An unmarked row's reason too (S.notSelling, Core/PostQueue.lua's Build keeps it): a click on
 -- its row puts it in the dock as well, and its row already said "deposit outweighs the gain" while the
 -- dock read as a plain post (owner, WoW: Forever 2026-11-06: an unmarked staff, 1s deposit on a 2s
@@ -179,7 +145,7 @@ function Dock.HeldBackText(positionKey)
   for _, list in ipairs({ S.queueSkipped or {}, S.notSelling or {} }) do
     for _, skip in ipairs(list) do
       if skip.positionKey == positionKey and skip.reason then
-        return QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]] or nil
+        return UI.fmt.skipText(skip.reason)
       end
     end
   end
@@ -303,6 +269,7 @@ paintCancelButton = function()
       parts[1] = GC.Sell._InlineColor(Theme.color.fg, ("%s ×%d @ %s"):format(
         head.itemName or GC.L["Item"], head.quantity or 0, formatCell(head.listedUnit)))
     end
+    if head and head.raise then parts[#parts + 1] = (GC.L["Raise: next price is %d%% higher"]):format(head.raise) end
     if #S.cancelSkipped > 0 then parts[#parts + 1] = (GC.L["%d held back"]):format(#S.cancelSkipped) end
     heldBack:SetText(table.concat(parts, "  ·  "))
     if GC.Sell.PaintCancelMirror then GC.Sell.PaintCancelMirror() end
@@ -584,14 +551,14 @@ function Dock.SellingAside()
   return table.concat(parts, "  ·  ")
 end
 
--- The SELLING heading's hover: each item the queue held back, and why, in the words above. The
+-- The SELLING heading's hover: each item the queue held back, and why, in UI.SKIP_TEXT's words. The
 -- rows say it too, each on its own stock line; this is all of them in one place.
 function Dock.HeldBackHint()
   if #S.queueSkipped == 0 then return nil end
   local facts = { GC.L["Held back from the queue"] }
   for _, skip in ipairs(S.queueSkipped) do
     facts[#facts + 1] = ("%s: %s"):format(skip.itemName or GC.L["Item"],
-      QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]] or GC.L["not ready to post"])
+      UI.fmt.skipText(skip.reason) or GC.L["not ready to post"])
   end
   return table.concat(facts, " · ")
 end
@@ -615,7 +582,7 @@ function Dock.Current()
   -- they cost, and SKIP on the first left the second unoffered). Not one whose last post may
   -- still go up: that one waits.
   for _, skip in ipairs(S.queueSkipped) do
-    if skip.reason ~= "awaiting_answer" then queued[skip.positionKey] = true end
+    if skip.reason ~= "awaiting_answer" and skip.reason ~= "enough_listed" then queued[skip.positionKey] = true end
   end
   local chosen
   local walk, at = {}, {}
@@ -929,8 +896,7 @@ function Dock.Build(f)
     else
       for _, skip in ipairs(S.cancelSkipped) do
         GameTooltip:AddLine(GC.Util.ClientText(("%s: %s"):format(skip.itemName or GC.L["Item"],
-          (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
-            or GC.L["not ready to cancel"]))), 0.85, 0.85, 0.85, true)
+          UI.fmt.skipText(skip.reason) or GC.L["not ready to cancel"])), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()

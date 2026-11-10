@@ -36,6 +36,31 @@ describe("BuyLots", function()
     assert.same({ 25, 1019, 0 }, { lots[1].itemLevel, lots[1].itemSuffix, lots[1].species })
   end)
 
+  -- WoW: Forever's browse by an item's name names each variant with its cheapest price
+  -- (GC.Buy._StepByName): one lot apiece at that price, never bid on, until its own key is read.
+  it("turns the variants a browse by name named into one lot each, cheapest first", function()
+    local lots = L.FromVariants({
+      { itemLevel = 11, itemSuffix = 14300, battlePetSpeciesID = 0, floor = 700 },
+      { itemLevel = 11, itemSuffix = 14301, floor = 400 },
+      { itemLevel = 11, itemSuffix = 14302, floor = 0 },
+    })
+    assert.same({
+      { auctionID = 0, buyout = 400, count = 1, itemLevel = 11, itemSuffix = 14301, species = 0 },
+      { auctionID = 0, buyout = 700, count = 1, itemLevel = 11, itemSuffix = 14300, species = 0 },
+    }, lots)
+    assert.same({}, L.FromVariants(nil))
+  end)
+
+  it("swaps an armed variant's stand-in for its real lots and keeps the other variants", function()
+    local all = L.FromVariants({ { itemLevel = 11, itemSuffix = 1, floor = 400 }, { itemLevel = 11, itemSuffix = 2, floor = 700 } })
+    local fresh = L.FromRows({ { auctionID = 5, buyoutAmount = 450, quantity = 1, containsOwnerItem = false,
+      itemKey = { itemID = 7, itemLevel = 11, itemSuffix = 1 } } })
+    local lots = L.Replace(all, fresh, { itemLevel = 11, itemSuffix = 1 })
+    assert.equal(2, #lots)
+    assert.same({ 5, 450 }, { lots[1].auctionID, lots[1].buyout })
+    assert.same({ 0, 700, 2 }, { lots[2].auctionID, lots[2].buyout, lots[2].itemSuffix })
+  end)
+
   describe("Groups", function()
     local LOTS
     before_each(function() LOTS = L.FromRows({ row(1, 900, 4), row(2, 1000, 2), row(3, 1900, 1), row(4, 2500, 1) }) end)

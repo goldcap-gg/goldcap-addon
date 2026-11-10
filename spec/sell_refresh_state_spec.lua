@@ -192,7 +192,7 @@ describe("Sell refresh state fence", function()
 
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     local stale = timers[#timers]
-    GC.Sell.Refresh() -- a new generation: the old retry must not drive it
+    GC.Sell.Reset(); GC.Sell.Refresh() -- a new generation: the old retry must not drive it
     critical = false
     stale()
     assert.same({}, sent.keys)

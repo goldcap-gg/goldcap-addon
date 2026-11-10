@@ -315,6 +315,14 @@ describe("Sell view model", function()
       })))
     end)
 
+    it("ranks bag stock by the price it shows, not by whether it is young enough to post on", function()
+      assert.same({ "aged", "young", "none" }, keys(GC.SellViewModel.Order({
+        { positionKey = "young", bagQty = 1, freshMarketUnit = 300, displayMarketUnit = 300 },
+        { positionKey = "aged", bagQty = 1, displayMarketUnit = 400 },
+        { positionKey = "none", bagQty = 1 },
+      })))
+    end)
+
     it("puts the most valuable postable stack first", function()
       assert.same({ "big", "small" }, keys(GC.SellViewModel.Order({
         { positionKey = "small", bagQty = 1, freshMarketUnit = 100 },

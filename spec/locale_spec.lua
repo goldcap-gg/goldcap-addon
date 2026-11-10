@@ -82,7 +82,7 @@ describe("locale layer", function()
     local translations = fr.Locales.frFR
     local keys = {}
     local sellPaths = { "GoldCap/UI/SellViewModel.lua", "GoldCap/Core/SellPositions.lua",
-      "GoldCap/Core/PostQueue.lua", "GoldCap/Core/CancelQueue.lua" }
+      "GoldCap/Core/PostQueue.lua", "GoldCap/Core/CancelQueue.lua", "GoldCap/UI/SellPace_Camelot.lua" }
     for _, path in ipairs(helper.SELL_FILES) do sellPaths[#sellPaths + 1] = "GoldCap/" .. path end
     for _, path in ipairs(helper.SELL_UI_FILES) do sellPaths[#sellPaths + 1] = "GoldCap/" .. path end
     for _, path in ipairs(sellPaths) do

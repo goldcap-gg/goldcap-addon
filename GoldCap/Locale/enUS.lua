@@ -1847,4 +1847,39 @@ GC.Locales.enUS = {
     "A reagent a vendor sells gets its price once you open that vendor.",
   ["An auction house price needs at least %d listed."] =
     "An auction house price needs at least %d listed.",
+  ["Sell for at least %s each to break even."] =
+    "Sell for at least %s each to break even.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Sold/used",
+  ["Sold/used?"] = "Sold/used?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Click again to stop counting these units as stock. There is no undo.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Enough listed",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Keeps coming back",
+  ["Earns under %s"] = "Earns under %s",
+  ["Raise: next price is %d%% higher"] = "Raise: next price is %d%% higher",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "What you already have up (%d) covers about %d h of sales. Type a number or press MAX to post more.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] = "Sells about %d in %d h on this auction house.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "Nobody bought this here in the last %d days. Posting 1 to test the price.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "Nobody bought this here in the last day. Posting 1 to test the price.",
+  ["Sells about %s a day here"] = "Sells about %s a day here",
+  ["No sales here in %d days"] = "No sales here in %d days",
+  ["No sales here in the last day"] = "No sales here in the last day",
+  ["24 h: about %s sell a day here."] = "24 h: about %s sell a day here.",
+  ["24 h: came back unsold %d times at %d h."] = "24 h: came back unsold %d times at %d h.",
+  ["Deposit %s instead of %s, returned when it sells."] =
+    "Deposit %s instead of %s, returned when it sells.",
+  ["Post slow sellers for 24 h"] = "Post slow sellers for 24 h",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h.",
+  ["Came back unsold %d times since its last sale."] = "Came back unsold %d times since its last sale.",
+  ["Came back unsold once since its last sale."] = "Came back unsold once since its last sale.",
 }

@@ -13,6 +13,7 @@ local exact, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, G
   GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
 local activeScope, exactRenderEntry, itemName = GC.SellUtil.activeScope, GC.SellUtil.exactRenderEntry,
   GC.SellUtil.itemName
+local validIndex = GC.SellUtil.validIndex
 
 -- The auction's listing duration: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration` argument
 -- the two posting calls in onPostClick (UI/Sell/Dock.lua) take -- see Core/Init.lua's own comment
@@ -288,6 +289,7 @@ function Post.PreparePost(row)
     local chosenKey = overrideKey(position)
     local sameChoice = pin and chosenKey and pin.override == S.priceOverrides[chosenKey]
       and pin.overrideQuantity == S.quantityOverrides[chosenKey]
+      and pin.pickedDuration == S.durationOverrides[chosenKey]
     if not sameChoice or not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
         or pin.positionKey ~= position.positionKey or pin.scopeKey ~= position.scopeKey
         or pin.itemID ~= position.itemID or pin.variantKey ~= position.positionKey
@@ -329,16 +331,30 @@ function Post.PreparePost(row)
   -- the choice. The override branch there skips both.
   local chosenKey = overrideKey(position)
   local chosenQty = chosenKey and S.quantityOverrides[chosenKey] or nil
+  -- The duration, decided before the plan and pinned once with it (below): GC.Sell.PostDurationFor's
+  -- order (State.lua) -- the duration the player picked for this post, a followed group's rule
+  -- (Core/GroupRules.lua's index, 1 to 3), WoW: Forever's slow sellers, then the setting -- copied
+  -- here as plain field reads, the only kind that belongs ahead of the protected call
+  -- (spec/forever_post_duration_spec.lua pins that the two agree).
+  local pickedDuration = chosenKey and S.durationOverrides[chosenKey] or nil
+  local duration = validIndex(pickedDuration) or validIndex(position.ruleDurationIndex)
+    or validIndex(position.slowDurationIndex) or postDuration()
   -- An empty book is priced by the seller alone: the number in the box, typed or recommended.
   local unit = quote.unit
   if quote.empty then
     unit = effectivePostUnit(position)
     if not unit then View.status(GC.L["Nothing listed on the AH right now"]); return end
   end
-  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = unit, fresh = true },
-    { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty })
+  local plan, reason, listed = GC.SellPositions.BuildPostPlan(position, bagState, { unit = unit, fresh = true },
+    { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty,
+      durationIndex = duration })
   if not plan then
-    View.status(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
+    -- Refused: no protected call follows, so the sentence may be built here.
+    if reason == "enough_listed" then
+      View.status(GC.Sell.EnoughListedText(position, listed, duration))
+    else
+      View.status(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
+    end
     return
   end
   local scope, scopeKey = activeScope(position)
@@ -394,21 +410,24 @@ function Post.PreparePost(row)
   local location = Bags.ResolveLocation(position)
   if not location then View.status(GC.L["No exact bag stack"]); return end
   S.postingRow = row
-  -- Pinned once, here, rather than re-read at Confirm time: everything else about a post is
-  -- pinned the same way (unitPrice, quantity, ...) precisely so the two clicks of a two-click
-  -- post cannot disagree about what they are doing. A duration changed in the settings panel
-  -- between the two clicks must not let a post start at one duration and confirm at another.
-  -- A followed group's rule names its own duration (Core/GroupRules.lua's index, 1 to 3): a plain
-  -- field read off the position, like everything else pinned here.
-  local ruleDuration = position.ruleDurationIndex
-  local duration = (ruleDuration == 1 or ruleDuration == 2 or ruleDuration == 3) and ruleDuration
-    or postDuration()
+  -- The duration (decided above) is pinned once, here, rather than re-read at Confirm time:
+  -- everything else about a post is pinned the same way (unitPrice, quantity, ...) precisely so
+  -- the two clicks of a two-click post cannot disagree about what they are doing. A duration
+  -- changed in the settings panel between the two clicks must not let a post start at one
+  -- duration and confirm at another; one picked for this post lets the Confirm go (pickedDuration,
+  -- above). `deposit` is the client's quote for this very quantity and duration, made at paint or
+  -- compose (GC.SellBags.Deposit): the click cannot quote, and a quote for another quantity is none.
+  local quoted = S.depositQuotes[plan.positionKey .. "\1" .. duration]
   S.postingPin = { scopeKey = plan.scopeKey, positionKey = plan.positionKey, itemID = plan.itemID,
     variantKey = bagState.positionKey, quantity = plan.quantity, bag = bagState.bag, slot = bagState.slot,
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
-    duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty }
+    duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty,
+    pickedDuration = pickedDuration, deposit = quoted and quoted.quantity == plan.quantity and quoted.deposit or nil,
+    -- The sale pace set the number and this post lists all it still wants (GC.Sell.OnAuctionCreated
+    -- ends the item's walk on it); one stack short of the pace keeps the walk on the item.
+    paceCapped = plan.quantityWhy == "pace" and plan.paceCovered == true }
   -- Plain field write only, before the call: row.postStage = "posting" is what the re-entrancy
   -- guard at the top of this function reads. The busy look -- Disable() (runs GoldCap's own
   -- OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy() (lazily creates
@@ -645,10 +664,13 @@ function GC.Sell.OnAuctionCreated(auctionID)
   -- Posted is done for this visit, and the dock moves on to the next item (GC.Sell._HoldDoneInQueue):
   -- a post of a number the player typed, or of everything the item had in the bags -- that one
   -- would otherwise stand in the dock again until the bags caught up. A normal item with another
-  -- stack still in the bags is not done: one post lists one stack, and POST lists the next.
+  -- stack still in the bags is not done: one post lists one stack, and POST lists the next. On
+  -- WoW: Forever a post that lists all its sale pace still wants (`paceCapped`) is done too: the
+  -- rest stays in the bags on purpose, and POST would only hold it "Enough listed". A stack short
+  -- of the pace is not: POST lists the next one.
   local whole = type(owner.position) == "table" and exact(owner.quantity)
     and owner.quantity >= (owner.position.bagQty or 0)
-  if type(owner.positionKey) == "string" and (owner.overrideQuantity or whole) then
+  if type(owner.positionKey) == "string" and (owner.overrideQuantity or whole or owner.paceCapped) then
     S.postedThisVisit[owner.positionKey] = true
     View.moveOn(owner.positionKey) -- the item after it, and its panel if this one's was open
     if S.dockKey == owner.positionKey then S.dockKey = nil end
@@ -661,6 +683,22 @@ function GC.Sell.OnAuctionCreated(auctionID)
   if whole and certain and type(owner.positionKey) == "string" then
     S.postedOut[owner.positionKey] = owner.position.bagQty or 0
     View.leave(owner.positionKey)
+  end
+  -- WoW: Forever (a position with a sale pace, Core/ForeverPace.lua): the lot counts as already up
+  -- at once, by its auction's own id, until the owned list holds that id, so a second POST before
+  -- the list catches up does not list another batch. Only when it is certainly this post's: a
+  -- guess notes nothing, and a post with no id counts from the owned list alone.
+  if certain and exact(auctionID) and auctionID > 0 and type(owner.positionKey) == "string"
+      and type(owner.position) == "table" and owner.position.paceTargets then
+    local list = S.pacePosted[owner.positionKey] or {}
+    list[#list + 1] = { auctionID = auctionID, quantity = owner.quantity, unitPrice = owner.unitPrice }
+    S.pacePosted[owner.positionKey] = list
+  end
+  -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): what this post
+  -- put up, for the day it expires or is cancelled. Only when it is certainly this post's: a guess
+  -- records nothing, and a lot with no record later costs only what can be quoted again.
+  if certain and GC.ForeverDeposits then
+    GC.ForeverDeposits.RecordPost(auctionID, owner, GC.Ledger.Context(), time())
   end
   GC.Sell._SpendPrice(owner)
   if owner ~= wire then

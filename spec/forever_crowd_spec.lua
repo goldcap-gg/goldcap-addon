@@ -100,8 +100,10 @@ describe("adopting the crowd payload", function()
     load(16001)
     _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71" }
     GC.Data.AdoptAppData()
-    assert.same({ units = 300, sales = 41, median = 75, p25 = 71, perDay = 150, hours = 48 }, GC.Data.ForeverSales(2589))
-    assert.same({ units = 0, sales = 0, perDay = 0, hours = 48 }, GC.Data.ForeverSales(2592)) -- sold nothing
+    local at = GC.Data.ForeverPayload().ts -- the tape's newest hour, which SELL's pace ages it by
+    assert.same({ units = 300, sales = 41, median = 75, p25 = 71, perDay = 150, hours = 48, at = at },
+      GC.Data.ForeverSales(2589))
+    assert.same({ units = 0, sales = 0, perDay = 0, hours = 48, at = at }, GC.Data.ForeverSales(2592)) -- sold nothing
     _G.GoldCap_AppData = { foreverString = body() .. ";H:23;S:2589=300=41=75=71" }
     GC.Data.AdoptAppData()
     assert.is_nil(GC.Data.ForeverSales(2589))

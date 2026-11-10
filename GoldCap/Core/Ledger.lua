@@ -662,8 +662,9 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   if not allShown then complete = false end
   local noInvoice = noInvoicePatterns(api.noInvoiceSubjects)
   -- The lots that came back, for SELL's unsold rounds: this scan sees every lapsed-auction mail
-  -- whoever takes it, so the returns log is written here and nowhere else. Retail only: where
-  -- Core/MailReturns.lua is not loaded (WoW: Forever) no attachment is read.
+  -- whoever takes it, so the returns log is written here and nowhere else. Both games load
+  -- Core/MailReturns.lua; where it is not loaded no attachment is read. On WoW: Forever the
+  -- subjects are unverified: a subject global the client lacks matches no mail and logs nothing.
   local kinds = GC.MailReturns and returnPatterns(api.noInvoiceSubjects) or nil
   local lots, lotsRead = {}, true
   for index = 1, count do
@@ -679,7 +680,12 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   -- Before the invoices, and stamped with the same `now` as a new sale below: a lot and a sale of
   -- one item first read in the same pass leave a round (SellRounds counts a return stamped in the
   -- same second as the item's last sale as after it: a batch's unsold lots expire after its sales).
-  if kinds then GC.MailReturns.Observe(lots, context, now, complete and lotsRead) end
+  -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): each lot logged
+  -- for the first time costs its share of the deposit, one ledger row, and a round in its run.
+  if kinds then
+    local _, fresh = GC.MailReturns.Observe(lots, context, now, complete and lotsRead)
+    if GC.ForeverDeposits and fresh then GC.ForeverDeposits.OnReturns(fresh, context, now) end
+  end
   -- What waits in the mailbox, which BUY and the craft queue count as held (Core/MailStock.lua,
   -- retail only). Every pass goes to it: it keeps its own visit, and its own rule for an empty one.
   if GC.MailStock then GC.MailStock.Observe(api, count, total, context.char, now, opening) end
@@ -699,10 +705,14 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
         reconciled = GC.Acquisitions.ReconcileSale(stored)
       end
       -- A new sale ends the item's run of unsold rounds: a followed flip group's next post
-      -- starts at the usual price again. Retail only (both modules are guarded).
-      if isNew and stored.kind == "sale" and GC.SellRounds and GC.SoldView then
+      -- starts at the usual price again. Both games (both modules are guarded). On WoW: Forever
+      -- it also ends this character's run of returns (Core/ForeverDeposits.lua).
+      if isNew and stored.kind == "sale" and GC.SoldView and (GC.SellRounds or GC.ForeverDeposits) then
         local soldID = soldItemID(stored, reconciled, context, listed)
-        if soldID then GC.SellRounds.Sold(soldID, stored.at) end
+        if soldID then
+          if GC.SellRounds then GC.SellRounds.Sold(soldID, stored.at) end
+          if GC.ForeverDeposits then GC.ForeverDeposits.Sold(soldID, stored.at, context) end
+        end
       end
       if isNew then
         created = created + 1

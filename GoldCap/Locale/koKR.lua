@@ -1787,4 +1787,38 @@ GC.Locales.koKR = {
     "상인이 판매하는 재료는 그 상인 창을 열면 가격이 생깁니다.",
   ["An auction house price needs at least %d listed."] =
     "경매장 가격은 최소 %d개가 등록되어 있어야 합니다.",
+  ["Sell for at least %s each to break even."] =
+    "본전을 찾으려면 개당 최소 %s에 파세요.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "소진 처리",
+  ["Sold/used?"] = "소진 처리?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "상인에게 팔았거나, 다 썼거나, 남에게 준 경우: GoldCap이 이 물량을 더 이상 재고로 세지 않습니다. 지불한 금액은 기록에 남습니다.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "한 번 더 누르면 이 물량을 더 이상 재고로 세지 않습니다. 되돌릴 수 없습니다.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "충분히 올림",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "계속 돌아옴",
+  ["Earns under %s"] = "%s 미만 수익",
+  ["Raise: next price is %d%% higher"] = "올리기: 다음 가격이 %d%% 높음",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "이미 올린 %d개로 약 %d시간 판매량을 채웁니다. 더 올리려면 숫자를 입력하거나 최대를 누르세요.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] = "약 %d개가 %d시간 안에 이 경매장에서 팔립니다.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "최근 %d일 동안 여기서 아무도 사지 않았습니다. 가격을 시험하려고 1개만 올립니다.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "최근 하루 동안 여기서 아무도 사지 않았습니다. 가격을 시험하려고 1개만 올립니다.",
+  ["Sells about %s a day here"] = "여기서 하루 약 %s개 팔림",
+  ["No sales here in %d days"] = "%d일 동안 여기서 판매 없음",
+  ["No sales here in the last day"] = "최근 하루 동안 여기서 판매 없음",
+  ["24 h: about %s sell a day here."] = "24시간: 여기서 하루 약 %s개 팔립니다.",
+  ["24 h: came back unsold %d times at %d h."] = "24시간: %d번 팔리지 않고 돌아옴(%d시간 등록).",
+  ["Deposit %s instead of %s, returned when it sells."] = "등록비 %s(기존 %s), 팔리면 돌려받습니다.",
+  ["Post slow sellers for 24 h"] = "잘 안 팔리는 물건은 24시간 등록",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "기간을 고르지 않았고 그룹 규칙도 없으면, 한 번 등록에 하나도 안 팔릴 물건이나 두 번 팔리지 않고 돌아온 물건은 24시간으로 올립니다.",
+  ["Came back unsold %d times since its last sale."] = "마지막 판매 후 %d번 팔리지 않고 돌아왔습니다.",
+  ["Came back unsold once since its last sale."] = "마지막 판매 후 한 번 팔리지 않고 돌아왔습니다.",
 }

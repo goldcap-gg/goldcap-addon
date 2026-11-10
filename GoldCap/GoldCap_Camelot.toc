@@ -51,6 +51,8 @@ Core/AppLedger.lua
 Core/Acquisitions.lua
 Core/PurchaseCapture.lua
 Core/Ledger.lua
+Core/MailReturns.lua
+Core/ForeverDeposits.lua
 Core/SoldView.lua
 Core/QuoteCache.lua
 Core/Flips.lua
@@ -88,6 +90,7 @@ Core/BuyDock.lua
 Core/BuyLots.lua
 Core/BuyVendor.lua
 Core/VendorBuys.lua
+Core/VendorSales.lua
 Core/BuyRecents.lua
 Core/BuyWaitDiag.lua
 Core/BuySearchModel.lua
@@ -97,6 +100,8 @@ Core/ListStrings.lua
 Core/AppRuns.lua
 Core/Caps.lua
 Core/GroupRules.lua
+Core/SellRounds.lua
+Core/ForeverPace.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
@@ -146,6 +151,7 @@ UI/Sell/Toolbar.lua
 UI/Sell/Dock.lua
 UI/Sell/PostPanel.lua
 UI/SoldFrame.lua
+UI/SellPace_Camelot.lua
 UI/ForeverUpgradesFrame.lua
 UI/BuyCapEditor.lua
 UI/BuyFrame.lua

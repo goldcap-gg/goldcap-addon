@@ -33,6 +33,9 @@ local ROW_TAG_TEXT = {
   below_floor = "under group floor",
   small_undercut = "small undercut",
   deposit = "hold",
+  enough_listed = "Enough listed",
+  keeps_returning = "Keeps coming back",
+  low_profit = "Earns under %s",
 }
 
 local rowTag
@@ -56,6 +59,7 @@ rowTag = function(position, reason, notOnHand)
     tag, tone = GC.L["far below market"], "alarm"
   elseif reason then
     tag, tone = ROW_TAG_TEXT[reason] and GC.L[ROW_TAG_TEXT[reason]] or nil, ROW_TAG_TONE[reason]
+    if tag and reason == "low_profit" then tag = tag:format(formatCell(GC.Sell.MinimumProfit())) end
   end
   local uncosted = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
   if not tag and position.coverage ~= "COMPLETE" and not notOnHand and uncosted > 0 then
@@ -80,6 +84,12 @@ function ROW.paintMark(row, selling, done)
   local coin = Theme.color.gold
   row.mark.coin:SetVertexColor(coin[1], coin[2], coin[3], 1)
   if lit then row.mark.coin:Show() else row.mark.coin:Hide() end
+end
+
+-- Whether any of a position is in the bags or listed. One with neither (NOT ON HAND) wears no
+-- selling mark: POST has nothing of it to list, whatever Deals bought (UI.List.RenderRows).
+function ROW.onHand(position)
+  return (position.bagQty or 0) > 0 or (position.listedQty or 0) > 0
 end
 
 -- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
@@ -453,7 +463,8 @@ function Row.PaintPosition(row, entry, ctx)
   row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
     or GC.SellViewModel.SourceText(p))
     .. (notOnHand and (DIM_HEX .. " · not on hand|r") or "")
-    .. rowTag(p, heldBackReason[p.positionKey], notOnHand) -- then a followed group's name, in gold:
+    .. rowTag(p, heldBackReason[p.positionKey], notOnHand)
+    .. (ROW.foreverMark and ROW.foreverMark(p) or "") -- then a followed group's name, in gold:
     .. (p.rule and p.rule.name and ("  " .. GC.Sell._InlineColor(Theme.color.gold, p.rule.name)) or ""))
   -- Cost per unit, not the position total: it is the number that compares against the
   -- market price in the very next column. An incomplete basis says so in words below.
@@ -693,6 +704,10 @@ function Row.PaintPosition(row, entry, ctx)
     showRowAction(row, "Post", function() UI.Dock.OnPostClick(row) end)
   elseif UI.CostDialog.CanSetCost(p) then
     showRowAction(row, GC.L["Set cost"], function() UI.CostDialog.OpenCostDialog(p) end)
+  elseif UI.CostDialog.CanRetire(p) then
+    -- NOT ON HAND: the player says where the units went, with a second click (UI/Sell/CostDialog.lua).
+    showRowAction(row, UI.CostDialog.RetireAsked(p) and "Sold/used?" or "Sold/used",
+      function() UI.CostDialog.Retire(row) end)
   else
     row.action:Hide()
   end

@@ -97,6 +97,24 @@ describe("Sell positions", function()
     assert.equal(1, #listed)
   end)
 
+  -- The owner's NOT ON HAND rows (WoW: Forever, 2026-11-09): stock bought on DEALS and sold to a
+  -- merchant stayed a position for good, because no sale to a merchant was ever booked.
+  it("a DEALS purchase with nothing held is a not-on-hand position until its sale is booked", function()
+    GC.Acquisitions.Init({})
+    GC.Acquisitions.Record({ source = "goldcap", itemID = 42, positionKey = "commodity:42", itemName = "Herb",
+      quantity = 4, total = 1440, acquiredAt = 1, evidenceKey = "deal:1",
+      character = context.char, region = context.region })
+    local positions = build({ acquisitions = GC.Acquisitions.GetActive(context) })
+    assert.equal(1, #positions)
+    assert.equal(0, positions[1].bagQty)
+    assert.equal(0, positions[1].listedQty)
+    assert.equal(4, positions[1].sources.goldcap)
+
+    GC.Acquisitions.RecordVendorSale({ itemID = 42, quantity = 4, proceeds = 1600, at = 5, seq = 1,
+      char = context.char, region = context.region })
+    assert.equal(0, #build({ acquisitions = GC.Acquisitions.GetActive(context) }))
+  end)
+
   it("keeps a position that has any non-vendor lot even with nothing in the bags", function()
     local positions = build({ acquisitions = {
       batch("acq:v", "vendor", 20, 200, 1), batch("acq:a", "auction_house", 3, 300, 2) } })

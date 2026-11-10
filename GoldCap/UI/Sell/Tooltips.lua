@@ -54,6 +54,9 @@ local ACTION_HELP = {
   ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.", "The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
   ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost, never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
   ["Remove?"] = { "Confirm the removal", { "Clicking again deletes this hand-entered cost for good.", "A run of several purchases collapsed onto one line removes every one of them." } },
+  -- A NOT ON HAND row whose units the books still count (UI/Sell/CostDialog.lua, CostDialog.Retire).
+  ["Sold/used"] = { "Sold/used", { "Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history.", "Asks for a second click to confirm." } },
+  ["Sold/used?"] = { "Sold/used?", { "Click again to stop counting these units as stock. There is no undo." } },
 }
 Row.ACTION_HELP = ACTION_HELP
 
@@ -91,6 +94,7 @@ function ROW.itemTooltip(row)
         0.85, 0.85, 0.85, true)
     end
     UI.fmt.ruleTooltip(row.position)
+    if UI.fmt.paceTooltip then UI.fmt.paceTooltip(row.position) end
     GameTooltip:Show()
   elseif GameTooltip and (row.kind == "group" or row.kind == "batch" or row.kind == "section")
       and row.groupHint and row.groupHint ~= "" then

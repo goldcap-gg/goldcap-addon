@@ -467,6 +467,34 @@ function GC.Acquisitions.RemoveManual(id)
   return false
 end
 
+-- SELL's "Sold/used" on a NOT ON HAND row (UI/Sell/CostDialog.lua): the player says the units these
+-- lots still hold are gone (sold to a merchant, used, given away) where nothing else could see it.
+-- Each lot's remaining units are spent through Consume under a `retired` key of its own, so the
+-- lot and its purchase evidence stay, unlike RemoveManual, which deletes and only a hand-entered
+-- lot. No realized row: nothing says what the units fetched. Only this character's and region's
+-- lots that still hold units, so a lot retired once retires nothing the next time. Returns how
+-- many units were retired.
+function GC.Acquisitions.Retire(batchIDs, at, context)
+  if not db or type(batchIDs) ~= "table" or not isExactInteger(at) or not validContext(context) then return 0 end
+  local wanted = {}
+  for _, id in ipairs(batchIDs) do
+    if isNonEmptyString(id) then wanted[id] = true end
+  end
+  local retired = 0
+  for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
+    if wanted[batch.id] then
+      local quantity = batch.remainingQty
+      local plan = allocationFor({ batch }, quantity)
+      local key = table.concat({ "retired", batch.id, ("%d"):format(at) }, "\1")
+      if plan and plan.coverage == "COMPLETE" and GC.Acquisitions.Consume(batch.positionKey, quantity, key, at,
+          context, plan, { ids = { [batch.id] = true } }) then
+        retired = retired + quantity
+      end
+    end
+  end
+  return retired
+end
+
 local function pendingByID(id)
   for index, pending in ipairs(db and db.acquisitionPending or {}) do
     if type(pending) == "table" and pending.id == id then return pending, index end
@@ -1227,6 +1255,102 @@ function GC.Acquisitions.ReconcileSale(entry)
   db.acquisitionRealized[#db.acquisitionRealized + 1] = realized
   return { status = "applied", positionKey = candidate.positionKey, quantity = entry.qty,
     cost = realized.cost, proceeds = entry.total, profit = profit }
+end
+
+-- Units of an item on the auction house by this character's latest owned-auctions roster
+-- (GoldCapDB.ownedLots, GC.Data.RecordOwnedLots): the rows of its newest read, not cancelled and not
+-- run out by `at`. A roster read before units sold still counts them, which can only under-book.
+local function unitsOnAuction(itemID, context, at)
+  local rows = type(db.ownedLots) == "table" and db.ownedLots or {}
+  local latest
+  for _, row in ipairs(rows) do
+    if type(row) == "table" and row.char == context.char and row.region == context.region
+        and isExactInteger(row.seenAt) and (latest == nil or row.seenAt > latest) then
+      latest = row.seenAt
+    end
+  end
+  local units = 0
+  for _, row in ipairs(rows) do
+    if type(row) == "table" and row.char == context.char and row.region == context.region
+        and row.seenAt == latest and row.itemID == itemID and row.cancelledAt == nil
+        and isPositiveInteger(row.quantity) and not (isExactInteger(row.expiresAt) and row.expiresAt <= at) then
+      units = safeAdd(units, row.quantity) or units
+    end
+  end
+  return units
+end
+
+-- A sale to a merchant (Core/VendorSales.lua, WoW: Forever only; retail never calls this). The
+-- buyback list names the item exactly, so the only question left is which units, and the store's
+-- own convention answers it: the oldest first. Unlike ReconcileSale it takes what the books hold,
+-- min(sold, held): a stack of bought and looted units sold together is the ordinary case, and
+-- refusing it is what left these lots standing for good. Units on the auction house are no part of
+-- it: they are in no bag, so a sale the bags bear out was of others, and those units are the
+-- invoice's to spend (unitsOnAuction). It does not guess which variant was sold: an item whose lots
+-- carry two position keys is left alone, and so is a version's key (an item level, a suffix or a
+-- pet species) unless `positionKey`, the key SELL files the sold link under, is that same key.
+-- `proceeds` is what the merchant paid for the whole stack, so a part taken is paid its share. The
+-- realized row sits beside ReconcileSale's (source "vendor_sale"); no ledger row is written, since
+-- the ledger is auction house money the companion uploads. The evidence key makes a replay book
+-- nothing twice.
+function GC.Acquisitions.RecordVendorSale(args)
+  if not db or type(args) ~= "table" or not isPositiveInteger(args.itemID)
+      or not isPositiveInteger(args.quantity) or not isExactInteger(args.proceeds)
+      or not isExactInteger(args.at) or not isPositiveInteger(args.seq)
+      or not isNonEmptyString(args.char) or not isNonEmptyString(args.region)
+      or not isStringOrNil(args.itemName) or not isStringOrNil(args.positionKey) then
+    return unresolved("invalid_sale")
+  end
+  local context = { char = args.char, region = args.region }
+  local evidenceKey = table.concat({ "vendorsale", args.region, args.char, ("%d"):format(args.itemID),
+    ("%d"):format(args.at), ("%d"):format(args.seq) }, "\1")
+  if db.acquisitionConsumptionEvidence[evidenceKey] then return { status = "duplicate" } end
+
+  local lots, keys, keyless, held = {}, {}, false, 0
+  for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
+    if batch.itemID == args.itemID then
+      lots[#lots + 1] = batch
+      if isNonEmptyString(batch.positionKey) then keys[batch.positionKey] = true else keyless = true end
+      held = safeAdd(held, batch.remainingQty)
+      if not held then return unresolved("invalid_quantity") end
+    end
+  end
+  if #lots == 0 then return unresolved("no_position") end
+  local positionKey, keyCount = nil, 0
+  for key in pairs(keys) do positionKey, keyCount = key, keyCount + 1 end
+  -- A keyless lot of a commodity is that commodity, which has one identity; beside a variant's key
+  -- it could be another variant.
+  if keyCount > 1 or (keyCount == 1 and keyless
+      and positionKey ~= GC.Acquisitions.PositionKey(args.itemID, nil, true)) then
+    return unresolved("ambiguous_position")
+  end
+  -- The bags count by item id, which cannot tell "of the Bear" from "of the Owl".
+  local level, suffix, pet = tostring(positionKey):match("^item:%d+:(-?%d+):(-?%d+):(-?%d+)$")
+  if level and (tonumber(level) ~= 0 or tonumber(suffix) ~= 0 or tonumber(pet) ~= 0)
+      and args.positionKey ~= positionKey then
+    return unresolved("other_version")
+  end
+  local take = math.min(args.quantity, held - unitsOnAuction(args.itemID, context, args.at))
+  if take <= 0 then return unresolved("listed") end
+  local allocation = allocationFor(lots, take)
+  if not allocation or allocation.coverage ~= "COMPLETE" or not isExactInteger(allocation.knownCost) then
+    return unresolved("insufficient_quantity")
+  end
+  local proceeds = take == args.quantity and args.proceeds or mulDivFloor(args.proceeds, take, args.quantity)
+  local profit = proceeds and proceeds - allocation.knownCost
+  if not isSignedExactInteger(profit) then return unresolved("invalid_profit") end
+  local ids = {}
+  for _, batch in ipairs(lots) do ids[batch.id] = true end
+  if not GC.Acquisitions.Consume(positionKey, take, evidenceKey, args.at, context, allocation, { ids = ids }) then
+    return unresolved("consume_failed")
+  end
+  db.acquisitionRealized[#db.acquisitionRealized + 1] = { evidenceKey = evidenceKey,
+    scopeKey = positionKey and GC.Acquisitions.ScopeKey(positionKey, context) or nil,
+    positionKey = positionKey, itemName = lots[1].itemName or args.itemName, character = args.char,
+    region = args.region, quantity = take, cost = allocation.knownCost, proceeds = proceeds,
+    profit = profit, at = args.at, source = "vendor_sale" }
+  return { status = "applied", positionKey = positionKey, quantity = take, cost = allocation.knownCost,
+    proceeds = proceeds, profit = profit }
 end
 
 --- Converts the unscoped pre-acquisition flip queue without ever pruning or

@@ -36,13 +36,22 @@ local repostArmToken = 0
 -- that deposit but what comes on top of it ("Canceling this auction will cost you your deposit
 -- and:", CANCEL_AUCTION_CONFIRMATION_MONEY, shown once it is over 0; Auctionator reads it as a bid
 -- standing on the lot), so the two are added. The client keeps no record of a live lot's deposit
--- (OwnedAuctionInfo carries none), so it is quoted again at the duration the player posts at,
--- which is the one GoldCap posted it at; a lot posted at another is off by the difference. nil
--- when the deposit cannot be quoted: an item lot with no stack of it in the bags. A cancel fee the
--- client will not read counts as none, which is every buyout-only lot, and GoldCap posts no other.
+-- (OwnedAuctionInfo carries none), so GoldCap's own record of the post comes first
+-- (Core/ForeverDeposits.lua: what the post put up, its share for the units still listed: a lot can
+-- sell in part). Without one it is quoted again at the duration
+-- GoldCap posts the item at: its followed group's, else the setting (not one picked for the next
+-- post, which is not this lot's); a lot posted at another is off by the difference. nil
+-- when the deposit cannot be quoted: an item lot with no record and no stack of it in the bags. A
+-- cancel fee the client will not read counts as none, which is every buyout-only lot, and GoldCap
+-- posts no other.
 function GC.Sell.LotForfeit(lot)
   if type(lot) ~= "table" or not GC.Sell.OnForever() then return nil end
-  local deposit = GC.SellBags.Deposit({ positionKey = lot.positionKey, itemID = lot.itemID }, lot.quantity)
+  local deposit = GC.ForeverDeposits and GC.ForeverDeposits.DepositOf(lot.auctionID, lot.quantity) or nil
+  if not deposit then
+    local rule = GC.GroupRules and GC.GroupRules.durationByItem and GC.GroupRules.durationByItem[lot.itemID] or nil
+    local duration = GC.Sell.PostDurationFor({ ruleDurationIndex = rule })
+    deposit = GC.SellBags.Deposit({ positionKey = lot.positionKey, itemID = lot.itemID }, lot.quantity, duration)
+  end
   if not deposit then return nil end
   local fee = 0
   if exact(lot.auctionID) and C_AuctionHouse and C_AuctionHouse.GetCancelCost then
@@ -50,6 +59,13 @@ function GC.Sell.LotForfeit(lot)
     if ok and exact(cost) then fee = cost end
   end
   return deposit + fee
+end
+
+-- WoW: Forever only: the deposit raising `lot` would put up again, the client's quote for its units
+-- at the posting duration; nil where it cannot quote (an item with none of it in the bags).
+function GC.Sell.RelistDeposit(lot)
+  if type(lot) ~= "table" then return nil end
+  return GC.SellBags.Deposit({ positionKey = lot.positionKey, itemID = lot.itemID }, lot.quantity)
 end
 
 local function restoreRepostRow(row)
@@ -215,6 +231,12 @@ function Post.Cancelling(row, pin, scope)
   -- no protected call follows in this click), and repaints the deck switch, queue and cancel
   -- buttons this click used to paint through Compose.Positions(true) before the call.
   Compose.Positions()
+  -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): the lot and what
+  -- it loses, for the server's AUCTION_CANCELED to write as a row. Here only, after the call.
+  if GC.ForeverDeposits then
+    local lot = { auctionID = pin.auctionID, itemID = pin.itemID, quantity = pin.quantity, positionKey = pin.positionKey }
+    GC.ForeverDeposits.NoteCancel(lot, GC.Sell.LotForfeit(lot), time())
+  end
   if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
     GC.Data.MarkOwnedLotCancelled(GC.db, pin.auctionID, scope, time())
   end

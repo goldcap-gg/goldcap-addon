@@ -39,6 +39,9 @@ GC.Sell.EMPTY_ANSWER_AGE = 60
 
 GC.SellState = {
   positions = {}, ownedLots = {}, quotes = {},
+  -- Whether this session has read the player's own auctions yet (GC.Sell.OnOwnedAuctions). Until
+  -- it has, ownedLots is empty and a listed lot looks like one in no bag and on no auction.
+  ownedRead = false,
   -- The posting queue, DERIVED, never stored: rebuilt by Compose.Positions() every time positions
   -- are, straight from GC.PostQueue.Build(positions). There is deliberately no separate stateful
   -- queue with an index into it -- a post empties that item from the bags, so the entry drops out
@@ -74,6 +77,19 @@ GC.SellState = {
   -- not persisted, handed to BuildPostPlan, spent with the post that carried it
   -- (GC.Sell._SpendPrice). Only ever under what one click could list; "all of it" is no entry.
   quantityOverrides = {},
+  -- The duration (1, 2 or 3) the player picked for a position's next post, keyed the same way:
+  -- written only by WoW: Forever's post panel, read by GC.Sell.PostDurationFor and by the click's
+  -- own copy of it (Services/Sell/Post.lua), forgotten when the auction house closes.
+  durationOverrides = {},
+  -- The client's deposit quotes (GC.SellBags.Deposit), by positionKey .. "\1" .. duration:
+  -- { quantity, deposit }. The click cannot quote, so a post's pin copies the one quoted at paint
+  -- or compose for the same quantity and duration. Forgotten when the auction house closes.
+  depositQuotes = {},
+  -- WoW: Forever: this visit's posts certain to be ours (GC.Sell.OnAuctionCreated), by
+  -- positionKey: a list of { auctionID, quantity, unitPrice }. Core/ForeverPace.lua counts each as
+  -- already up until the owned list holds its auctionID, so a second POST before that list catches
+  -- up does not list another batch. Forgotten when the auction house closes.
+  pacePosted = {},
   -- The dock walks the selling list once a visit (owner, 2026-10-10): what was posted this visit,
   -- and what the player passed over with SKIP, by positionKey. Out of the walk until the auction
   -- house is closed (GC.Sell._HoldDoneInQueue, GC.Sell.Reset); a row click still puts either in
@@ -97,8 +113,9 @@ GC.SellState = {
   -- lands on row 1 -- a deck is what the switch paints, a focus state is not.
   filterMode = "post",
   -- Where each position sits, remembered across renders (SellViewModel.Settle). Thrown away only
-  -- when the PLAYER asks for a new order -- Refresh, a deck change, a chip -- never by a quote
-  -- landing, an owned-auction scan or the walk's own repeat. Those change numbers, not places.
+  -- when the player changes the list -- a deck, a chip, a group -- or the auction house closes
+  -- (GC.Sell.Reset), never by a refresh of any kind, a quote landing or an owned-auction scan.
+  -- Those change numbers, not places.
   rowPlaces = {},
   -- `drawnPlaces` (nil until the list is first drawn) is where each row is drawn, which the SELLING
   -- split and MY LOTS's sections move away from rowPlaces; the pricing walk asks in that order.
@@ -217,23 +234,26 @@ local function effectivePostUnit(position)
   return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit, commodity)) or unit, chosen ~= nil
 end
 
--- How many units Post would list for this position right now, the most it could, and whether
--- the first is the seller's own number. The most is what one click can list (the largest stack
--- of a normal item, a commodity's whole pool: SellPositions' postableQty, else the bag count);
--- a number the seller gave counts only under it. Read live, like effectivePostUnit, so the row,
--- the panel and the queue move as the number is typed.
+-- How many units Post would list for this position right now, the most it could, whether the
+-- first is the seller's own number, and why (GC.SellPositions.PostQuantity's word). The most is
+-- what one click can list (the largest stack of a normal item, a commodity's whole pool:
+-- SellPositions' postableQty, else the bag count); a number the seller gave counts only under it.
+-- The rest is the one quantity rule the post plan and the queue read too, at the price and the
+-- duration this post would go up at. Read live, like effectivePostUnit, so the row, the panel and
+-- the queue move as the number is typed.
 local function postQuantity(position)
   local most = exact(position.postableQty) and position.postableQty > 0 and position.postableQty
     or exact(position.bagQty) and position.bagQty or 0
   local key = overrideKey(position)
   local chosen = key and GC.SellState.quantityOverrides[key] or nil
-  if exact(chosen) and chosen > 0 and chosen < most then return chosen, most, true end
-  -- A followed group's "1 at a time" is where the count starts when nothing is typed.
-  local ruleQty = position.rulePostQty
-  if not (exact(chosen) and chosen > 0) and exact(ruleQty) and ruleQty > 0 and ruleQty < most then
-    return ruleQty, most, false
-  end
-  return most, most, false
+  local qty, why = GC.SellPositions.PostQuantity(position, chosen, most, (effectivePostUnit(position)),
+    (GC.Sell.PostDurationFor(position)))
+  return qty, most, why == "typed", why
+end
+
+-- A listing duration index the posting calls take (1, 2 or 3), or nil for anything else.
+local function validIndex(v)
+  return (v == 1 or v == 2 or v == 3) and v or nil
 end
 
 local function context()
@@ -273,7 +293,7 @@ local function itemName(itemID)
 end
 
 GC.SellUtil = { exact = exact, safeAdd = safeAdd, safeMultiply = safeMultiply, overrideKey = overrideKey,
-  effectivePostUnit = effectivePostUnit, postQuantity = postQuantity,
+  effectivePostUnit = effectivePostUnit, postQuantity = postQuantity, validIndex = validIndex,
   context = context, activeScope = activeScope, exactRenderEntry = exactRenderEntry, itemName = itemName }
 
 -- What the pricing walk searches for. A quote id is an itemID -- a commodity, or an item priced
@@ -291,7 +311,7 @@ end
 
 -- The followed group a position's item is in, its key and its name (Core/GroupRules.lua's
 -- GroupOf, read by the item ID its key starts with: "commodity:<id>", "item:<id>:..."), or nil:
--- in no group, a key naming no item, or WoW: Forever, where GroupRules does not load.
+-- in no group, a key naming no item, or no GroupRules loaded (both games load it).
 function GC.Sell.GroupKeyOf(positionKey)
   local itemID = type(positionKey) == "string" and tonumber(positionKey:match("^%a+:(%d+)")) or nil
   if not (itemID and GC.GroupRules and GC.GroupRules.GroupOf) then return nil end
@@ -321,11 +341,55 @@ function GC.Sell.DefaultPrice()
   return nil
 end
 
+-- The duration index (1 to 3) a position's next post goes up at, and why: "picked" (the player
+-- chose it for this post, GC.SellState.durationOverrides), "rule" (a followed group's), "slow"
+-- (WoW: Forever's slow sellers, set only by Core/ForeverPace.lua) or "setting"
+-- (settings.sniper.postDuration, 2 when that is not one of the three). Each counts only when it is
+-- 1, 2 or 3. The live rule for paint, quotes and the queue; the Post click keeps a plain-field copy
+-- (Services/Sell/Post.lua's PreparePost), and spec/forever_post_duration_spec.lua pins that the two
+-- agree.
+function GC.Sell.PostDurationFor(position)
+  local key = overrideKey(position)
+  local picked = validIndex(key and GC.SellState.durationOverrides[key])
+  if picked then return picked, "picked" end
+  local p = type(position) == "table" and position or {}
+  local rule = validIndex(p.ruleDurationIndex)
+  if rule then return rule, "rule" end
+  local slow = validIndex(p.slowDurationIndex)
+  if slow then return slow, "slow" end
+  local settings = type(GC.db) == "table" and type(GC.db.settings) == "table" and GC.db.settings.sniper
+  return validIndex(type(settings) == "table" and settings.postDuration) or 2, "setting"
+end
+
+-- WoW: Forever's "Post slow sellers for 24 h" (Settings): on unless the player turned it off. Not
+-- in GC.DEFAULTS, so a retail save never holds the key (the cancelUndercutPct precedent).
+function GC.Sell.SlowSellersOn()
+  local settings = type(GC.db) == "table" and GC.db.settings
+  local sniper = type(settings) == "table" and settings.sniper
+  return not (type(sniper) == "table" and sniper.foreverSlowSellers24h == false)
+end
+
+-- What a post held for its sale pace says (GC.SellPositions.PostQuantity's "enough"): the units
+-- already up at or under the price (`listed`) and the hours the post would have run. The position
+-- is the one the click and the panel hold; nothing here reads it yet.
+function GC.Sell.EnoughListedText(_position, listed, durationIndex)
+  local hours = GC.GroupRules and GC.GroupRules.HoursOf and GC.GroupRules.HoursOf(durationIndex)
+  if not (exact(listed) and hours) then return GC.L["Cannot post this position"] end
+  return (GC.L["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."]):format(
+    listed, hours)
+end
+
 -- WoW: Forever, the way this tab has always told it (Core/ForeverScan.lua's Enabled, set at
 -- ADDON_LOADED from the interface number): the one place the Sell services ask, so what differs
 -- there reaches Core as an option and Core never asks which game it is.
 function GC.Sell.OnForever()
   return GC.ForeverScan ~= nil and type(GC.ForeverScan.Enabled) == "function" and GC.ForeverScan.Enabled() == true
+end
+
+-- WoW: Forever: the least a post must earn, after the cut, the vendor and the deposit, to go up
+-- (the Deals board's minimum profit).
+function GC.Sell.MinimumProfit()
+  return GC.ForeverDeals.MinimumProfit(GC.db and GC.db.settings and GC.db.settings.sniper)
 end
 
 -- What the POST queue is built with (Core/PostQueue.lua's Build): the player's selling list, the
@@ -347,6 +411,16 @@ function GC.Sell._QueueOpts()
   -- (below_deposit, 2026-11-06). Retail's queue is left as it was.
   if GC.Sell.OnForever() and GC.SellBags and GC.SellBags.Deposit then
     opts.depositFor = GC.SellBags.Deposit
+  end
+  -- ...and the duration and the price each post goes up at, which the sale pace is read at
+  -- (GC.SellPositions.PostQuantity: the units already up at or under the price count against it).
+  -- The price is read live, as the panel and the click read it, so a price typed since the last
+  -- compose holds or frees the item at once (the price box rebuilds the queue).
+  if GC.Sell.OnForever() then
+    opts.durationFor = function(p) return (GC.Sell.PostDurationFor(p)) end
+    opts.unitFor = function(p) return (effectivePostUnit(p)) end
+    opts.minimumProfit = GC.ForeverDeals and GC.Sell.MinimumProfit() or nil
+    opts.returnHold = GC.ForeverPace and GC.ForeverPace.RETURN_HOLD
   end
   return opts
 end
