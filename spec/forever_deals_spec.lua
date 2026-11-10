@@ -90,6 +90,21 @@ describe("ForeverDeals", function()
         salesFor = function() return { units = 0, sales = 0, perDay = 0 } end })))
     end)
 
+    -- 30 units at 80c under 170 at 100c, sold at 100c: 80% of what it sells for.
+    it("takes a lot at up to 85% of the sold price for an item sold 100 times a day, 70% for a slower one", function()
+      commodity[1] = true
+      local zero = function() return 0 end
+      local near = { [1] = "80,200,10,;0x30 20x170|80,80,2" }
+      -- A week of tape: 699 sales is 99.9 a day, 700 is 100.
+      assert.equal(0, #D.Build(fold(near), ctx({ depositFor = zero, salesFor = sold(699, 120) })))
+      local rows = D.Build(fold(near), ctx({ depositFor = zero, salesFor = sold(700, 120) }))
+      assert.equal(1, #rows)
+      assert.same({ "market", 30, 2400, 100 }, { rows[1].forever, rows[1].qty, rows[1].capTotal, rows[1].refUnit })
+      assert.equal(421, rows[1].profit) -- resold at 99c: 2970 - 149 cut - 2400
+      -- 86c is over the line for either.
+      assert.equal(0, #D.Build(fold({ [1] = "86,200,10,;0x30 14x170|86,86,2" }), ctx({ depositFor = zero, salesFor = sold(700, 120) })))
+    end)
+
     it("takes no more than a quarter of a day of what sells", function()
       commodity[1] = true
       local zero = function() return 0 end

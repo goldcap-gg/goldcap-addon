@@ -2,6 +2,10 @@
 
 ## 0.27.2 (unreleased)
 
+- WoW: Forever: more Under market rows for the busiest items. An item that sells 100 times a day
+  or more is now a deal up to 85% of what it sells for, where the line was 70% for everything. On
+  real sales those buys still paid: the price comes back fast when that many people buy. Slower
+  items keep the 70% line.
 - WoW: Forever: a scan the game cuts short no longer wipes the Deals board. The board keeps the
   lots of your last whole scan from the same sitting and updates their lowest prices, where it
   used to throw them away and show almost nothing until the next whole scan.
