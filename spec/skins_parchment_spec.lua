@@ -50,6 +50,20 @@ describe("parchment skin", function()
     assert.is_nil(W.state(today).shadowColor)
   end)
 
+  -- Owner, round B 2026-11-10: "it is there but you cannot see it". The client's paper is burnt dark
+  -- at its corners, where a window's close button sits; the text3 cross measured about 1.5:1 there.
+  it("a window's close button sits on a slip of clean paper, its cross in the darkest ink", function()
+    Skins.Apply("parchment")
+    local bar = T.TitleBar(W.CreateFrame("Frame"), "GoldCap Sniper")
+    assert.same({ K.text1[1], K.text1[2], K.text1[3], 1 }, W.state(bar.close.icon).vertex)
+    assert.is_not_nil(bar.close.slip)
+    assert.same({ K.raised[1], K.raised[2], K.raised[3] }, { unpack(W.state(bar.close.slip).vertex, 1, 3) })
+    Skins.Apply("goldcap")
+    local today = T.TitleBar(W.CreateFrame("Frame"), "GoldCap Sniper")
+    assert.same({ K.text3[1], K.text3[2], K.text3[3], 1 }, W.state(today.close.icon).vertex)
+    assert.is_nil(today.close.slip)
+  end)
+
   local function luminance(c)
     local function lin(v) return v <= 0.03928 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4 end
     return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)

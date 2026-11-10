@@ -354,6 +354,18 @@ function T.Rail(parent)
     SetDocked = setDocked }
 end
 
+--- The cross of a window's close button, in `color`. On paper (Parchment) the client's paper is
+--- burnt dark at the corners where these buttons sit (a text3 cross measured about 1.5:1 there), so
+--- the cross is drawn in the darkest ink on a slip of clean paper.
+function T.CloseIcon(button, color)
+  if GC.Kit.Skins.Current().paper then
+    button.slip = T.ShapeTexture(button, "BACKGROUND", "chip", K.raised)
+    button.slip:SetAllPoints()
+    color = K.text1
+  end
+  T.SetIcon(button.icon, "close", color)
+end
+
 -- TitleBar: 32px drag region at top of `frame`, title Label 13; close sits at the outer
 -- top-right corner, gear sits immediately inboard (left) of close.
 function T.TitleBar(frame, titleText)
@@ -383,7 +395,7 @@ function T.TitleBar(frame, titleText)
   close.icon = close:CreateTexture(nil, "ARTWORK")
   close.icon:SetSize(12, 12)
   close.icon:SetPoint("CENTER")
-  T.SetIcon(close.icon, "close", K.text3)
+  T.CloseIcon(close, K.text3)
   close:SetScript("OnClick", function()
     frame:Hide()
   end)

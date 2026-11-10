@@ -802,7 +802,7 @@ local function newHeader(f, onClose)
   f.close.icon = f.close:CreateTexture(nil, "OVERLAY")
   f.close.icon:SetSize(L.CLOSE_ICON, L.CLOSE_ICON)
   f.close.icon:SetPoint("CENTER", f.close, "CENTER", 0, 0)
-  T.SetIcon(f.close.icon, "close", K.text2)
+  T.CloseIcon(f.close, K.text2)
   f.close:SetScript("OnClick", onClose)
 end
 

@@ -235,7 +235,7 @@ local function build()
   f.closeBtn.icon = f.closeBtn:CreateTexture(nil, "ARTWORK")
   f.closeBtn.icon:SetSize(12, 12)
   f.closeBtn.icon:SetPoint("CENTER")
-  Theme.SetIcon(f.closeBtn.icon, "close", K.text3)
+  Theme.CloseIcon(f.closeBtn, K.text3)
   f.closeBtn:SetScript("OnClick", close)
 
   f.features = {}
