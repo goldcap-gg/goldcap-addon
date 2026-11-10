@@ -700,10 +700,10 @@ local function renderRows()
   -- chip can take the row away, and a panel describing a row that is not there shuts.
   local openPosition
   local function pushPosition(position)
-    -- `selling` is the row's selling mark, true or false; nil where there is none to draw.
-    -- `markRoom`: the deck has marks, so every row's name starts after one, drawn or not.
+    -- `selling` is the row's selling mark, true or false; nil where there is none to draw, as on a
+    -- row with nothing in the bags or listed. `markRoom`: every name starts after a mark, drawn or not.
     local selling, done
-    if sellingList and not position.unresolved and type(position.positionKey) == "string" then
+    if sellingList and not position.unresolved and type(position.positionKey) == "string" and ROW.onHand(position) then
       selling = GC.Sell.IsSelling(position)
       done = selling and GC.Sell.DoneThisVisit(position.positionKey)
     end

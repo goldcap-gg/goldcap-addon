@@ -154,7 +154,7 @@ describe("Ledger scan, the lots that came back", function()
     assert.equal(1, #entries())
   end)
 
-  it("reads no attachment and logs nothing where the returns log is not loaded (WoW: Forever)", function()
+  it("reads no attachment and logs nothing where the returns log is not loaded", function()
     GC.MailReturns = nil
     db = {}
     GC.Ledger.Init(db)

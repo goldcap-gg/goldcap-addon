@@ -1,5 +1,31 @@
 # GoldCap
 
+## 0.26.0 (2026-11-10)
+
+- WoW: Forever: SELL posts about as many as sell within the auction's time, from the sales the
+  Companion brings, and says how many. Type a number or press MAX to post more.
+- WoW: Forever: pick 2, 8 or 24 h for each post in SELL. Items that barely sell, or came back
+  unsold twice, go up for 24 h (Settings, Posting; on by default).
+- WoW: Forever: SELL remembers what came back unsold, holds an item that came back three times in a
+  row, and a followed group's price now steps down after unsold rounds, as on retail.
+- WoW: Forever: deposits lost on expired and cancelled auctions now count in your goldcap.gg profit.
+- WoW: Forever: SELL no longer cancels a cheap lot for a deposit larger than the gain, offers to
+  raise a lot far under the next price, and holds posts that would earn under your minimum profit.
+- WoW: Forever: SELL can price one step above a tiny cheap lot when the item sells fast enough.
+- WoW: Forever: the profession panel shows the price to sell at to break even.
+- WoW: Forever: an item you sold to a merchant no longer stays under NOT ON HAND in SELL.
+- SELL: an item under NOT ON HAND that you sold or used some other way can be cleared with
+  SOLD/USED.
+- SELL: rows stay in place for your whole auction house visit. REFRESH, a post or coming back to
+  the tab updates the prices without moving them, and pressing REFRESH while a refresh is running
+  carries on with it instead of starting over.
+- SELL: gear no longer jumps down the list or shows as "Item 1234" while the game reloads its data.
+- SELL's price panel shows sales per day rounded.
+- WoW: Forever, BUY: gear on your list that comes in versions, such as "of the Eagle", now finds
+  its lots and can be bought. It used to say nothing was on the auction house.
+- DEALS: while the buy window is open, long item names no longer run over the rows under them.
+  Each row grows to fit its name.
+
 ## 0.25.0 (2026-11-08)
 
 - WoW: Forever: the groups you follow on goldcap.gg now work on the SELL tab. Each group's price

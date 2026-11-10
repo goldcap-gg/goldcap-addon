@@ -11,8 +11,10 @@ local _, GC = ...
 -- the lot comes back in several stacks, with `count` the stacks' sum and `at` the wall clock time
 -- of the scan that first read it. They are pruned after 14 days and the log is versioned: a newer
 -- save is read-only here, so an older build never rewrites a shape it does not know. The log is
--- created lazily, not through DEFAULTS, so a client that never loads this file (WoW: Forever)
--- keeps its SavedVariables untouched.
+-- created lazily, not through DEFAULTS, so a build without this file keeps its SavedVariables
+-- untouched. Both games load it. On WoW: Forever the lapsed-auction mail subjects are unverified:
+-- the scan reads them through a guarded global (Core/Init.lua's noInvoiceSubjects), and a client
+-- that lacks one logs nothing for that reason.
 
 GC.MailReturns = {}
 
@@ -97,17 +99,19 @@ end
 -- expiry within MATCH_SECONDS, each matched by one read at most, so two lots that read the same are
 -- two. The count is left out, so a lot taken one stack at a time stays the one lot. A seen lot is
 -- added on every scan, and goes only when a `complete` scan (every row read, every attachment of a
--- returned lot named) no longer holds it, or once its mail has expired. Returns how many it logged.
+-- returned lot named) no longer holds it, or once its mail has expired. Returns how many it logged,
+-- and those lots, each { itemID, count, reason, at = now, expiresAt } (WoW: Forever's lost deposits
+-- read them, Core/ForeverDeposits.lua).
 function GC.MailReturns.Observe(lots, context, now, complete)
-  if not db or readOnly or type(db.mailReturns) ~= "table" or not finite(now) then return 0 end
+  if not db or readOnly or type(db.mailReturns) ~= "table" or not finite(now) then return 0, {} end
   if type(context) ~= "table" or type(context.char) ~= "string" or context.char == ""
-      or type(context.region) ~= "string" or context.region == "" then return 0 end
+      or type(context.region) ~= "string" or context.region == "" then return 0, {} end
   if type(db.mailReturnsSeen) ~= "table" then db.mailReturnsSeen = {} end
   local seen = db.mailReturnsSeen
   local function mine(record)
     return type(record) == "table" and record.char == context.char and record.region == context.region
   end
-  local used, logged = {}, 0
+  local used, logged, fresh = {}, 0, {}
   for _, lot in ipairs(type(lots) == "table" and lots or {}) do
     if type(lot) == "table" and finite(lot.expiresAt) then
       local match, gap
@@ -126,6 +130,8 @@ function GC.MailReturns.Observe(lots, context, now, complete)
         seen[#seen + 1] = record
         used[record] = true
         logged = logged + 1
+        fresh[#fresh + 1] = { itemID = lot.itemID, count = lot.count, reason = lot.reason, at = now,
+          expiresAt = lot.expiresAt }
       end
     end
   end
@@ -137,5 +143,5 @@ function GC.MailReturns.Observe(lots, context, now, complete)
     if not gone and not expired then kept[#kept + 1] = record end
   end
   db.mailReturnsSeen = kept
-  return logged
+  return logged, fresh
 end

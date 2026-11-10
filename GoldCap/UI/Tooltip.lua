@@ -27,15 +27,6 @@ local function wholeCount(n)
   return text
 end
 
--- Sales a day. Under ten the decimal carries the decision -- 3.5 a day against 3 -- so it
--- stays; from ten up it is noise, and "29728.0" is the figure this replaced. Decided on the
--- rounded figure, so 9.96 prints "10" rather than "10.0".
-local function perDay(n)
-  local tenths = ("%.1f"):format(n)
-  if tonumber(tenths) < 10 then return tenths end
-  return wholeCount(n)
-end
-
 -- opts.live (optional): { floor, qty, age } -- what this session's own auction house browsing last
 -- saw of the item (GC.Sniper.LiveFloor), inside LIM.LIVE_TOOLTIP_SECONDS. Its own line kind: the
 -- floor is drawn as coins by onTooltip, which owns GC.Util.CoinText, and the rest is text.
@@ -143,7 +134,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
       lines[#lines + 1] = { kind = "text", left = GC.L["24h trend"], right = string.format("%+d%%", v.trend) }
     end
     if v.sold then
-      lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = perDay(v.sold) }
+      lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = GC.Util.PerDay(v.sold) }
     end
     -- Depth. `currentQty` (units on the region's shelf) and `listings` (auctions holding them)
     -- ride the import string's verification token -- so this is an imported-commodity line by

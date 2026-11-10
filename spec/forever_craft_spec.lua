@@ -176,7 +176,8 @@ describe("Forever craft panel", function()
       VALUES[901] = nil
       ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
       local card = show().card
-      assert.equal(GC.L["No GoldCap price for %s"]:format("Linen Bag"), card.missing:GetText())
+      assert.equal(GC.L["No GoldCap price for %s"]:format("Linen Bag") .. " "
+        .. GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1))), card.missing:GetText())
     end)
   end)
 
@@ -243,8 +244,32 @@ describe("Forever craft panel", function()
       ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
       local card = show().card
       assert.equal(GC.L["No GoldCap price for %s"]:format("Linen Bag") .. " "
-        .. GC.L["An auction house price needs at least %d listed."]:format(20), card.missing:GetText())
+        .. GC.L["An auction house price needs at least %d listed."]:format(20) .. " "
+        .. GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1))), card.missing:GetText())
     end)
+  end)
+
+  it("says the break-even price under its cells", function()
+    load({ open = { recipeID = 1, allocations = {} } })
+    prices()
+    ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+    local card = show().card
+    -- Linen Bag costs 3 x 50 + 10 = 160c.
+    local want = GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1)))
+    assert.is_true(card.cells[1]:IsShown())
+    assert.is_true(card.missing:IsShown())
+    assert.equal(want, card.missing:GetText())
+  end)
+
+  it("an unpriced crafted item still gets its break-even price", function()
+    load({ open = { recipeID = 1, allocations = {} } })
+    prices()
+    VALUES[901] = nil
+    ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+    local sentence = GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1)))
+    local text = GC.CraftStrip.Lines(CC.ProfitOf(CC.Snapshot(1)))[1].text
+    assert.equal(sentence, text:sub(-#sentence))
+    assert.equal(text, show().card.missing:GetText())
   end)
 
   it("shows no daily sales and no slow mark: Forever's scans say nothing of what sells", function()

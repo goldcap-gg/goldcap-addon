@@ -435,4 +435,113 @@ describe("CancelQueue", function()
       assert.is_true(worth.ownedLots[1].cancelWorth)
     end)
   end)
+
+  describe("on WoW: Forever (cancelForfeit given)", function()
+    local ORE = "commodity:2672"
+    local savedAH
+
+    before_each(function()
+      savedAH = _G.C_AuctionHouse
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+    end)
+
+    after_each(function() _G.C_AuctionHouse = savedAH end)
+
+    -- One own lot of `qty` at `unit` under a book whose cheapest ask is `fresh`; `mv` is the value.
+    local function one(qty, unit, fresh, mv, forfeit, relistDeposit)
+      return build({
+        ownedLots = { lot(ORE, qty, unit, 801) },
+        quotes = { [2672] = { unit = fresh, at = 9, levels = { { unitPrice = fresh, quantity = 5 } } } },
+        statsByItemID = { [2672] = { mv = mv, source = "scan" } },
+        cancelForfeit = function() return forfeit end,
+        relistDeposit = function() return relistDeposit end,
+      })
+    end
+
+    it("a cheap lot is not cancelled for more than it wins", function()
+      local positions = one(1, 3, 10, 41, 100)
+      assert.is_true(positions[1].facts.underpriced) -- fixture honesty check
+      assert.is_false(positions[1].ownedLots[1].urgentWorth)
+      local entries, skipped = GC.CancelQueue.Build(positions)
+      assert.equal(0, #entries)
+      assert.equal("deposit", findSkip(skipped, ORE).reason)
+    end)
+
+    it("a far-underpriced lot that wins its forfeit is still urgent", function()
+      local entries = GC.CancelQueue.Build(one(7, 3, 40, 41, 100))
+      assert.equal(1, #entries)
+      assert.is_true(entries[1].urgent)
+    end)
+
+    it("an unquotable forfeit keeps the urgent cancel", function()
+      local entries = GC.CancelQueue.Build(one(1, 3, 10, 41, nil))
+      assert.equal(1, #entries)
+      assert.is_true(entries[1].urgent)
+    end)
+
+    it("a lot far under the next ask is offered for a raise", function()
+      local entries = GC.CancelQueue.Build(one(10, 100, 130, 130, 50, 50))
+      assert.equal(1, #entries)
+      assert.equal(30, entries[1].raise)
+      assert.is_nil(entries[1].urgent)
+      assert.equal(0, #GC.CancelQueue.Build(one(10, 100, 115, 115, 50, 50)))
+      assert.equal(0, #GC.CancelQueue.Build(one(10, 100, 130, 130, 200, 100)))
+      assert.equal(0, #GC.CancelQueue.Build(one(10, 100, 130, 130, 50, nil)))
+      assert.equal(0, #GC.CancelQueue.Build(one(10, 100, 130, 130, nil, 50)))
+    end)
+
+    it("a raise follows the market, not a typed post price, and its percent is the relist price's", function()
+      -- The market's 125c over a 100c lot offers a 25% raise.
+      local positions = one(10, 100, 125, 125, 50, 50)
+      assert.equal(25, positions[1].ownedLots[1].raisePct)
+      local typed = build({
+        ownedLots = { lot(ORE, 10, 100, 801) },
+        bagStock = { { itemID = 2672, positionKey = ORE, quantity = 5, name = "Ore" } },
+        quotes = { [2672] = { unit = 110, at = 9, levels = { { unitPrice = 110, quantity = 5 } } } },
+        statsByItemID = { [2672] = { mv = 110, source = "scan" } },
+        chosenUnits = { [ORE] = 500 },
+        cancelForfeit = function() return 1 end,
+        relistDeposit = function() return 1 end,
+      })
+      -- A typed 500c post price over fresh 110c (10%, under the gap) is no reason to cancel.
+      assert.equal(0, #GC.CancelQueue.Build(typed))
+      assert.is_nil(typed[1].ownedLots[1].raisePct)
+    end)
+
+    it("an item lot is never offered a raise it cannot make (whole silver)", function()
+      local POUCH = "item:828:5:0:0"
+      local positions = build({
+        ownedLots = { { itemID = 828, positionKey = POUCH, quantity = 1, unitPrice = 100, auctionID = 902,
+          firstSeenAt = 1 } },
+        quotes = { [828] = { unit = 130, at = 9, levels = { { unitPrice = 130, quantity = 1 } } } },
+        statsByItemID = { [828] = { mv = 130, source = "scan" } },
+        cancelForfeit = function() return 1 end,
+        relistDeposit = function() return 1 end,
+      })
+      assert.equal(0, #GC.CancelQueue.Build(positions))
+    end)
+
+    it("an urgent lot is never a raise", function()
+      local positions = one(7, 3, 4, 41, 1, 1)
+      local entries = GC.CancelQueue.Build(positions)
+      assert.equal(1, #entries)
+      assert.is_true(entries[1].urgent)
+      assert.is_nil(entries[1].raise)
+      assert.is_nil(positions[1].ownedLots[1].raisePct)
+    end)
+
+    it("without cancelForfeit no lot carries urgentWorth or raisePct", function()
+      local positions = build({
+        ownedLots = { lot(ORE, 10, 100, 801), lot(ORE, 7, 3, 802) },
+        quotes = { [2672] = { unit = 130, at = 9, levels = { { unitPrice = 130, quantity = 5 } } } },
+        statsByItemID = { [2672] = { mv = 130, source = "scan" } },
+        relistDeposit = function() return 1 end,
+      })
+      for _, owned in ipairs(positions[1].ownedLots) do
+        assert.is_nil(owned.urgentWorth)
+        assert.is_nil(owned.raisePct)
+      end
+      assert.is_nil(positions[1].facts.raise)
+    end)
+  end)
 end)

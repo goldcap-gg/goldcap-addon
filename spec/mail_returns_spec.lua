@@ -108,6 +108,17 @@ describe("MailReturns, the log of lots that came back", function()
     local CONTEXT = { char = "A-B", region = "eu" }
     local function lot(itemID, expiresAt) return { itemID = itemID, count = 1, reason = "expired", expiresAt = expiresAt } end
 
+    -- WoW: Forever's lost deposits (Core/ForeverDeposits.lua) read the lots a scan logged.
+    it("hands on the lots it logged, and none it had seen", function()
+      GC.MailReturns.Init(db)
+      local logged, fresh = GC.MailReturns.Observe({ lot(5, 2000), lot(6, 2000) }, CONTEXT, 1000, false)
+      assert.equal(2, logged)
+      assert.same({ { itemID = 5, count = 1, reason = "expired", at = 1000, expiresAt = 2000 },
+        { itemID = 6, count = 1, reason = "expired", at = 1000, expiresAt = 2000 } }, fresh)
+      assert.same({ 0, {} }, { GC.MailReturns.Observe({ lot(5, 2000) }, CONTEXT, 1060, false) })
+      assert.same({ 0, {} }, { GC.MailReturns.Observe({ lot(7, 2000) }, nil, 1060, false) })
+    end)
+
     it("forgets a seen lot once its mail has expired, even on a scan that could not read everything", function()
       GC.MailReturns.Init(db)
       assert.equal(1, GC.MailReturns.Observe({ lot(5, 2000) }, CONTEXT, 1000, false))

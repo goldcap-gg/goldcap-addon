@@ -6,7 +6,7 @@ local _, GC = ...
 
 local S = GC.SellState
 local Bags, Walk = GC.SellBags, GC.SellWalk
-local exact, safeAdd = GC.SellUtil.exact, GC.SellUtil.safeAdd
+local exact, safeAdd, validIndex = GC.SellUtil.exact, GC.SellUtil.safeAdd, GC.SellUtil.validIndex
 
 local SELL_BAGS = { 0, 1, 2, 3, 4, 5 }
 local sessionCommodityKind = {}
@@ -41,7 +41,7 @@ end
 -- C_AuctionHouse.GetItemKeyFromItem answers, for this one bag slot, the ItemKey the auction house
 -- itself files the stack under (item level, suffix, pet species), and PostItem posts by this
 -- same slot. Nothing is guessed: no answer, no key.
-function GC.Sell._SlotKey(itemID, link, bag, slot)
+local function readSlotKey(itemID, link, bag, slot)
   local parsed = normalizedPositionKey(itemID, link)
   if parsed then return parsed, nil end
   if not (bag and slot and C_AuctionHouse and C_AuctionHouse.GetItemKeyFromItem
@@ -57,6 +57,46 @@ function GC.Sell._SlotKey(itemID, link, bag, slot)
   local plain = (itemKey.itemLevel or 0) == 0 and (itemKey.itemSuffix or 0) == 0
     and (itemKey.battlePetSpeciesID or 0) == 0
   return positionKey, not plain and positionKey or nil
+end
+
+-- Whether the client holds this stack's item data now. Without the API to ask, it does, as before.
+local function itemDataLoaded(itemID, bag, slot)
+  if bag and slot and C_Item and C_Item.IsItemDataCached and ItemLocation and ItemLocation.CreateFromBagAndSlot then
+    local ok, cached = pcall(function() return C_Item.IsItemDataCached(ItemLocation:CreateFromBagAndSlot(bag, slot)) end)
+    if ok then return cached == true end
+  end
+  if C_Item and C_Item.IsItemDataCachedByID then
+    local ok, cached = pcall(C_Item.IsItemDataCachedByID, itemID)
+    if ok then return cached == true end
+  end
+  return true
+end
+
+-- The key each bag slot's stack last read while the client held its item's data. This session only.
+local loadedSlotKeys = {}
+
+-- A key is only read from a stack whose item data the client holds. WoW: Forever drops that data for a
+-- moment on every price refresh (a SELL probe, 10.11: 32 to 37 of 44 stacks at once), and in that
+-- moment a gear stack's item level reads 0: the cloak's row "item:4658:8:0:0" became
+-- "item:4658:0:0:0", a different row to everything filed by key, so it took another place in the list
+-- and lost its name ("Item 4658") until the data came back a moment later. Meanwhile the stack keeps
+-- the key its slot last read loaded, when it is the same item there; a stack never read loaded has no
+-- key yet and waits, as stock the tab cannot key does, rather than taking one with level 0.
+function GC.Sell._SlotKey(itemID, link, bag, slot)
+  local payload = type(link) == "string" and (link:match("|H(item:[^|]+)|h") or link:match("^(item:.-)$")) or nil
+  local at = bag and slot and (bag .. ":" .. slot) or nil
+  if not itemDataLoaded(itemID, bag, slot) then
+    local held = at and loadedSlotKeys[at]
+    if held and held.itemID == itemID and (payload == nil or held.payload == payload) then
+      return held.positionKey, held.quoteKey
+    end
+    return nil, nil
+  end
+  local positionKey, quoteKey = readSlotKey(itemID, link, bag, slot)
+  if at and positionKey then
+    loadedSlotKeys[at] = { itemID = itemID, payload = payload, positionKey = positionKey, quoteKey = quoteKey }
+  end
+  return positionKey, quoteKey
 end
 
 -- Whether an item sells as a commodity decides its whole auction identity, and
@@ -329,25 +369,31 @@ function Bags.ResolveLocation(position)
   return cached.location
 end
 
--- What listing `quantity` of this position costs up front, at the duration the player posts at,
--- as the client quotes it: C_AuctionHouse.CalculateCommodityDeposit for a commodity, as Blizzard's
--- commodity sell frame asks, and CalculateItemDeposit for an item, which takes the stack itself, so
--- only once the last paint pinned one of this position's stacks (Bags.ResolveLocation). nil when
--- the client does not say, or no stack of an item is in the bags. Never on the way to a protected
--- call: a compose, a paint, or a click that makes none.
-function Bags.Deposit(position, quantity)
+-- What listing `quantity` of this position costs up front at `durationIndex` (1 to 3; anything else
+-- is the duration its next post goes up at, GC.Sell.PostDurationFor), as the client quotes it:
+-- C_AuctionHouse.CalculateCommodityDeposit for a commodity, as Blizzard's commodity sell frame
+-- asks, and CalculateItemDeposit for an item, which takes the stack itself, so only once the last
+-- paint pinned one of this position's stacks (Bags.ResolveLocation). nil when the client does not
+-- say, or no stack of an item is in the bags. A quote it gets is kept in S.depositQuotes, which the
+-- Post click copies into its pin (it cannot quote). Never on the way to a protected call: a
+-- compose, a paint, or a click that makes none.
+function Bags.Deposit(position, quantity, durationIndex)
   if type(position) ~= "table" or not exact(quantity) or quantity <= 0 then return nil end
+  local duration = validIndex(durationIndex) or GC.Sell.PostDurationFor(position)
   local ok, deposit
   if type(position.positionKey) == "string" and position.positionKey:match("^commodity:") then
     if not (GC.Flips and GC.Flips.CommodityDeposit) then return nil end
-    ok, deposit = pcall(GC.Flips.CommodityDeposit, position.itemID, quantity)
+    ok, deposit = pcall(GC.Flips.CommodityDeposit, position.itemID, quantity, duration)
   else
     local location = Bags.ResolveLocation(position)
-    if not (location and C_AuctionHouse and C_AuctionHouse.CalculateItemDeposit and GC.Flips) then return nil end
-    ok, deposit = pcall(C_AuctionHouse.CalculateItemDeposit, location, GC.Flips.PostDurationIndex(), quantity)
+    if not (location and C_AuctionHouse and C_AuctionHouse.CalculateItemDeposit) then return nil end
+    ok, deposit = pcall(C_AuctionHouse.CalculateItemDeposit, location, duration, quantity)
   end
-  if ok and exact(deposit) then return deposit end
-  return nil
+  if not (ok and exact(deposit)) then return nil end
+  if type(position.positionKey) == "string" and position.positionKey ~= "" then
+    S.depositQuotes[position.positionKey .. "\1" .. duration] = { quantity = quantity, deposit = deposit }
+  end
+  return deposit
 end
 
 -- BAG_UPDATE_DELAYED (Core/Init.lua), while this tab is on screen: re-pins every position's

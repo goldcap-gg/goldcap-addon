@@ -566,16 +566,19 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
       GC.Sniper._RebuildKeyTargets()
     end
-    -- The followed groups' selling rules ride in the same file (Core/GroupRules.lua, retail only).
+    -- The followed groups' selling rules ride in the same file (Core/GroupRules.lua, both games).
     if GC.GroupRules then GC.GroupRules.Adopt() end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
-    -- SELL's unsold rounds for followed groups (Core/SellRounds.lua, retail only).
+    -- SELL's unsold rounds for followed groups (Core/SellRounds.lua) and the returns log they
+    -- count (Core/MailReturns.lua), both games.
     if GC.SellRounds then GC.SellRounds.Init(GC.db) end
     if GC.MailReturns then GC.MailReturns.Init(GC.db) end
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
     -- ready once the database is.
     if GC.VendorBuys then GC.VendorBuys.Install() end
+    -- WoW: Forever's merchant sales (Core/VendorSales.lua, loaded by GoldCap_Camelot.toc only).
+    if GC.VendorSales then GC.VendorSales.Install() end
     if GC.CraftCapture then
       -- Every player cast reaches recipeFor, so the answer for a spell is remembered: a
       -- recipe's reagent slots do not change, and a fireball should cost one lookup ever
@@ -997,13 +1000,21 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "OWNED_AUCTIONS_UPDATED" then
     if GC.Sell.OnOwnedAuctions then
-      GC.Sell.OnOwnedAuctions()
+      GC.Sell.OnOwnedAuctions(true)
     end
   elseif event == "AUCTION_CANCELED" then
     -- The lot the event names goes to the Sell tab FIRST: the owned-auctions list it re-reads
     -- next is a cache that still holds that lot (see GC.Sell.OnAuctionCanceled).
+    local cancelledID
     if GC.Sell.OnAuctionCanceled then
-      GC.Sell.OnAuctionCanceled((...))
+      cancelledID = GC.Sell.OnAuctionCanceled((...))
+    end
+    -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): the cancel
+    -- the server answered loses its deposit, one ledger row, whoever sent it -- GoldCap's own cancel
+    -- left a note of its lot, a cancel from Blizzard's window is read off the saved owned list.
+    if GC.ForeverDeposits and cancelledID then
+      local lot = GC.Sell.OwnedLot(cancelledID)
+      GC.ForeverDeposits.Cancelled(cancelledID, lot, lot and GC.Sell.LotForfeit(lot), GC.Ledger.Context(), time())
     end
     if GC.Sell.OnOwnedAuctions then
       GC.Sell.OnOwnedAuctions()
@@ -1094,17 +1105,22 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.VendorSellCard then GC.VendorSellCard.OnBagsChanged() end
     -- An item put into or taken out of a bank, by a press or by hand.
     if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
+    -- A sale or a buyback at a merchant moves the buyback page (WoW: Forever only).
+    if GC.VendorSales then GC.VendorSales.OnChanged(time()) end
   elseif event == "CURSOR_CHANGED" then
     if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end
   elseif event == "MERCHANT_SHOW" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantShow() end
     if GC.VendorSellCard then GC.VendorSellCard.OnMerchantShow() end
+    if GC.VendorSales then GC.VendorSales.OnShow(time()) end
   elseif event == "MERCHANT_UPDATE" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantUpdate() end
     if GC.VendorSellCard then GC.VendorSellCard.OnMerchantUpdate() end
+    if GC.VendorSales then GC.VendorSales.OnChanged(time()) end
   elseif event == "MERCHANT_CLOSED" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantClosed() end
     if GC.VendorSellCard then GC.VendorSellCard.OnMerchantClosed() end
+    if GC.VendorSales then GC.VendorSales.OnClosed(time()) end
   elseif event == "MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL" then
     if GC.VendorSellCard then GC.VendorSellCard.OnTradeTimerConfirm() end
   elseif event == "BANKFRAME_OPENED" then
@@ -1154,6 +1170,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_LOGOUT" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
     if GC.ForeverRoad then GC.ForeverRoad.OnLogout() end
+    -- What a merchant visit still open sold is booked before the save is written.
+    if GC.VendorSales then GC.VendorSales.OnClosed(time()) end
   end
 end)
 

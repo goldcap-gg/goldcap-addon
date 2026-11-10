@@ -1869,4 +1869,39 @@ GC.Locales.itIT = {
     "Un reagente venduto da un mercante riceve il suo prezzo appena apri quel mercante.",
   ["An auction house price needs at least %d listed."] =
     "Un prezzo della casa d'aste richiede almeno %d unità in vendita.",
+  ["Sell for at least %s each to break even."] =
+    "Vendi ad almeno %s l'uno per andare in pari.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Esaurito",
+  ["Sold/used?"] = "Esaurito?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Venduto a un mercante, consumato o regalato: GoldCap smette di contare queste unità come scorte. Quello che hai pagato resta nella loro cronologia.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Clicca di nuovo per non contare più queste unità come scorte. Non si può annullare.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Già abbastanza in vendita",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Continua a tornare",
+  ["Earns under %s"] = "Rende meno di %s",
+  ["Raise: next price is %d%% higher"] = "Alza: il prezzo successivo è più alto del %d%%",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "I tuoi %d già in vendita coprono circa %d h di vendite. Scrivi un numero o premi MAX per metterne di più.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] = "Circa %d si vendono in %d h in questa casa d'aste.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "Nessuno l'ha comprato qui negli ultimi %d giorni. Se ne mette in vendita 1 per provare il prezzo.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "Nessuno l'ha comprato qui nell'ultimo giorno. Se ne mette in vendita 1 per provare il prezzo.",
+  ["Sells about %s a day here"] = "Qui se ne vendono circa %s al giorno",
+  ["No sales here in %d days"] = "Nessuna vendita qui da %d giorni",
+  ["No sales here in the last day"] = "Nessuna vendita qui nell'ultimo giorno",
+  ["24 h: about %s sell a day here."] = "24 h: qui se ne vendono circa %s al giorno.",
+  ["24 h: came back unsold %d times at %d h."] = "24 h: tornato invenduto %d volte a %d h.",
+  ["Deposit %s instead of %s, returned when it sells."] =
+    "Cauzione %s invece di %s, restituita alla vendita.",
+  ["Post slow sellers for 24 h"] = "Metti in vendita per 24 h ciò che vende piano",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "Se non scegli una durata e nessun gruppo la fissa, ciò che vende meno di una volta per inserzione, o è tornato invenduto due volte, va in vendita per 24 h.",
+  ["Came back unsold %d times since its last sale."] = "Tornato invenduto %d volte dall'ultima vendita.",
+  ["Came back unsold once since its last sale."] = "Tornato invenduto una volta dall'ultima vendita.",
 }

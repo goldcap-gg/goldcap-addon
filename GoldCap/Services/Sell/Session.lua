@@ -24,7 +24,8 @@ end
 -- `automatic` marks the self-driven repeat below, which politely stands aside
 -- for anything already in flight. A press of the button does not: it means "do
 -- it now", and refusing while a phase was set is what made the button dead.
--- Whatever was in flight is let go of behind a drain tombstone, exactly the way
+-- The one exception is a press that finds a full pass already reading books: it joins that pass.
+-- Otherwise whatever was in flight is let go of behind a drain tombstone, exactly the way
 -- Reset already did it, so a late terminal event is consumed rather than
 -- credited to this run.
 -- `visit`: the auction house opening or the tab being shown, not a press (Walk.Begin).
@@ -32,10 +33,21 @@ function GC.Sell.Refresh(automatic, visit)
   if automatic and S.refresh.phase ~= "idle" and S.refresh.phase ~= "done" and S.refresh.phase ~= "error" then
     return
   end
-  -- A PRESS of Refresh is the player asking for the list to be re-ordered; the walk's own
-  -- five-second repeat (`automatic`) is not, and neither is opening the tab mid-session. This
-  -- is the one place a settled order is deliberately given up -- see rowPlaces.
-  if not automatic then S.rowPlaces = {} end
+  -- A press, or a post's refresh, while a full pass is already reading books joins that pass:
+  -- it asks for the bulk price and the listings query and leaves the walk, its place and its
+  -- count alone. Restarting it would drop the search on the wire and start over at 1/N.
+  local phase = S.refresh.phase
+  if not automatic and not visit and S.refresh.fullPass
+      and (phase == "pricing" or phase == "waiting_result" or phase == "draining") then
+    S.refresh.bulkWanted, S.refresh.ownedWanted = true, true
+    Compose.Positions()
+    View.render()
+    GC.Sell.TrySendBulk()
+    View.status(GC.L["Checking prices…"])
+    return
+  end
+  -- No refresh moves a row: a press, a post's refresh and coming back to the tab change the
+  -- numbers, and the order the list settled on stays for the visit (S.rowPlaces; Reset lets it go).
   Walk.Abandon()
   S.quoteExpiryGeneration = S.quoteExpiryGeneration + 1
   S.refresh.generation = S.refresh.generation + 1
@@ -120,6 +132,15 @@ function GC.Sell.Reset()
   S.queueDone, S.dockKey = {}, nil
   -- And the GROUPS row starts at all of it (UI/Sell/Toolbar.lua).
   S.group, S.groupName = nil, nil
+  -- The order the list settled on is this visit's: the next one sorts its rows again, while the
+  -- tab is off screen, rather than a press of REFRESH re-sorting them under the cursor.
+  S.rowPlaces = {}
+  -- A duration picked for a post is for this visit, and the deposit quotes are the client's for
+  -- the bags of this visit.
+  for key in pairs(S.durationOverrides) do S.durationOverrides[key] = nil end
+  for key in pairs(S.depositQuotes) do S.depositQuotes[key] = nil end
+  -- And this visit's posts (WoW: Forever's sale pace): the next visit's owned list holds them.
+  for key in pairs(S.pacePosted) do S.pacePosted[key] = nil end
   -- The CANCEL button's run (UI/Sell/Dock.lua) ends with the visit: its confirm was for the lots
   -- on screen then, and a press after reopening arms again.
   S.cancelRun = nil

@@ -1765,4 +1765,37 @@ GC.Locales.zhTW = {
     "商人出售的材料，在你打開該商人後就會有價格。",
   ["An auction house price needs at least %d listed."] =
     "拍賣場價格需要至少 %d 件在售。",
+  ["Sell for at least %s each to break even."] =
+    "每件至少賣 %s 才能保本。",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "已售/已用",
+  ["Sold/used?"] = "已售/已用？",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "賣給了商人、用掉了或送人了：GoldCap 不再把這些物品算作庫存。你付出的成本仍保留在它們的紀錄裡。",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "再點一次，就不再把這些物品算作庫存。此操作無法復原。",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "已上架足夠",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "反覆退回",
+  ["Earns under %s"] = "收益低於 %s",
+  ["Raise: next price is %d%% higher"] = "提價：下一個價格高 %d%%",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "已上架的 %d 件約夠 %d 小時的銷量。輸入數量或點擊最大以上架更多。",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] = "約 %d 件會在 %d 小時內於此拍賣場售出。",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "過去 %d 天內這裡無人購買。先上架 1 件試探價格。",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] = "過去一天內這裡無人購買。先上架 1 件試探價格。",
+  ["Sells about %s a day here"] = "此處每天約售出 %s 件",
+  ["No sales here in %d days"] = "此處 %d 天無銷售",
+  ["No sales here in the last day"] = "此處過去一天無銷售",
+  ["24 h: about %s sell a day here."] = "24 小時：此處每天約售出 %s 件。",
+  ["24 h: came back unsold %d times at %d h."] = "24 小時：已 %d 次未售出退回（上架 %d 小時）。",
+  ["Deposit %s instead of %s, returned when it sells."] = "押金 %s（原為 %s），售出後退還。",
+  ["Post slow sellers for 24 h"] = "滯銷物品上架 24 小時",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "未選擇時長且沒有分組規則時，每次上架賣不出一件、或已兩次未售出退回的物品將上架 24 小時。",
+  ["Came back unsold %d times since its last sale."] = "自上次售出後已 %d 次未售出退回。",
+  ["Came back unsold once since its last sale."] = "自上次售出後已 1 次未售出退回。",
 }

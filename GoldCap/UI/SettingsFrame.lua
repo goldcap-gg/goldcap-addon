@@ -263,12 +263,14 @@ end
 -- Binds a pill toggle to a boolean GC.db.settings.sniper[key]. display() and the OnClick
 -- handler both re-run box:Paint() so the knob/track repaint whether the value changed from
 -- inside this screen (a click) or from outside it (OnShow's refresh loop below).
-local function bindCheckbox(box, key)
+local function bindCheckbox(box, key, onWhenUnset)
   local cb = box.checkButton
 
   local function display()
     local c = cfg()
-    cb:SetChecked(c and c[key] and true or false)
+    local value = c and c[key]
+    if value == nil then value = onWhenUnset end
+    cb:SetChecked(value and true or false)
     box:Paint()
   end
 
@@ -591,9 +593,10 @@ local function build(sniperFrame)
   end
 
   -- Line 3 for a toggle: the shipped default rendered as on/off rather than a unit figure.
-  local function boolDefaultLine(key)
+  local function boolDefaultLine(key, onWhenUnset)
     local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
     local stored = d and d[key]
+    if stored == nil then stored = onWhenUnset end
     return GC.L["Default: %s"]:format(stored and GC.L["on"] or GC.L["off"])
   end
 
@@ -763,7 +766,7 @@ local function build(sniperFrame)
   -- CENTER+7 to its right edge.
   -- Three rows on retail: the cancel threshold (row 3, below) is retail only, like the groups
   -- whose floors it sits beside.
-  local posting = card(content, GC.L["POSTING"], isForeverClient() and 2 or 3)
+  local posting = card(content, GC.L["POSTING"], 3)
   posting:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -7)
   posting:SetPoint("LEFT", content, "CENTER", 7, 0)
   columns.right[#columns.right + 1] = posting
@@ -1026,7 +1029,7 @@ local function build(sniperFrame)
       GC.L["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."])
   end
 
-  local function toggleRow(cardFrame, i, labelText, key, sentence)
+  local function toggleRow(cardFrame, i, labelText, key, sentence, onWhenUnset)
     local box = makeToggle(cardFrame)
     box:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
 
@@ -1036,8 +1039,14 @@ local function build(sniperFrame)
     label:SetText(labelText)
     addRow(cardFrame, label, box, box:GetWidth())
 
-    refreshers[#refreshers + 1] = bindCheckbox(box, key)
-    attachExplanation({ label, box }, labelText, sentence, boolDefaultLine(key))
+    refreshers[#refreshers + 1] = bindCheckbox(box, key, onWhenUnset)
+    attachExplanation({ label, box }, labelText, sentence, boolDefaultLine(key, onWhenUnset))
+  end
+
+  -- WoW: Forever's row 3 (retail has the cancel threshold): on until the player turns it off.
+  if isForeverClient() then
+    toggleRow(posting, 3, GC.L["Post slow sellers for 24 h"], "foreverSlowSellers24h",
+      GC.L["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."], true)
   end
 
   -- The board no longer has a HOT tier -- it rings on SAFE -- so the toggle follows.

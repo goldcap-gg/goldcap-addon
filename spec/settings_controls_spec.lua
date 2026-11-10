@@ -453,7 +453,28 @@ describe("Settings controls", function()
       end)
       assert.is_nil(labels["Min. undercut to cancel (%)"])
       assert.is_nil(labels["Default price"])
-      assert.equal(24 + 2 * 26 + 6, cardByTitle(_G.GoldCapSniperFrame, "POSTING").height)
+      -- Duration, the buy cap, and the slow-seller switch.
+      assert.equal(24 + 3 * 26 + 6, cardByTitle(_G.GoldCapSniperFrame, "POSTING").height)
+      assert.is_true(labels["Post slow sellers for 24 h"])
+    end)
+
+    -- Not in GC.DEFAULTS, so an unset save shows it on (as the code reads it) until it is turned off.
+    it("the slow-seller switch is on until turned off", function()
+      assert.is_nil(GC.db.settings.sniper.foreverSlowSellers24h)
+      GC.SettingsUI.Toggle()
+      local card = cardByTitle(_G.GoldCapSniperFrame, "POSTING")
+      local toggle = toggleOf(card, "Post slow sellers for 24 h")
+      assert.is_true(toggle.checkButton:GetChecked())
+      -- Its default line, on the hover the row's label and switch share.
+      local lines = {}
+      _G.GameTooltip = setmetatable({ AddLine = function(_, text) lines[#lines + 1] = text end },
+        { __index = function() return function() end end })
+      toggle.scripts.OnEnter(toggle)
+      assert.equal("Default: on", lines[#lines])
+      toggle.checkButton.scripts.OnClick(toggle.checkButton)
+      assert.is_false(GC.db.settings.sniper.foreverSlowSellers24h)
+      toggle.checkButton.scripts.OnClick(toggle.checkButton)
+      assert.is_true(GC.db.settings.sniper.foreverSlowSellers24h)
     end)
 
     -- The note is a row of its own: three lines at the 640 minimum, and Max units per buy under
@@ -641,6 +662,8 @@ describe("Settings controls", function()
     local posting = cardByTitle(_G.GoldCapSniperFrame, "POSTING")
     -- Duration, Default price and the line under it, Buy cap, the cancel threshold.
     assert.equal(24 + 5 * 26 + 6, posting.height)
+    local labels = cardTitles(posting)
+    assert.is_nil(labels["Post slow sellers for 24 h"])
     local box = fieldOf(posting, "Min. undercut to cancel (%)")
     assert.equal("0", box.editBox:GetText())
     box.editBox:SetText("25")

@@ -40,6 +40,45 @@ describe("craft maths", function()
     assert.same({ cost = 1200, sells = 19000, profit = 17800 }, M.Profit(two, unit({ [103] = 400 }), unit({ [900] = 10000 })))
   end)
 
+  describe("Breakeven", function()
+    for _, c in ipairs({ { 1000, 1, 1053 }, { 1000, 5, 211 }, { 95, 1, 100 }, { 1001, 5, 212 }, { 1, 2, 2 } }) do
+      it(("asks %d for %d at %d a craft"):format(c[3], c[1], c[2]), function()
+        local unitPrice = M.Breakeven(c[1], c[2])
+        assert.equal(c[3], unitPrice)
+        assert.is_true(math.floor(unitPrice * 0.95) * c[2] >= c[1])
+        assert.is_true(math.floor((unitPrice - 1) * 0.95) * c[2] < c[1])
+      end)
+    end
+    it("is the least unit price that covers the cost, for every per and cost in range", function()
+      local function net(best, per) return math.floor(best * 95 / 100) * per end
+      for per = 1, 6 do
+        for cost = 1, 3000 do
+          local best = M.Breakeven(cost, per)
+          assert.is_true(net(best, per) >= cost, ("cost %d per %d unit %d"):format(cost, per, best))
+          if best > 1 then
+            assert.is_true(net(best - 1, per) < cost, ("cost %d per %d unit %d"):format(cost, per, best))
+          end
+        end
+      end
+    end)
+
+    it("answers nothing without a positive cost", function()
+      assert.is_nil(M.Breakeven(0, 1))
+      assert.is_nil(M.Breakeven(nil, 1))
+    end)
+  end)
+
+  it("keeps the reagent cost when only the crafted item has no price", function()
+    assert.same({ missing = { { itemID = 900 } }, cost = 1200, per = 1 }, M.Profit(R, unit({ [103] = 400 }), unit({})))
+    local two = { recipeID = 7, name = "Potion", per = 2, output = 900, outputs = { 900 }, slots = { SLOT } }
+    assert.equal(2, M.Profit(two, unit({ [103] = 400 }), unit({})).per)
+  end)
+
+  it("keeps no cost when a reagent has no price", function()
+    assert.is_nil(M.Profit(R, unit({}), unit({})).cost)
+    assert.is_nil(M.Profit(R, unit({}), unit({ [900] = 10000 })).cost)
+  end)
+
   it("names every reagent and the crafted item with no price, and gives no figure", function()
     local both = { recipeID = 7, name = "Potion", per = 1, output = 900, outputs = { 900 },
       slots = { SLOT, { slotIndex = 2, q = 1, currency = 3008 } } }

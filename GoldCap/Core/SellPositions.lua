@@ -2,6 +2,16 @@ local _, GC = ...
 
 GC.SellPositions = {}
 
+-- WoW: Forever: how much sale tape (GC.Data.ForeverSales) the post recommendation needs before it
+-- prices above the cheapest ask with it (decoratePosition): hours covered, and sales seen.
+GC.SellPositions.TAPE_OVERCUT_HOURS = 72
+-- WoW: Forever: a lot priced under the next price by more than this share is offered for a raise.
+GC.SellPositions.RAISE_GAP = 0.20
+GC.SellPositions.TAPE_OVERCUT_SALES = 5
+-- ...and how old its newest hour (`at`) may be before it says nothing about today's auction house:
+-- no pace and no overcut from it then.
+GC.SellPositions.TAPE_STALE_HOURS = 72
+
 local MAX_EXACT = 9007199254740991
 local QUOTE_MAX_AGE = 10
 
@@ -302,7 +312,7 @@ function GC.SellPositions.IsCommodity(position)
 end
 
 local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules,
-    defaultPrice, cancelForfeit, oneLevelPerItem)
+    defaultPrice, cancelForfeit, oneLevelPerItem, salesFor, relistDeposit)
   table.sort(position.ownedLots, stableLotOrder)
   -- The lot's kind, for every price below that lands on the auction house's grid.
   local commodity = GC.SellPositions.IsCommodity(position)
@@ -396,6 +406,15 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   position.variantKind = position.quoteKey and ((petSpecies or 0) > 0 and "pet" or levelVariant and "level" or nil)
     or nil
   local marketStats = not position.variantKind and statsByItemID and statsByItemID[position.itemID] or nil
+  -- WoW: Forever (`salesFor`, GC.Data.ForeverSales): what this item sold on the player's auction
+  -- house lately, which Core/ForeverPace.lua reads the pace from and the post recommendation below
+  -- its overcut. Per item ID, so a variant has none, as it has no market figures.
+  position.tape = not position.variantKind and salesFor and salesFor(position.itemID) or nil
+  local tapeAt = type(position.tape) == "table" and position.tape.at or nil
+  if type(tapeAt) == "number" and type(now) == "number"
+      and now - tapeAt > GC.SellPositions.TAPE_STALE_HOURS * 3600 then
+    position.tape = nil
+  end
   -- Followed groups (spec/sell_group_rules_spec.lua): the selling rule of the group the player
   -- follows that holds this item, read at this position's own item level, so a variant under the
   -- group's level gets the rule without its prices (Core/GroupRules.lua). Handed in by the caller
@@ -529,41 +548,6 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     position.recommendation = nil
   end
 
-  -- WoW: Forever (`cancelForfeit`, Services/Sell/Cancel.lua's GC.Sell.LotForfeit: what a cancel
-  -- loses, nil where the client cannot quote it). A cancel throws the lot's deposit away, and on
-  -- the owner's save (2026-11-06) the advice did it for seven copper: 7 Stringy Wolf Meat at 40c,
-  -- one 39c lot under them, "repost" and the head of the cancel queue, while those 7 units had
-  -- paid a 99c deposit. Retail stops a cancel like that with the "slow" hold and the player's own
-  -- threshold; Forever has neither (no sold figure, so no ETA, and the threshold row is retail's).
-  -- So every lot the advice would cancel (listed over the fresh quote) is weighed: worth it only
-  -- when the undercut, (listed - the relist price) x quantity, is more than what the cancel loses.
-  -- A forfeit nobody can quote is not shown to be worth it. The verdict rides on the lot for
-  -- GC.CancelQueue, and with no lot worth it the advice is hold, reason "deposit". A lot far below
-  -- its value is no undercut: the cancel queue pulls it whatever this says.
-  -- The relist price is on the lot's own grid (2026-11-06): the advice's price already is
-  -- (RecommendPost, with the kind), and the bare quote, when there is none, is rounded down onto
-  -- it the way the match price is. An item relists at whole silver on Forever too (a green at
-  -- 1s 10c never went up), so a floor of 2s 25c relists at 3s, and the undercut weighed against
-  -- the deposit is the one a relist would really make.
-  local advice = position.recommendation
-  if type(cancelForfeit) == "function" and type(advice) == "table" and advice.action == "repost" and fresh then
-    local relist = type(advice.rec) == "table" and positive(advice.rec.unit) and advice.rec.unit
-      or GC.Flips.SilverDown(fresh, commodity)
-    local weighed, worthAny = false, false
-    for _, ownedLot in ipairs(position.ownedLots) do
-      if ownedLot.unitPrice > fresh then
-        local gain = ownedLot.unitPrice > relist and valueFor(ownedLot.quantity, ownedLot.unitPrice - relist) or 0
-        local forfeit = cancelForfeit(ownedLot)
-        ownedLot.cancelForfeit = exact(forfeit) and forfeit or nil
-        ownedLot.cancelWorth = gain ~= nil and ownedLot.cancelForfeit ~= nil and gain > ownedLot.cancelForfeit
-        weighed, worthAny = true, worthAny or ownedLot.cancelWorth
-      end
-    end
-    if weighed and not worthAny then
-      position.recommendation = { action = "hold", reason = "deposit", rec = advice.rec }
-    end
-  end
-
   -- What would I list the stock in my BAGS at -- a narrower, always-the-same question than
   -- `position.recommendation` above, which sometimes answers a different one: once coverage is
   -- COMPLETE and something is already listed, `recommendation` is RepostAdvice-shaped
@@ -578,22 +562,35 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- mirrors the COMPLETE branch above exactly when coverage is COMPLETE, and is nil otherwise --
   -- the same "no cost basis, no breakeven, no belowCost warning" degradation the untracked-stock
   -- branch above already relies on.
+  -- Same re-derivation as the recommendation branches above: knownCost/knownQty, not
+  -- knownCost/exposureQty (see that comment for why).
+  local paidUnit = position.coverage == "COMPLETE"
+    and (position.knownCost and math.floor(position.knownCost / position.knownQty)) or nil
+  -- WoW: Forever (A5): RecommendPost climbs a rung above the cheapest ask only with a sales rate
+  -- and a ceiling, and Forever's market data carries neither. The sale tape gives both -- units a
+  -- day and the median sale price -- once it holds TAPE_OVERCUT_HOURS and TAPE_OVERCUT_SALES, and
+  -- only to the post's own call: the repost advice and the row's recommendation above stay as they
+  -- were. The market's own figures, where there are any, come first. Under overcut's own setting.
+  local tape = position.tape
+  local tapeSold, tapeReach
+  if overcutOn and type(tape) == "table" and type(tape.hours) == "number"
+      and tape.hours >= GC.SellPositions.TAPE_OVERCUT_HOURS and type(tape.sales) == "number"
+      and tape.sales >= GC.SellPositions.TAPE_OVERCUT_SALES and type(tape.median) == "number"
+      and tape.median > 0 then
+    tapeSold, tapeReach = tape.perDay, tape.median
+  end
+  -- spikePct travels alongside targetUnit here for the same reason it does in the
+  -- `recommendation` branch above: without it, the queue-at-exit deflation this options
+  -- table enables (opts.targetUnit + opts.levels + opts.sold) falls back to the shared
+  -- default instead of the player's own settings.sniper.spikeTrendPct, so PROFIT/UNIT and
+  -- the Post button could price the SAME bag stock differently depending on which branch
+  -- happened to compute it -- one honoring the player's setting, one silently ignoring it.
+  local postOpts = { levels = levels, sold = position.soldPerDay or tapeSold, floor = position.postFloor,
+    targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
+    trendPct = marketStats and marketStats.trend, reachUnit = reachUnit or tapeReach, quarterUnit = quarterUnit,
+    isCommodity = commodity }
   if positive(position.bagQty) then
-    -- Same re-derivation as the recommendation branches above: knownCost/knownQty, not
-    -- knownCost/exposureQty (see that comment for why).
-    local paidUnit = position.coverage == "COMPLETE"
-      and (position.knownCost and math.floor(position.knownCost / position.knownQty)) or nil
-    -- spikePct travels alongside targetUnit here for the same reason it does in the
-    -- `recommendation` branch above: without it, the queue-at-exit deflation this options
-    -- table enables (opts.targetUnit + opts.levels + opts.sold) falls back to the shared
-    -- default instead of the player's own settings.sniper.spikeTrendPct, so PROFIT/UNIT and
-    -- the Post button could price the SAME bag stock differently depending on which branch
-    -- happened to compute it -- one honoring the player's setting, one silently ignoring it.
-    position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
-      { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
-        targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
-        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit,
-        isCommodity = commodity })
+    position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue, postOpts)
   else
     position.postRecommendation = nil
   end
@@ -648,6 +645,85 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     -- Not "queue" any more: the queue-at-exit raise in BuildPostPlan keys off that mode, and a
     -- raise applied on top of a chosen price would silently undo the choice.
     position.postRecommendation.mode = "chosen"
+  end
+
+  -- WoW: Forever (`cancelForfeit`, Services/Sell/Cancel.lua's GC.Sell.LotForfeit: what a cancel
+  -- loses, nil where the client cannot quote it). A cancel throws the lot's deposit away, and on
+  -- the owner's save (2026-11-06) the advice did it for seven copper: 7 Stringy Wolf Meat at 40c,
+  -- one 39c lot under them, "repost" and the head of the cancel queue, while those 7 units had
+  -- paid a 99c deposit. Retail stops a cancel like that with the "slow" hold and the player's own
+  -- threshold; Forever has neither (no sold figure, so no ETA, and the threshold row is retail's).
+  -- So every lot the advice would cancel (listed over the fresh quote) is weighed: worth it only
+  -- when the undercut, (listed - the relist price) x quantity, is more than what the cancel loses.
+  -- A forfeit nobody can quote is not shown to be worth it. The verdict rides on the lot for
+  -- GC.CancelQueue, and with no lot worth it the advice is hold, reason "deposit". A lot far below
+  -- its value is no undercut: the cancel queue pulls it whatever this says.
+  -- The relist price is on the lot's own grid (2026-11-06): the advice's price already is
+  -- (RecommendPost, with the kind), and the bare quote, when there is none, is rounded down onto
+  -- it the way the match price is. An item relists at whole silver on Forever too (a green at
+  -- 1s 10c never went up), so a floor of 2s 25c relists at 3s, and the undercut weighed against
+  -- the deposit is the one a relist would really make. Weighed here, after the post's own price is
+  -- settled, since a relist is a post.
+  local advice = position.recommendation
+  local weighedUnit = fresh
+  if type(cancelForfeit) == "function" and type(advice) == "table" and advice.action == "repost" and fresh then
+    local relist = type(advice.rec) == "table" and positive(advice.rec.unit) and advice.rec.unit
+      or GC.Flips.SilverDown(fresh, commodity)
+    -- ...or the price POST would relist those units at, when that is higher (review of 2026-11-09,
+    -- I2): the post's own recommendation hears the sale tape and the advice does not, so a lot we
+    -- just posted one rung above a tiny cheap lot read as an undercut worth its deposit, CANCEL
+    -- offered it, and POST relisted it on the same rung, a deposit lost every round. The post's
+    -- price as the row and the plan have it (a default, a step-down, a typed price included); with
+    -- nothing left in the bags, the post's own call for the units a cancel would bring back.
+    local post = position.postRecommendation
+    if type(post) ~= "table" then post = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue, postOpts) end
+    local postUnit = type(post) == "table" and positive(post.unit) and post.unit or nil
+    if relist and postUnit and postUnit > relist then relist = postUnit end
+    if relist and relist > fresh then weighedUnit = relist end
+    local weighed, worthAny = false, false
+    for _, ownedLot in ipairs(position.ownedLots) do
+      if ownedLot.unitPrice > fresh then
+        local gain = ownedLot.unitPrice > relist and valueFor(ownedLot.quantity, ownedLot.unitPrice - relist) or 0
+        local forfeit = cancelForfeit(ownedLot)
+        ownedLot.cancelForfeit = exact(forfeit) and forfeit or nil
+        ownedLot.cancelWorth = gain ~= nil and ownedLot.cancelForfeit ~= nil and gain > ownedLot.cancelForfeit
+        weighed, worthAny = true, worthAny or ownedLot.cancelWorth
+      end
+    end
+    if weighed and not worthAny then
+      position.recommendation = { action = "hold", reason = "deposit", rec = advice.rec }
+    end
+  end
+
+  -- WoW: Forever (same cancelForfeit): the two cancels that do not come from the repost advice.
+  -- An urgent one (a lot far under its value) is pulled whatever the advice says, but only when
+  -- the gain, what the lot would sell for at the next price less its own, beats what the cancel
+  -- loses; a forfeit nobody can quote leaves it urgent. A raise is a lot a fifth or more under the
+  -- next price (RAISE_GAP) yet within it: offered when the 95% net of the step up beats the
+  -- forfeit plus the deposit the relist puts up, both quoted (Sell.RelistDeposit). Never both. The
+  -- urgent weighing uses the price the weighing above does, `weighedUnit`; a raise follows the
+  -- market alone (`fresh`, on the grid the relist sits at): a typed or default post price is the
+  -- player's own ask, no reason to cancel.
+  if type(cancelForfeit) == "function" and fresh then
+    local top = GC.Flips.SilverDown(weighedUnit, commodity)
+    local raiseTop = GC.Flips.SilverDown(fresh, commodity)
+    for _, ownedLot in ipairs(position.ownedLots) do
+      local urgent = position.underpricedUnit ~= nil and ownedLot.unitPrice == position.underpricedUnit
+      if urgent then
+        local gain = top and top > ownedLot.unitPrice and valueFor(ownedLot.quantity, top - ownedLot.unitPrice) or 0
+        local forfeit = cancelForfeit(ownedLot)
+        if exact(forfeit) and gain <= forfeit then ownedLot.urgentWorth = false end
+      elseif raiseTop and ownedLot.unitPrice < fresh
+          and fresh * 100 >= ownedLot.unitPrice * (100 + math.floor(GC.SellPositions.RAISE_GAP * 100 + 0.5)) and raiseTop > ownedLot.unitPrice then
+        local win = math.floor((raiseTop - ownedLot.unitPrice) * ownedLot.quantity * 0.95)
+        local forfeit = cancelForfeit(ownedLot)
+        local deposit = type(relistDeposit) == "function" and relistDeposit(ownedLot) or nil
+        if exact(forfeit) and exact(deposit) and win > forfeit + deposit then
+          ownedLot.raisePct = math.floor((raiseTop - ownedLot.unitPrice) * 100 / ownedLot.unitPrice)
+          position.facts.raise = true
+        end
+      end
+    end
   end
 
   -- Projected income and profit, computed HERE -- after the recommendations -- so the row's
@@ -1029,7 +1105,8 @@ function GC.SellPositions.Build(args)
     if not onlyIdleVendorLots(position) then
       decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
         args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules, args.defaultPrice, args.cancelForfeit,
-        args.oneLevelPerItem == true)
+        args.oneLevelPerItem == true, type(args.salesFor) == "function" and args.salesFor or nil,
+        type(args.relistDeposit) == "function" and args.relistDeposit or nil)
       result[#result + 1] = position
     end
   end
@@ -1082,6 +1159,57 @@ function GC.SellPositions.Margin(unit, paidUnit)
   return math.floor(over / paidUnit + 0.5), over < 0
 end
 
+-- The typed quantity that means every unit in the bags (MAX; stored only on WoW: Forever).
+GC.SellPositions.ALL = "all"
+
+local function listedIn(lots, unit)
+  local units = 0
+  for _, lot in ipairs(type(lots) == "table" and lots or {}) do
+    if type(lot) == "table" and exact(lot.quantity)
+        and (unit == nil or (exact(lot.unitPrice) and lot.unitPrice <= unit)) then
+      units = units + lot.quantity
+    end
+  end
+  return units
+end
+
+-- The units of this position already up at a unit price at or under `unit` (they sell first):
+-- its owned lots, and the posts of this visit the owned list has not caught up with yet
+-- (`paceRecent`, WoW: Forever). Every lot when `unit` is nil.
+function GC.SellPositions.ListedAtOrBelow(position, unit)
+  if type(position) ~= "table" then return 0 end
+  return listedIn(position.ownedLots, unit) + listedIn(position.paceRecent, unit)
+end
+
+-- How many units one post of this position lists, and why: the one rule the post plan
+-- (BuildPostPlan), the panel (GC.SellUtil.postQuantity) and the queue (Core/PostQueue.lua) read.
+-- `typed` is the player's number (ALL for every unit), `most` what one click can list, `unit` the
+-- price and `durationIndex` the duration (1 to 3) the post goes up at. A typed number wins, then a
+-- followed group's "1 at a time", then WoW: Forever's sale pace (`paceTargets`, the units that sell
+-- within each duration, set only by Core/ForeverPace.lua) less what is already up at or under the
+-- price, then everything. `why`: "all" | "typed" | "rule" | "pace" | "enough" | "most"; 0 with
+-- "enough" when what is up covers the pace. With "pace", a third value `covered`: whether this
+-- post lists all the pace still wants. One stack of an item can be less (three single pieces,
+-- four sell in 8 h), and then the next post lists the next stack.
+function GC.SellPositions.PostQuantity(position, typed, most, unit, durationIndex)
+  if typed == GC.SellPositions.ALL then return most, "all" end
+  if exact(typed) and typed > 0 then
+    if typed < most then return typed, "typed" end
+    return most, "all"
+  end
+  -- The rule holds whatever is in the bags: with one unit left, its "1 at a time" is still one, not
+  -- the pace's hold (the quantity is the same as before where the rule is at or over `most`).
+  local rule = position.rulePostQty
+  if exact(rule) and rule > 0 then return math.min(rule, most), "rule" end
+  local target = type(position.paceTargets) == "table" and durationIndex and position.paceTargets[durationIndex]
+  if exact(target) and target > 0 then
+    local left = target - GC.SellPositions.ListedAtOrBelow(position, unit)
+    if left <= 0 then return 0, "enough" end
+    return math.min(left, most), "pace", left <= most
+  end
+  return most, "most"
+end
+
 -- What Post will actually list, priced at the fresh quote.
 --
 -- This used to refuse anything GoldCap could not fully cost: a position needed a tracked
@@ -1091,10 +1219,13 @@ end
 -- anyway. Not knowing what something cost is a reason to report the profit as unknown, not a
 -- reason to refuse to sell it. Cost coverage is now reported (`costKnown`) instead of enforced.
 --
--- The quantity is the bag quantity, full stop. Listed units are on the auction house and not in
--- the bags, so "what is in the bags" is already exactly "what is not yet listed" -- the old
+-- The most it lists is the bag quantity, full stop. Listed units are on the auction house and not
+-- in the bags, so "what is in the bags" is already exactly "what is not yet listed" -- the old
 -- min(trackedQty - listedQty, bags) capped a real 200-unit stack at the 5 units GoldCap happened
--- to have a receipt for.
+-- to have a receipt for. How many of those it lists is PostQuantity's (above), decided once the
+-- price is (the price never reads it): `opts.overrideQuantity` is the player's number,
+-- `opts.durationIndex` the duration the post goes up at. Nothing to list because enough is
+-- already up returns nil, "enough_listed" and the units up at or under the price.
 function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
@@ -1115,16 +1246,8 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
       and bagState.positionKey ~= position.positionKey then
     return nil, "ambiguous_variant"
   end
-  local quantity = bagState.exactQty
-  if quantity <= 0 then return nil, "no_unlisted_quantity" end
-  -- Fewer when the seller asked for fewer (the Sell tab's "how many"), never more than is here.
-  if positive(opts and opts.overrideQuantity) then
-    if opts.overrideQuantity < quantity then quantity = opts.overrideQuantity end
-  elseif positive(position.rulePostQty) and position.rulePostQty < quantity then
-    -- A followed group's "1 at a time" ("one at a time" in spec/sell_group_rules_spec.lua): the
-    -- default when the seller typed no quantity of their own.
-    quantity = position.rulePostQty
-  end
+  local most = bagState.exactQty
+  if most <= 0 then return nil, "no_unlisted_quantity" end
   -- A price the seller typed replaces the derived one outright -- both raises below included.
   -- Those raises exist to stop the ADDON from underpricing on its own, against a thin cheap
   -- lot it cannot tell from a real market; they were never meant as a veto on a seller who
@@ -1201,13 +1324,20 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
     end
   end
   unit = graded
+  -- Fewer when the seller asked for fewer (the Sell tab's "how many"), a followed group's "1 at a
+  -- time" ("one at a time" in spec/sell_group_rules_spec.lua) or the sale pace says so, never more
+  -- than is here.
+  local quantity, quantityWhy, paceCovered = GC.SellPositions.PostQuantity(position, opts and opts.overrideQuantity,
+    most, unit, opts and opts.durationIndex)
+  if quantity <= 0 then return nil, "enough_listed", GC.SellPositions.ListedAtOrBelow(position, unit) end
   local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty or 0, quantity)
   local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
   -- Measured AFTER SilverUp, against the final number this plan will actually list at -- the
   -- caller's warning has to describe the price that gets sent, not the one before rounding.
   local risk = GC.SellPositions.PriceRisk(position, unit)
   return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,
-    quantity = quantity, cost = complete and allocation.knownCost or nil, costKnown = complete,
+    quantity = quantity, quantityWhy = quantityWhy, paceCovered = paceCovered == true,
+    cost = complete and allocation.knownCost or nil, costKnown = complete,
     allocations = allocation and allocation.allocations or {}, unitPrice = unit,
     chosen = chosen ~= nil, belowFloor = risk.belowFloor, belowCost = risk.belowCost }
 end

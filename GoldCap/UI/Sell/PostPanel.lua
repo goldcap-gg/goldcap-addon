@@ -108,8 +108,11 @@ end
 
 -- The price: empty hands the decision back to GoldCap, which is a real answer. Half-typed text
 -- ("39." between two keystrokes) keeps the last price that read as one. A Confirm waiting on the
--- old price is let go: it would send the price it was armed with, not the one now on screen.
-local function applyPrice(box, key)
+-- old price is let go: it would send the price it was armed with, not the one now on screen. The
+-- queue is built again once the price is settled, as for how many (setQuantity): on WoW: Forever
+-- how many a post lists depends on the price, the units already up at or under it counting
+-- against the sale pace, and the queue reads the price live (GC.Sell._QueueOpts).
+local function applyPrice(box, key, settled)
   local copper
   if not (box:GetText() or ""):match("^%s*$") then
     copper = priceBoxCopper(box)
@@ -117,6 +120,7 @@ local function applyPrice(box, key)
   end
   if S.priceOverrides[key] ~= copper then Post.WalkAway() end
   S.priceOverrides[key] = copper
+  if settled and not S.postingRow then GC.SellCompose.Queue() end
   UI.List.RenderRows()
 end
 
@@ -130,9 +134,18 @@ end
 -- How many: empty, nought or the most there is all mean "all of it", which is no entry. The
 -- queue is built again only once the number is settled, and not while a post is out: that post
 -- carries the number it was pinned with, and the dock's CONFIRM follows the item it pinned.
+-- On WoW: Forever "all of it" is an entry of its own (GC.SellPositions.ALL): without one the sale
+-- pace picks the number, so MAX has to say "all" and clearing the box says "the pace's".
 local function setQuantity(key, n, settled)
   local _, most = postQuantity(PostPanel.position)
-  local chosen = (n and n > 0 and n < most) and n or nil
+  local chosen
+  if n == GC.SellPositions.ALL then
+    chosen = n
+  elseif n and n > 0 and n < most then
+    chosen = n
+  elseif n and n >= most and most > 0 and GC.Sell.OnForever() then
+    chosen = GC.SellPositions.ALL
+  end
   -- As the price's: a Confirm armed with another number is let go.
   if S.quantityOverrides[key] ~= chosen then Post.WalkAway() end
   S.quantityOverrides[key] = chosen
@@ -197,6 +210,8 @@ local function fitItem(c)
       h = h + 2 + (under:GetStringHeight() or 0)
     end
   end
+  -- WoW: Forever's duration row and pace lines, under the stock line.
+  if PostPanel.Forever then h = h + PostPanel.Forever.Height(c) end
   h = math.ceil(h)
   local height = math.max(DOCK.H, h + 2 * DOCK.PAD)
   local mid = height / 2 + strip
@@ -315,7 +330,7 @@ function PostPanel.Build()
     local key = PostPanel.key
     if not key then return end
     letGo(c.qtyBox)
-    setQuantity(key, nil, true)
+    setQuantity(key, GC.Sell.OnForever() and GC.SellPositions.ALL or nil, true)
   end)
   -- How many there are is the stock line's "×246 in bags"; MAX sets all of them.
   c.qtyBoxBg, c.qtyBox = well(c, DOCK.QTY_W)
@@ -355,6 +370,7 @@ function PostPanel.Build()
   c.groupRule:SetHeight(1)
   c.groupProgress:Hide(); c.groupBar:Hide(); c.groupBarFill:Hide(); c.groupRule:Hide()
   PostPanel.Layout()
+  if PostPanel.Forever then PostPanel.Forever.Build(c) end
 end
 
 -- Re-run on every resize: under DOCK.WIDE the row drops YOU GET and the price moves up against
@@ -376,6 +392,7 @@ local ITEM_WIDGETS = { "dockIcon", "dockSub", "qtyHead", "qtyBoxBg", "qtyMax", "
 
 local function hideItem(c)
   for _, name in ipairs(ITEM_WIDGETS) do c[name]:Hide() end
+  if PostPanel.Forever then PostPanel.Forever.Hide(c) end
 end
 
 -- The icon the row shows for the item.
@@ -454,7 +471,7 @@ function PostPanel.Paint(row, nextRow, hint)
   -- How many POST lists, and in WoW: Forever the deposit that puts up (2026-11-06): on cheap
   -- stock it is a large share of the sale (99c on seven Stringy Wolf Meat posted at 35c, the
   -- owner's save), and nothing on the tab named it. Retail's line is left as it was.
-  local qty, most, typed = postQuantity(p)
+  local qty, most, typed, why = postQuantity(p)
   local deposit = GC.Sell.OnForever() and GC.SellBags and GC.SellBags.Deposit(p, qty) or nil
   local depositNote = deposit and (GC.L["deposit %s"]):format(formatCell(deposit)) or nil
   if loss then
@@ -477,7 +494,9 @@ function PostPanel.Paint(row, nextRow, hint)
   placeNews(c, true)
 
   -- How many, only when there is more than one to choose from.
-  if most > 1 then
+  -- A one-stack item held "enough" needs them too (MAX is the only way to post a second copy),
+  -- and keeps them once MAX is pressed.
+  if most > 1 or (GC.Sell.OnForever() and (why == "enough" or why == "all")) then
     stamp(c.qtyBox, key, tostring(qty))
     c.qtyHead:SetText(GC.L["HOW MANY"])
     setColor(c.qtyHead, typed and Theme.color.gold or Theme.color.fgDim)
@@ -486,7 +505,9 @@ function PostPanel.Paint(row, nextRow, hint)
     else c.qtyBoxBg.ring:SetVertexColor(ringEdge[1], ringEdge[2], ringEdge[3], ringEdge[4]) end
     c.qtyMax:SetLabel(GC.L["MAX"])
     -- Lit while it is all of it: a switch with a position. SetVariant before Show, as the kit asks.
-    if c.qtyMax.SetVariant then c.qtyMax:SetVariant(typed and "ghost" or "active") end
+    local lit = not typed
+    if GC.Sell.OnForever() then lit = qty >= most end -- not "no entry": the pace may post fewer
+    if c.qtyMax.SetVariant then c.qtyMax:SetVariant(lit and "active" or "ghost") end
     c.qtyHead:Show(); c.qtyBoxBg:Show(); c.qtyMax:Show()
   else
     letGo(c.qtyBox)
@@ -522,5 +543,6 @@ function PostPanel.Paint(row, nextRow, hint)
     and (out.postStage == "posting" or out.postStage == "confirming")
   c.skipButton:Show()
   if sending then c.skipButton:Disable() else c.skipButton:Enable() end
+  if PostPanel.Forever then PostPanel.Forever.Paint(c, p, key, qty, most, why) end
   fitItem(c)
 end

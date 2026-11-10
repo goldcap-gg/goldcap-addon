@@ -36,7 +36,8 @@ describe("row button labels fit the button", function()
   -- `budget` is the character budget Korean and Chinese keep (7.8px a character at 1.3).
   local ROW_BUTTONS = {
     { what = "the 86px Sell action button", width = 86, room = 86, budget = 11,
-      keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?", "Confirm", "Pricing…" } },
+      keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?", "Confirm", "Pricing…",
+        "Sold/used", "Sold/used?" } },
     { what = "the 64px Deals buy button", width = 64, room = 64, budget = 8, keys = { "Buy", "Check", "Avoid" } },
     { what = "the 86px Sell action button beside its spinner", width = 86, room = 86 - 15, busy = true,
       budget = 9, keys = { "Posting…" } },
@@ -198,6 +199,10 @@ describe("row button labels fit the button", function()
     -- read "Ниже це..." in the 80px column.
     { what = "the WoW: Forever verdict cell", budget = 12,
       keys = { "Below vendor", "Under market" } },
+    -- WoW: Forever's duration buttons (UI/SellPace_Camelot.lua) are fitted to the widest of the
+    -- three by the client; this pins that the hour label stays short, so the row of three and its
+    -- head still fit the item column: "24 Std." is 7 wide.
+    { what = "the Forever duration buttons", budget = 7, keys = { "%d h" } },
   }
 
   for _, code in ipairs(helper.localeCodes()) do

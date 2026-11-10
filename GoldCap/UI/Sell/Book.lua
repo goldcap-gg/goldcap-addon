@@ -409,7 +409,9 @@ function Book.Paint(row, p, d)
   -- about the post price: one count on the panel, not two (review N2).
   local marker = book and book.commodity and book.yourUnit
   if d and type(d.ahead) == "number" and not marker then facts[#facts + 1] = (GC.L["%d ahead of you"]):format(d.ahead) end
-  if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
+  if d and d.sold ~= nil then
+    facts[#facts + 1] = (GC.L["sells %s/day"]):format(type(d.sold) == "number" and GC.Util.PerDay(d.sold) or d.sold)
+  end
   -- In hours under a day: rounded to whole days, anything that sells through by this
   -- evening read "clears in ~0d". A commodity priced in THE BOOK clears on the book's own pace
   -- -- the queue ahead of it, then its own units, the same figure "~Xh to reach you" is the first

@@ -129,7 +129,7 @@ end
 -- an item you can list right now below thirty rows of finished business.
 --
 -- Rank, then value within rank:
---   0  in your bags AND priced -- one click from being listed
+--   0  in your bags AND priced, any price on screen (a quote too old to post on still ranks by its value)
 --   1  in your bags, price not in yet
 --   2  everything else, in the order Build produced it
 --
@@ -138,7 +138,7 @@ end
 -- rows a player is not acting on costs them their place on the screen.
 local function rankOf(position)
   local inBags = type(position.bagQty) == "number" and position.bagQty > 0
-  if inBags then return position.freshMarketUnit and 0 or 1 end
+  if inBags then return (position.freshMarketUnit or position.displayMarketUnit) and 0 or 1 end
   -- Listed rows above stockless ghosts: a position with nothing in the bags AND nothing
   -- listed is pure bookkeeping -- its stock is in the mail, the bank, or on another
   -- character -- and sitting between live listings it read as a broken row.
@@ -184,9 +184,9 @@ end
 -- NUMBERS on a row, never where the row is.
 --
 -- `places` is the caller's memory, mutated here: a position keeps the place it was given until
--- the caller throws the table away, which it does only when the player asks for a new order
--- (Refresh, a deck change, a chip). Anything the caller has never seen is appended in Order's
--- own sequence, so a stack that appears mid-session lands at the bottom rather than shouldering
+-- the caller throws the table away, which it does only when the player changes the list (a deck,
+-- a chip, a group) or the auction house closes. Anything the caller has never seen is appended in
+-- Order's own sequence, so a stack that appears mid-session lands at the bottom rather than shouldering
 -- into the middle of a list somebody is working down.
 function GC.SellViewModel.Settle(positions, places)
   if type(places) ~= "table" then return positions or {} end

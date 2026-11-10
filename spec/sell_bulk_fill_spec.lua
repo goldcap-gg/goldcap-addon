@@ -220,6 +220,14 @@ describe("Sell bulk price fill", function()
       assert.is_nil(quotes[42].bulk)
     end)
 
+    it("keeps the book of a real quote that can still back a post", function()
+      local book = { { unitPrice = 29, quantity = 625 } }
+      local quotes = folded({ { itemKey = { itemID = 42 }, minPrice = 25 } },
+        { [42] = { unit = 29, at = 69, levels = book } }) -- the walk's answer, 31 s old
+      assert.equal(book, quotes[42].levels)
+      assert.is_nil(quotes[42].bulk)
+    end)
+
     it("never backs a post: freshQuote refuses a bulk price and still takes a real one", function()
       local quotes, GC = folded({ { itemKey = { itemID = 42 }, minPrice = 1200 } },
         { [43] = { unit = 1500, at = 95 } })

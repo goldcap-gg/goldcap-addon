@@ -1,6 +1,8 @@
 -- How many times an item came back unsold since its last sale: the "rounds" a followed flip
--- group's rule posts it a little cheaper for (Core/SellPositions.lua's step-down). Retail only:
--- GoldCap_Camelot.toc does not load this file, so every caller asks `if GC.SellRounds`.
+-- group's rule posts it a little cheaper for (Core/SellPositions.lua's step-down). Both games load
+-- this file; every caller still asks `if GC.SellRounds`, so a build without it composes as before.
+-- On WoW: Forever the returns it counts depend on mail subjects not yet verified there (see
+-- Core/MailReturns.lua): no return logged, no round counted.
 --
 -- A round is a lot that came back EXPIRED, read from the returns log (GC.MailReturns, entries
 -- `{ itemID, count, reason = "expired" | "cancelled", at }`, `at` in wall clock seconds). The

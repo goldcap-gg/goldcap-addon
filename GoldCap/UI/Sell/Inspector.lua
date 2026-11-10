@@ -298,6 +298,8 @@ function Inspector.Decorate(row)
       -- A Confirm armed with the old price is let go: it would send that one (review).
       if S.priceOverrides[key] ~= price then Post.WalkAway() end
       S.priceOverrides[key] = price
+      -- The queue built again, as for a price typed in the dock (UI/Sell/PostPanel.lua's applyPrice).
+      if not S.postingRow then GC.SellCompose.Queue() end
       UI.List.RenderRows()
     end)
     chip:Hide()

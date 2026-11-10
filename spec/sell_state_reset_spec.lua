@@ -47,6 +47,8 @@ describe("GC.Sell.Reset", function()
     -- The CANCEL button's run (Core/CancelRun.lua): a confirm given on the last visit is not one
     -- for the next, so a press after reopening arms again.
     S.cancelRun = { stage = "running", ids = { [77] = true }, armedAt = 1, lastPressAt = 1 }
+    -- The order the list settled on: no refresh moves a row, so the next visit sorts again here.
+    S.rowPlaces["commodity:1"] = 3
 
     GC.Sell.Reset()
 
@@ -81,6 +83,7 @@ describe("GC.Sell.Reset", function()
     assert.is_nil(reposting.repostStage)
     assert.is_nil(removing.removeStage)
     assert.is_nil(S.cancelRun)
+    assert.same({}, S.rowPlaces)
   end)
 
   it("keeps what outlives a visit: drain tombstones, positions, typed prices, the deck, cancelled lots", function()
@@ -90,7 +93,6 @@ describe("GC.Sell.Reset", function()
     S.positions, S.ownedLots, S.bagStock = positions, ownedLots, bagStock
     S.priceOverrides["commodity:1"] = 500
     S.filterMode = "listed"
-    S.rowPlaces["commodity:1"] = 3
     S.queueEntries = { { positionKey = "commodity:1" } }
     GC.Sell.cancelledLots[7] = { at = 1 }
 
@@ -105,7 +107,6 @@ describe("GC.Sell.Reset", function()
     assert.equal(bagStock, S.bagStock)
     assert.equal(500, S.priceOverrides["commodity:1"])
     assert.equal("listed", S.filterMode)
-    assert.equal(3, S.rowPlaces["commodity:1"])
     assert.equal("commodity:1", S.queueEntries[1].positionKey)
     assert.is_table(GC.Sell.cancelledLots[7])
   end)

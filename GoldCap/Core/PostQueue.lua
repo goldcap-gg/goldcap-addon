@@ -90,12 +90,18 @@ end
 --      cut a vendor pays at least as much for it. "Post everything worth more than a vendor
 --      pays" is this queue's whole design there, so such a position is held back and says why.
 --      Retail passes no opts at all, so this branch never runs there.
+--   enough_listed -- WoW: Forever only (opts.durationFor, opts.unitFor): the sale pace is already
+--      covered by the units up at or under the price (GC.SellPositions.PostQuantity), so this post
+--      would list none. Decided where the quantity is, before the deposit below weighs it.
 --   5. below_deposit -- WoW: Forever only too (opts.depositFor, 2026-11-06): what one click
 --      lists, after the 5% cut and less what a vendor pays for the same units, is no more than
 --      the deposit the post puts up. The deposit comes back only if the lot sells, so posting
 --      is a bet that wins less than it stakes, the tooltip's "deposit outweighs the gain" verdict
 --      (Core/ForeverValue.lua's Verdict) for a whole post. A deposit the client cannot quote
 --      holds nothing, as a missing vendor price holds nothing above.
+--      keeps_returning and low_profit -- WoW: Forever only too (opts.returnHold, opts.minimumProfit):
+--      the item came back unsold that many rounds in a row, or the post would earn under the
+--      minimum after the cut, the vendor and the deposit.
 --
 -- Returns reason, unit, value -- unit/value are only meaningful when reason is nil.
 local function evaluate(position, opts)
@@ -131,6 +137,12 @@ local function evaluate(position, opts)
   if type(vendorUnit) == "number" and vendorUnit > 0 and math.floor(unit * 0.95) <= vendorUnit then
     return "below_vendor"
   end
+  -- WoW: Forever only (opts.returnHold, GC.ForeverPace.RETURN_HOLD): the item came back unsold
+  -- that many rounds in a row, so another post is held. A followed group's rule decides its own.
+  if positive(opts and opts.returnHold) and not position.rule
+      and (position.returnRounds or 0) >= opts.returnHold then
+    return "keeps_returning"
+  end
   -- Ranked on what one click actually LISTS, not on what is in the bags. A normal item posts a
   -- single stack (PostItem pins one ItemLocation -- see GC.BagStock.PostableQuantity and
   -- `postableQty` in SellPositions), so five stacks of twenty used to sort this queue as if a
@@ -138,14 +150,17 @@ local function evaluate(position, opts)
   -- whole bag pool is one postable quantity. Falls back to bagQty when nothing set the field,
   -- which is exactly the old behaviour.
   local postable = positive(position.postableQty) and position.postableQty or position.bagQty
-  -- ...and on fewer, when the seller asked one Post for fewer (the Sell tab's "how many").
-  local chosen = opts and opts.quantities and opts.quantities[position.positionKey]
-  if positive(chosen) then
-    if chosen < postable then postable = chosen end
-  elseif positive(position.rulePostQty) and position.rulePostQty < postable then
-    -- A followed group's "1 at a time" ("POST takes one at a time"), when nothing is typed.
-    postable = position.rulePostQty
-  end
+  -- ...and on fewer by the one quantity rule the post plan and the panel read
+  -- (GC.SellPositions.PostQuantity): the seller's own number (the Sell tab's "how many"), a
+  -- followed group's "1 at a time" ("POST takes one at a time"), or on WoW: Forever the sale pace
+  -- at the duration and the price the post goes up at (opts.durationFor and opts.unitFor, passed
+  -- there alone; the price live, a number the player typed since the last compose included, so
+  -- the queue counts the same own lots as already up as the click does). Nothing to list because
+  -- enough is already up holds the item as enough_listed.
+  local quantityUnit = opts and opts.unitFor and opts.unitFor(position) or unit
+  postable = GC.SellPositions.PostQuantity(position, opts and opts.quantities and opts.quantities[position.positionKey],
+    postable, quantityUnit, opts and opts.durationFor and opts.durationFor(position))
+  if postable <= 0 then return "enough_listed" end
   local value = mulExact(unit, postable)
   if not value then
     return "unresolved_identity"
@@ -158,6 +173,12 @@ local function evaluate(position, opts)
     local vendorTotal = positive(vendorUnit) and mulExact(vendorUnit, postable) or 0
     if vendorTotal and value - math.ceil(value / 20) - vendorTotal <= deposit then
       return "below_deposit"
+    end
+    -- WoW: Forever only (opts.minimumProfit): what is left after the cut, the vendor and the
+    -- deposit is under the least the player thinks a post worth.
+    if positive(opts.minimumProfit) and vendorTotal
+        and value - math.ceil(value / 20) - vendorTotal - deposit < opts.minimumProfit then
+      return "low_profit"
     end
   end
   return nil, unit, value, postable
@@ -223,7 +244,9 @@ end
 -- Post, so its row still says what is wrong with it; the dock reads the count.
 -- `opts.vendorUnit` is WoW: Forever's (`function(itemID) ...`), read by `evaluate`'s
 -- `below_vendor` case above, and so is `opts.depositFor` (`function(position, quantity)`, the
--- deposit for posting that many, or nil), read by `below_deposit`.
+-- deposit for posting that many, or nil), read by `below_deposit`, and `opts.durationFor` and
+-- `opts.unitFor` (`function(position)`, the duration index and the unit price the post goes up
+-- at), read by the quantity rule.
 -- `opts.group`, when set, is the group the Sell tab's GROUPS row picked, and `opts.inGroup(key)`
 -- answers whether a position is in it: one that is not is in none of the three lists, as its row
 -- is not on screen, and one that is sells unless the player unmarked it (Selling's `grouped`).

@@ -665,6 +665,15 @@ local function paintCard(f)
   else
     card.missing:Hide()
     y = y + paintCells(card, result, inner, y)
+    local note = P.CardNote and P.CardNote(result, recipe) or nil
+    if note then
+      card.missing:SetWidth(inner)
+      setText(card.missing, note)
+      card.missing:ClearAllPoints()
+      card.missing:SetPoint("TOPLEFT", card, "TOPLEFT", LAYOUT.CARD_PAD, -(y + LAYOUT.LINE_GAP))
+      card.missing:Show()
+      y = y + LAYOUT.LINE_GAP + heightOf(card.missing, 14)
+    end
   end
   if queueable then
     y = y + LAYOUT.BLOCK_GAP

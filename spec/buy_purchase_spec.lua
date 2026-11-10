@@ -2065,6 +2065,91 @@ describe("BUY purchase", function()
       assert.equal(11, GC.Buy._attempt.lot.auctionID)
     end)
 
+    -- Gear with random suffixes on WoW: Forever: its lots are filed under one key per suffix, and
+    -- the bare key answers none of them (probe 08.11). The read goes on by the item's name
+    -- (GC.Sniper's browse, faked here), then the cheapest variant's own key.
+    describe("on WoW: Forever, gear with random suffixes", function()
+      local EAGLE = { itemID = 201, itemLevel = 20, itemSuffix = 14300, battlePetSpeciesID = 0 }
+      local BEAR = { itemID = 201, itemLevel = 20, itemSuffix = 14301, battlePetSpeciesID = 0 }
+      local named, browsed, answer
+      before_each(function()
+        helper.loadModule("UI/BuyFrame_Camelot.lua", GC)
+        local make = _G.C_AuctionHouse.MakeItemKey
+        _G.C_AuctionHouse.MakeItemKey = function(itemID, level, suffix, species)
+          return make(itemID, level or 20, suffix, species)
+        end
+        LOTS = {
+          { auctionID = 21, buyoutAmount = 700, quantity = 1, containsOwnerItem = false, itemKey = EAGLE },
+          { auctionID = 22, buyoutAmount = 500, quantity = 1, containsOwnerItem = false, itemKey = BEAR },
+        }
+        named, browsed, answer = nil, {}, "sent"
+        GC.Sniper._NamingBusy = function() return false end
+        GC.Sniper._NamedFresh = function() return named ~= nil end
+        GC.Sniper._NamedEntry = function() return named and named.entry end
+        GC.Sniper._SendNaming = function(id) browsed[#browsed + 1] = id return answer end
+      end)
+      after_each(function()
+        GC.Sniper._NamingBusy, GC.Sniper._NamedFresh, GC.Sniper._NamedEntry, GC.Sniper._SendNaming = nil, nil, nil, nil
+      end)
+
+      it("browses the item's name when its key answers no lots, then arms the cheapest variant", function()
+        pick(rowWithText("Dark Leather Boots"))
+        GC.Buy.OnItemResults(AT20)
+        assert.same({ 201 }, browsed)
+        assert.equal("quoting", GC.Buy._attempt.stage)
+        local before = #sent
+        GC.Buy.Tick()
+        assert.equal(before, #sent, "nothing is searched while the browse is out")
+        named = { entry = { itemID = 201, variants = {
+          { itemLevel = 20, itemSuffix = 14300, battlePetSpeciesID = 0, floor = 700 },
+          { itemLevel = 20, itemSuffix = 14301, battlePetSpeciesID = 0, floor = 500 },
+        } } }
+        GC.Buy.Tick()
+        assert.same(BEAR, sent[#sent].key)
+        GC.Buy.OnItemResults(BEAR)
+        assert.equal("quoted", GC.Buy._attempt.stage)
+        assert.equal(22, GC.Buy._attempt.lot.auctionID)
+      end)
+
+      it("says no lots when the browse names none of the item's", function()
+        pick(rowWithText("Dark Leather Boots"))
+        GC.Buy.OnItemResults(AT20)
+        named = { entry = nil }
+        local before = #sent
+        GC.Buy.Tick()
+        assert.equal(before, #sent)
+        assert.equal("quoted", GC.Buy._attempt.stage)
+        assert.is_nil(GC.Buy._attempt.lot)
+        assert.same({}, GC.Buy._attempt.lotList)
+      end)
+
+      it("goes on with the key's own answer when no browse can go", function()
+        answer = nil -- no name the client knows, or the player's own search holds the list
+        pick(rowWithText("Dark Leather Boots"))
+        GC.Buy.OnItemResults(AT20)
+        assert.equal("quoted", GC.Buy._attempt.stage)
+        assert.is_nil(GC.Buy._attempt.byName)
+      end)
+
+      it("asks nothing by name for a key that answered lots", function()
+        LOTS[#LOTS + 1] = { auctionID = 23, buyoutAmount = 600, quantity = 1, containsOwnerItem = false, itemKey = AT20 }
+        pick(rowWithText("Dark Leather Boots"))
+        GC.Buy.OnItemResults(AT20)
+        assert.same({}, browsed)
+      end)
+    end)
+
+    it("on retail browses nothing by name for gear whose sell search found no lots", function()
+      LOTS = {}
+      local browsedHere = 0
+      GC.Sniper._SendNaming = function() browsedHere = browsedHere + 1 return "sent" end
+      pick(rowWithText("Dark Leather Boots"))
+      GC.Buy.OnItemResults(BARE)
+      GC.Sniper._SendNaming = nil
+      assert.equal(0, browsedHere)
+      assert.equal("quoted", GC.Buy._attempt.stage)
+    end)
+
     it("then searches the cheapest lot's own key, and offers that lot", function()
       pick(rowWithText("Dark Leather Boots"))
       GC.Buy.OnItemResults(BARE)

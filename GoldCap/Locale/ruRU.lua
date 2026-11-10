@@ -1939,4 +1939,38 @@ GC.Locales.ruRU = {
     "Реагент, который продаёт торговец, получит цену, как только ты откроешь этого торговца.",
   ["An auction house price needs at least %d listed."] =
     "Для цены аукциона нужно не меньше %d шт. в продаже.",
+  ["Sell for at least %s each to break even."] =
+    "Продавайте не дешевле %s за шт., чтобы выйти в ноль.",
+  -- SELL: Sold/used on a NOT ON HAND row (UI/Sell/CostDialog.lua).
+  ["Sold/used"] = "Списать",
+  ["Sold/used?"] = "Списать?",
+  ["Sold to a merchant, used up or given away: GoldCap stops counting these units as stock. What you paid stays in their history."] =
+    "Продано торговцу, израсходовано или отдано: GoldCap больше не считает эти единицы запасом. То, что вы заплатили, остаётся в их истории.",
+  ["Click again to stop counting these units as stock. There is no undo."] =
+    "Нажмите ещё раз, чтобы больше не считать эти единицы запасом. Отменить это нельзя.",
+  -- SELL: a post held because what is already up covers the sale pace (WoW: Forever).
+  ["Enough listed"] = "Хватает выставленных",
+  -- SELL: holds and the raise offer on WoW: Forever.
+  ["Keeps coming back"] = "Постоянно возвращается",
+  ["Earns under %s"] = "Доход меньше %s",
+  ["Raise: next price is %d%% higher"] = "Поднять: следующая цена выше на %d%%",
+  ["Your %d already up cover about %d h of sales. Type a number or press MAX to post more."] =
+    "Уже выставленных %d шт. хватит примерно на %d ч продаж. Введите число или нажмите ВСЁ, чтобы выставить больше.",
+  -- SELL: sale pace, duration and returns on WoW: Forever.
+  ["About %d sell in %d h on this auction house."] = "Около %d шт. продаётся за %d ч на этом аукционе.",
+  ["Nobody bought this here in the last %d days. Posting 1 to test the price."] =
+    "Здесь это никто не покупал последние %d дн. Выставляется 1 шт., чтобы проверить цену.",
+  ["Nobody bought this here in the last day. Posting 1 to test the price."] =
+    "Здесь это никто не покупал за последние сутки. Выставляется 1 шт., чтобы проверить цену.",
+  ["Sells about %s a day here"] = "Здесь продаётся около %s шт. в день",
+  ["No sales here in %d days"] = "Здесь нет продаж уже %d дн.",
+  ["No sales here in the last day"] = "Здесь нет продаж за последние сутки",
+  ["24 h: about %s sell a day here."] = "24 ч: здесь продаётся около %s шт. в день.",
+  ["24 h: came back unsold %d times at %d h."] = "24 ч: возвратов без продажи %d со сроком %d ч.",
+  ["Deposit %s instead of %s, returned when it sells."] = "Залог %s вместо %s, возвращается при продаже.",
+  ["Post slow sellers for 24 h"] = "Медленный товар на 24 ч",
+  ["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."] =
+    "Если вы не выбрали срок и группа его не задаёт, товар, который продаётся реже раза за выставление или дважды вернулся непроданным, выставляется на 24 ч.",
+  ["Came back unsold %d times since its last sale."] = "Возвратов без продажи с последней продажи: %d.",
+  ["Came back unsold once since its last sale."] = "С последней продажи один раз вернулся непроданным.",
 }

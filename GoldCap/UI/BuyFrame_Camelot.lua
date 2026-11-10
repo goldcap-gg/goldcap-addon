@@ -13,3 +13,12 @@ local _, GC = ...
 function GC.Buy._SendLotRead(key, sorts)
   C_AuctionHouse.SendSearchQuery(key, sorts, true)
 end
+
+-- A gear line whose bare key answered no rows may be gear with random suffixes ("... of the
+-- Eagle"), which Forever files under one key per suffix: the bare key answers none of their lots.
+-- A Carving Knife's 2140/11/0/0 answered rows=0 while 2140/11/14300/0 held 13 lots, and a browse by
+-- its name listed 24 variants with lots up (probe 08.11). The read goes on by the item's name
+-- (GC.Buy._StepByName, UI/BuyFrame.lua).
+function GC.Buy._ReadByName()
+  return GC.Sniper ~= nil and GC.Sniper._SendNaming ~= nil
+end
