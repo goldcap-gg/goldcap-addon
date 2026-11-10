@@ -9,26 +9,46 @@ GC.ForeverValue = GC.ForeverValue or {}
 -- and Core/Trigger.lua apply.
 local KEEP = 0.95
 
-function GC.ForeverValue.VendorUnit(itemID)
+-- The client forgets. On WoW: Forever (owner's client, 2026-11-10, a probe of 56 board builds from
+-- one unchanged scan) C_Item.GetItemInfo answered for an item at one build and not at the next,
+-- five seconds on: the items with a quality went 138 to 184 and back, the Deals board's rows 2 to
+-- 8 and back, and 2,740 of 4,710 items had none whenever they were asked. A vendor price and a
+-- quality are the item's own and never change, so the first answer is kept with the account
+-- (GoldCapDB.foreverItemInfo, [itemID] = sellPrice * 8 + quality) and stands in whenever the
+-- client has none to give.
+local function itemInfo(itemID)
+  if type(itemID) ~= "number" then return nil end
   local item = _G.C_Item
-  if type(itemID) ~= "number" or type(item) ~= "table" or type(item.GetItemInfo) ~= "function" then
-    return nil
+  if type(item) == "table" and type(item.GetItemInfo) == "function" then
+    local ok, quality, sellPrice = pcall(function()
+      local _, _, q, _, _, _, _, _, _, _, price = item.GetItemInfo(itemID)
+      return q, price
+    end)
+    if ok and type(quality) == "number" and quality >= 0 and quality < 8 then
+      sellPrice = type(sellPrice) == "number" and sellPrice > 0 and math.floor(sellPrice) or 0
+      if GC.db then
+        GC.db.foreverItemInfo = GC.db.foreverItemInfo or {}
+        GC.db.foreverItemInfo[itemID] = sellPrice * 8 + quality
+      end
+      return quality, sellPrice
+    end
+    if ok and type(sellPrice) == "number" and sellPrice > 0 then return nil, sellPrice end
   end
-  local ok, sellPrice = pcall(function() return select(11, item.GetItemInfo(itemID)) end)
-  if ok and type(sellPrice) == "number" and sellPrice > 0 then return sellPrice end
+  local kept = GC.db and type(GC.db.foreverItemInfo) == "table" and GC.db.foreverItemInfo[itemID] or nil
+  if type(kept) ~= "number" then return nil end
+  return kept % 8, math.floor(kept / 8)
+end
+
+function GC.ForeverValue.VendorUnit(itemID)
+  local _, sellPrice = itemInfo(itemID)
+  if type(sellPrice) == "number" and sellPrice > 0 then return sellPrice end
   return nil
 end
 
 -- The item's quality (0 poor, 1 common, ...) from the same C_Item.GetItemInfo answer VendorUnit
 -- reads, so an item with a vendor price has a quality too. nil while the client has not loaded it.
 function GC.ForeverValue.Quality(itemID)
-  local item = _G.C_Item
-  if type(itemID) ~= "number" or type(item) ~= "table" or type(item.GetItemInfo) ~= "function" then
-    return nil
-  end
-  local ok, quality = pcall(function() return select(3, item.GetItemInfo(itemID)) end)
-  if ok and type(quality) == "number" then return quality end
-  return nil
+  return (itemInfo(itemID))
 end
 
 -- One unit's deposit for a commodity, as the client quotes it from the item alone

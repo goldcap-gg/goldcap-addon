@@ -95,6 +95,46 @@ describe("ForeverValue", function()
     GC.db.settings.sniper.postDuration = "48"
     assert.equal(2, GC.Flips.PostDurationIndex())
   end)
+
+  -- The client forgets. On WoW: Forever (owner's client, 2026-11-10, a probe of 56 board builds
+  -- from one unchanged scan) C_Item.GetItemInfo answered for an item at one build and not at the
+  -- next, five seconds on: the items with a quality went 138 to 184 and back, the board's rows 2
+  -- to 8 and back, and 2,740 of 4,710 items never had one when asked. A vendor price and a quality
+  -- are the item's own and never change, so the first answer is kept.
+  it("keeps an item's vendor price and quality once the client has answered", function()
+    GC.db = {}
+    local answers = true
+    _G.C_Item = { GetItemInfo = function(id)
+      if not answers or id ~= 2589 then return nil end
+      return "Linen Cloth", nil, 1, 5, 0, "Trade Goods", "Cloth", 20, "", 0, 13
+    end }
+    assert.equal(13, GC.ForeverValue.VendorUnit(2589))
+    answers = false
+    assert.equal(13, GC.ForeverValue.VendorUnit(2589))
+    assert.equal(1, GC.ForeverValue.Quality(2589))
+    assert.is_nil(GC.ForeverValue.VendorUnit(2590))
+    assert.is_nil(GC.ForeverValue.Quality(2590))
+    -- Saved with the account, so the next session starts with it.
+    local GC2 = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Flips.lua", GC2)
+    helper.loadModule("Core/ForeverValue.lua", GC2)
+    GC2.db = GC.db
+    assert.equal(1, GC2.ForeverValue.Quality(2589))
+    assert.equal(13, GC2.ForeverValue.VendorUnit(2589))
+  end)
+
+  it("keeps a quality for an item no vendor buys", function()
+    GC.db = {}
+    local answers = true
+    _G.C_Item = { GetItemInfo = function()
+      if not answers then return nil end
+      return "Thing", nil, 2, 5, 0, "Trade Goods", "Other", 20, "", 0, 0
+    end }
+    assert.is_nil(GC.ForeverValue.VendorUnit(7))
+    answers = false
+    assert.is_nil(GC.ForeverValue.VendorUnit(7))
+    assert.equal(2, GC.ForeverValue.Quality(7))
+  end)
 end)
 
 describe("ForeverValue bags", function()

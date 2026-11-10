@@ -4,6 +4,9 @@
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
   the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- WoW: Forever: the Deals list no longer flickers, with rows leaving and coming back every few
+  seconds, and it now weighs items it used to skip. The game kept forgetting item details the list
+  needs; GoldCap now remembers them.
 - Sell: Cancel no longer offers a lot that already stands where Post would put it. A lot posted
   one step above the cheapest price, past a short queue, was called undercut and offered for a
   cancel straight after.
