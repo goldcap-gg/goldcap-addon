@@ -15,7 +15,8 @@
 - WoW: Forever: SELL holds back more posts of slow sellers. An item that sells under one a day
   comes back unsold about eight times for each time it sells, and every return loses its deposit.
   A post now has to be worth the deposits it is likely to lose, not just one. Busy items post as
-  before.
+  before. The item's tooltip says the same: it no longer reads "Sell it on the AH" for a post SELL
+  holds back.
 - WoW: Forever: when a lot sits under the vendor price on an item that resells for much more, the
   Deals board now offers the bigger buy, not only the few units a vendor would take.
 

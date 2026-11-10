@@ -60,7 +60,11 @@ function GC.ForeverValue.DepositUnit(itemID)
   return GC.ForeverValue.CommodityDepositUnit(itemID)
 end
 
-function GC.ForeverValue.Verdict(ahUnit, vendorUnit, depositUnit, gear)
+-- `perDay` (optional): the units a day the house sells of the item (GC.Data.ForeverSales). A slow
+-- seller's post comes back unsold several times for each time it sells, so its gain is held to
+-- that many deposits, as the Sell tab's queue holds it (Core/PostQueue.lua's below_deposit): the
+-- tooltip must not say "Sell it on the AH" of a post the queue holds back.
+function GC.ForeverValue.Verdict(ahUnit, vendorUnit, depositUnit, gear, perDay)
   if type(ahUnit) ~= "number" or ahUnit <= 0 then return nil end
   local vendor = (type(vendorUnit) == "number" and vendorUnit > 0) and vendorUnit or 0
   local gain = math.floor(ahUnit * KEEP) - vendor
@@ -72,7 +76,8 @@ function GC.ForeverValue.Verdict(ahUnit, vendorUnit, depositUnit, gear)
   if type(depositUnit) ~= "number" then return "ah_nodeposit" end
   -- The deposit is lost when the lot does not sell; a gain that does not cover it is a bet
   -- the vendor never asks the player to make.
-  if gain <= depositUnit then return "deposit" end
+  local unsoldX2 = GC.PostQueue and GC.PostQueue.UnsoldPerSaleX2 and GC.PostQueue.UnsoldPerSaleX2(perDay) or 2
+  if gain * 2 <= depositUnit * unsoldX2 then return "deposit" end
   return "ah"
 end
 

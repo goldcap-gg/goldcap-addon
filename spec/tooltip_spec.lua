@@ -488,6 +488,18 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
     assert.equal("AH, cheapest version", GC.Tooltip.BuildLines(gear, 1000, { forever = {} })[1].label)
   end)
 
+  it("says the deposit outweighs the gain of a slow seller the Sell queue would hold back", function()
+    helper.loadModule("Core/PostQueue.lua", GC)
+    local function verdict(forever)
+      local lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = forever })
+      return find(lines, function(l) return l.kind == "verdict" end).text
+    end
+    assert.equal("Sell it on the AH", verdict({ vendorUnit = 100, depositUnit = 120 }))
+    assert.equal("Sell it on the AH", verdict({ vendorUnit = 100, depositUnit = 120, perDay = 500 }))
+    assert.equal("The deposit outweighs the gain and is lost if unsold",
+      verdict({ vendorUnit = 100, depositUnit = 120, perDay = 0.5 }))
+  end)
+
   it("tells the deposit apart", function()
     local lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 900, depositUnit = 60 } })
     assert.truthy(find(lines, function(l) return l.text == "The deposit outweighs the gain and is lost if unsold" end))

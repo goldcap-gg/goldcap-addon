@@ -119,6 +119,8 @@ local function unsoldPerSaleX2(perDay)
   end
   return 2
 end
+-- The tooltip's verdict weighs the same deposits (Core/ForeverValue.lua's Verdict).
+GC.PostQueue.UnsoldPerSaleX2 = unsoldPerSaleX2
 
 -- Returns reason, unit, value -- unit/value are only meaningful when reason is nil.
 local function evaluate(position, opts)

@@ -13,6 +13,18 @@ describe("ForeverValue", function()
   describe("Verdict", function()
     local V
     before_each(function() V = GC.ForeverValue.Verdict end)
+    -- 1000c on the AH is 950 after the cut, 850 over a vendor's 100.
+    it("holds a slow seller's gain to the deposits it loses before it sells, as the Sell queue does", function()
+      helper.loadModule("Core/PostQueue.lua", GC)
+      assert.equal("ah", V(1000, 100, 120, false))          -- no pace known: one deposit
+      assert.equal("ah", V(1000, 100, 120, false, 500))     -- a busy item: one deposit
+      assert.equal("deposit", V(1000, 100, 120, false, 0.5)) -- under 1 a day: eight, 960
+      assert.equal("ah", V(1000, 100, 106, false, 0.5))      -- 848
+      assert.equal("deposit", V(1000, 100, 213, false, 2))   -- 1-3 a day: four, 852
+      assert.equal("ah", V(1000, 100, 212, false, 2))        -- 848
+      assert.equal("deposit", V(1000, 100, 567, false, 100)) -- 30-300 a day: one and a half, 850.5
+      assert.equal("ah", V(1000, 100, 566, false, 100))      -- 849
+    end)
     it("sends to the vendor what the AH pays no more for, after its cut", function()
       assert.equal("vendor", V(100, 95, 5, false))    -- floor(95) - 95 = 0
     end)
