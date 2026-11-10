@@ -172,7 +172,7 @@ defs.parchment = {
     warn = hex("8A230F"), yours = hex("00469A"),
     cost = hex("6F4C0E"),
     onGold = hex("FFD100"),
-    railIdle = hex("D2BD93"), railActive = hex("FFD100"),
+    railIdle = hex("D2BD93"), railActive = hex("7A1E0F"),
     primaryTop = hex("C92D1C"), primaryBottom = hex("7E140A"), primaryText = hex("FFD100"),
     frameTint = hex("3B2511"),
     railTop = hex("342414"), railBottom = hex("21160B"),
@@ -193,6 +193,9 @@ defs.parchment = {
     [6] = "5E4000", [7] = "004B59", [8] = "004B59" },
   -- The window is the client's quest paper (Card.lua), not a gradient.
   paper = true,
+  -- The selected rail button: a slip of the paper on the wood, a tan line in it and a dark one round
+  -- it (the board's .rb.on); its label in red ink (railActive).
+  railCard = { top = hex("F2E4C0"), bottom = hex("D8C190"), ring = hex("B8914C"), edge = hex("120A03") },
   radius = { 5, 3, 4, 4 },
   frame = "bevel",
   frameWidth = 4,

@@ -112,6 +112,16 @@ function T.RailButton(parent, iconName, labelText)
     b.ring = T.SlicedTexture(b, "BORDER", plate.ring, { 1, 1, 1, 1 }, plate.ringSlice) -- untinted
     b.ring:SetAllPoints()
     washFile, washSlice = plate.fill, plate.fillSlice
+  elseif skin.railCard then
+    -- Parchment: the selected button is a slip of the paper (skin.railCard), shown only when selected.
+    local card, radius = skin.railCard, skin.railRadius or skin.radius[3]
+    washFile, washSlice = T.Art("card", radius), T.ArtSlice("card", radius)
+    b.card = T.GradientFill(b, card.top, card.bottom, washFile, washSlice, 64)
+    b.ring = T.SlicedTexture(b, "BORDER", T.Art("ring", radius), card.ring, washSlice)
+    b.ring:SetAllPoints()
+    b.edge = T.SlicedTexture(b, "BORDER", T.Art("ring", radius), card.edge, washSlice)
+    b.edge:SetPoint("TOPLEFT", -1, 1)
+    b.edge:SetPoint("BOTTOMRIGHT", 1, -1)
   else
     local radius = skin.railRadius or skin.radius[3]
     washFile, washSlice = T.Art("card", radius), T.ArtSlice("card", radius)
@@ -225,6 +235,10 @@ function T.RailButton(parent, iconName, labelText)
       else
         T.PaintGradientFill(b.plateFill, K.plateTop, K.plateBottom)
       end
+    elseif b.card then
+      for _, piece in ipairs(b.card) do piece:SetShown(active) end
+      b.ring:SetShown(active)
+      b.edge:SetShown(active)
     else
       if active then b.bg:Show(); b.ring:Show() else b.bg:Hide(); b.ring:Hide() end
     end

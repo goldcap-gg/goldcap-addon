@@ -69,6 +69,30 @@ describe("skin plates", function()
     assert.is_false(shown(b.ring))
   end)
 
+  -- Owner, round B 2026-11-10: Parchment's selected rail button was the accent's red wash, muddy on
+  -- the wood. The board (.sk-parchment .rb.on) puts a slip of the paper there, the label in red ink.
+  it("parchment's selected rail button is a slip of the paper, its label in red ink", function()
+    Skins.Apply("parchment")
+    local card = Skins.Current().railCard
+    local b = T.RailButton(parent(), "deals", "DEALS")
+    assert.is_nil(b.bg)
+    assert.is_false(shown(b.card[5]))
+    assert.is_false(shown(b.edge))
+    b:SetActive(true)
+    assert.is_true(shown(b.card[5]))
+    assert.is_true(shown(b.ring))
+    assert.is_true(shown(b.edge))
+    assert.same(rgb(card.bottom), stop(W.state(b.card[5]).gradient[2]))
+    assert.same(rgb(card.top), stop(W.state(b.card[5]).gradient[3]))
+    assert.same(rgb(card.ring), rgb(W.state(b.ring).vertex))
+    assert.same(rgb(card.edge), rgb(W.state(b.edge).vertex))
+    assert.same(rgb(GC.Kit.Tokens.hex("7A1E0F")), rgb(K.railActive))
+    assert.same(rgb(K.railActive), { unpack(W.state(b.text).color, 1, 3) })
+    b:SetActive(false)
+    assert.is_false(shown(b.card[5]))
+    assert.is_false(shown(b.ring))
+  end)
+
   it("plates under forever", function()
     Skins.Apply("forever")
     local b = T.RailButton(parent(), "deals", "DEALS")
@@ -243,7 +267,10 @@ describe("skin plates", function()
     assert.same(rgb(K.railTop), stop(mid[3]))
     assert.same(rgb(Skins.defs.parchment.color.railTop), { 0x34 / 255, 0x24 / 255, 0x14 / 255 })
     assert.is_true(contrast(K.railIdle, K.railBottom) >= 3)
-    assert.is_true(contrast(K.railActive, K.railBottom) >= 3)
+    -- The selected label sits on its slip of paper, not on the wood.
+    local card = Skins.defs.parchment.railCard
+    assert.is_true(contrast(K.railActive, card.top) >= 4.5)
+    assert.is_true(contrast(K.railActive, card.bottom) >= 4.5)
   end)
 
   it("a plate skin draws no track behind plated tabs, and keeps the Craft switch's", function()
