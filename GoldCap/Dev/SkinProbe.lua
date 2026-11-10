@@ -138,12 +138,96 @@ local function build()
   return f
 end
 
+-- Fonts (owner, round B 2026-11-10): Leather drew its headings in Fira twice, Parchment once in Fira
+-- and the next time in Alegreya. A face whose SetFont answers false when Skins.Apply asks at
+-- ADDON_LOADED stays Fira for the session (UI/Kit/Fonts.lua faceLoads). Every load records here
+-- what Apply took; `/gcprobe fonts` asks every skin face again, the way faceLoads asks (a string
+-- never shown or anchored) and the way the preloader draws (shown, sized, anchored), now and two
+-- seconds later.
+local function stamp() return date and date("%H:%M:%S") or "" end
+local function base(path) return type(path) == "string" and path:match("[^\\]+$") or plain(path) end
+
+local function store(key)
+  GoldCapDB = GoldCapDB or {}
+  GoldCapDB.probe = GoldCapDB.probe or {}
+  GoldCapDB.probe[key] = GoldCapDB.probe[key] or {}
+  local list = GoldCapDB.probe[key]
+  while #list >= 12 do table.remove(list, 1) end
+  return list
+end
+
+local function skinFaces()
+  local files, seen = {}, {}
+  local function add(file)
+    if file and not seen[file] then seen[file] = true; files[#files + 1] = file end
+  end
+  for _, id in ipairs(GC.Kit.Skins.ORDER) do
+    local fonts = GC.Kit.Skins.defs[id].fonts or {}
+    add(fonts.head)
+    for _, file in pairs(fonts.text or {}) do add(file) end
+  end
+  add("FiraSans-Medium.ttf") -- a face that has always drawn, for comparison
+  return files
+end
+
+-- A second after this file loads, Skins.Apply (ADDON_LOADED) has long run. A timer, not an event
+-- frame: the specs that load every file of the TOC take the last OnEvent script for the addon's own.
+local function recordBoot()
+  local skin, T = GC.Kit.Skins.Current(), GC.Theme
+  local fonts = skin.fonts or {}
+  local list = store("fontBoots")
+  list[#list + 1] = { at = stamp(), skin = skin.id,
+    wantHead = plain(fonts.head), head = base(T.FONT_HEAD),
+    wantText = plain(fonts.text and fonts.text.regular), text = base(T.FONT_TEXT) }
+end
+if C_Timer and C_Timer.After then C_Timer.After(1, recordBoot) end
+
+local holder
+local function askFaces(files)
+  if not holder then
+    holder = CreateFrame("Frame", nil, UIParent)
+    holder:SetPoint("TOP", UIParent, "BOTTOM", 0, -10000)
+    holder:SetSize(100, 100)
+  end
+  local answers = {}
+  for _, file in ipairs(files) do
+    local path = GC.Kit.MEDIA .. file
+    local hidden = UIParent:CreateFontString(nil, "OVERLAY")
+    local okH, retH = pcall(hidden.SetFont, hidden, path, 12, "")
+    local shown = holder:CreateFontString(nil, "OVERLAY")
+    shown:SetAllPoints()
+    local okS, retS = pcall(shown.SetFont, shown, path, 14, "")
+    local width
+    if okS and retS then
+      shown:SetText("GoldCap 0123")
+      width = shown:GetStringWidth()
+    end
+    answers[file] = { hidden = okH and plain(retH) or "error", shown = okS and plain(retS) or "error",
+      width = plain(width) }
+  end
+  return answers
+end
+
+local function probeFonts()
+  local files = skinFaces()
+  local run = { at = stamp(), skin = GC.Kit.Skins.Current().id, now = askFaces(files) }
+  local list = store("fonts")
+  list[#list + 1] = run
+  C_Timer.After(2, function()
+    run.later = askFaces(files)
+    GC.Print("/gcprobe fonts: done, /reload to save")
+  end)
+end
+
 SLASH_GOLDCAPPROBE1 = "/gcprobe"
 SlashCmdList.GOLDCAPPROBE = function(msg)
-  if (msg or ""):match("^%s*(%S*)") == "skins" then
+  local what = (msg or ""):match("^%s*(%S*)")
+  if what == "skins" then
     if not panel then panel = build() end
     panel:Show()
+  elseif what == "fonts" then
+    probeFonts()
   else
-    GC.Print("/gcprobe skins")
+    GC.Print("/gcprobe skins | fonts")
   end
 end

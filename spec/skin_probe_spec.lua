@@ -33,4 +33,43 @@ describe("skin probe", function()
     for _ in pairs(textures) do count = count + 1 end
     assert.equal(12, count)  -- the 4 by 3 grid, full
   end)
+
+  describe("fonts", function()
+    local G, later, recordBoot
+
+    before_each(function()
+      later = nil
+      _G.C_Timer = { After = function(_, fn) later = fn end }
+      _G.date = function() return "12:00:00" end
+      G = helper.loadModule("UI/Theme.lua")
+      G.Print = function() end
+      helper.loadModule("Dev/SkinProbe.lua", G)
+      recordBoot, later = later, nil -- the timer the file set as it loaded
+    end)
+
+    after_each(function()
+      G.Kit.Skins.Apply("goldcap")
+      _G.C_Timer, _G.date = nil, nil
+    end)
+
+    it("asks every skin face now and two seconds later, hidden and shown", function()
+      _G.SlashCmdList.GOLDCAPPROBE("fonts")
+      later()
+      local run = _G.GoldCapDB.probe.fonts[1]
+      for _, file in ipairs({ "OldStandard-Bold.ttf", "AlegreyaSC-Bold.ttf", "Alegreya-Medium.ttf",
+        "RuslanDisplay-Regular.ttf", "FiraSans-Medium.ttf" }) do
+        assert.same({ "true", "true" }, { tostring(run.now[file].hidden), tostring(run.now[file].shown) }, file)
+        assert.is_not_nil(run.later[file], file)
+      end
+    end)
+
+    it("keeps, on every load, which faces the applied skin took", function()
+      G.Kit.Skins.Apply("leather")
+      recordBoot()
+      local record = _G.GoldCapDB.probe.fontBoots[1]
+      assert.equal("leather", record.skin)
+      assert.equal("OldStandard-Bold.ttf", record.wantHead)
+      assert.equal("OldStandard-Bold.ttf", record.head)
+    end)
+  end)
 end)
