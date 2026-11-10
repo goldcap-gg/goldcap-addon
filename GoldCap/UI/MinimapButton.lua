@@ -143,9 +143,9 @@ local function showTip(self)
   paintPill()
   tooltip:SetOwner(self, "ANCHOR_LEFT")
   local text = GC.Util.ClientText
-  local K = GC.Kit.Tokens.color
-  tooltip:AddLine("GoldCap", K.goldText[1], K.goldText[2], K.goldText[3])
-  local c = K.text1
+  local KB = GC.Kit.Tokens.blizzard
+  tooltip:AddLine("GoldCap", KB.goldText[1], KB.goldText[2], KB.goldText[3])
+  local c = KB.text1
   if n and n + ah + vendor == 0 then
     tooltip:AddLine(text(GC.L["Nothing in your bags to disenchant."]), c[1], c[2], c[3])
   elseif n then
@@ -157,7 +157,7 @@ local function showTip(self)
     if ah > 0 then tooltip:AddLine(text(GC.L["The auction house pays more: %d"]:format(ah)), c[1], c[2], c[3]) end
     if vendor > 0 then tooltip:AddLine(text(GC.L["A vendor pays more: %d"]:format(vendor)), c[1], c[2], c[3]) end
   end
-  tooltip:AddLine(text(GC.L["Click for GoldCap. Drag to move it."]), K.text3[1], K.text3[2], K.text3[3])
+  tooltip:AddLine(text(GC.L["Click for GoldCap. Drag to move it."]), KB.text3[1], KB.text3[2], KB.text3[3])
   tooltip:Show()
 end
 
@@ -204,7 +204,7 @@ end
 function MB.Build()
   if button or not _G.Minimap then return button end
   local T = GC.Theme
-  local K = GC.Kit.Tokens.color
+  local K = GC.Kit.Tokens.blizzard
   local b = CreateFrame("Button", MB.NAME, _G.Minimap)
   b:SetSize(SIZE, SIZE)
   b:SetFrameStrata("MEDIUM")

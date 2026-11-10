@@ -285,7 +285,8 @@ function Toolbar.Build()
   local previous = refreshButton
   for slot, id in ipairs(CHIP_IDS) do
     local button = Theme.Button(container, "ghost", "badge")
-    button:SetSize(CHIP_WIDTHS[slot], 20)
+    -- Classic draws a filter as a check box and its words; the box takes 22px more.
+    button:SetSize(CHIP_WIDTHS[slot] + (button.SetCheckStyle and button:SetCheckStyle() or 0), 20)
     button:SetPoint("RIGHT", previous, "LEFT", -2, 0)
     button:SetLabel(GC.L[CHIP_LABELS[slot]])
     button:SetScript("OnClick", function()
@@ -314,13 +315,16 @@ function Toolbar.Build()
   -- frame at the buttons' level would draw its fill over theirs, layer by layer (the window
   -- glass did that to the Sniper's buttons, 691786b).
   local trackW = 2 * DECK_W + 3 * DECK_PAD
-  local trackFill = Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png", { 0, 0, 0, 0.3 }, 12)
-  trackFill:SetPoint("TOPLEFT"); trackFill:SetSize(trackW, 26)
-  local tb = Theme.color.border
-  local trackRing = Theme.SlicedTexture(container, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { tb[1], tb[2], tb[3], tb[4] or 0.075 }, 12)
-  trackRing:SetPoint("TOPLEFT"); trackRing:SetSize(trackW, 26)
-  container.deckTrack = trackFill
+  -- A skin that frames its tabs (Theme.Plate) draws no track: each tab wears its own plate.
+  if not Theme.Plate() then
+    local trackFill = Theme.ShapeTexture(container, "BACKGROUND", "control", { 0, 0, 0, 0.3 }) -- untinted
+    trackFill:SetPoint("TOPLEFT"); trackFill:SetSize(trackW, 26)
+    local tb = Theme.color.border
+    local trackRing = Theme.ShapeTexture(container, "BORDER", "control",
+      { tb[1], tb[2], tb[3], tb[4] or 0.075 }, true)
+    trackRing:SetPoint("TOPLEFT"); trackRing:SetSize(trackW, 26)
+    container.deckTrack = trackFill
+  end
   container.deckButtons = {}
   local deckPrevious
   for _, id in ipairs(DECK_IDS) do
@@ -363,10 +367,10 @@ function Toolbar.Build()
   searchWell:SetHeight(26)
   searchWell:SetPoint("LEFT", deckPrevious, "RIGHT", 12 + DECK_PAD, 0)
   local swc = Theme.color.bg or Theme.color.panel
-  Theme.SlicedTexture(searchWell, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { swc[1], swc[2], swc[3], 1 }, 12):SetAllPoints(searchWell)
-  Theme.SlicedTexture(searchWell, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { 1, 1, 1, 0.12 }, 12):SetAllPoints(searchWell)
+  Theme.ShapeTexture(searchWell, "BACKGROUND", "control",
+    { swc[1], swc[2], swc[3], 1 }):SetAllPoints(searchWell)
+  Theme.ShapeTexture(searchWell, "BORDER", "control",
+    GC.Kit.Tokens.ink(0.12), true):SetAllPoints(searchWell)
   local search = CreateFrame("EditBox", nil, searchWell)
   search:SetAutoFocus(false)
   search:SetPoint("TOPLEFT", 10, -2)

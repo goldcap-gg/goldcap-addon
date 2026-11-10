@@ -297,7 +297,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     local toc = assert(io.open(retail and "GoldCap/GoldCap.toc" or "GoldCap/GoldCap_Camelot.toc", "r"))
     for rawLine in toc:lines() do
       local line = rawLine:gsub("%s+$", "")
-      if line ~= "" and not line:match("^##") and not line:match("^#") then
+      if line ~= "" and not line:match("^#") and not line:match("^#") then
         local chunk, err = loadfile("GoldCap/" .. line:gsub("\\", "/"))
         assert(chunk, err)
         chunk("GoldCap", GC)
@@ -363,6 +363,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       Enable = function() d.enabled = true end,
       IsEnabled = function() return d.enabled end,
       SetLabel = function(_, text) d.label = text end,
+      RepaintLabel = function() end,
       text = { SetTextColor = function() end },
     }
     d.cancelBtn = { Enable = function() end, Disable = function() end, SetLabel = function() end }

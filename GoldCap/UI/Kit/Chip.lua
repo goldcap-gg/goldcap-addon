@@ -4,7 +4,6 @@
 local _, GC = ...
 GC.Theme = GC.Theme or {}
 local T = GC.Theme
-local MEDIA = GC.Kit.MEDIA
 local K = GC.Kit.Tokens.color
 
 -- Chip: a tinted pill, not the old solid plaque + underline. Nine-slice invariant (see
@@ -23,7 +22,10 @@ function T.Chip(parent)
 
   -- File texture, recolored via SetVertexColor only (never SetColorTexture, which would strip
   -- the art) -- same rule T.Card:SetTint and Theme.Button's rounded bg follow.
-  f.bg = T.SlicedTexture(f, "BACKGROUND", MEDIA .. "badge.png", { K.windowTop[1], K.windowTop[2], K.windowTop[3] }, T.SLICE.badge)
+  -- The skin's chip radius: badge.png for goldcap's 6, the plaque art at any other. A margin stays
+  -- under half the 20px height.
+  local file, _, margin = T.SmallArt(GC.Kit.Skins.Current().radius[4], 9)
+  f.bg = T.SlicedTexture(f, "BACKGROUND", file, { K.windowTop[1], K.windowTop[2], K.windowTop[3] }, margin)
   f.bg:SetAllPoints()
 
   f.text = T.Heading(f, 10)

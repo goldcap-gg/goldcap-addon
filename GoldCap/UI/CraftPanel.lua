@@ -65,10 +65,10 @@ local function tint(c, a) return { c[1], c[2], c[3], a } end
 -- figure on the window's dark, the profit on a wash and a ring of its own colour; a Worth crafting
 -- row on the glass in a hairline, the open recipe's on This recipe's gold; Restock to and the "+"
 -- ringed in gold.
-local CARD_FILL, CARD_RING = tint(K.gold, 0.07), tint(K.gold, 0.5)
-local CELL_FILL, NO_RING = { 0, 0, 0, 0.3 }, { 0, 0, 0, 0 }
-local OPEN_FILL, OPEN_RING = tint(K.gold, 0.07), tint(K.gold, 0.45)
-local GOLD_RING = tint(K.gold, 0.5)
+local CARD_FILL, CARD_RING = GC.Kit.Tokens.alpha("gold", 0.07), GC.Kit.Tokens.alpha("gold", 0.5)
+local CELL_FILL, NO_RING = { 0, 0, 0, 0.3 }, { 0, 0, 0, 0 } -- untinted
+local OPEN_FILL, OPEN_RING = GC.Kit.Tokens.alpha("gold", 0.07), GC.Kit.Tokens.alpha("gold", 0.45)
+local GOLD_RING = GC.Kit.Tokens.alpha("gold", 0.5)
 
 -- What changes the list: the window opening, its recipe list refreshed, a recipe learned. Bags
 -- changing moves nothing here, but the queue reads them (UI/CraftQueueView.lua): a bag change
@@ -254,7 +254,7 @@ local function newRow(v)
   local T = GC.Theme
   local frame = U.plate(v.content, K.hairline, "plaque")
   frame:SetWidth(LAYOUT.ROW_W)
-  frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassTop, T.SLICE.plaque)
+  frame.fill = T.ShapeTexture(frame, "BACKGROUND", "control", K.glassTop)
   frame.fill:SetAllPoints()
   local row = { frame = frame }
   row.slot = U.NewIcon(frame, LAYOUT.ROW_ICON)
@@ -847,7 +847,7 @@ end
 local function build(frame)
   local T = GC.Theme
   local f = CreateFrame("Frame", nil, frame.CraftingPage)
-  f.glass = T.Window(f)
+  f.glass = T.Window(f, { inside = true })
   f:SetWidth(LAYOUT.WIDTH)
   P.Place(f, frame)
   -- The recipes page is 942 wide: on a 16:10 or 4:3 screen, or with the window pushed to the

@@ -6,7 +6,7 @@ local T = GC.Theme
 local MEDIA = GC.Kit.MEDIA
 local K = GC.Kit.Tokens.color
 -- A panel's and a card's default fill: the window's top colour, opaque.
-local PANEL = { K.windowTop[1], K.windowTop[2], K.windowTop[3] }
+local PANEL = GC.Kit.Tokens.rgb("windowTop")
 
 -- Panel: flat dark texture + 1px border.
 function T.Panel(parent)
@@ -19,14 +19,12 @@ end
 
 -- Card: rounded panel (fill + 1px ring). The rounded sibling of T.Panel; use
 -- it for chrome that should read as a surface, keep T.Panel for flat fills.
--- `small`: use plaque.png/plaque_ring.png (radius 8, T.SLICE.plaque margins)
--- instead of card.png/ring.png (radius 12, T.SLICE.card margins) -- for chrome
--- small enough that the 24px card margins would overlap and notch.
+-- `small`: the control art (T.Shape "control": plaque.png/plaque_ring.png at radius 8 in goldcap)
+-- instead of the panel art -- for chrome small enough that the card margins would overlap and
+-- notch. The panel art is the applied skin's panel radius: card.png/ring.png at 12 (goldcap).
 function T.Card(parent, fill, border, small)
   local f = CreateFrame("Frame", nil, parent)
-  local bgFile = small and (MEDIA .. "plaque.png") or (MEDIA .. "card.png")
-  local ringFile = small and (MEDIA .. "plaque_ring.png") or (MEDIA .. "ring.png")
-  local margin = small and T.SLICE.plaque or nil
+  local bgFile, ringFile, margin = T.Shape(small and "control" or "panel")
   f.bg = T.SlicedTexture(f, "BACKGROUND", bgFile, fill or PANEL, margin)
   f.bg:SetAllPoints()
   f.ring = T.SlicedTexture(f, "BORDER", ringFile, border or K.glassBorder, margin)
@@ -103,7 +101,7 @@ function T.Shadow(frame, spread, alpha)
   local t = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
   t:SetTexture(MEDIA .. "shadow.png")
   t:SetTextureSliceMargins(24, 24, 24, 24)
-  t:SetVertexColor(0, 0, 0, alpha or 0.6)
+  t:SetVertexColor(0, 0, 0, alpha or 0.6) -- untinted
   t:SetPoint("TOPLEFT", -spread, spread)
   t:SetPoint("BOTTOMRIGHT", spread, -spread)
   return t
@@ -115,15 +113,17 @@ end
 -- sets a gradient on a sliced texture (both games' source, searched 2026-10-09), so how the
 -- engine would spread it over the slices is unknown.
 -- CORNER is how many px of the 64px card.png a corner piece shows, at 1:1. It must stay at least
--- the art's corner radius (12, docs/addon/tools/gen_art.py) or the curve is cut off.
+-- the art's corner radius (12 at most, docs/addon/tools/gen_art.py) or the curve is cut off.
 local CORNER = 16
-local CUT = CORNER / 64
--- Texture coordinates (left, right, top, bottom), row by row from the top left.
-local PIECES = {
-  { 0, CUT, 0, CUT }, { CUT, 1 - CUT, 0, CUT }, { 1 - CUT, 1, 0, CUT },
-  { 0, CUT, CUT, 1 - CUT }, { CUT, 1 - CUT, CUT, 1 - CUT }, { 1 - CUT, 1, CUT, 1 - CUT },
-  { 0, CUT, 1 - CUT, 1 }, { CUT, 1 - CUT, 1 - CUT, 1 }, { 1 - CUT, 1, 1 - CUT, 1 },
-}
+-- Texture coordinates (left, right, top, bottom), row by row from the top left, for a corner
+-- piece `cut` of the file wide.
+local function piecesFor(cut)
+  return {
+    { 0, cut, 0, cut }, { cut, 1 - cut, 0, cut }, { 1 - cut, 1, 0, cut },
+    { 0, cut, cut, 1 - cut }, { cut, 1 - cut, cut, 1 - cut }, { 1 - cut, 1, cut, 1 - cut },
+    { 0, cut, 1 - cut, 1 }, { cut, 1 - cut, 1 - cut, 1 }, { 1 - cut, 1, 1 - cut, 1 },
+  }
+end
 -- Each edge piece and the centre stretch between the two corners on either side of them:
 -- { piece, corner its top left meets and where, corner its bottom right meets and where }.
 local SPANS = {
@@ -132,42 +132,318 @@ local SPANS = {
   { 8, 7, "TOPRIGHT", 9, "BOTTOMLEFT" },
 }
 
-local function windowFill(f, top, bottom)
+--- Colours the nine pieces of a gradient fill: the top row `top`, the bottom row `bottom`, the
+--- middle row a vertical gradient between them.
+function T.PaintGradientFill(p, top, bottom)
+  for i = 1, 3 do p[i]:SetVertexColor(top[1], top[2], top[3], top[4] or 1) end
+  for i = 7, 9 do p[i]:SetVertexColor(bottom[1], bottom[2], bottom[3], bottom[4] or 1) end
+  -- SetGradient takes the bottom colour first (minColor) and the top second.
+  local low = CreateColor(bottom[1], bottom[2], bottom[3], bottom[4] or 1)
+  local high = CreateColor(top[1], top[2], top[3], top[4] or 1)
+  for i = 4, 6 do p[i]:SetGradient("VERTICAL", low, high) end
+end
+
+--- A vertical gradient fill on `f` in `layer`, cut from `file`: a `size`px square (64 for card art,
+--- 32 for plaque art) whose corners are `corner` px at 1:1.
+function T.GradientFill(f, top, bottom, file, corner, size, layer)
+  corner, size = corner or CORNER, size or 64
   local p = {}
-  for i, coords in ipairs(PIECES) do
-    p[i] = f:CreateTexture(nil, "BACKGROUND")
-    p[i]:SetTexture(MEDIA .. "card.png")
+  for i, coords in ipairs(piecesFor(corner / size)) do
+    p[i] = f:CreateTexture(nil, layer or "BACKGROUND")
+    p[i]:SetTexture(file)
     p[i]:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
   end
   for i, point in pairs({ [1] = "TOPLEFT", [3] = "TOPRIGHT", [7] = "BOTTOMLEFT", [9] = "BOTTOMRIGHT" }) do
     p[i]:SetPoint(point)
-    p[i]:SetSize(CORNER, CORNER)
+    p[i]:SetSize(corner, corner)
   end
   for _, s in ipairs(SPANS) do
     p[s[1]]:SetPoint("TOPLEFT", p[s[2]], s[3])
     p[s[1]]:SetPoint("BOTTOMRIGHT", p[s[4]], s[5])
   end
-  for i = 1, 3 do p[i]:SetVertexColor(top[1], top[2], top[3], top[4]) end
-  for i = 7, 9 do p[i]:SetVertexColor(bottom[1], bottom[2], bottom[3], bottom[4]) end
-  -- SetGradient takes the bottom colour first (minColor) and the top second.
-  local low = CreateColor(bottom[1], bottom[2], bottom[3], bottom[4])
-  local high = CreateColor(top[1], top[2], top[3], top[4])
-  for i = 4, 6 do p[i]:SetGradient("VERTICAL", low, high) end
+  T.PaintGradientFill(p, top, bottom)
   return p
 end
 
---- The main window's surface: dark glass shading from top to bottom, a faint white edge, and a
--- soft shadow outside it, drawn by `window` itself over its whole rect. Returns the pieces.
+--- Squares the corners of the nine pieces T.GradientFill cut with `corner` of a `size` file (each
+--- corner piece shows the centre's pixels), or gives them back their own.
+function T.SquareCorners(p, square, corner, size)
+  local pieces = piecesFor((corner or CORNER) / (size or 64))
+  for _, i in ipairs({ 1, 3, 7, 9 }) do
+    local c = square and pieces[5] or pieces[i]
+    p[i]:SetTexCoord(c[1], c[2], c[3], c[4])
+  end
+end
+
+local function windowFill(f, top, bottom, file)
+  return T.GradientFill(f, top, bottom, file, CORNER, 64)
+end
+
+-- The ornament a skin draws on its window, as a list of regions of `host` (the window's frame
+-- overlay) placed on `window`. `inside`: kept clear of the edge, for a window against a Blizzard
+-- frame. Positions are the mock's (.sk-<id> .gcw > .orn), but for the middle rivets, which the mock
+-- clips at the edge and are drawn 2px out.
+local function ornamentOf(window, host, kind, inside)
+  local list = {}
+  local function add(layer)
+    local t = host:CreateTexture(nil, layer or "ARTWORK")
+    list[#list + 1] = t
+    return t
+  end
+  if kind == "rivets" then
+    -- Four in the corners, one on the middle of the top and bottom edges.
+    local spots = { { "TOPLEFT", 0, 0 }, { "TOPRIGHT", 0, 0 }, { "BOTTOMLEFT", 0, 0 }, { "BOTTOMRIGHT", 0, 0 },
+      { "TOP", 0, inside and 0 or 2 }, { "BOTTOM", 0, inside and 0 or -2 } }
+    for _, spot in ipairs(spots) do
+      local t = add()
+      t:SetTexture(MEDIA .. "rivet.png")
+      t:SetSize(12, 12)
+      t:SetPoint(spot[1], window, spot[1], spot[2], spot[3])
+    end
+  elseif kind == "brackets" then
+    -- bracket.png is the top left L; the other corners flip it.
+    local spots = { { "TOPLEFT", 6, -6, 0, 1, 0, 1 }, { "TOPRIGHT", -6, -6, 1, 0, 0, 1 },
+      { "BOTTOMLEFT", 6, 6, 0, 1, 1, 0 }, { "BOTTOMRIGHT", -6, 6, 1, 0, 1, 0 } }
+    for _, spot in ipairs(spots) do
+      local t = add()
+      t:SetTexture(MEDIA .. "bracket.png")
+      t:SetSize(32, 32)
+      t:SetPoint(spot[1], window, spot[1], spot[2], spot[3])
+      t:SetTexCoord(spot[4], spot[5], spot[6], spot[7])
+      t:SetVertexColor(K.goldText[1], K.goldText[2], K.goldText[3], 1)
+    end
+  elseif kind == "shimmer" then
+    -- Two lines, centred: 70% of the window's width at the top, 50% at the bottom.
+    local lines = { { "TOP", -1, 0.7, K.text2, 0.9 }, { "BOTTOM", 1, 0.5, K.goldText, 0.65 } }
+    for _, line in ipairs(lines) do
+      local t = add()
+      t:SetTexture(MEDIA .. "shimmer.png")
+      t:SetHeight(1)
+      t:SetPoint(line[1], window, line[1], 0, line[2])
+      t:SetVertexColor(line[4][1], line[4][2], line[4][3], line[5])
+      line.region = t
+    end
+    local function fit(width)
+      for _, line in ipairs(lines) do line.region:SetWidth(width * line[3]) end
+    end
+    fit(window:GetWidth() or 0)
+    window:HookScript("OnSizeChanged", function(_, width) fit(width) end)
+  elseif kind == "stitch" then
+    -- A dashed line 6px inside the edge, tiled along each side.
+    -- Two files, a dash tile along and a dash tile across, so no region needs a texcoord of its own.
+    local sides = { { "TOPLEFT", "TOPRIGHT", 6, -6, -6, -6, true }, { "BOTTOMLEFT", "BOTTOMRIGHT", 6, 6, -6, 6, true },
+      { "TOPLEFT", "BOTTOMLEFT", 6, -6, 6, 6, false }, { "TOPRIGHT", "BOTTOMRIGHT", -6, -6, -6, 6, false } }
+    for _, side in ipairs(sides) do
+      local t = add()
+      t:SetTexture(MEDIA .. (side[7] and "stitch_h.png" or "stitch_v.png"), "REPEAT", "REPEAT")
+      t:SetPoint(side[1], window, side[1], side[3], side[4])
+      t:SetPoint(side[2], window, side[2], side[5], side[6])
+      if side[7] then
+        t:SetHeight(1); t:SetHorizTile(true)
+      else
+        t:SetWidth(1); t:SetVertTile(true)
+      end
+      t:SetVertexColor(K.goldText[1], K.goldText[2], K.goldText[3], 0.45)
+    end
+  end
+  return #list > 0 and list or nil
+end
+
+-- How far above the window its frame overlay sits. The deepest the addon builds in a window is the
+-- Settings view and the check drawer, at the window's level + 50, and their own frames a few levels
+-- over that (UI/SettingsFrame.lua, UI/SniperFrame.lua); the item panel and the add box go to + 20.
+-- A frame keeps its window's strata, so the dialogs a strata above (the cost dialog, the drawer)
+-- still draw over the frame.
+local FRAME_LIFT = 80
+
+--- The main window's surface, in the applied skin: a fill that shades from top to bottom, a frame (a
+-- hairline ring, a tinted metal bevel, a pixel line, or Classic's), the skin's ornament, and a soft
+-- shadow outside it, drawn by `window` itself over its whole rect. Returns the pieces: fill, ring,
+-- shadow, glow, ornament (a list of regions, or nil), frameExtra, grain, overlay, and :SetDocked,
+-- :Lift and :CoverTitle.
 --
--- Regions of the window, never a child frame: a child frame sits at the level every control in
--- the window gets (the window's plus one), and the client draws frames of one level layer by
--- layer together, so the glass's fill covered each button's own fill -- an active button's gold
--- plate -- and the window's own lines (seen in WoW: Forever, 2026-10-09). A frame's own regions
--- are under all of its children, whatever their levels.
-function T.Window(window)
-  local ring = T.SlicedTexture(window, "BORDER", MEDIA .. "ring.png", K.windowBorder, T.SLICE.card)
-  ring:SetAllPoints()
-  return { fill = windowFill(window, K.windowTop, K.windowBottom), ring = ring, shadow = T.Shadow(window, 18, 0.65) }
+-- `opts.inside`: a window that sits against a Blizzard frame draws nothing outside its own edge, so
+-- no shadow and no glow (goldcap's hairline look keeps its shadow, as it always had).
+--
+-- :SetDocked(true) is for the window in the auction house, whose Blizzard frame is its frame: the
+-- ring, the ornament, the shadow and the glow go and the corners are square. Goldcap's look has
+-- always kept its ring and rounded corners there and drops only the shadow.
+--
+-- The fill and the shadow are regions of the window, never a child frame: a child frame sits at the
+-- level every control in the window gets (the window's plus one), and the client draws frames of
+-- one level layer by layer together, so the glass's fill covered each button's own fill -- an
+-- active button's gold plate -- and the window's own lines (seen in WoW: Forever, 2026-10-09). A
+-- frame's own regions are under all of its children, whatever their levels.
+--
+-- A frame of the skin's own (the bevel, the pixel line, Classic's gold border and plate) and its
+-- ornament go over the content instead, on one frame of the window (win.overlay) FRAME_LIFT levels
+-- up and deaf to the mouse: the rail is a child frame, and its fill hid Parchment's bevel down the
+-- whole left side and the rivets and brackets at the left corners. Goldcap's hairline ring stays a
+-- region of the window, as it always was.
+function T.Window(window, opts)
+  local skin = GC.Kit.Skins.Current()
+  local inside = opts and opts.inside
+  local radius = skin.radius[1]
+  local classic = skin.frame == "classic"
+  local hairline = skin.frame == "hairline"
+  local overlay
+  if not hairline then
+    overlay = CreateFrame("Frame", nil, window)
+    overlay:SetAllPoints(window)
+    overlay:EnableMouse(false)
+  end
+  -- Above the window's content; again after a change of strata, which reassigns its children's levels.
+  local function lift()
+    if overlay then overlay:SetFrameLevel((window:GetFrameLevel() or 0) + FRAME_LIFT) end
+  end
+  lift()
+  local win
+  if classic then
+    -- The client's marble, tiled in its own colours, in one piece (a tiled texture cannot be cut
+    -- into the nine of the gradient fill).
+    local marble = window:CreateTexture(nil, "BACKGROUND")
+    marble:SetTexture(T.CLASSIC.marble, "REPEAT", "REPEAT")
+    marble:SetHorizTile(true)
+    marble:SetVertTile(true)
+    marble:SetAllPoints()
+    win = { fill = { marble } }
+  elseif skin.paper then
+    -- The client's quest paper where it has the atlas (GetAtlasInfo answers; SetAtlas says nothing
+    -- of its own), else the one gen_art.py draws in the skin's window colours. One untinted piece
+    -- over the window, 2px in from its edge (as the leather grain is) so no square corner shows past
+    -- the ring's arc; a docked window, whose ring is gone and corners square, takes the whole of it.
+    local paper = window:CreateTexture(nil, "BACKGROUND")
+    local info = _G.C_Texture and _G.C_Texture.GetAtlasInfo
+    if info and info("QuestBG-Parchment") then
+      paper:SetAtlas("QuestBG-Parchment")
+    else
+      paper:SetTexture(MEDIA .. "parchment.png")
+    end
+    paper:SetPoint("TOPLEFT", window, "TOPLEFT", 2, -2)
+    paper:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -2, 2)
+    win = { fill = { paper }, paper = paper }
+  else
+    win = { fill = windowFill(window, K.windowTop, K.windowBottom, T.Art("card", radius)) }
+  end
+  win.overlay = overlay
+
+  if classic then
+    -- The client's gold dialog border: a backdrop edge (the file's pieces are 32px) drawn at 40px,
+    -- 14px outside the window; against a Blizzard frame it sits on the window's own edge. A frame of
+    -- its own, since only a frame has a backdrop, on the overlay.
+    local out = inside and 0 or 14
+    local border = CreateFrame("Frame", nil, overlay, "BackdropTemplate")
+    border:SetBackdrop({ edgeFile = T.CLASSIC.goldBorder, edgeSize = inside and 32 or 40 })
+    border:SetUsingParentLevel(true) -- on the overlay's level, over every control of the window
+    border:SetPoint("TOPLEFT", window, "TOPLEFT", -out, out)
+    border:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", out, -out)
+    win.ring = border
+    if not inside then
+      -- The title plate over the top edge, "GoldCap" in white on it.
+      local plate = border:CreateTexture(nil, "OVERLAY")
+      local coords = T.CLASSIC.headerCoords
+      -- A client that has not the plate gets the one gen_art.py draws. SetTexture answers true for
+      -- a file the client lacks too; its file ID is nil (skin probe, WoW: Forever 2026-11-10).
+      plate:SetTexture(T.CLASSIC.goldHeader)
+      if not plate:GetTextureFileID() then
+        plate:SetTexture(MEDIA .. "classic_header.png")
+        plate:SetTexCoord(0, 1, 0, 1)
+      else
+        plate:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+      end
+      plate:SetSize(236, 66)
+      plate:SetPoint("TOP", window, "TOP", 0, 31)
+      local text = T.Heading(border, 16, "OVERLAY")
+      text:SetPoint("CENTER", plate, "CENTER", 0, 0)
+      text:SetText("GoldCap")
+      text:SetTextColor(1, 1, 1, 1) -- untinted
+      win.title, win.titleText = plate, text
+    end
+  elseif skin.frame == "bevel" then
+    -- Baked in colour (outline, band from the skin's frame gradient, inner line), so drawn untinted.
+    win.ring = T.SlicedTexture(overlay, "BORDER", T.Art("bevel", skin.id), { 1, 1, 1, 1 }, -- untinted
+      T.ArtSlice("bevel", radius, skin.frameWidth))
+  elseif skin.frame == "pixel" then
+    win.ring = T.SlicedTexture(overlay, "BORDER", MEDIA .. "pixel_line.png", K.frameTint, T.ArtSlice("ring", 0))
+    local inner = T.SlicedTexture(overlay, "BORDER", MEDIA .. "pixel_line.png", K.frameInner, T.ArtSlice("ring", 0))
+    inner:SetPoint("TOPLEFT", window, "TOPLEFT", 1, -1)
+    inner:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -1, 1)
+    win.frameExtra = { inner }
+  else -- hairline (today)
+    win.ring = T.SlicedTexture(window, "BORDER", T.Art("ring", radius), K.windowBorder, T.ArtSlice("ring", radius))
+  end
+  if not classic then win.ring:SetAllPoints() end
+
+  if skin.ornament == "stitch" then
+    -- The stitched (leather) skin's grain, tiled over the gradient and under everything else.
+    local grain = window:CreateTexture(nil, "BACKGROUND", nil, 1)
+    grain:SetTexture(MEDIA .. "leather.png", "REPEAT", "REPEAT")
+    grain:SetHorizTile(true)
+    grain:SetVertTile(true)
+    grain:SetPoint("TOPLEFT", window, "TOPLEFT", 2, -2)
+    grain:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -2, 2)
+    win.grain = grain
+  end
+
+  win.ornament = overlay and ornamentOf(window, overlay, skin.ornament, inside)
+
+  -- Every look drops the same soft shadow (the mock gives all nine); a window against a Blizzard
+  -- frame draws none outside itself, but for goldcap's, which always had it.
+  if hairline or not inside then win.shadow = T.Shadow(window, 18, 0.65) end
+  if skin.ornament == "shimmer" and not inside then
+    -- Midnight's violet glow, in its accent colour.
+    win.glow = T.Glow(window, { K.gold[1], K.gold[2], K.gold[3], 0.45 }, 28)
+  end
+
+  local frame = { win.ring }
+  if win.title then frame[#frame + 1] = win.title; frame[#frame + 1] = win.titleText end
+  if win.shadow then frame[#frame + 1] = win.shadow end
+  if win.glow then frame[#frame + 1] = win.glow end
+  for _, extra in ipairs(win.frameExtra or {}) do frame[#frame + 1] = extra end
+  for _, region in ipairs(win.ornament or {}) do frame[#frame + 1] = region end
+  local function setShown(region, shown)
+    if shown then region:Show() else region:Hide() end
+  end
+  -- A piece drawn 2px in from the edge while the window has its ring and rounded corners (the paper,
+  -- leather's grain), over the whole window when docked, whose corners are square.
+  local function inset(region, docked)
+    region:ClearAllPoints()
+    if docked then
+      region:SetAllPoints(window)
+    else
+      region:SetPoint("TOPLEFT", window, "TOPLEFT", 2, -2)
+      region:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -2, 2)
+    end
+  end
+  -- A FontString the title plate stands in for (CoverTitle), shown only while the plate is not.
+  local covered
+  function win:SetDocked(docked)
+    if hairline then
+      if self.shadow then setShown(self.shadow, not docked) end
+      return
+    end
+    lift()
+    for _, region in ipairs(frame) do setShown(region, not docked) end
+    if covered then setShown(covered, docked) end
+    if self.grain then inset(self.grain, docked) end
+    if self.paper then
+      inset(self.paper, docked)
+      return
+    end
+    if classic then return end -- the marble has no corners to square
+    T.SquareCorners(self.fill, docked, CORNER, 64)
+  end
+  --- Puts the frame overlay back above the window's content: for a window whose strata changes after
+  --- it is built (the engine reassigns its children's levels then). SetDocked does it on its own.
+  function win:Lift() lift() end
+  --- `fs` (the window's own title) says what the title plate does: hidden while the plate shows (a
+  --- floating Classic window), shown when it does not (docked, or any other skin).
+  function win:CoverTitle(fs)
+    if not (self.title and fs) then return end
+    covered = fs
+    setShown(fs, not self.title:IsShown())
+  end
+  return win
 end
 
 --- Slides `frame` in from the right as it opens, over 0.15 s, and back out as it shuts, over

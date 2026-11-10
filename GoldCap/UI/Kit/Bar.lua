@@ -5,7 +5,7 @@ GC.Theme = GC.Theme or {}
 local T = GC.Theme
 local K = GC.Kit.Tokens.color
 
-local TRACK = { 1, 1, 1, 0.08 }
+local TRACK = GC.Kit.Tokens.alpha("ink", 0.08)
 
 function T.Bar(parent, height, color)
   local f = CreateFrame("Frame", nil, parent)

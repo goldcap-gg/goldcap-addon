@@ -27,6 +27,7 @@ local _, GC = ...
 -- line says how far the run is. No word is cut: a title, a line and a label wrap inside the tile.
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
+local KB = GC.Kit.Tokens.blizzard -- what a line in the game tooltip reads
 local U = HF.ui
 local L = U.L
 local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrapping, U.heightOf, U.track
@@ -46,9 +47,9 @@ local ORDER = { "pricesUp", "forCrafts", "putAway" }
 -- Prices are up in the board's gold, its button the gold fill, while it has something to take out;
 -- the other two, and Prices are up with nothing, on the window's glass, their buttons in a gold
 -- tint and ring.
-local UP_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.08 }
-local UP_RING = { K.gold[1], K.gold[2], K.gold[3], 0.55 }
-local MOVE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.45 }
+local UP_FILL = GC.Kit.Tokens.alpha("gold", 0.08)
+local UP_RING = GC.Kit.Tokens.alpha("gold", 0.55)
+local MOVE_RING = GC.Kit.Tokens.alpha("gold", 0.45)
 -- A button's look at rest (UI/HoardFrame.lua's moveButton), a full tile's and a compact one's, in
 -- Prices are up's gold or as the other two wear it.
 local function fullLook(gold)
@@ -222,16 +223,16 @@ end
 local function itemRows(tooltip, items, icons, right)
   for i, item in ipairs(items) do
     if i > M.TIP_ROWS then
-      line(tooltip, GC.L["and %d more"]:format(#items - M.TIP_ROWS), K.text3)
+      line(tooltip, GC.L["and %d more"]:format(#items - M.TIP_ROWS), KB.text3)
       return
     end
     local left = ("|T%s:0|t "):format(tostring(icons[item.itemID] or 134400)) .. U.itemName(item)
     if item.count then left = left .. (" ×%d"):format(item.count) end
     if right then
-      tooltip:AddDoubleLine(GC.Util.ClientText(left), GC.Util.ClientText(right(item)), K.text1[1], K.text1[2], K.text1[3],
-        K.text2[1], K.text2[2], K.text2[3])
+      tooltip:AddDoubleLine(GC.Util.ClientText(left), GC.Util.ClientText(right(item)), KB.text1[1], KB.text1[2], KB.text1[3],
+        KB.text2[1], KB.text2[2], KB.text2[3])
     else
-      line(tooltip, left, K.text1)
+      line(tooltip, left, KB.text1)
     end
   end
 end
@@ -240,31 +241,31 @@ end
 local TIPS = {
   pricesUp = function(tooltip, button)
     local plan = button.plan
-    line(tooltip, GC.L["These sell above the usual price you set for their group."], K.text2, true)
-    if #plan.stacks == 0 then return line(tooltip, GC.L["Nothing to move"], K.text3) end
-    line(tooltip, GC.L["Price per unit: now / usual"], K.text3)
+    line(tooltip, GC.L["These sell above the usual price you set for their group."], KB.text2, true)
+    if #plan.stacks == 0 then return line(tooltip, GC.L["Nothing to move"], KB.text3) end
+    line(tooltip, GC.L["Price per unit: now / usual"], KB.text3)
     itemRows(tooltip, plan.items, iconsOf(plan), function(item)
-      return GC.Util.Colored(K.profit, GC.Util.Money(item.now)) .. GC.Util.Colored(K.text3, " / " .. GC.Util.Money(item.usual))
+      return GC.Util.Colored(KB.profit, GC.Util.Money(item.now)) .. GC.Util.Colored(KB.text3, " / " .. GC.Util.Money(item.usual))
     end)
-    line(tooltip, GC.L["Worth about %s"]:format(GC.Util.Colored(K.goldText, U.worthText(plan.worth))), K.text1)
-    line(tooltip, GC.L["Takes them out to your bags, ready for the Sell tab."], K.profit, true)
+    line(tooltip, GC.L["Worth about %s"]:format(GC.Util.Colored(KB.goldText, U.worthText(plan.worth))), KB.text1)
+    line(tooltip, GC.L["Takes them out to your bags, ready for the Sell tab."], KB.profit, true)
   end,
   forCrafts = function(tooltip, button)
     local plan = button.plan
-    line(tooltip, GC.L["What your craft queue needs that your bags lack, from this bank."], K.text2, true)
-    if #plan.stacks == 0 then return line(tooltip, GC.L["Nothing to move"], K.text3) end
-    line(tooltip, GC.L["Per reagent: need / in bags / taken"], K.text3)
+    line(tooltip, GC.L["What your craft queue needs that your bags lack, from this bank."], KB.text2, true)
+    if #plan.stacks == 0 then return line(tooltip, GC.L["Nothing to move"], KB.text3) end
+    line(tooltip, GC.L["Per reagent: need / in bags / taken"], KB.text3)
     itemRows(tooltip, plan.items, iconsOf(plan), function(item)
       return ("%d / %d / %d"):format(item.need, item.inBags, item.taken)
     end)
-    line(tooltip, U.stacksInto(#plan.stacks), K.text1)
+    line(tooltip, U.stacksInto(#plan.stacks), KB.text1)
   end,
   putAway = function(tooltip, button)
     local plan, n = button.plan, #button.plan.stacks
-    line(tooltip, GC.L["Leaves out what sells above its usual price and what your craft queue needs."], K.text2, true)
-    if n == 0 then return line(tooltip, GC.L["Nothing to move"], K.text3) end
+    line(tooltip, GC.L["Leaves out what sells above its usual price and what your craft queue needs."], KB.text2, true)
+    if n == 0 then return line(tooltip, GC.L["Nothing to move"], KB.text3) end
     itemRows(tooltip, plan.items, iconsOf(plan))
-    line(tooltip, U.stacksInto(n, U.bankName(button.bankShown)), K.text1)
+    line(tooltip, U.stacksInto(n, U.bankName(button.bankShown)), KB.text1)
   end,
 }
 

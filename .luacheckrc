@@ -13,7 +13,7 @@ globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLe
   "GoldCap_OnAddonCompartmentClick", "GoldCap_OnAddonCompartmentEnter", "GoldCap_OnAddonCompartmentLeave" }
 
 read_globals = {
-  "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip",
+  "CreateFrame", "UIParent", "CreateFontFamily", "GameFontNormal", "GameTooltip", "ItemRefTooltip",
   -- A board row's item tooltip without the comparison windows (UI/SniperFrame.lua's _ShowItemTooltip).
   "GameTooltip_SuppressAutomaticCompareItem",
   -- BUY 2.0 week 2: the merchant (UI/BuyVendorPanel.lua).
@@ -30,7 +30,7 @@ read_globals = {
   "GetCVar", "GetRealmName", "GetLocale", "time",
   "C_Item", "C_AddOns", "GetAddOnMetadata", "Item",
   "Enum", "TooltipDataProcessor", "print", "ChatFontNormal",
-  "C_AuctionHouse", "C_Timer", "PlaySound", "SOUNDKIT", "ITEM_QUALITY_COLORS",
+  "C_AuctionHouse", "C_Timer", "PlaySound", "ReloadUI", "SOUNDKIT", "ITEM_QUALITY_COLORS",
   "CreateFromMixins", "CreateColor", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "UISpecialFrames",
   "hooksecurefunc",
   -- Sniper v3 §3 AutoScan wiring: the machine's own clock domain, and the native AH frame

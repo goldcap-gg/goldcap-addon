@@ -27,11 +27,13 @@ local function createRow(parent)
   local row = CreateFrame("Button", nil, parent)
   row:SetSize(UP.W - 24, UP.ROW_H)
   -- Hover is the engine's HIGHLIGHT layer on a mouse-enabled frame, the same fill UI/BuyFrame.lua's
-  -- rows use -- never painted in OnEnter.
+  -- rows use -- never painted in OnEnter. Its ink is the game's: this is a Blizzard frame, so a
+  -- skin's window ink (dark brown on Parchment) would vanish on it.
   row:EnableMouse(true)
   local hl = row:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints()
-  hl:SetColorTexture(1, 1, 1, 0.08)
+  local ink = GC.Kit.Tokens.blizzard.ink
+  hl:SetColorTexture(ink[1], ink[2], ink[3], 0.08)
   local function cell(template, x, width, justify, wrap)
     local fs = GC.Theme.ClientFont(row:CreateFontString(nil, "ARTWORK", template))
     fs:SetPoint("TOPLEFT", x, -3)

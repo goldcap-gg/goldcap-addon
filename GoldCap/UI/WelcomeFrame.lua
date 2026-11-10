@@ -215,13 +215,16 @@ local function build()
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
   f.glass = Theme.Window(f)
 
-  -- The GoldCap mark with the window's one warm light, as the rail draws it.
+  -- The GoldCap mark with the window's one warm light, as the rail draws it (none in a skin
+  -- without a glow).
   f.logo = CreateFrame("Frame", nil, f)
   f.logo:SetSize(G.LOGO, G.LOGO)
   f.logo.mark = f.logo:CreateTexture(nil, "ARTWORK")
   f.logo.mark:SetTexture(Theme.MEDIA .. "GoldCap")
   f.logo.mark:SetAllPoints()
-  f.logo.glow = Theme.Glow(f.logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10)
+  if GC.Kit.Skins.Current().glow then
+    f.logo.glow = Theme.Glow(f.logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10)
+  end
 
   f.title = heading(f, 17, K.text1)
   f.sub = label(f, 12, K.text2)
@@ -232,7 +235,7 @@ local function build()
   f.closeBtn.icon = f.closeBtn:CreateTexture(nil, "ARTWORK")
   f.closeBtn.icon:SetSize(12, 12)
   f.closeBtn.icon:SetPoint("CENTER")
-  Theme.SetIcon(f.closeBtn.icon, "close", K.text3)
+  Theme.CloseIcon(f.closeBtn, K.text3)
   f.closeBtn:SetScript("OnClick", close)
 
   f.features = {}
@@ -247,7 +250,7 @@ local function build()
     f.features[i] = row
   end
 
-  local card = Theme.Card(f, { 1, 1, 1, 0.03 }, K.glassBorder)
+  local card = Theme.Card(f, GC.Kit.Tokens.ink(0.03), K.glassBorder)
   f.card = card
   card.icon = card:CreateTexture(nil, "ARTWORK")
   card.icon:SetSize(16, 16)
@@ -264,7 +267,7 @@ local function build()
   card.linkLabel = label(card, 12, K.text1)
 
   -- The link: a well with the URL in it, selected whole on a click so the copy keys just work.
-  local box = Theme.Card(card, { 0, 0, 0, 0.35 }, K.glassBorder, true)
+  local box = Theme.Card(card, { 0, 0, 0, 0.35 }, K.glassBorder, true) -- untinted
   box:SetHeight(G.LINK_H)
   card.box = box
   box.keys = Theme.Label(box, 11)
@@ -518,7 +521,7 @@ end
 -- a browser, so it opens this window, its link ready to copy. In the colour the game's own spell
 -- links wear.
 local LINK_ID = "addon:GoldCap:companion"
-local LINK = "|cff71d5ff|H" .. LINK_ID .. "|h[GoldCap Companion]|h|r"
+local LINK = "|cff71d5ff|H" .. LINK_ID .. "|h[GoldCap Companion]|h|r" -- blizzard surface
 
 -- The chat line for a state that asks something of the player, the link last.
 local function loginText(s)

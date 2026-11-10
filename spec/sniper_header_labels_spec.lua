@@ -151,7 +151,7 @@ describe("Sniper deals column headings", function()
     local files = {}
     for rawLine in toc:lines() do
       local line = rawLine:gsub("%s+$", "")
-      if line ~= "" and not line:match("^##") then
+      if line ~= "" and not line:match("^#") then
         files[#files + 1] = line
       end
     end

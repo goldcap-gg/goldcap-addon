@@ -64,7 +64,7 @@ end
 -- A dark round badge with a purple ring at a corner of the overlay ("TOPLEFT" or "TOPRIGHT"),
 -- standing OUT units out of it: the purple disc, the dark disc on it, what sits on them above both.
 local function badge(o, corner)
-  local dark = GC.Kit.Tokens.color.windowBottom
+  local dark = GC.Kit.Tokens.blizzard.windowBottom
   local x = corner == "TOPLEFT" and -OUT or OUT
   local ring = o:CreateTexture(nil, "OVERLAY", nil, 1)
   ring:SetColorTexture(PURPLE[1], PURPLE[2], PURPLE[3], 1)

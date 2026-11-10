@@ -100,7 +100,7 @@ local function paintLadder(row, book)
       line.bar.fill:SetPoint("BOTTOMLEFT", line.bar, "BOTTOMLEFT", offset, 0)
       line.bar.fill:SetWidth(math.max(DR.BAR_MIN, math.floor((DR.BAR_MAX - offset) * span + 0.5)))
       if tint then line.bar.fill:SetVertexColor(tint[1], tint[2], tint[3], 0.8)
-      else line.bar.fill:SetVertexColor(1, 1, 1, 0.22) end
+      else line.bar.fill:SetVertexColor(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.22) end
       line.price:Show(); line.qty:Show(); line.bar:Show()
       if wash then
         line.wash:SetColorTexture(wash[1], wash[2], wash[3], 0.10)
@@ -170,10 +170,10 @@ function Book.Decorate(row)
     -- keep their shape at any width and tinted through SetVertexColor -- SetColorTexture on a
     -- sliced region drops the art and paints the square block these replaced.
     line.bar.track = Theme.SlicedTexture(line.bar, "BACKGROUND", Theme.MEDIA .. "bar.png",
-      { 1, 1, 1, 0.05 }, DR.BAR_SLICE)
+      GC.Kit.Tokens.ink(0.05), DR.BAR_SLICE)
     line.bar.track:SetAllPoints()
     line.bar.fill = Theme.SlicedTexture(line.bar, "ARTWORK", Theme.MEDIA .. "bar.png",
-      { 1, 1, 1, 0.22 }, DR.BAR_SLICE)
+      GC.Kit.Tokens.ink(0.22), DR.BAR_SLICE)
     line.bar.fill:SetPoint("TOPLEFT")
     line.bar.fill:SetPoint("BOTTOMLEFT")
     line.bar.fill:SetWidth(DR.BAR_MIN)

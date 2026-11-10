@@ -50,6 +50,7 @@ GC.MailAlts = {}
 local MA = GC.MailAlts
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
+local KB = GC.Kit.Tokens.blizzard -- what a line in the game tooltip reads
 local U = HF.ui
 local L = U.L
 local setText, colour, wrapping, heightOf, track, restamp = U.setText, U.colour, U.wrapping, U.heightOf, U.track,
@@ -91,13 +92,13 @@ local LOCK_ICON, LOCK_EDGE = "Interface\\LFGFrame\\UI-LFG-ICON-LOCK", 28 / 32
 -- The boards' colours, from the kit's tokens: the top card's gold tint and ring; a card's Send in a
 -- gold outline; Stop's ring in the loss colour, as the Hoard's Stop wears it; the card in flight in
 -- the Hoard's run gold; "Who sells it?" ringed in gold; a card this character sells at SELF_ALPHA.
-local CARD_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.06 }
-local CARD_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
-local SEND_RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }
-local STOP_RING = { K.loss[1], K.loss[2], K.loss[3], 0.5 }
-local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
-local RUN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
-local PICK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
+local CARD_FILL = GC.Kit.Tokens.alpha("gold", 0.06)
+local CARD_RING = GC.Kit.Tokens.alpha("gold", 0.35)
+local SEND_RING = GC.Kit.Tokens.alpha("gold", 0.5)
+local STOP_RING = GC.Kit.Tokens.alpha("loss", 0.5)
+local RUN_FILL = GC.Kit.Tokens.alpha("gold", 0.07)
+local RUN_RING = GC.Kit.Tokens.alpha("gold", 0.6)
+local PICK_RING = GC.Kit.Tokens.alpha("gold", 0.6)
 local SELF_ALPHA = 0.6
 
 -- Whether the mailbox is open (MAIL_SHOW until MAIL_CLOSED or the mail frame's hide). What the last
@@ -780,7 +781,7 @@ end
 -- A character in the menu: its class icon, its name in its class colour, and a grey note: the groups
 -- that go to it already here, else when it was last seen.
 local function altLine(alt, reading)
-  local text = GC.Util.Colored(classColour(alt.class) or K.text1, alt.mailName)
+  local text = GC.Util.Colored(classColour(alt.class) or KB.text1, alt.mailName)
   local atlas = classAtlas(alt.class)
   if atlas then text = ("|A:%s:14:14|a %s"):format(atlas, text) end
   local gets = {}
@@ -788,7 +789,7 @@ local function altLine(alt, reading)
     if row.to == alt.full then gets[#gets + 1] = row.name end
   end
   local note = #gets > 0 and GC.L["gets %s"]:format(commasOf(gets)) or seenText(alt.seen)
-  return text .. "  " .. GC.Util.Colored(K.text3, note)
+  return text .. "  " .. GC.Util.Colored(KB.text3, note)
 end
 
 -- Who sells a group, from its chip: the characters this one can mail, this character, a name typed
@@ -804,7 +805,7 @@ local function fillMenu(root, chip, row)
       root:CreateButton(GC.Util.ClientText(altLine(alt, reading)), function() setRecipient(row.key, alt.full) end)
     end
   else
-    root:CreateTitle(GC.Util.ClientText(GC.Util.Colored(K.text3,
+    root:CreateTitle(GC.Util.ClientText(GC.Util.Colored(KB.text3,
       GC.L["Your other characters show here once each has logged in with GoldCap."])))
   end
   root:CreateDivider()
@@ -850,10 +851,10 @@ local function showIconTip(hit)
   local tooltip, item = _G.GameTooltip, hit.item
   if not (tooltip and item) then return end
   GC.Theme.ItemTooltipOutside(hit, frame)
-  tooltip:AddLine(GC.Util.ClientText(("%s ×%d"):format(U.itemName(item), item.count)), K.text1[1], K.text1[2], K.text1[3])
+  tooltip:AddLine(GC.Util.ClientText(("%s ×%d"):format(U.itemName(item), item.count)), KB.text1[1], KB.text1[2], KB.text1[3])
   local why = item.why == "bound" and GC.L["Bound to you: a mail cannot take it."]
     or item.why == "refund" and GC.L["Can still be refunded: a mail would end that, so it stays."] or nil
-  if why then tooltip:AddLine(GC.Util.ClientText(why), K.text2[1], K.text2[2], K.text2[3], true) end
+  if why then tooltip:AddLine(GC.Util.ClientText(why), KB.text2[1], KB.text2[2], KB.text2[3], true) end
   tooltip:Show()
 end
 
@@ -914,7 +915,7 @@ local function recipientChip(row)
   local T = GC.Theme
   local chip = U.plate(row, K.windowBorder, "badge")
   chip:SetHeight(M.CHIP_H)
-  chip.bg = T.SlicedTexture(chip, "BACKGROUND", T.MEDIA .. "badge.png", K.glassTop, T.SLICE.badge)
+  chip.bg = T.ShapeTexture(chip, "BACKGROUND", "chip", K.glassTop)
   chip.bg:SetAllPoints()
   chip.icon = chip:CreateTexture(nil, "ARTWORK")
   chip.icon:SetSize(M.CLASS, M.CLASS)
@@ -950,9 +951,9 @@ end
 local function newRow()
   local T = GC.Theme
   local row = CreateFrame("Frame", nil, frame.content)
-  row.bg = T.SlicedTexture(row, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassBottom, T.SLICE.plaque)
+  row.bg = T.ShapeTexture(row, "BACKGROUND", "control", K.glassBottom)
   row.bg:SetAllPoints()
-  row.ring = T.SlicedTexture(row, "BORDER", T.MEDIA .. "plaque_ring.png", K.hairline, T.SLICE.plaque)
+  row.ring = T.ShapeTexture(row, "BORDER", "control", K.hairline, true)
   row.ring:SetAllPoints()
   row.name = track(row, wrapping(T.Label(row, 11)))
   colour(row.name, K.text1)
@@ -985,7 +986,7 @@ local function build()
   frame:SetSize(L.WIDTH, L.MIN_H)
   frame:EnableMouse(true)
   frame:SetClampedToScreen(true)
-  frame.glass = T.Window(frame)
+  frame.glass = T.Window(frame, { inside = true })
   U.newHeader(frame, onCloseClick)
   buildTop()
   frame.section = track(frame, wrapping(T.Heading(frame, 9)))

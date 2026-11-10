@@ -1,4 +1,5 @@
 local _, GC = ...
+local B = GC.Kit.Tokens.blizzard
 
 -- The Sold tab: what the player sold, what reached the mailbox, and the profit GoldCap knows.
 -- The arithmetic lives in Core/SoldView.lua; this file reads the stores, hands their rows to
@@ -54,15 +55,18 @@ local SD = {
   STALE_YELLOW = 6 * 3600, STALE_RED = 24 * 3600,
 }
 
-local HEX = {
-  g = "|cffe8c15a", s = "|cffc9ced6", c = "|cffd08a5a",
-  green = "|cff5fd38d", gold = "|cffe8c15a", dim = "|cff9d9d9d",
-}
-local COLOR = {
-  tile = { 0.071, 0.078, 0.098 }, road = { 0.117, 0.112, 0.105 },
-  banner = { 0.099, 0.138, 0.109 }, empty = { 0.063, 0.071, 0.090 },
-  faint = { 0.459, 0.451, 0.435 }, orange = { 0.941, 0.627, 0.294 }, white = { 1, 1, 1 },
-}
+-- Inline colour escapes of the window's figures, read from the applied skin when a line is built.
+local HEX_KEY = { g = "soldGold", s = "soldSilver", c = "soldCopper", green = "soldGreen", gold = "soldGold", dim = "soldDim" }
+local HEX = setmetatable({}, { __index = function(_, key)
+  local color = GC.Kit.Tokens.color[HEX_KEY[key]]
+  return color and GC.Util.Colored(color, ""):sub(1, -3)
+end })
+local COLOR_KEY = { tile = "soldTile", road = "soldRoad", banner = "soldBanner", empty = "soldEmpty", faint = "soldFaint" }
+-- The window's fills and faint text, read from the applied skin when a tile is built; `orange` and
+-- `white` are the game tooltip's.
+local COLOR = setmetatable({ orange = B.tipOrange, white = B.tipWhite }, { __index = function(_, key)
+  return GC.Kit.Tokens.color[COLOR_KEY[key]]
+end })
 
 -- @localised-keys: literals in these tables ARE GC.L keys. They are built at FILE SCOPE, where
 -- GC.L still answers in English (ApplyLocale runs at ADDON_LOADED), so each is looked up where
@@ -230,6 +234,10 @@ end
 
 local function qualityColor(quality)
   if type(quality) ~= "number" or quality < 2 then return nil end
+  -- The skin's colour first; the game's below comes from the client's colour call before the table
+  -- (so this one site does not take the root's table fallback).
+  local skinned = Theme.SkinQuality(quality)
+  if skinned then return { skinned.r, skinned.g, skinned.b } end
   local api = _G.C_Item
   if api and api.GetItemQualityColor then
     local ok, r, g, b = pcall(api.GetItemQualityColor, quality)
@@ -447,8 +455,9 @@ local function paintBest(tile, m)
     return
   end
   local info = itemInfo(best)
-  if info.icon then tile.icon:SetTexture(info.icon) else tile.icon:SetColorTexture(1, 1, 1, 0.05) end
-  local edge = info.color and { info.color[1], info.color[2], info.color[3], 0.6 } or { 1, 1, 1, 0.16 }
+  if info.icon then tile.icon:SetTexture(info.icon)
+  else tile.icon:SetColorTexture(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.05) end
+  local edge = info.color and { info.color[1], info.color[2], info.color[3], 0.6 } or GC.Kit.Tokens.ink(0.16)
   tile.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], edge[4])
   tile.icon:Show(); tile.iconEdge:Show()
   tile.hasIcon = true
@@ -561,7 +570,7 @@ local function layoutControls(width, y)
       chip:SetVariant("active")
     else
       chip:SetVariant("ghost")
-      chip.bg:SetVertexColor(1, 1, 1, 0)
+      chip.bg:SetVertexColor(1, 1, 1, 0) -- untinted
       setColor(chip.text, Theme.color.fgDim)
     end
   end
@@ -635,10 +644,10 @@ local function paintRow(row, entry, now)
   else
     -- An item the client cannot name yet: a quiet empty slot, not the red question mark that
     -- reads as an error.
-    row.icon:SetColorTexture(1, 1, 1, 0.05)
+    row.icon:SetColorTexture(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.05)
   end
   local c = row.info.color
-  local edge = c and { c[1], c[2], c[3], 0.6 } or { 1, 1, 1, 0.16 }
+  local edge = c and { c[1], c[2], c[3], 0.6 } or GC.Kit.Tokens.ink(0.16)
   row.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], edge[4])
   row.icon:Show(); row.iconEdge:Show()
   put(row.name, r.name or GC.L["Unknown item"])
@@ -732,7 +741,7 @@ local function saleTooltip(row)
   -- full tooltip (stats, vendor price, GoldCap's own price block) buried the sale under it.
   local nameColor = info.color or COLOR.white
   GameTooltip:SetText(GC.Util.ClientText(r.name or GC.L["Unknown item"]), nameColor[1], nameColor[2], nameColor[3])
-  local dim, body, white = Theme.color.fgDim, { 0.85, 0.85, 0.85 }, COLOR.white
+  local dim, body, white = B.text3, B.tipBody, COLOR.white
   local tip = GC.Util.ClientText
   local function line(text, c, wrap) GameTooltip:AddLine(tip(text), c[1], c[2], c[3], wrap) end
   local function pair(left, right, lc, rc)
@@ -757,10 +766,10 @@ local function saleTooltip(row)
       if SOURCE_TEXT[source] then names[#names + 1] = GC.L[SOURCE_TEXT[source]] end
     end
     local paid = #names > 0 and GC.L["You paid (%s)"]:format(table.concat(names, ", ")) or GC.L["You paid"]
-    if r.paid then pair(paid, plain(r.paid, true), body, Theme.color.cost) end
+    if r.paid then pair(paid, plain(r.paid, true), body, B.cost) end
     if r.paidEach then line(GC.L["%s each"]:format(plain(r.paidEach, true)), dim) end
     if r.costUnits then line(GC.L["cost known for %d of %d"]:format(r.costUnits, r.qty), dim) end
-    pair(GC.L["Profit"], signed(r.profit, true), white, r.profit >= 0 and Theme.color.green or Theme.color.red)
+    pair(GC.L["Profit"], signed(r.profit, true), white, r.profit >= 0 and B.profit or B.loss)
     -- A crafted item whose cost counts reagents at the market price says so, and which.
     if info.id and GC.CraftCapture and GC.CraftCapture.WhyEstimated and C_Item and C_Item.GetItemNameByID then
       for _, why in ipairs(GC.CraftCapture.WhyEstimated(info.id, function(itemID)
@@ -791,7 +800,7 @@ local function saleTooltip(row)
   local pct = market and V.Percent(r.each, market)
   if pct then
     local price = plain(market, true)
-    if pct > 0 then line(GC.L["Market now %s · you sold %d%% above it"]:format(price, pct), Theme.color.green, true)
+    if pct > 0 then line(GC.L["Market now %s · you sold %d%% above it"]:format(price, pct), B.profit, true)
     elseif pct < 0 then line(GC.L["Market now %s · you sold %d%% under it"]:format(price, -pct), COLOR.orange, true)
     else line(GC.L["Market now %s · you sold at it"]:format(price), dim, true) end
   end
@@ -805,7 +814,7 @@ local function createRow(parent)
   -- in the HIGHLIGHT layer it drew over the name and the figures and tinted them. paintRow's
   -- clearRow hides it on every repaint, so a row hidden under a still cursor cannot keep it.
   local hc = Theme.color.hover
-  row.highlight = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png", hc, 12)
+  row.highlight = Theme.ShapeTexture(row, "BACKGROUND", "control", hc)
   row.highlight:SetDrawLayer("BACKGROUND", 1)
   row.highlight:SetPoint("TOPLEFT", 2, -1)
   row.highlight:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -1051,7 +1060,7 @@ local function createTile(parent)
   tile.icon:SetPoint("CENTER", tile.iconEdge, "CENTER")
   tile.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   tile.bar = CreateFrame("Frame", nil, tile.frame)
-  local track = Theme.SlicedTexture(tile.bar, "BACKGROUND", Theme.MEDIA .. "bar.png", { 1, 1, 1, 0.07 }, 2)
+  local track = Theme.SlicedTexture(tile.bar, "BACKGROUND", Theme.MEDIA .. "bar.png", GC.Kit.Tokens.ink(0.07), 2)
   track:SetAllPoints()
   tile.bar.fill = Theme.SlicedTexture(tile.bar, "ARTWORK", Theme.MEDIA .. "bar.png", Theme.color.gold, 2)
   tile.bar.fill:SetPoint("TOPLEFT")
@@ -1065,9 +1074,9 @@ local function createTile(parent)
     GameTooltip:SetOwner(self, Theme.TooltipAnchor and Theme.TooltipAnchor(self) or "ANCHOR_RIGHT")
     for i, text in ipairs(GC.ForeverRoad.Lines(s)) do
       if i == 1 then
-        GameTooltip:AddLine(GC.Util.ClientText(text), 1, 0.82, 0, true)
+        GameTooltip:AddLine(GC.Util.ClientText(text), B.tipTitle[1], B.tipTitle[2], B.tipTitle[3], true)
       else
-        GameTooltip:AddLine(GC.Util.ClientText(text), 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.Util.ClientText(text), B.tipBody[1], B.tipBody[2], B.tipBody[3], true)
       end
     end
     GameTooltip:Show()
@@ -1091,8 +1100,9 @@ local function createBanner(parent)
   b.button = Theme.Button(b.frame, "ghost", "plaque")
   b.button:SetPoint("RIGHT", b.frame, "RIGHT", -SD.BANNER_PAD_X / 2, 0)
   local gc = Theme.color.gold
-  if b.button.ring then b.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
-  b.button.bg:SetVertexColor(1, 1, 1, 0)
+  -- A plate's ring is baked in colour: a tint would spoil it.
+  if b.button.ring and not b.button.plate then b.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
+  b.button.bg:SetVertexColor(1, 1, 1, 0) -- untinted
   setColor(b.button.text, Theme.color.goldHi)
   b.button:SetScript("OnClick", function()
     if GC.Sniper and GC.Sniper.ShowView then GC.Sniper.ShowView("sell") end
@@ -1112,7 +1122,7 @@ local function createControls(parent)
     end)
     c.chips[period] = chip
   end
-  c.well = Theme.Card(parent, COLOR.tile, { 1, 1, 1, 0.08 }, true)
+  c.well = Theme.Card(parent, COLOR.tile, GC.Kit.Tokens.ink(0.08), true)
   c.glass = c.well:CreateTexture(nil, "ARTWORK")
   Theme.SetIcon(c.glass, "search")
   local dim = Theme.color.fgDim
@@ -1170,7 +1180,7 @@ local function createHeader(parent)
 end
 
 local function createEmpty(parent)
-  local e = { frame = Theme.Card(parent, COLOR.empty, { 1, 1, 1, 0.07 }, true) }
+  local e = { frame = Theme.Card(parent, COLOR.empty, GC.Kit.Tokens.ink(0.07), true) }
   e.icon = e.frame:CreateTexture(nil, "ARTWORK")
   Theme.SetIcon(e.icon, "mail")
   local gold = Theme.color.goldHi
@@ -1184,8 +1194,9 @@ local function createEmpty(parent)
   setColor(e.sub, Theme.color.fgDim)
   e.button = Theme.Button(e.frame, "ghost", "plaque")
   local gc = Theme.color.gold
-  if e.button.ring then e.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
-  e.button.bg:SetVertexColor(1, 1, 1, 0)
+  -- A plate's ring is baked in colour: a tint would spoil it.
+  if e.button.ring and not e.button.plate then e.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
+  e.button.bg:SetVertexColor(1, 1, 1, 0) -- untinted
   setColor(e.button.text, Theme.color.goldHi)
   e.button:SetScript("OnClick", function()
     state.period = "30d"

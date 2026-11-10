@@ -13,9 +13,29 @@ function helper.securecallfunction(fn, ...)
 end
 _G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 
+-- Every UI file reads the design tokens (UI/Kit/Tokens.lua), which both TOCs load before any other
+-- UI file. A spec that builds its own GC and loads a UI file with loadfile gets the same: the
+-- tokens are put on that GC first, unless it already has them.
+local realLoadfile = loadfile
+-- luacheck: push ignore 122 -- deliberately replacing loadfile itself; the wrapper is this block's job.
+function loadfile(path, ...)
+  local chunk, err = realLoadfile(path, ...)
+  if chunk and type(path) == "string" and path:match("^GoldCap/UI/") and not path:match("^GoldCap/UI/Kit/Tokens%.lua$") then
+    local inner = chunk
+    chunk = function(name, GC, ...)
+      if type(GC) == "table" and not (type(GC.Kit) == "table" and GC.Kit.Tokens) then
+        assert(realLoadfile("GoldCap/UI/Kit/Tokens.lua"))(name, GC)
+      end
+      return inner(name, GC, ...)
+    end
+  end
+  return chunk, err
+end
+-- luacheck: pop
+
 --- UI/Kit/*.lua, in the order both TOCs load them, right before UI/Theme.lua
 --- (spec/kit_structure_spec.lua holds the TOCs to this list). Theme.lua builds on them.
-helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua", "UI/Kit/Button.lua", "UI/Kit/Chip.lua",
+helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Skins.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua", "UI/Kit/Button.lua", "UI/Kit/Chip.lua",
   "UI/Kit/Parts.lua" }
 --- Services/Sell/*.lua, in the order both TOCs load them: one block after Core/QuoteCache.lua and
 --- before the first UI file (spec/sell_services_structure_spec.lua holds the TOCs to this list).
@@ -122,6 +142,20 @@ function helper.sellSource()
   for _, path in ipairs(helper.SELL_FILES) do parts[#parts + 1] = readFile("GoldCap/" .. path) end
   for _, path in ipairs(helper.SELL_UI_FILES) do parts[#parts + 1] = readFile("GoldCap/" .. path) end
   return table.concat(parts, "\n")
+end
+
+--- Whether a texture path the addon draws is shipped: a path under GC.Kit.MEDIA (`media`) is true only
+--- when its file is in GoldCap/Media (a path without an extension is a .tga or .blp, as the client
+--- reads it); any other path is the client's own art and answers nil.
+function helper.shipsMedia(file, media)
+  if type(file) ~= "string" or file:sub(1, #media) ~= media then return nil end
+  local rel = "GoldCap/Media/" .. file:sub(#media + 1):gsub("\\", "/")
+  local candidates = rel:find("%.%w+$") and { rel } or { rel .. ".tga", rel .. ".blp" }
+  for _, path in ipairs(candidates) do
+    local handle = io.open(path, "rb")
+    if handle then handle:close() return true end
+  end
+  return false
 end
 
 --- A top-level function's text, from its `header` line to the `end` that closes it at column 0.

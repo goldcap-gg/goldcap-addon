@@ -1106,10 +1106,10 @@ end
 local function qtySuffix(deal, qty)
   qty = qty or deal.qty
   if deal.avail and deal.avail > qty then
-    return ("|cff8c8a85 x%d of %d|r"):format(qty, deal.avail)
+    return GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, (" x%d of %d"):format(qty, deal.avail))
   end
   if qty and qty > 1 then
-    return ("|cff8c8a85 x%d|r"):format(qty)
+    return GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, (" x%d"):format(qty))
   end
   return ""
 end
@@ -1512,7 +1512,7 @@ local function setRowDeal(row, deal)
   -- that stamps nameText below, including the async ContinueOnItemLoad callback that can land
   -- well after this call returns.
   local watchSuffix = deal.pinPlaceholder
-    and ("|cff8c8a85%s|r"):format(GC.L[" · watching"]) or ""
+    and GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, GC.L[" · watching"]) or ""
   -- Live price caps, addon task 6: a cap row belongs to an alert group -- say so, in the same dim
   -- suffix pattern watchSuffix uses (own color code, so it never inherits the quality-colored
   -- name). Only the group: the VERDICT column already says YOUR PRICE, and "· your price 1g10s"
@@ -1522,7 +1522,7 @@ local function setRowDeal(row, deal)
   -- A WoW: Forever row adds nothing here: its kind is on the chip, and the price to buy at and its
   -- reference are in the tooltip (GC.Sniper._ForeverNote). After the name they made every row four
   -- lines tall (owner, 2026-11-06).
-  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup) or ""
+  local capSuffix = deal.capGroup and GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, (" · %s"):format(deal.capGroup)) or ""
   -- The notes are asked again at every stamp: the one after the item loads is the first whose
   -- collection answer can be more than "unknown".
   local function stampName(named)
@@ -1551,7 +1551,7 @@ function GC.Sniper._StampItem(row, deal, stamp)
     if row.deal ~= deal then return end -- row was repurposed before the async load finished
     local icon = item:GetItemIcon()
     local quality = item:GetItemQuality()
-    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+    local qc = quality and (Theme.QualityColor(quality, true) or {}).color
     local label = item:GetItemName() or ("item " .. deal.itemID)
     -- Reagent quality beside the name. Two tiers of the same reagent are
     -- separate itemIDs and so already price separately -- this is identification,
@@ -1613,14 +1613,15 @@ function GC.Sniper._MarkSuffix(itemID)
   local state, kind = GC.Sniper._MarkState(itemID)
   local text = GC.ItemsBoard.MarkText(state, kind)
   if not text then return "" end
-  return ("  |cff%s%s|r"):format(state == "missing" and "f7cf5a" or "8c8a85", text)
+  return "  " .. GC.Util.Colored(
+    state == "missing" and GC.Kit.Tokens.color.goldText or GC.Kit.Tokens.color.dealMuted, text)
 end
 
 -- The line under an Items board row's name: `text` dim, then the item's collection mark; "" with
 -- neither. One line (owner, 2026-10-25: "more than two lines is not needed"), the name the other.
 function GC.Sniper._UnderName(text, itemID)
   local mark = GC.Sniper._MarkSuffix(itemID)
-  if text then return ("\n|cff8c8a85%s|r"):format(text) .. mark end
+  if text then return "\n" .. GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, text) .. mark end
   if mark == "" then return "" end
   return "\n" .. (mark:gsub("^ +", ""))
 end
@@ -1643,14 +1644,14 @@ function GC.Sniper._RowDetails(deal)
   local out = {}
   if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then return out end
   local sells = GC.Data.FlipFacts and GC.ItemsBoard.FlipText(GC.Data.FlipFacts(deal.itemID))
-  if sells then out[#out + 1] = { text = sells, color = Theme.color.fgDim } end
+  if sells then out[#out + 1] = { text = sells, color = GC.Kit.Tokens.blizzard.text3 } end
   if GC.SellRoute then
     local cheap = GC.Data.CheapRealms and GC.Data.CheapRealms(deal.itemID)
     if GC.SellRoute.IsCheap(deal.unitPrice, cheap) then
-      out[#out + 1] = { text = GC.SellRoute.CheapText(cheap), color = Theme.color.gold }
+      out[#out + 1] = { text = GC.SellRoute.CheapText(cheap), color = GC.Kit.Tokens.blizzard.gold }
     end
     for _, line in ipairs(GC.SellRoute.Lines(GC.SellRoute.ForItem(deal.itemID, deal.unitPrice), GC.SellRoute.RealmName)) do
-      out[#out + 1] = { text = line, color = Theme.color.fgMuted }
+      out[#out + 1] = { text = line, color = GC.Kit.Tokens.blizzard.text2 }
     end
   end
   return out
@@ -1739,7 +1740,7 @@ function GC.Sniper._PaintBoardEntry(row, entry)
   row:SetAlpha(1)
   row.pinBg:Hide()
   if hoveredRow ~= row then row.rail:Hide() end
-  row.tierChip:SetLabel("", { 0, 0, 0, 0 })
+  row.tierChip:SetLabel("", { 0, 0, 0, 0 }) -- untinted
   for _, cell in ipairs({ row.discountText, row.unitText, row.priceText, row.profitText, row.trendText }) do
     cell:SetText("")
   end
@@ -1757,9 +1758,10 @@ function GC.Sniper._PaintBoardEntry(row, entry)
     row.icon:SetTexture(nil)
     local text
     if entry.kind == "header" then
-      text = ("|cfff7cf5a%s|r  |cff8c8a85%d|r"):format(GC.ItemsBoard.SectionTitle(entry.section), entry.count or 0)
+      text = GC.Util.Colored(GC.Kit.Tokens.color.goldText, GC.ItemsBoard.SectionTitle(entry.section)) .. "  "
+        .. GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, ("%d"):format(entry.count or 0))
     else
-      text = ("|cff8c8a85%s|r"):format(entry.text or "")
+      text = GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, entry.text or "")
     end
     row._nameParts = { text, "", "" }
     GC.Sniper._FitRowName(row)
@@ -1819,11 +1821,11 @@ function GC.Sniper._RareTooltip(row, draw)
   local entry = row.deal
   GC.Sniper._ShowItemTooltip(row, entry.itemID, draw or GC.Sniper._RareTooltip)
   local standing, sales = GC.ItemsBoard.RareLines(entry)
-  local dim = Theme.color.fgDim
+  local dim = GC.Kit.Tokens.blizzard.text3
   GameTooltip:AddLine(" ")
   GameTooltip:AddLine(GC.Util.ClientText(GC.L["Rare find: seldom sold, so GoldCap puts no price on it"]),
-    Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], true)
-  GameTooltip:AddLine(GC.Util.ClientText(standing), 1, 1, 1, true)
+    GC.Kit.Tokens.blizzard.gold[1], GC.Kit.Tokens.blizzard.gold[2], GC.Kit.Tokens.blizzard.gold[3], true)
+  GameTooltip:AddLine(GC.Util.ClientText(standing), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
   GameTooltip:AddLine(GC.Util.ClientText(sales), dim[1], dim[2], dim[3], true)
   GC.Sniper._TryOnHint(entry.itemID)
   GameTooltip:Show()
@@ -1888,7 +1890,7 @@ end
 -- The tooltip line for an item the Dressing Room can put on the character.
 function GC.Sniper._TryOnHint(itemID)
   if not (C_Item and C_Item.IsDressableItemByID and C_Item.IsDressableItemByID(itemID)) then return end
-  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Ctrl-click to try it on"]), 0.7, 0.7, 0.7)
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Ctrl-click to try it on"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
 end
 
 -- Forward-declared: createRow's real definition lives further down (it needs the row
@@ -2057,7 +2059,7 @@ function GC.Sniper._ForeverReadout()
     items = 0
     for _ in pairs(fold and fold.items or {}) do items = items + 1 end
   end
-  local found = #leads > 0 and ("|cfff7cf5a%d|r"):format(#leads) or "0" -- goldText
+  local found = #leads > 0 and GC.Util.Colored(GC.Kit.Tokens.color.goldText, #leads) or "0"
   local line = (GC.L["deals %s · items %s"]):format(found, tostring(items))
   -- The server cut the last full scan short (owner, 2026-11-06: every dump of the evening at 1023
   -- rows, the board at "deals 0" with nothing saying why): the rows come from lowest prices only.
@@ -2334,7 +2336,7 @@ function GC.Sniper._ItemsReadout()
   local watching = GC.Sniper._keyPoll:Count()
   if watching == 0 then return nil end
   local count = GC.Sniper._RealmCount()
-  local found = count > 0 and ("|cfff7cf5a%d|r"):format(count) or "0" -- goldText, as the pass's readout
+  local found = count > 0 and GC.Util.Colored(GC.Kit.Tokens.color.goldText, count) or "0" -- as the pass's readout
   return (GC.L["deals %s · watching %d items"]):format(found, watching)
 end
 
@@ -3572,7 +3574,7 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   -- board says what it counts. Deals in gold once there are any. Kept for the next pass to show
   -- while it runs (sendBrowseQuery). setStatus, not SetText: a held announcement outranks it.
   if frame then
-    local found = #scanDeals > 0 and ("|cfff7cf5a%d|r"):format(#scanDeals) or "0" -- goldText
+    local found = #scanDeals > 0 and GC.Util.Colored(GC.Kit.Tokens.color.goldText, #scanDeals) or "0"
     local readout = GC.Sniper._ForeverReadout() or (GC.L["deals %s · items %s · filtered %s"]):format(
       found, tostring(groupCount), tostring(GC.Sniper._screenedCount or 0))
     -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended.
@@ -4911,9 +4913,8 @@ end
 -- ---------------------------------------------------------------------------
 
 -- Every stage that touches the primary button goes through here, so its colour can never be
--- left red from a previous requote. Gold is the dialog's own default text colour
--- (Theme.Button's "primary" text color is dark-on-gold; this only overrides for the
--- red Confirm state and back).
+-- left red from a previous requote. Without a colour the label goes back to the button's own
+-- (the skin's primary text, Classic's gold); a colour is only the red Confirm state.
 --
 -- Final fix wave (item 4): the color write is skipped while the button is DISABLED --
 -- previously this ran unconditionally, so e.g. armLoudConfirm's Disable() immediately followed
@@ -4928,7 +4929,7 @@ end
 local function setPrimaryLabel(text, r, g, b)
   dialog.primaryBtn:SetLabel(text)
   if not dialog.primaryBtn:IsEnabled() then return end
-  dialog.primaryBtn.text:SetTextColor(r or 0.05, g or 0.05, b or 0.06)
+  if r then dialog.primaryBtn.text:SetTextColor(r, g, b) else dialog.primaryBtn:RepaintLabel() end
 end
 
 local function hideRequoteBanner()
@@ -5037,7 +5038,7 @@ local function setDialogHeader(deal, decision)
     if dialog.deal ~= deal then return end -- dialog moved on before the async load finished
     dialog.icon:SetTexture(item:GetItemIcon())
     local quality = item:GetItemQuality()
-    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+    local qc = quality and (Theme.QualityColor(quality, true) or {}).color
     local label = item:GetItemName() or ("item " .. deal.itemID)
     dialog.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. suffix)
     if dialog.fitHeader then dialog.fitHeader() end
@@ -5369,7 +5370,7 @@ local function drawVerdict(deal, decision, market)
     or GC.L[CV.TONE_SENTENCE[verdict.sentence or tone] or ""]
   dialog.verdictHead:SetText(sentence)
   if tone == "refuse" then
-    dialog.verdictHead:SetTextColor(1, 0.3, 0.3)
+    dialog.verdictHead:SetTextColor(GC.Kit.Tokens.color.danger[1], GC.Kit.Tokens.color.danger[2], GC.Kit.Tokens.color.danger[3])
   else
     dialog.verdictHead:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
   end
@@ -5553,9 +5554,9 @@ local function stampDialogFromDecision(deal, decision)
     and ("%d%%"):format(math.floor(market.sellThroughBps / 100 + 0.5)) or "-")
   dialog.sourceAgeText:SetText(sourceAge and GC.Util.FormatElapsed(sourceAge) or "-")
   if decision.status == "SAFE" then
-    dialog.profitText:SetTextColor(0.25, 0.85, 0.25)
+    dialog.profitText:SetTextColor(GC.Kit.Tokens.color.safe[1], GC.Kit.Tokens.color.safe[2], GC.Kit.Tokens.color.safe[3])
   else
-    dialog.profitText:SetTextColor(1, 0.3, 0.3)
+    dialog.profitText:SetTextColor(GC.Kit.Tokens.color.danger[1], GC.Kit.Tokens.color.danger[2], GC.Kit.Tokens.color.danger[3])
   end
   dialog.mvNote:Hide()
   if refreshQtyRow then refreshQtyRow() end
@@ -10141,10 +10142,10 @@ end
 -- only a 1px rounded rim of the outer layer ever shows.
 local function qtyBorderedBox(parent)
   local f = CreateFrame("Frame", nil, parent)
-  local outer = Theme.SlicedTexture(f, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.border, 6)
+  local outer = Theme.ShapeTexture(f, "BACKGROUND", "chip", Theme.color.border)
   outer:SetAllPoints()
 
-  local inner = Theme.SlicedTexture(f, "BORDER", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
+  local inner = Theme.ShapeTexture(f, "BORDER", "chip", Theme.color.bg)
   inner:SetPoint("TOPLEFT", 1, -1)
   inner:SetPoint("BOTTOMRIGHT", -1, 1)
 
@@ -10278,11 +10279,11 @@ local function createDialog()
   -- just enough to read as a rendering bug in the first in-game pass. The panel now also
   -- shifts the list out from behind it on wide windows (applyPanelInset, createFrame) --
   -- opacity is what keeps the narrower/docked case, which still overlays, honest instead.
-  d.sheet = Theme.SlicedTexture(d, "BACKGROUND", Theme.MEDIA .. "card.png",
-    { Theme.color.panel[1], Theme.color.panel[2], Theme.color.panel[3], 1 }, 24)
+  d.sheet = Theme.ShapeTexture(d, "BACKGROUND", "panel",
+    { Theme.color.panel[1], Theme.color.panel[2], Theme.color.panel[3], 1 })
   d.sheet:SetAllPoints()
-  d.ring = Theme.SlicedTexture(d, "BORDER", Theme.MEDIA .. "ring.png",
-    { 1, 1, 1, (Theme.color.border[4] or 0.06) * 2 }, 24)
+  d.ring = Theme.ShapeTexture(d, "BORDER", "panel",
+    GC.Kit.Tokens.ink((Theme.color.border[4] or 0.06) * 2), true)
   d.ring:SetAllPoints()
   d:EnableMouse(true)
   -- In from the right as it opens, as the Sell item panel does. It goes at once: its hide is what
@@ -10603,7 +10604,7 @@ local function createDialog()
 
     local track = meter:CreateTexture(nil, "BACKGROUND")
     track:SetAllPoints()
-    track:SetColorTexture(1, 1, 1, 0.055)
+    track:SetColorTexture(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.055)
 
     rowFacts.fill = meter:CreateTexture(nil, "ARTWORK")
     rowFacts.fill:SetPoint("TOPLEFT")
@@ -10616,13 +10617,13 @@ local function createDialog()
     rowFacts.tick:SetPoint("TOP")
     rowFacts.tick:SetPoint("BOTTOM")
     rowFacts.tick:SetWidth(1)
-    rowFacts.tick:SetColorTexture(1, 1, 1, 0.38)
+    rowFacts.tick:SetColorTexture(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.38)
 
     rowFacts.leader = factsBlock:CreateTexture(nil, "BACKGROUND")
     rowFacts.leader:SetHeight(1)
     rowFacts.leader:SetWidth(DG.FACT_METER_W)
     rowFacts.leader:SetPoint("TOPLEFT", meterX, meterY - 2)
-    rowFacts.leader:SetColorTexture(1, 1, 1, 0.045)
+    rowFacts.leader:SetColorTexture(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.045)
     rowFacts.leader:Hide()
 
     d.factRows[i] = rowFacts
@@ -11524,8 +11525,7 @@ createRow = function(parent, index)
   -- (32px row height minus 2px), so margin 12 <= 15 = half of 30, satisfying the constraint.
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
-  zebra:SetTexture(Theme.MEDIA .. "plaque.png")
-  zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(zebra, "control")
   zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and zc[4] or 0)
   zebra:SetPoint("TOPLEFT", 2, -1)
   zebra:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -11539,8 +11539,7 @@ createRow = function(parent, index)
   -- pin state; the watch color at low alpha, matching the rail it accompanies.
   local pc = Theme.color.watch
   local pinBg = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  pinBg:SetTexture(Theme.MEDIA .. "plaque.png")
-  pinBg:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(pinBg, "control")
   pinBg:SetVertexColor(pc[1], pc[2], pc[3], 0.09)
   pinBg:SetPoint("TOPLEFT", 2, -1)
   pinBg:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -11549,8 +11548,7 @@ createRow = function(parent, index)
 
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- sublevel 1: above zebra, still under ARTWORK
-  highlight:SetTexture(Theme.MEDIA .. "plaque.png")
-  highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(highlight, "control")
   highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4])
   highlight:SetPoint("TOPLEFT", 2, -1)
   highlight:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -11560,8 +11558,7 @@ createRow = function(parent, index)
   -- The new-HOT-deal ping fades its OWN texture. It used to animate row.highlight's alpha,
   -- which left the hover wash inheriting whatever alpha the animation last wrote.
   local flash = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  flash:SetTexture(Theme.MEDIA .. "plaque.png")
-  flash:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(flash, "control")
   flash:SetVertexColor(hc[1], hc[2], hc[3], 0.35)
   flash:SetPoint("TOPLEFT", 2, -1)
   flash:SetPoint("BOTTOMRIGHT", -2, 1)
@@ -11673,18 +11670,18 @@ createRow = function(parent, index)
     local capNote = GC.Sniper._CapNote(self.deal)
     if capNote then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.Util.ClientText(capNote), 0.25, 0.85, 0.25, true)
+      GameTooltip:AddLine(GC.Util.ClientText(capNote), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true)
     elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live, safe to buy"]), 0.25, 0.85, 0.25)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live, safe to buy"]), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3])
       elseif verdict.needsGold then
         GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: checked live. A deal, but you need %s on this character"])
-          :format(GC.Util.FormatGoldCeil(verdict.needsGold))), 0.83, 0.64, 0.22, true)
+          :format(GC.Util.FormatGoldCeil(verdict.needsGold))), GC.Kit.Tokens.blizzard.tipAmber[1], GC.Kit.Tokens.blizzard.tipAmber[2], GC.Kit.Tokens.blizzard.tipAmber[3], true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.
         GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: %s. %s"]):format(verdict.status or "refused",
-          GC.BoardRows.Reason(verdict) or GC.L["live verification required"])), 1, 0.82, 0)
+          GC.BoardRows.Reason(verdict) or GC.L["live verification required"])), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
       end
     elseif not self.deal.pinPlaceholder then
       -- Saying nothing here read as approval. The row already shows a tier, a discount and a
@@ -11693,7 +11690,7 @@ createRow = function(parent, index)
       -- check HAD approved was the word on the button. That is too thin a line to carry the
       -- difference between an estimate and a finding, so the tooltip states it outright.
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: not checked against the live auction house yet"]), 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: not checked against the live auction house yet"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
     end
     if self.deal.forever then
       -- A row measured against a followed group's usual price has no AH value for the note to name:
@@ -11704,7 +11701,7 @@ createRow = function(parent, index)
           self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
       end
       local groupNote = GC.Sniper._GroupNote(self.deal)
-      if groupNote then GameTooltip:AddLine(GC.Util.ClientText(groupNote), 0.25, 0.85, 0.25, true) end
+      if groupNote then GameTooltip:AddLine(GC.Util.ClientText(groupNote), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true) end
     end
     -- A realm row priced against the region says nothing more about it here: the verdict line
     -- above says it is a realm item, and GoldCap's price block under the item names the region's
@@ -11716,7 +11713,7 @@ createRow = function(parent, index)
       -- same sentence a Check on it would, rather than leaving the blank cells to be read as
       -- "nothing to report".
       GameTooltip:AddLine(GC.Util.ClientText(GC.SniperDecision.ReasonText("realm_no_reference")),
-        Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+        GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
     end
     -- An Items board flip's facts, which its one line under the name leaves out.
     local details = GC.Sniper._RowDetails(self.deal)
@@ -11728,16 +11725,16 @@ createRow = function(parent, index)
     -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
     if self.deal.pinPlaceholder then
       GameTooltip:AddLine(GC.Util.ClientText(GC.L["Watching: pinned, but not a deal right now"]),
-        Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+        GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
       local watchNote = GC.Sniper._WatchNote(self.deal)
       if watchNote then
-        GameTooltip:AddLine(GC.Util.ClientText(watchNote), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+        GameTooltip:AddLine(GC.Util.ClientText(watchNote), GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
       end
     end
     GC.Sniper._TryOnHint(self.deal.itemID)
     GameTooltip:AddLine(GC.Util.ClientText(isPinned(self.deal.itemID)
       and GC.L["Right-click to stop watching this item"]
-      or GC.L["Right-click to watch this item closely"]), 0.7, 0.7, 0.7)
+      or GC.L["Right-click to watch this item closely"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
     GameTooltip:Show()
   end
   row:SetScript("OnEnter", function(self)
@@ -12101,7 +12098,7 @@ local function createHeaderRow(f)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(GC.Util.ClientText(tooltipLines[1]), 1, 0.82, 0)
         for i = 2, #tooltipLines do
-          GameTooltip:AddLine(GC.Util.ClientText(tooltipLines[i]), 1, 1, 1, true)
+          GameTooltip:AddLine(GC.Util.ClientText(tooltipLines[i]), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
         end
         GameTooltip:Show()
       end)
@@ -12183,7 +12180,7 @@ local function createFrame()
   f:Hide()
 
   -- The window's dark glass: a gradient card with a soft shadow (UI/Kit/Card.lua's Theme.Window).
-  f.windowPanel = Theme.Window(f) -- SetDocked hides its shadow while the window sits in the AH frame
+  f.windowPanel = Theme.Window(f) -- SetDocked drops its frame while the window sits in the AH frame
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
   local restoreWidth, restoreHeight = WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT
@@ -12234,10 +12231,15 @@ local function createFrame()
   -- undoes both while the window is a child of the auction house panel.
   f:SetFrameStrata("HIGH")
   f:SetToplevel(true)
+  -- The skin's frame overlay goes back above the content: the strata change moved its level.
+  f.windowPanel:Lift()
 
   -- Chrome: Theme.TitleBar owns the drag region (title bar only, not the whole window),
   -- the close button (outer top-right), and the gear (inboard-left of close).
   local titleBar = Theme.TitleBar(f, GC.L["GoldCap Sniper"])
+  -- Classic's title plate says "GoldCap" over the top edge of the floating window: its own title
+  -- would say it twice, so it shows only docked, where the plate is gone.
+  f.windowPanel:CoverTitle(titleBar.title)
   f.closeBtn = titleBar.close
   -- Kept as a field so docked mode (GC.Sniper.SetDocked below) can blank the duplicate
   -- chrome: inside the auction house the AH frame already provides the title and the close.
@@ -12363,7 +12365,7 @@ local function createFrame()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(GC.Util.ClientText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."]),
       1, 1, 1, 1, true)
-    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.ClientText(line), 1, 0.82, 0, true) end
+    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.ClientText(line), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3], true) end
     GameTooltip:Show()
   end)
   autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -12392,7 +12394,7 @@ local function createFrame()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(GC.Util.ClientText(GC.L["Background check"]), 1, 1, 1)
     GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
-      :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS)), 1, 1, 1, true)
+      :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS)), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
 
     local list = renderList()
     local checked, newest = 0, nil
@@ -12405,18 +12407,17 @@ local function createFrame()
     end
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine(GC.Util.ClientText((GC.L["Checked: %d of the top %d on screen"]):format(
-      checked, math.min(#list, LIM.VERIFY_TOP_ROWS))), 0.7, 0.7, 0.7)
+      checked, math.min(#list, LIM.VERIFY_TOP_ROWS))), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
     GameTooltip:AddLine(GC.Util.ClientText(newest
       and (GC.L["Last result: %ds ago"]):format(math.floor(GetTime() - newest))
-      or GC.L["Last result: none yet this visit"]), 0.7, 0.7, 0.7)
-    GameTooltip:AddLine(GC.Util.ClientText((GC.L["Refused so far: %d"]):format(refusedCount)), 0.7, 0.7, 0.7)
+      or GC.L["Last result: none yet this visit"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
+    GameTooltip:AddLine(GC.Util.ClientText((GC.L["Refused so far: %d"]):format(refusedCount)), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
     local watched = #GC.Sniper._liveTargets
     if watched > 0 then
-      GameTooltip:AddLine(GC.Util.ClientText((GC.L["Watching closely: %d item%s"]):format(watched, watched == 1 and "" or "s")),
-        0.7, 0.7, 0.7)
+      GameTooltip:AddLine(GC.Util.ClientText((GC.L["Watching closely: %d item%s"]):format(watched, watched == 1 and "" or "s")), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
       GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._cycleSeconds
         and (GC.L["Full pass over them: %.1fs"]):format(GC.Sniper._cycleSeconds)
-        or GC.L["Full pass over them: measuring..."]), 0.7, 0.7, 0.7)
+        or GC.L["Full pass over them: measuring..."]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
     end
     GameTooltip:Show()
   end)
@@ -12856,8 +12857,9 @@ function GC.Sniper.SetDocked(host)
     -- toplevel would yank the whole thing forward on every click inside it.
     frame:SetFrameStrata(host:GetFrameStrata())
     frame:SetToplevel(false)
-    -- The 18px shadow would draw over the AH frame's border and the strip above its tabs.
-    if frame.windowPanel then frame.windowPanel.shadow:Hide() end
+    -- The AH frame is the window's frame: the shadow would draw over its border and the strip
+    -- above its tabs, and a skin's own ring and ornament would be a second frame inside it.
+    if frame.windowPanel then frame.windowPanel:SetDocked(true) end
     -- The drawer follows the window up: adopting the host's strata can otherwise land the
     -- window level with a drawer that was pinned one strata above the UNDOCKED window, and
     -- level with is enough for the deals rows to draw through an opaque sheet.
@@ -12869,6 +12871,7 @@ function GC.Sniper.SetDocked(host)
     frame:SetPoint("TOPLEFT")
     frame:SetPoint("BOTTOMRIGHT")
     if frame.rail and frame.rail.SetTopInset then frame.rail.SetTopInset(CH.DOCK_RAIL_INSET) end
+    if frame.rail and frame.rail.SetDocked then frame.rail.SetDocked(true) end -- square, as the window
     if not frame:IsShown() then
       GC.Sniper.Toggle() -- the ordinary open path: stale banner, bag counts, the tab badge
     end
@@ -12880,7 +12883,7 @@ function GC.Sniper.SetDocked(host)
     -- Back to a window of its own: see createFrame for why both calls are needed.
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
-    if frame.windowPanel then frame.windowPanel.shadow:Show() end
+    if frame.windowPanel then frame.windowPanel:SetDocked(false) end
     if dialog and dialog.raiseStrata then dialog.raiseStrata() end
     if GC.SettingsUI and GC.SettingsUI.Raise then GC.SettingsUI.Raise() end
     frame:SetMovable(true)
@@ -12906,6 +12909,7 @@ function GC.Sniper.SetDocked(host)
       or WIN.FRAME_HEIGHT
     pcall(frame.SetSize, frame, width, height)
     if frame.rail and frame.rail.SetTopInset then frame.rail.SetTopInset(0) end
+    if frame.rail and frame.rail.SetDocked then frame.rail.SetDocked(false) end
   end
 end
 

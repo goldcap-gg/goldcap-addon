@@ -330,6 +330,11 @@ GC.Locales.deDE = {
   ["Language"] = "Sprache",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Sprache geändert. Gib /reload ein, damit sie überall greift.",
+  ["Skin"] = "Design",
+  ["Applies after a reload"] = "Wird nach einem Neuladen angewendet",
+  ["Reload now"] = "Jetzt neu laden",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "das gewählte Design ließ sich nicht anwenden, diese Sitzung nutzt das GoldCap-Design",
   ["Last post may still go up. Wait a minute"] = "Einstellen läuft evtl. noch. Warte 1 Minute",
   ["Level 40 reached: %s to go."] = "Stufe 40 erreicht: noch %s.",
   ["Last result: %ds ago"] = "Letztes Ergebnis: vor %ds",

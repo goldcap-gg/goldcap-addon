@@ -18,11 +18,26 @@ local preloader = CreateFrame("Frame")
 preloader:SetPoint("TOP", UIParent, "BOTTOM", 0, -10000)
 preloader:SetSize(100, 100)
 
-for _, path in ipairs(T.BUNDLED_FACES) do
+local preloaded = {}
+
+local function preload(path)
+  if preloaded[path] then return end
   local fs = preloader:CreateFontString()
   fs:SetAllPoints()
-  -- SetFont says whether the face was accepted; SetText on a string with no font is an error.
-  if fs:SetFont(path, 14, "") then
+  -- SetFont says whether the face was accepted; SetText on a string with no font is an error. A
+  -- face the client is still loading can raise instead of answering (skin probe, WoW: Forever
+  -- 2026-11-10), and is asked again on the next call.
+  local ok, set = pcall(fs.SetFont, fs, path, 14, "")
+  if ok and set then
+    preloaded[path] = true
     fs:SetText("GoldCap 0123 Аа ґї") -- Latin, digits and Cyrillic: what these faces draw
   end
+end
+
+for _, path in ipairs(T.BUNDLED_FACES) do preload(path) end
+
+--- The applied skin's faces, preloaded the same way (UI/Kit/Skins.lua Apply calls this). A path
+-- already preloaded gets no second string.
+function T.PreloadFaces(paths)
+  for _, path in ipairs(paths) do preload(path) end
 end

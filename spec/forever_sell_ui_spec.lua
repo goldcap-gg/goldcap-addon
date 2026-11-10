@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- What SELL shows of the sale pace on WoW: Forever (plan 2026-11-09, Task 9), through the real Sell
 -- services and view: the dock's duration buttons and pace lines, MAX meaning "all", the "24 h" mark
@@ -83,6 +84,9 @@ describe("SELL's pace view on WoW: Forever", function()
         Button = function(p) return region("Button", p) end,
         Card = function(p) local card = region("Frame", p); function card:SetTint() end return card end,
         SlicedTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+        Plate = function() return nil end, -- no skin plates in this fake
+        ShapeTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+        Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
         ItemTooltipOutside = function() end,
         TooltipAnchor = function() return "ANCHOR_RIGHT" end,
       },

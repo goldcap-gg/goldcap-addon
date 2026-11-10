@@ -1,4 +1,5 @@
 local _, GC = ...
+local B = GC.Kit.Tokens.blizzard
 
 GC.Tooltip = {}
 
@@ -11,7 +12,7 @@ local STALE_YELLOW_SECONDS = 6 * 3600
 local STALE_RED_SECONDS = 24 * 3600
 
 -- The verdict's colours: green to the auction house, grey to a vendor, amber for the deposit.
-local VERDICT_COLOR = { good = { 0.3, 0.85, 0.4 }, dim = { 0.65, 0.65, 0.65 }, warn = { 1, 0.6, 0.2 } }
+local VERDICT_COLOR = { good = "tipGood", dim = "tipGrey", warn = "tipWarn" } -- keys of Tokens.blizzard
 
 -- A count as a whole number grouped in thousands: "98,470", not "98470". The client's own
 -- BreakUpLargeNumbers groups with the player's locale's separator (a German client writes
@@ -235,21 +236,20 @@ local function addBlock(tooltip, itemID, now, heading, shown)
   })
   if not lines then return end
   local tip = GC.Util.ClientText
-  if heading then tooltip:AddLine(tip(heading), 0.65, 0.82, 1) end
+  if heading then tooltip:AddLine(tip(heading), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3]) end
   for _, ln in ipairs(lines) do
     if ln.kind == "money" then
-      tooltip:AddDoubleLine(tip(ln.label), GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.label), GC.Util.CoinText(ln.copper), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
     elseif ln.kind == "live" then
-      tooltip:AddDoubleLine(tip(ln.left), tip(GC.Util.CoinText(ln.copper) .. " · " .. ln.detail),
-        0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.left), tip(GC.Util.CoinText(ln.copper) .. " · " .. ln.detail), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
     elseif ln.kind == "hint" then
-      if not shown.hint then tooltip:AddLine(tip(ln.text), 0.55, 0.55, 0.55, true) end
+      if not shown.hint then tooltip:AddLine(tip(ln.text), B.tipHint[1], B.tipHint[2], B.tipHint[3], true) end
       shown.hint = true
     elseif ln.kind == "verdict" then
-      local c = VERDICT_COLOR[ln.tone] or VERDICT_COLOR.dim
+      local c = B[VERDICT_COLOR[ln.tone] or VERDICT_COLOR.dim]
       tooltip:AddLine(tip(ln.text), c[1], c[2], c[3])
     else
-      tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
     end
   end
 end
@@ -300,7 +300,7 @@ local function addDisenchant(tooltip, owner, itemID)
   if not lines then return end
   local tip = GC.Util.ClientText
   for _, ln in ipairs(lines) do
-    tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), 0.65, 0.82, 1, 1, 1, 1)
+    tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
   end
 end
 
@@ -341,7 +341,7 @@ local function onTooltip(tooltip, data)
   local variant = type(owner) == "table" and owner.goldcapVariant or nil
   if variant then
     tooltip:AddLine(GC.Util.ClientText(variant == "pet" and GC.L["no market figure for caged pets"]
-      or GC.L["no market figure for this item level"]), 0.55, 0.55, 0.55, true)
+      or GC.L["no market figure for this item level"]), B.tipHint[1], B.tipHint[2], B.tipHint[3], true)
     return
   end
   local now = time()

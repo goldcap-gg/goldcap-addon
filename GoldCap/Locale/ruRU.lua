@@ -319,6 +319,11 @@ GC.Locales.ruRU = {
   ["Language"] = "Язык",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Язык изменён. Введите /reload, чтобы применить его везде.",
+  ["Skin"] = "Оформление",
+  ["Applies after a reload"] = "Применится после перезагрузки",
+  ["Reload now"] = "Перезагрузить сейчас",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "не удалось применить выбранное оформление, в этом сеансе используется оформление GoldCap",
   ["Last post may still go up. Wait a minute"] = "Ещё может выставиться. Подождите минуту",
   ["Level 40 reached: %s to go."] = "Уровень 40 достигнут: не хватает %s.",
   ["Last result: %ds ago"] = "Последний результат: %dс назад",

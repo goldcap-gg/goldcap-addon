@@ -3,6 +3,7 @@
 -- on the pooled frame and calls in here at hover time, so the text is always about what the row
 -- holds then. Moved from UI/Sell/Row.lua as it was.
 local _, GC = ...
+local B = GC.Kit.Tokens.blizzard
 
 local Theme = GC.Theme
 local UI = GC.SellUI
@@ -15,23 +16,22 @@ function ROW.markTooltip(owner, row)
   local selling, position = row.markSelling == true, row.position
   GameTooltip:SetOwner(owner, Theme.TooltipAnchor(owner))
   if row.markDone then
-    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Done for this visit"]), 1, 0.82, 0)
-    GameTooltip:AddLine(GC.Util.ClientText(GC.L["POST passes it by until you close the auction house. Click to have POST list it again."]),
-      0.85, 0.85, 0.85, true)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Done for this visit"]), B.tipTitle[1], B.tipTitle[2], B.tipTitle[3])
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["POST passes it by until you close the auction house. Click to have POST list it again."]), B.tipBody[1], B.tipBody[2], B.tipBody[3], true)
     GameTooltip:Show()
     return
   end
-  GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["Selling"] or GC.L["Not selling"]), 1, 0.82, 0)
+  GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["Selling"] or GC.L["Not selling"]), B.tipTitle[1], B.tipTitle[2], B.tipTitle[3])
   GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["POST lists it, and so does the key for posting the next item."]
-    or GC.L["POST passes it by. Click the item to post it from the bar below."]), 0.85, 0.85, 0.85, true)
+    or GC.L["POST passes it by. Click the item to post it from the bar below."]), B.tipBody[1], B.tipBody[2], B.tipBody[3], true)
   local marks = GC.Sell._QueueOpts().marks
   if selling and position and type(marks) == "table" and marks[position.positionKey] == nil then
     -- Deals bought it, else a followed flip or gather group holds it (GC.PostQueue.Selling).
     local bought = type(position.sources) == "table" and (tonumber(position.sources.goldcap) or 0) > 0
     GameTooltip:AddLine(GC.Util.ClientText(bought and GC.L["Marked for you: you bought it on DEALS."]
-      or GC.L["Marked for you: it is in a group you follow."]), 0.85, 0.85, 0.85, true)
+      or GC.L["Marked for you: it is in a group you follow."]), B.tipBody[1], B.tipBody[2], B.tipBody[3], true)
   end
-  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Click to change."]), 0.6, 0.6, 0.6)
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Click to change."]), B.tipNote[1], B.tipNote[2], B.tipNote[3])
   GameTooltip:Show()
 end
 
@@ -87,11 +87,10 @@ function ROW.itemTooltip(row)
     -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
     -- so the tooltip can never disagree with what the row is actually showing.
     if row.marketFallback then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["~ goldcap.gg market value, no live quote yet"]), 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["~ goldcap.gg market value, no live quote yet"]), B.tipBody[1], B.tipBody[2], B.tipBody[3], true)
     end
     if row.notOnHand then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand: the stock is in the mail, the bank, or on another character"]),
-        0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand: the stock is in the mail, the bank, or on another character"]), B.tipBody[1], B.tipBody[2], B.tipBody[3], true)
     end
     UI.fmt.ruleTooltip(row.position)
     if UI.fmt.paceTooltip then UI.fmt.paceTooltip(row.position) end
@@ -104,7 +103,7 @@ function ROW.itemTooltip(row)
     local first = true
     for fact in (row.groupHint .. " · "):gmatch("(.-) · ") do
       local factLine = GC.Util.ClientText(fact)
-      if first then GameTooltip:AddLine(factLine, 1, 1, 1) else GameTooltip:AddLine(factLine, 0.85, 0.85, 0.85) end
+      if first then GameTooltip:AddLine(factLine, B.tipWhite[1], B.tipWhite[2], B.tipWhite[3]) else GameTooltip:AddLine(factLine, B.tipBody[1], B.tipBody[2], B.tipBody[3]) end
       first = false
     end
     GameTooltip:Show()
@@ -128,9 +127,9 @@ function ROW.actionTooltip(button)
   GameTooltip:SetOwner(button, Theme.TooltipAnchor(button))
   -- Translated at READ time -- see ACTION_HELP's own comment for why the table itself
   -- cannot hold GC.L lookups.
-  GameTooltip:AddLine(GC.Util.ClientText(GC.L[help[1]]), 1, 0.82, 0)
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L[help[1]]), B.tipTitle[1], B.tipTitle[2], B.tipTitle[3])
   for _, line in ipairs(help[2]) do
-    GameTooltip:AddLine(GC.Util.ClientText(GC.L[line]), 0.85, 0.85, 0.85, true)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L[line]), B.tipBody[1], B.tipBody[2], B.tipBody[3], true)
   end
   GameTooltip:Show()
 end

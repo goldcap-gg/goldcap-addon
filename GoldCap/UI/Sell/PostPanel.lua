@@ -28,10 +28,10 @@ local function well(container, width)
   bg:SetSize(width, DOCK.BOX_H)
   -- The window's own ground colour; several of this suite's theme doubles carry no `bg`.
   local wellc = Theme.color.bg or Theme.color.panel
-  local fill = Theme.SlicedTexture(bg, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  local fill = Theme.ShapeTexture(bg, "BACKGROUND", "control",
+    { wellc[1], wellc[2], wellc[3], 1 })
   fill:SetAllPoints(bg)
-  bg.ring = Theme.SlicedTexture(bg, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.14 }, 12)
+  bg.ring = Theme.ShapeTexture(bg, "BORDER", "control", GC.Kit.Tokens.ink(0.14), true)
   bg.ring:SetAllPoints(bg)
   local box = CreateFrame("EditBox", nil, bg)
   box:SetAutoFocus(false)
@@ -358,7 +358,7 @@ function PostPanel.Build()
   c.groupProgress:SetJustifyH("LEFT")
   setColor(c.groupProgress, Theme.color.fgMuted)
   c.groupBar = c:CreateTexture(nil, "ARTWORK")
-  c.groupBar:SetColorTexture(1, 1, 1, 0.08)
+  c.groupBar:SetColorTexture(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.08)
   c.groupBar:SetSize(DOCK.BAR_W, 4)
   c.groupBarFill = c:CreateTexture(nil, "OVERLAY")
   local gc = Theme.color.gold
@@ -366,7 +366,7 @@ function PostPanel.Build()
   c.groupBarFill:SetHeight(4)
   c.groupBarFill:SetPoint("LEFT", c.groupBar, "LEFT", 0, 0)
   c.groupRule = c:CreateTexture(nil, "ARTWORK")
-  c.groupRule:SetColorTexture(1, 1, 1, 0.06)
+  c.groupRule:SetColorTexture(GC.Kit.Tokens.color.hairline[1], GC.Kit.Tokens.color.hairline[2], GC.Kit.Tokens.color.hairline[3], GC.Kit.Tokens.color.hairline[4])
   c.groupRule:SetHeight(1)
   c.groupProgress:Hide(); c.groupBar:Hide(); c.groupBarFill:Hide(); c.groupRule:Hide()
   PostPanel.Layout()
@@ -432,7 +432,7 @@ end
 function PostPanel.Paint(row, nextRow, hint)
   local c = UI.container
   if not (c and c.dockIcon) then return end
-  local gold, edge = Theme.color.gold, Theme.color.border or { 1, 1, 1, 0.075 }
+  local gold, edge = Theme.color.gold, Theme.color.border or GC.Kit.Tokens.ink(0.075)
   for _, r in ipairs(UI.rows or {}) do
     if r.kind == "position" and r.cardRing then
       if r == row then r.cardRing:SetVertexColor(gold[1], gold[2], gold[3], 0.45)
@@ -500,9 +500,9 @@ function PostPanel.Paint(row, nextRow, hint)
     stamp(c.qtyBox, key, tostring(qty))
     c.qtyHead:SetText(GC.L["HOW MANY"])
     setColor(c.qtyHead, typed and Theme.color.gold or Theme.color.fgDim)
-    local gc = Theme.color.gold
+    local gc, ringEdge = Theme.color.gold, GC.Kit.Tokens.color.windowBorder
     if typed then c.qtyBoxBg.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.7)
-    else c.qtyBoxBg.ring:SetVertexColor(1, 1, 1, 0.14) end
+    else c.qtyBoxBg.ring:SetVertexColor(ringEdge[1], ringEdge[2], ringEdge[3], ringEdge[4]) end
     c.qtyMax:SetLabel(GC.L["MAX"])
     -- Lit while it is all of it: a switch with a position. SetVariant before Show, as the kit asks.
     local lit = not typed
@@ -519,9 +519,10 @@ function PostPanel.Paint(row, nextRow, hint)
   stamp(c.priceBox, key, unit and priceText(unit) or "")
   c.priceHead:SetText(GC.L["YOUR PRICE"])
   setColor(c.priceHead, chosen and Theme.color.gold or Theme.color.fgDim)
+  local ringEdge = GC.Kit.Tokens.color.windowBorder
   local ring = (risk.belowCost or risk.belowFloor) and Theme.color.red or chosen and Theme.color.gold or nil
   if ring then c.priceBoxBg.ring:SetVertexColor(ring[1], ring[2], ring[3], 0.7)
-  else c.priceBoxBg.ring:SetVertexColor(1, 1, 1, 0.14) end
+  else c.priceBoxBg.ring:SetVertexColor(ringEdge[1], ringEdge[2], ringEdge[3], ringEdge[4]) end
   c.priceHead:Show(); c.priceBoxBg:Show()
 
   if PostPanel.wide then

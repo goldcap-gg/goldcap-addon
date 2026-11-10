@@ -1,4 +1,5 @@
 local _, GC = ...
+local B = GC.Kit.Tokens.blizzard
 local Theme = GC.Theme
 
 GC.SettingsUI = GC.SettingsUI or {}
@@ -46,7 +47,7 @@ end
 -- separate recolorable edge anymore.
 local function editBoxBg(parent)
   local f = CreateFrame("Frame", nil, parent)
-  local bg = Theme.SlicedTexture(f, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
+  local bg = Theme.ShapeTexture(f, "BACKGROUND", "chip", Theme.color.bg)
   bg:SetAllPoints()
 
   function f:SetFocusTint(on)
@@ -107,10 +108,10 @@ local function makeToggle(parent)
   local box = CreateFrame("Frame", nil, parent)
   box:SetSize(36, 20)
 
-  box.track = Theme.SlicedTexture(box, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
+  box.track = Theme.ShapeTexture(box, "BACKGROUND", "chip", Theme.color.bg)
   box.track:SetAllPoints()
 
-  box.knob = Theme.SlicedTexture(box, "OVERLAY", Theme.MEDIA .. "badge.png", Theme.color.fgDim, 6)
+  box.knob = Theme.ShapeTexture(box, "OVERLAY", "chip", Theme.color.fgDim)
   box.knob:SetSize(16, 16)
 
   local cb = CreateFrame("CheckButton", nil, box)
@@ -124,8 +125,7 @@ local function makeToggle(parent)
   -- painted in OnEnter/OnLeave -- the addon's engineering notes' "never paint hover by hand" rule.
   cb:EnableMouse(true)
   local hover = cb:CreateTexture(nil, "HIGHLIGHT")
-  hover:SetTexture(Theme.MEDIA .. "badge.png")
-  hover:SetTextureSliceMargins(6, 6, 6, 6)
+  Theme.SetShape(hover, "chip")
   hover:SetAllPoints()
   hover:SetBlendMode("ADD")
   local hg = Theme.color.gold
@@ -172,7 +172,7 @@ local function makeSlider(parent, width, min, max, step)
   slider:SetValueStep(step)
   slider:SetObeyStepOnDrag(true)
 
-  local thumb = Theme.SlicedTexture(slider, "OVERLAY", Theme.MEDIA .. "badge.png", Theme.color.gold, 6)
+  local thumb = Theme.ShapeTexture(slider, "OVERLAY", "chip", Theme.color.gold)
   thumb:SetSize(12, 16)
   slider:SetThumbTexture(thumb)
 
@@ -561,8 +561,8 @@ local function build(sniperFrame)
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       local tip = GC.Util.ClientText
       GameTooltip:AddLine(tip(labelText))
-      GameTooltip:AddLine(tip(sentence), 1, 1, 1, true)
-      GameTooltip:AddLine(tip(defaultLineText), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      GameTooltip:AddLine(tip(sentence), B.tipWhite[1], B.tipWhite[2], B.tipWhite[3], true)
+      GameTooltip:AddLine(tip(defaultLineText), B.text3[1], B.text3[2], B.text3[3])
       GameTooltip:Show()
     end
     local function onLeave() GameTooltip:Hide() end
@@ -660,7 +660,12 @@ local function build(sniperFrame)
   local function flowCard(c, width)
     width = width or c:GetWidth() or 0
     local y = 24
+    -- A row hidden for now (the Skin row's reload hint) takes no room.
+    local rows = {}
     for _, row in ipairs(c.rows) do
+      if not row.hidden then rows[#rows + 1] = row end
+    end
+    for _, row in ipairs(rows) do
       local label = row.label
       if row.buttons then
         local total = 0
@@ -774,7 +779,7 @@ local function build(sniperFrame)
   automation:SetPoint("LEFT", content, "CENTER", 7, 0)
   columns.right[#columns.right + 1] = automation
 
-  local display = card(content, GC.L["DISPLAY"], 3)
+  local display = card(content, GC.L["DISPLAY"], 4)
   display:SetPoint("TOPRIGHT", automation, "BOTTOMRIGHT", 0, -12)
   display:SetPoint("LEFT", content, "CENTER", 7, 0)
   columns.right[#columns.right + 1] = display
@@ -1223,6 +1228,104 @@ local function build(sniperFrame)
 
   refreshers[#refreshers + 1] = displayLanguage
 
+  -- Skin. Same shape as Language: a label, a ghost button showing the stored choice, a radio
+  -- context menu. The skin is applied once at ADDON_LOADED, before any frame exists, so a pick is
+  -- stored and then waits for a reload: the hint and its button take a row of their own that
+  -- appears with a pick other than the skin applied.
+  local Skins = GC.Kit and GC.Kit.Skins
+  local SWATCH = "|TInterface\\Buttons\\WHITE8X8:12:12:0:0:8:8:0:8:0:8:%d:%d:%d|t"
+
+  local skinLabel = Theme.Label(display, 12)
+  skinLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(4))
+  skinLabel:SetText(GC.L["Skin"])
+
+  local skinBtn = Theme.Button(display, "ghost", "plaque")
+  skinBtn:SetSize(120, 26)
+  skinBtn:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(4) + 3)
+
+  -- A skin's name is its name in every language (owner, 2026-11-10): never translated, and not the
+  -- client's words for the factions either.
+  local SKIN_NAMES = { goldcap = "GoldCap", forever = "Forever", pixel = "Pixel", parchment = "Parchment",
+    horde = "Horde", alliance = "Alliance", midnight = "Midnight", classic = "Classic", leather = "Leather" }
+  local function skinName(id)
+    return SKIN_NAMES[id] or SKIN_NAMES.goldcap
+  end
+
+  local function skinSetting()
+    local id = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.skin
+    if Skins and Skins.defs[id] then return id end
+    return "goldcap"
+  end
+
+  -- A swatch in the skin's window colour and one in its gold, from its def (not from the tokens
+  -- in force), before the name.
+  local function skinChoiceLabel(id)
+    local color = Skins.defs[id].color
+    local function swatch(c)
+      return SWATCH:format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5),
+        math.floor(c[3] * 255 + 0.5))
+    end
+    return swatch(color.windowTop) .. swatch(color.gold) .. " " .. skinName(id)
+  end
+
+  local skinHint = Theme.Label(display, 12)
+  skinHint:SetText(GC.L["Applies after a reload"])
+  local reloadBtn = Theme.Button(display, "primary", "plaque")
+  reloadBtn:SetSize(120, 26)
+  reloadBtn:SetLabel(GC.L["Reload now"])
+  reloadBtn:SetScript("OnClick", function() ReloadUI() end)
+  skinHint:Hide()
+  reloadBtn:Hide()
+
+  if Skins then
+    -- As wide as the longest name, so no language cuts one.
+    local widest = {}
+    for _, id in ipairs(Skins.ORDER) do widest[#widest + 1] = skinName(id) end
+    if skinBtn.FitLabels then skinBtn:FitLabels(widest, 120) end
+    if reloadBtn.FitLabels then reloadBtn:FitLabels({ GC.L["Reload now"] }, 120) end
+  end
+  addRow(display, skinLabel, skinBtn, skinBtn:GetWidth() or 120, 3)
+  addButtonsRow(display, skinHint, { reloadBtn })
+  local hintRow = display.rows[#display.rows]
+  hintRow.hidden = true
+
+  -- The hint and its button stand while the stored pick is not the skin this session runs:
+  -- picking the applied one again takes them away.
+  local function displaySkin()
+    skinBtn:SetLabel(skinName(skinSetting()))
+    if Theme.RefontWidget then Theme.RefontWidget(skinBtn.text) end
+    local waiting = Skins ~= nil and skinSetting() ~= Skins.Current().id
+    hintRow.hidden = not waiting
+    if waiting then
+      skinHint:Show()
+      reloadBtn:Show()
+    else
+      skinHint:Hide()
+      reloadBtn:Hide()
+    end
+  end
+
+  skinBtn:SetScript("OnClick", function(self)
+    local menu = _G.MenuUtil
+    if not (menu and menu.CreateRadioContextMenu and Skins) then return end
+    local entries = {}
+    for _, id in ipairs(Skins.ORDER) do
+      entries[#entries + 1] = { GC.Util.ClientText(skinChoiceLabel(id)), id }
+    end
+    menu.CreateRadioContextMenu(self,
+      function(id) return skinSetting() == id end,
+      function(id)
+        if not (GC.db and GC.db.settings and GC.db.settings.sniper) then return end
+        GC.db.settings.sniper.skin = id
+        displaySkin()
+        flowCard(display)
+        fitContent()
+      end,
+      unpack(entries))
+  end)
+
+  refreshers[#refreshers + 1] = displaySkin
+
   -- Every card flows its rows again whenever its width changes, and every card on a font scale
   -- change (the kit re-fonts before it calls this, so the labels measure at the new size); the
   -- scroll child follows each time. A frame resized while hidden does not reliably say so, so
@@ -1278,7 +1381,7 @@ local function build(sniperFrame)
   if gear and gear.SetVariant then
     panel:HookScript("OnShow", function()
       gear:SetVariant("active")
-      if gear.icon and gear.icon.SetVertexColor then
+      if gear.icon and gear.icon.SetVertexColor and not gear.clientIcon then
         local c = Theme.color.goldHi
         gear.icon:SetVertexColor(c[1], c[2], c[3], 1)
       end
@@ -1291,7 +1394,7 @@ local function build(sniperFrame)
     end)
     panel:SetScript("OnHide", function()
       gear:SetVariant("ghost")
-      if gear.icon and gear.icon.SetVertexColor then
+      if gear.icon and gear.icon.SetVertexColor and not gear.clientIcon then
         local c = Theme.color.fgDim
         gear.icon:SetVertexColor(c[1], c[2], c[3], 1)
       end

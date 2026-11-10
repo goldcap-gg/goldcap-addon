@@ -388,7 +388,7 @@ describe("Caps stop-and-open", function()
     -- The player clicks the row: its window, and the Check it starts.
     local window = fakeDialog(row)
     window.primaryBtn = { Enable = function() end, Disable = function() end,
-      SetLabel = function() end, IsEnabled = function() return true end,
+      SetLabel = function() end, IsEnabled = function() return true end, RepaintLabel = function() end,
       text = { SetTextColor = function() end } }
     window.status = { SetText = function() end, SetTextColor = function() end }
     set(drain, "dialog", window)

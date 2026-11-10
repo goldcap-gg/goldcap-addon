@@ -67,6 +67,7 @@ local _, GC = ...
 GC.HoardFrame = {}
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
+local KB = GC.Kit.Tokens.blizzard -- what a line in the game tooltip reads
 
 -- In UI units; the approved boards are drawn at twice that. WIDTH: the board's 360 and GUTTER, the
 -- room the scroll's bar takes right of the list (it hangs 6px right of the scroll frame and is 16px
@@ -100,7 +101,7 @@ for _, bag in ipairs(BAGS) do IS_BAG[bag] = true end
 -- The bank's share in the legend of the bar under each row (the bar's own is a step darker,
 -- UI/HoardRow.lua): the kit's "yours" blue dimmed to the boards' slate, the kit having no slate of
 -- its own. The bags' share is the kit's gold.
-local SLATE = { K.yours[1], K.yours[2], K.yours[3], 0.6 }
+local SLATE = GC.Kit.Tokens.alpha("yours", 0.6)
 
 -- The stacks a press has sent, "bag:slot" -> { itemID, count } as the slot held them, until the
 -- slot shows the move or the settle timer gives up on it.
@@ -673,9 +674,9 @@ local function showMoveTip(button)
   -- Beside the window, level with the button, as the approved board draws a tile's: never over the
   -- list it describes.
   GC.Theme.ItemTooltipOutside(button, frame)
-  tooltip:AddLine(GC.Util.ClientText(button.tipTitle), K.goldText[1], K.goldText[2], K.goldText[3])
+  tooltip:AddLine(GC.Util.ClientText(button.tipTitle), KB.goldText[1], KB.goldText[2], KB.goldText[3])
   if button.tipNote then
-    tooltip:AddLine(GC.Util.ClientText(button.tipNote), K.text1[1], K.text1[2], K.text1[3], true)
+    tooltip:AddLine(GC.Util.ClientText(button.tipNote), KB.text1[1], KB.text1[2], KB.text1[3], true)
   end
   if button.stopping then return tooltip:Show() end
   if button.tipLines then
@@ -686,9 +687,9 @@ local function showMoveTip(button)
   local stack = stacks[1]
   if stack then
     tooltip:AddLine(GC.Util.ClientText(GC.L["%s ×%d (%d left)"]:format(itemName(stack), stack.count, #stacks)),
-      K.text1[1], K.text1[2], K.text1[3], true)
+      KB.text1[1], KB.text1[2], KB.text1[3], true)
   else
-    tooltip:AddLine(GC.Util.ClientText(GC.L["Nothing to move"]), K.text3[1], K.text3[2], K.text3[3])
+    tooltip:AddLine(GC.Util.ClientText(GC.L["Nothing to move"]), KB.text3[1], KB.text3[2], KB.text3[3])
   end
   tooltip:Show()
 end
@@ -738,7 +739,7 @@ end
 local function newSwitch(parent, field, values, onClick)
   local T = GC.Theme
   local switch = CreateFrame("Frame", nil, parent)
-  sunkenTrack(switch)
+  sunkenTrack(switch, true)
   switch.sides = {}
   for i, value in ipairs(values) do
     local side = T.Button(switch, "segment", "plaque")
@@ -758,7 +759,7 @@ end
 local function semibold(parent, size)
   local T = GC.Theme
   local fs = T.Label(parent, size)
-  if T.FONT_LABEL == T.FONT_TEXT then
+  if not T.ClientFonts() and T.FONT_LABEL == T.FONT_TEXT then
     fs:SetFont(T.FONT_TEXT_SEMI, size * T.Scale(), "")
     T.TrackFont(fs, { role = "label", path = T.FONT_TEXT_SEMI, size = size, flags = "" })
   end
@@ -801,7 +802,7 @@ local function newHeader(f, onClose)
   f.close.icon = f.close:CreateTexture(nil, "OVERLAY")
   f.close.icon:SetSize(L.CLOSE_ICON, L.CLOSE_ICON)
   f.close.icon:SetPoint("CENTER", f.close, "CENTER", 0, 0)
-  T.SetIcon(f.close.icon, "close", K.text2)
+  T.CloseIcon(f.close, K.text2)
   f.close:SetScript("OnClick", onClose)
 end
 
@@ -815,7 +816,7 @@ local function build()
   frame:SetSize(L.WIDTH, L.MIN_H)
   frame:EnableMouse(true)
   frame:SetClampedToScreen(true)
-  frame.glass = T.Window(frame)
+  frame.glass = T.Window(frame, { inside = true })
   newHeader(frame, onCloseClick)
 
   -- The bank switch, the other bank bare text and the bank chosen in the gold fill the board gives
@@ -879,7 +880,7 @@ local function newHandle(onClick)
   local h = plate(UIParent, K.windowBorder, "plaque")
   h:SetHeight(L.HANDLE_H)
   h:SetClampedToScreen(true)
-  h.bg = T.SlicedTexture(h, "BACKGROUND", T.MEDIA .. "plaque.png", K.windowTop, T.SLICE.plaque)
+  h.bg = T.ShapeTexture(h, "BACKGROUND", "control", K.windowTop)
   h.bg:SetAllPoints()
   h.logo = h:CreateTexture(nil, "ARTWORK")
   h.logo:SetTexture(T.MEDIA .. "GoldCap")

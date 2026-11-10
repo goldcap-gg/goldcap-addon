@@ -746,16 +746,16 @@ end
 -- The dock's surface, built before the toolbar as it always was.
 function Dock.BuildFill()
   local container = UI.container
-  -- The dock: one raised surface along the bottom carrying the deck's bulk action, what it
-  -- will do next, what is happening, and the session's totals. It used to be a bare strip
-  -- of widgets on the window's own background, which read as leftovers under the list rather
-  -- than as the place the tab is driven from.
+  -- The dock: one raised surface along the bottom carrying the deck's bulk action, what it will do
+  -- next, what is happening, and the session's totals. It used to be a bare strip of widgets on the
+  -- window's own background, which read as leftovers under the list, not as where the tab is driven.
   local phc = Theme.color.panelHi
-  local dockFill = Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { phc[1], phc[2], phc[3], 1 }, 12)
+  local dockFill = Theme.ClientPanel and Theme.ClientPanel(container, 0.94) -- Classic: a frame in the client's border
+    or Theme.ShapeTexture(container, "BACKGROUND", "control", { phc[1], phc[2], phc[3], 1 })
   dockFill:SetPoint("BOTTOMLEFT"); dockFill:SetPoint("BOTTOMRIGHT")
   dockFill:SetHeight(Dock.Height())
   container.dockFill = dockFill
+  container.dockBevel = Theme.PanelBevel and Theme.PanelBevel(container, "dock", dockFill) -- a bevel skin's frame
 end
 
 -- How tall the dock stands: one row, taller while the posting deck's item has a name or news that
@@ -890,13 +890,13 @@ function Dock.Build(f)
   cancelHeldBackHit:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Held back from cancelling"]), 1, 0.82, 0)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Held back from cancelling"]), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
     if #S.cancelSkipped == 0 then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true)
     else
       for _, skip in ipairs(S.cancelSkipped) do
         GameTooltip:AddLine(GC.Util.ClientText(("%s: %s"):format(skip.itemName or GC.L["Item"],
-          UI.fmt.skipText(skip.reason) or GC.L["not ready to cancel"])), 0.85, 0.85, 0.85, true)
+          UI.fmt.skipText(skip.reason) or GC.L["not ready to cancel"])), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true)
       end
     end
     GameTooltip:Show()
@@ -941,10 +941,10 @@ function Dock.Build(f)
     hit:SetScript("OnEnter", function(self)
       if not GameTooltip or not value:IsShown() then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L[SUMMARY_STAT_LABELS[i]]), 1, 0.82, 0)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L[SUMMARY_STAT_LABELS[i]]), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
       local tip = SUMMARY_STAT_TIPS[id]
       if type(tip) == "table" then tip = tip[container.summaryDeck or "post"] end
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L[tip]), 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L[tip]), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true)
       GameTooltip:Show()
     end)
     hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

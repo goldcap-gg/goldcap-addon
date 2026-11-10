@@ -105,6 +105,16 @@ describe("Upgrades window", function()
     assert.equal("L", clicked)
   end)
 
+  it("hovers in the game's own ink on its Blizzard frame, whatever the skin", function()
+    local game = GC.Kit.Tokens.blizzard.ink
+    assert.same(GC.Kit.Tokens.color.ink, game)          -- goldcap: the same ink as before
+    GC.Kit.Skins.Apply("parchment")
+    assert.are_not.same(game, GC.Kit.Tokens.color.ink)  -- parchment's window ink is dark brown
+    local row = U._Build().rows[1]
+    assert.same({ game[1], game[2], game[3], 0.08 }, row.textures[1].color)
+    GC.Kit.Skins.Apply("goldcap")
+  end)
+
   it("says why there is nothing to show", function()
     local f = U._Build()
     U.Render({ rows = {}, loading = 0, noScan = true }, 1)

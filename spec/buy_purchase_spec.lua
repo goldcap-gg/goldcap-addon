@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- The BUY tab's purchase: picking a line (a left click on its row) quotes it against the live
 -- commodity book, the dock's one button starts the purchase for exactly the quoted quantity, and a
@@ -257,6 +258,8 @@ describe("BUY purchase", function()
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
       SlicedTexture = function(parent) return region("Texture", parent) end,
+      ShapeTexture = function(parent) return region("Texture", parent) end,
+      Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       Chip = function(parent) return chip(parent) end,
       WithQuality = function(name) return name end,
       -- UI/Theme.lua's own: opens GameTooltip on the row, placed beside the window. Which window

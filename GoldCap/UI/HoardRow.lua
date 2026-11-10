@@ -35,19 +35,19 @@ local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrappi
 -- The colours the boards draw a row with, all from the kit's tokens: Store in the gold the bags'
 -- share wears, an opened row ringed in it; the "+N" box in the kit's hairline; each play's chip in
 -- its own colour.
-local STORE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.45 }
-local OPEN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
+local STORE_RING = GC.Kit.Tokens.alpha("gold", 0.45)
+local OPEN_RING = GC.Kit.Tokens.alpha("gold", 0.35)
 -- The boards' gold on a row: while its run goes (Window, mode running), checked (ManyGroups), and a
 -- folder with any group checked.
-local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
-local RUN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
-local CHECK_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.06 }
-local CHECK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.3 }
-local FOLDER_CHECK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
+local RUN_FILL = GC.Kit.Tokens.alpha("gold", 0.07)
+local RUN_RING = GC.Kit.Tokens.alpha("gold", 0.6)
+local CHECK_FILL = GC.Kit.Tokens.alpha("gold", 0.06)
+local CHECK_RING = GC.Kit.Tokens.alpha("gold", 0.3)
+local FOLDER_CHECK_RING = GC.Kit.Tokens.alpha("gold", 0.35)
 local PLAY_COLOR = { gather = K.profit, craft = K.yours, flip = K.goldText, stock = K.text2 }
 -- The bar's bank share: the legend's slate (HF.ui.SLATE) a step darker, as the board draws the
 -- bar's track under the bags' gold.
-local SLATE_TRACK = { U.SLATE[1], U.SLATE[2], U.SLATE[3], 0.38 }
+local SLATE_TRACK = GC.Kit.Tokens.alpha("yours", 0.38)
 -- An item's icon, as every row and window draws it, is the kit's (UI/Kit/Parts.lua), which the
 -- crafting panel draws with on both games; HF.Row hands it on.
 local KP = GC.Theme.Parts
@@ -162,9 +162,9 @@ end
 local function newRow(parent)
   local T = GC.Theme
   local row = CreateFrame("Frame", nil, parent)
-  row.bg = T.SlicedTexture(row, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassBottom, T.SLICE.plaque)
+  row.bg = T.ShapeTexture(row, "BACKGROUND", "control", K.glassBottom)
   row.bg:SetAllPoints()
-  row.ring = T.SlicedTexture(row, "BORDER", T.MEDIA .. "plaque_ring.png", K.hairline, T.SLICE.plaque)
+  row.ring = T.ShapeTexture(row, "BORDER", "control", K.hairline, true)
   row.ring:SetAllPoints()
   -- The click that opens the row is on its top line, under its buttons.
   row.head = U.plate(row, nil, "plaque")
@@ -181,7 +181,7 @@ local function newRow(parent)
   track(row, row.chip.text)
   row.icons = {}
   for i = 1, GC.Hoard.ICONS do row.icons[i] = newIcon(row, L.ICON, true) end
-  row.more = T.SlicedTexture(row, "ARTWORK", T.MEDIA .. "badge.png", K.hairline, T.SLICE.badge)
+  row.more = T.ShapeTexture(row, "ARTWORK", "chip", K.hairline)
   row.moreText = track(row, T.Num(row, 9))
   row.moreText:SetJustifyH("CENTER")
   colour(row.moreText, K.text2)

@@ -17,7 +17,13 @@
 -- 12-point face's and scale with the size SetFont gave, a colour escape (|cAARRGGBB, |r) takes no
 -- room, and a texture or atlas escape (|T..|t, |A..|a) the face's height plus its 2px offset, as
 -- the coin a money figure ends in does.
-local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {}, CLIENT_METRICS = false }
+--
+-- With W.FACE_WIDTH (a spec sets it to a function(path, text, size) and back to nil after), a
+-- FontString's one-line width is the width of its text in the face SetFont gave it, as the client
+-- measures it: a spec that checks a label against its button measures it in the shipped file
+-- (spec/support/font_metrics.lua).
+local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {}, missingTextures = {}, CLIENT_METRICS = false,
+  FACE_WIDTH = nil }
 
 local STATE = setmetatable({}, { __mode = "k" })
 
@@ -32,7 +38,8 @@ local function chars(text)
 end
 
 -- How wide `text` draws on one line at `size` points (CLIENT_METRICS above).
-local function measure(text, size)
+local function measure(text, size, path)
+  if W.FACE_WIDTH then return W.FACE_WIDTH(path, tostring(text or ""), size) end
   if not W.CLIENT_METRICS then return chars(text) * W.CHAR_W end
   local plain = tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
   local icons
@@ -99,7 +106,17 @@ end
 
 function W.Texture(parent)
   local t, s = region("Texture", parent)
-  function t:SetTexture(file) s.file = file end
+  -- Measured in the client (WoW: Forever 1.60.1, skin probe 2026-11-10): SetTexture returns true
+  -- for a path the client does not have as well, and GetTextureFileID returns nil for it, a number
+  -- for a file the client has. A spec lists a path the client lacks in W.missingTextures.
+  function t:SetTexture(file)
+    s.file = file
+    return true
+  end
+  function t:GetTextureFileID()
+    if s.file == nil or W.missingTextures[s.file] then return nil end
+    return 130000
+  end
   -- TextureBase:SetAtlas(atlas [, useAtlasSize]): the game's own art by its atlas name.
   function t:SetAtlas(atlas, useAtlasSize) s.atlas, s.useAtlasSize = atlas, useAtlasSize end
   function t:SetColorTexture(...) s.color = { ... } end
@@ -108,6 +125,9 @@ function W.Texture(parent)
   function t:SetDesaturated(flag) s.desaturated = flag and true or false end
   function t:SetBlendMode(mode) s.blend = mode end
   function t:SetTexCoord(...) s.texCoord = { ... } end
+  -- Texture:SetHorizTile / SetVertTile (TextureBase): repeat the file along an axis instead of stretching it.
+  function t:SetHorizTile(flag) s.horizTile = flag and true or false end
+  function t:SetVertTile(flag) s.vertTile = flag and true or false end
   -- Texture:SetMask(file): drawn through the file's alpha (a portrait's round mask).
   function t:SetMask(file) s.mask = file end
   function t:SetGradient(orientation, minColor, maxColor) s.gradient = { orientation, minColor, maxColor } end
@@ -139,15 +159,23 @@ function W.FontString(parent, inherits)
   function f:SetMaxLines(n) s.maxLines = n end
   function f:SetTextColor(r, g, b, a) s.color = { r, g, b, a or 1 } end
   function f:GetTextColor() return s.color[1], s.color[2], s.color[3], s.color[4] end
+  -- FontInstance's shadow: a template's own is left nil here; a spec reads what the code set.
+  function f:SetShadowColor(r, g, b, a) s.shadowColor = { r, g, b, a or 1 } end
+  function f:SetShadowOffset(x, y) s.shadowOffset = { x, y } end
   function f:SetFont(path, size, flags) s.font = { path, size, flags }; return true end
   function f:GetFont() return s.font[1], s.font[2], s.font[3] end
-  function f:GetStringWidth() return measure(s.text, s.font[2]) end
+  -- FontInstance:SetFontObject: the face and size of a Font object, which it also hands back by GetFont.
+  function f:SetFontObject(font)
+    s.fontObject = font
+    if font and font.GetFont then s.font = { font:GetFont() } end
+  end
+  function f:GetStringWidth() return measure(s.text, s.font[2], s.font[1]) end
   -- The width the text would take on one line, whatever width the FontString was given.
-  function f:GetUnboundedStringWidth() return measure(s.text, s.font[2]) end
+  function f:GetUnboundedStringWidth() return measure(s.text, s.font[2], s.font[1]) end
   function f:GetStringHeight()
     if chars(s.text) == 0 then return 0 end
     if s.wordWrap ~= false and (s.width or 0) > 0 then
-      return math.ceil(measure(s.text, s.font[2]) / s.width) * lineHeight(s.font[2])
+      return math.ceil(measure(s.text, s.font[2], s.font[1]) / s.width) * lineHeight(s.font[2])
     end
     return lineHeight(s.font[2])
   end
@@ -168,6 +196,11 @@ function W.CreateFrame(kind, _, parent)
   s.scripts = {}
   function f:GetChildren() return unpack(s.children) end
   function f:SetFrameLevel(level) s.level = level end
+  -- Frame:SetUsingParentLevel: the frame takes its parent's level instead of one above it.
+  function f:SetUsingParentLevel(v)
+    s.usingParentLevel = v and true or false
+    if v and parent and STATE[parent] then s.level = STATE[parent].level end
+  end
   function f:GetFrameLevel() return s.level end
   function f:SetFrameStrata(strata) s.strata = strata end
   -- Frame:SetAlpha: the frame's own alpha, which the client multiplies into everything it and its
@@ -176,6 +209,10 @@ function W.CreateFrame(kind, _, parent)
   function f:GetAlpha() return s.alpha or 1 end
   function f:EnableMouse(v) s.mouse = v and true or false end
   function f:IsMouseEnabled() return s.mouse == true end
+  -- BackdropTemplate: the backdrop table a frame was given (an edge file and its size) and its colours.
+  function f:SetBackdrop(backdrop) s.backdrop = backdrop end
+  function f:SetBackdropColor(...) s.backdropColor = { ... } end
+  function f:SetBackdropBorderColor(...) s.backdropBorderColor = { ... } end
   function f:SetID(id) s.id = id end
   function f:GetID() return s.id or 0 end
   function f:SetScript(name, fn) s.scripts[name] = fn end

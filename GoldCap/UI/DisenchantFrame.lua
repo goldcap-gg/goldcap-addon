@@ -131,14 +131,14 @@ local PURPLE = { 176 / 255, 100 / 255, 240 / 255, 1 }
 local FILL_TOP, FILL_BOTTOM, ON_PURPLE = hex("C58BFA"), hex("9A55E0"), hex("14081F")
 local CASTING_FILL = { PURPLE[1], PURPLE[2], PURPLE[3], 0.22 }
 local CASTING_TEXT = hex("C9A3F5")
-local MATS_C, VENDOR_C, LOSER_C = K.profit, hex("F2B544"), K.text4
+local MATS_C, VENDOR_C, LOSER_C = K.profit, K.vendor, K.text4
 local CARD_FILL = { PURPLE[1], PURPLE[2], PURPLE[3], 0.06 }
 local CARD_RING = { PURPLE[1], PURPLE[2], PURPLE[3], 0.35 }
 local ROW_CAST_FILL = { PURPLE[1], PURPLE[2], PURPLE[3], 0.10 }
 local ROW_CAST_RING = { PURPLE[1], PURPLE[2], PURPLE[3], 0.6 }
-local BAR_TRACK = { 1, 1, 1, 0.08 }
+local BAR_TRACK = GC.Kit.Tokens.alpha("ink", 0.08)
 -- The shade the engine lays over a held button (UI/Kit/Button.lua's PRESSED).
-local PRESSED = { 0, 0, 0, 0.28 }
+local PRESSED = { 0, 0, 0, 0.28 } -- untinted
 -- A disabled button's fill, at this share of its own alpha (UI/Kit/Button.lua's DIM).
 local DIM = 0.45
 -- A line done this visit.
@@ -400,9 +400,10 @@ local function nameOf(stack)
   return name
 end
 
-local function qualityColour(quality)
-  local c = _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality]
-  if type(c) ~= "table" then return K.text1 end
+-- `onBlizzard`: the colour is for a Blizzard menu, which keeps the game's own.
+local function qualityColour(quality, onBlizzard)
+  local c = GC.Theme.QualityColor(quality, true, onBlizzard)
+  if type(c) ~= "table" then return onBlizzard and GC.Kit.Tokens.blizzard.text1 or K.text1 end
   return { c.r, c.g, c.b, 1 }
 end
 
@@ -659,7 +660,7 @@ end
 -- A kept item's line in the menu: its icon and its name in its quality's colour.
 local function keptLabel(itemID, stack)
   local quality = stack and stack.quality or (C_Item and ask(C_Item.GetItemQualityByID, itemID))
-  local name = GC.Util.Colored(qualityColour(quality), nameOf({ itemID = itemID, link = stack and stack.link }))
+  local name = GC.Util.Colored(qualityColour(quality, true), nameOf({ itemID = itemID, link = stack and stack.link }))
   local icon = iconOf(itemID)
   if icon then return ("|T%s:14|t %s"):format(tostring(icon), name) end
   return name
@@ -680,7 +681,7 @@ end
 -- A menu line that acts on one click: the item, and what the click does in grey after it.
 local function addAct(root, stack, act, fn)
   local text = GC.Util.ClientText
-  root:CreateButton(text(keptLabel(stack.itemID, stack) .. "  " .. GC.Util.Colored(K.text3, act)), fn)
+  root:CreateButton(text(keptLabel(stack.itemID, stack) .. "  " .. GC.Util.Colored(GC.Kit.Tokens.blizzard.text3, act)), fn)
 end
 
 --- The Kept menu, of the items the bags hold now (the stored sets keep the others, and an item shows
@@ -726,7 +727,7 @@ end
 -- it), as the card's button is: a line can be clicked.
 local function hoverWash(row)
   local T = GC.Theme
-  row.hover = T.SlicedTexture(row, "HIGHLIGHT", T.MEDIA .. "plaque.png", K.hoverWash, T.SLICE.plaque)
+  row.hover = T.ShapeTexture(row, "HIGHLIGHT", "control", K.hoverWash)
   row.hover:SetAllPoints()
   row.hover:SetBlendMode("ADD")
 end
@@ -949,7 +950,7 @@ local function buildCast(card)
   b.fill = {}
   for i, cut in ipairs(PIECES) do
     local t = b:CreateTexture(nil, "BACKGROUND")
-    t:SetTexture(T.MEDIA .. "plaque.png")
+    t:SetTexture((T.Shape("control")))
     t:SetTexCoord(cut[1], cut[2], 0, 1)
     b.fill[i] = t
   end
@@ -962,10 +963,10 @@ local function buildCast(card)
   right:SetWidth(CAP)
   middle:SetPoint("TOPLEFT", left, "TOPRIGHT", 0, 0)
   middle:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT", 0, 0)
-  b.wash = T.SlicedTexture(b, "HIGHLIGHT", T.MEDIA .. "plaque.png", K.hoverWash, T.SLICE.plaque)
+  b.wash = T.ShapeTexture(b, "HIGHLIGHT", "control", K.hoverWash)
   b.wash:SetAllPoints()
   b.wash:SetBlendMode("ADD")
-  b.held = T.SlicedTexture(b, "ARTWORK", T.MEDIA .. "plaque.png", PRESSED, T.SLICE.plaque)
+  b.held = T.ShapeTexture(b, "ARTWORK", "control", PRESSED)
   b.held:SetAllPoints()
   b:SetPushedTexture(b.held)
   b.icon = b:CreateTexture(nil, "OVERLAY")
@@ -1080,9 +1081,9 @@ local function newRow()
   local row = CreateFrame("Button", nil, frame.content)
   row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   row:EnableMouse(true)
-  row.bg = T.SlicedTexture(row, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassBottom, T.SLICE.plaque)
+  row.bg = T.ShapeTexture(row, "BACKGROUND", "control", K.glassBottom)
   row.bg:SetAllPoints()
-  row.ring = T.SlicedTexture(row, "BORDER", T.MEDIA .. "plaque_ring.png", K.hairline, T.SLICE.plaque)
+  row.ring = T.ShapeTexture(row, "BORDER", "control", K.hairline, true)
   row.ring:SetAllPoints()
   hoverWash(row)
   row.slot = HF.Row.NewIcon(row, M.ROW_ICON)
@@ -1107,9 +1108,9 @@ local function newLeftRow(box)
   row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   row:EnableMouse(true)
   row.leftOut = true
-  row.bg = T.SlicedTexture(row, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassBottom, T.SLICE.plaque)
+  row.bg = T.ShapeTexture(row, "BACKGROUND", "control", K.glassBottom)
   row.bg:SetAllPoints()
-  row.ring = T.SlicedTexture(row, "BORDER", T.MEDIA .. "plaque_ring.png", K.hairline, T.SLICE.plaque)
+  row.ring = T.ShapeTexture(row, "BORDER", "control", K.hairline, true)
   row.ring:SetAllPoints()
   hoverWash(row)
   row.slot = HF.Row.NewIcon(row, M.ROW_ICON)
@@ -1227,7 +1228,7 @@ local function paintCast(look, width)
   local c = look == "ready" and ON_PURPLE or (look == "casting" and CASTING_TEXT or K.text3)
   setText(b.text, GC.L["Disenchant"])
   colour(b.text, c)
-  b.icon:SetVertexColor(1, 1, 1, look == "ready" and 1 or 0.5)
+  b.icon:SetVertexColor(1, 1, 1, look == "ready" and 1 or 0.5) -- untinted
   b.wash:SetShown(look ~= "idle")
   -- The engine still shows an enabled button's pushed texture under a click: none while idle.
   b.held:SetAlpha(look == "idle" and 0 or 1)

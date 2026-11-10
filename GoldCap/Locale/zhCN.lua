@@ -319,6 +319,11 @@ GC.Locales.zhCN = {
   ["Language"] = "语言",
   ["Language changed. Type /reload to apply it everywhere."] =
     "语言已更改。输入 /reload 使其在所有界面生效。",
+  ["Skin"] = "外观",
+  ["Applies after a reload"] = "重新加载后生效",
+  ["Reload now"] = "立即重新加载",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "无法应用所选外观，本次会话使用 GoldCap 外观",
   ["Last post may still go up. Wait a minute"] = "上次上架可能仍会成功。请等一分钟",
   ["Level 40 reached: %s to go."] = "已达到 40 级：还差 %s。",
   ["Last result: %ds ago"] = "上次结果：%d 秒前",

@@ -69,6 +69,22 @@ describe("welcome window", function()
     _G.GoldCapWelcome, _G.GoldCap_AppData = nil, nil
   end)
 
+  it("draws the warm glow behind the mark only in a skin that has one, as the rail does", function()
+    client({ welcome = { firstRun = true }, bundledTs = NOW - 12 * DAY })
+    GC.WelcomeUI.MaybeShow()
+    local glow = window().logo.glow
+    assert.is_not_nil(glow)                       -- goldcap: the glow it always had
+    assert.equal("ADD", W.state(glow).blend)
+  end)
+
+  it("draws no glow behind the mark in a skin without one", function()
+    GC.Kit.Skins.Apply("pixel")
+    client({ welcome = { firstRun = true }, bundledTs = NOW - 12 * DAY })
+    GC.WelcomeUI.MaybeShow()
+    assert.is_nil(window().logo.glow)
+    GC.Kit.Skins.Apply("goldcap")
+  end)
+
   it("greets a new player on their first visit with what GoldCap does and why DEALS is empty", function()
     client({ welcome = { firstRun = true }, bundledTs = NOW - 12 * DAY })
     GC.WelcomeUI.MaybeShow()

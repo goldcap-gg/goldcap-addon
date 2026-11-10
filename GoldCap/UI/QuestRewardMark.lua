@@ -18,7 +18,7 @@ local M = GC.QuestRewardMark
 
 local LOOT_ITEM = 0                     -- GetQuestItemInfoLootType: 0 an item, 1 a currency
 local LAYOUT = { GAP = 6, BOTTOM = 4, LEVEL_ABOVE = 2 }
-local CLEAR = { 0, 0, 0, 0 }
+local CLEAR = { 0, 0, 0, 0 } -- untinted
 
 -- The client, in one place. QuestInfoFrame's `questLog` and `rewardsFrame` are set by
 -- QuestInfo_Display; the two reward functions are the ones QuestInfo_ShowRewards itself calls when
@@ -77,7 +77,7 @@ local function build(frame)
   holder:SetAllPoints(frame)
   -- A gold ring over the reward: the same small rounded ring every GoldCap card wears, with no
   -- fill, so the reward's icon and name stay as Blizzard drew them.
-  holder.ring = T.Card(holder, CLEAR, T.color.gold, true)
+  holder.ring = T.Card(holder, CLEAR, GC.Kit.Tokens.blizzard.gold, true)
   -- The line under the rewards: the quest window's own font, wrapped to the reward frame's width.
   -- The window is Blizzard's, so its face stands, except when GoldCap speaks a language the
   -- client's face cannot draw (Russian or Ukrainian on an English client): then T.FONT_FOREIGN,

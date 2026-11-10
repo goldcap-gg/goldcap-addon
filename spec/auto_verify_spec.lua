@@ -1262,6 +1262,7 @@ describe("Deals background verification", function()
       function primary:Disable() self.enabled = false end
       function primary:IsEnabled() return self.enabled end
       function primary:SetLabel(t) self.label = t end
+      function primary:RepaintLabel() end
       local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
       set(apply, "dialog", { row = row, primaryBtn = primary, status = status,
         banner = { Hide = function() end }, SetHeight = function() end })
@@ -1376,6 +1377,7 @@ describe("Deals background verification", function()
         function primary:Disable() self.enabled = false end
         function primary:IsEnabled() return self.enabled end
         function primary:SetLabel(t) self.label = t end
+        function primary:RepaintLabel() end
         local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
         local d = deal(1, 100)
         local row = { deal = d }
@@ -1433,6 +1435,7 @@ describe("Deals background verification", function()
         function primary:Disable() self.enabled = false end
         function primary:IsEnabled() return self.enabled end
         function primary:SetLabel(t) self.label = t end
+        function primary:RepaintLabel() end
         local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
         local row = { deal = deal(1, 100) }
         set(apply, "dialog", { row = row, primaryBtn = primary, status = status,

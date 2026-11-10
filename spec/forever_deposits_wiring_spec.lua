@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 local Mailbox = require("spec.support.mail_inbox")
 
 -- WoW: Forever's lost deposits (Core/ForeverDeposits.lua) fed from where they happen: a post
@@ -107,6 +108,9 @@ describe("lost deposits on WoW: Forever, wired", function()
           Button = function(p) return region("Button", p) end,
           Card = function(p) local card = region("Frame", p); function card:SetTint() end return card end,
           SlicedTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+          Plate = function() return nil end, -- no skin plates in this fake
+          ShapeTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
+          Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
           ItemTooltipOutside = function() end,
           TooltipAnchor = function() return "ANCHOR_RIGHT" end,
         },

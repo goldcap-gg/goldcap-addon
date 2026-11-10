@@ -13,7 +13,7 @@ local exact, effectivePostUnit, postQuantity = GC.SellUtil.exact, GC.SellUtil.ef
 local UI = GC.SellUI
 local Row = UI.Row
 local COLUMNS, ROW = UI.COLUMNS, UI.ROW
-local setColor, formatCell, DIM_HEX, MONEY_HEX = UI.fmt.setColor, UI.fmt.cell, UI.fmt.DIM_HEX, UI.fmt.MONEY_HEX
+local setColor, formatCell, dimHex, moneyHex = UI.fmt.setColor, UI.fmt.cell, UI.fmt.dimHex, UI.fmt.moneyHex
 
 -- The one-word state a row wears at the end of its stock line, and only when something is off:
 -- a row that is ready says nothing. It replaces the WHAT TO DO column, which no deck had room
@@ -79,6 +79,13 @@ end -- do: keeps the helpers above out of the file's own local count (Lua 5.1 al
 function ROW.paintMark(row, selling, done)
   row.markSelling, row.markDone = selling, (selling and done) or nil
   local lit = selling and not done
+  if row.mark.client then
+    -- Classic's check box and check mark keep the client's own colours; a mark passed by is dimmer.
+    row.mark.ring:SetVertexColor(1, 1, 1, lit and 1 or 0.55) -- untinted
+    row.mark.coin:SetVertexColor(1, 1, 1, 1) -- untinted
+    if lit then row.mark.coin:Show() else row.mark.coin:Hide() end
+    return
+  end
   local ring = lit and Theme.color.gold or Theme.color.fgDim
   row.mark.ring:SetVertexColor(ring[1], ring[2], ring[3], lit and 0.9 or 0.6)
   local coin = Theme.color.gold
@@ -120,7 +127,7 @@ function ROW.variantSuffix(position)
   end
   if not level or level <= 0 then return "" end
   local words = position.variantKind == "pet" and (GC.L["level %d"]):format(level) or (GC.L["ilvl %d"]):format(level)
-  return "  " .. DIM_HEX .. words .. "|r"
+  return "  " .. dimHex() .. words .. "|r"
 end
 
 -- The first of this position's lots the cancel queue holds, or nil: the queue is the one
@@ -150,37 +157,47 @@ local function createRow(parent)
   local inset = ROW.GAP / 2
   local zc = Theme.color.zebra
   row.zebra = row:CreateTexture(nil, "BACKGROUND")
-  row.zebra:SetTexture(Theme.MEDIA .. "plaque.png")
-  row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(row.zebra, "control")
   row.zebra:SetPoint("TOPLEFT", 2, -inset); row.zebra:SetPoint("BOTTOMRIGHT", -2, inset)
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
+  -- Classic: the client's auction name frame under the zebra's place, shown with it (Row.Style).
+  row.nameFrame = Theme.RowPlate and Theme.RowPlate(row)
+  if row.nameFrame then
+    row.nameFrame:SetPoint("TOPLEFT", 2, -inset); row.nameFrame:SetPoint("BOTTOMRIGHT", -2, inset)
+  end
   -- The card's edge: the glass border (Theme.color.border) every panel in the kit wears.
   local gb = Theme.color.border
-  row.cardRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { gb[1], gb[2], gb[3], gb[4] or 0.075 }, 12)
+  row.cardRing = Theme.ShapeTexture(row, "BORDER", "control",
+    { gb[1], gb[2], gb[3], gb[4] or 0.075 }, true)
   row.cardRing:SetPoint("TOPLEFT", 2, -inset); row.cardRing:SetPoint("BOTTOMRIGHT", -2, inset)
   row.cardRing:Hide()
   -- The open position's outline, over the same rect as its fill: gold at the design's 38%.
   -- Built through the kit's own sliced texture so a spec's Theme double serves it too.
-  row.selectRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.38 }, 12)
+  row.selectRing = Theme.ShapeTexture(row, "BORDER", "control",
+    { Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.38 }, true)
   row.selectRing:SetPoint("TOPLEFT", 2, -inset); row.selectRing:SetPoint("BOTTOMRIGHT", -2, inset)
   row.selectRing:Hide()
+  if row.nameFrame then
+    -- Classic: square rings, so a selected row still reads as selected on the square frame.
+    for _, ring in ipairs({ row.cardRing, row.selectRing }) do
+      ring:SetTexture(Theme.Art("ring", 0))
+      ring:SetTextureSliceMargins(Theme.ArtSlice("ring", 0), Theme.ArtSlice("ring", 0),
+        Theme.ArtSlice("ring", 0), Theme.ArtSlice("ring", 0))
+    end
+  end
   -- The "well": a sunken fill an expanded position's children sit in instead of the list's
   -- alternating zebra, so a sub-row reads as nested inside its position rather than as one more
   -- row in the same flat list (row.spine, below, is the other half of that cue). Same sliced
   -- plaque and insets as the zebra it replaces -- only shown for sub-rows (the kind branch in
   -- Row.Style), never alongside it.
   row.well = row:CreateTexture(nil, "BACKGROUND")
-  row.well:SetTexture(Theme.MEDIA .. "plaque.png")
-  row.well:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(row.well, "control")
   row.well:SetPoint("TOPLEFT", 2, -1); row.well:SetPoint("BOTTOMRIGHT", -2, 1)
   local phc = Theme.color.panelHi
   row.well:SetVertexColor(phc[1], phc[2], phc[3], 0.5)
   row.well:Hide()
   row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  row.highlight:SetTexture(Theme.MEDIA .. "plaque.png")
-  row.highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(row.highlight, "control")
   row.highlight:SetPoint("TOPLEFT", 2, -inset); row.highlight:SetPoint("BOTTOMRIGHT", -2, inset)
   local hc = Theme.color.hover
   row.highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
@@ -205,6 +222,8 @@ local function createRow(parent)
   row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
+  row.iconFrame = Theme.IconFrame and Theme.IconFrame(row.icon, row) -- Classic: the quickslot frame
+  if row.iconFrame then row.iconFrame:Hide() end
   -- The selling mark, before the icon on the posting deck (Row.Style shows it): a gold coin in a
   -- ring when POST and the post-next key list this item, an empty ring when only the row's own
   -- Post does. A click is the player's choice for the position, kept across sessions
@@ -221,6 +240,15 @@ local function createRow(parent)
   row.mark.coin:SetTexture(Theme.MEDIA .. "badge.png")
   row.mark.coin:SetSize(8, 8)
   row.mark.coin:SetPoint("CENTER")
+  local framed = Theme.Plate and Theme.Plate()
+  if framed and framed.client then
+    -- Classic: the client's check box (20px) with its check mark (26px) in it.
+    row.mark.client = true
+    row.mark.ring:SetTexture(Theme.CLASSIC.checkBox)
+    row.mark.ring:SetSize(20, 20)
+    row.mark.coin:SetTexture(Theme.CLASSIC.checkMark)
+    row.mark.coin:SetSize(26, 26)
+  end
   row.mark:SetScript("OnClick", function(self)
     local position = row.position
     if not (position and type(position.positionKey) == "string") then return end
@@ -283,7 +311,7 @@ local function createRow(parent)
   -- the same way: a held-back tag at its end is the line's most important word.
   row.itemStock = Theme.Num(row, 10)
   -- Said out loud rather than inherited from the font template: this line is deliberately one
-  -- step back from the item name above it, so that the money coloured into it (MONEY_HEX) is
+  -- step back from the item name above it, so that the money coloured into it (moneyHex) is
   -- the thing that steps forward. Leaving it on the template's own colour made the whole line
   -- compete with the name and the cost compete with nothing.
   row.itemStock:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
@@ -430,7 +458,7 @@ function Row.PaintPosition(row, entry, ctx)
     -- Escaped around the AMOUNT, not around the whole phrase: a translation is free to
     -- put the money anywhere in its own sentence, and only the money should light up.
     stockParts[#stockParts + 1] =
-      (GC.L["paid %s each"]):format(MONEY_HEX .. formatCell(paidUnit) .. "|r")
+      (GC.L["paid %s each"]):format(moneyHex() .. formatCell(paidUnit) .. "|r")
   end
   -- The quality pip goes in the label rather than beside it: this row and
   -- the Sniper's deal row anchor their cells completely differently, and an
@@ -462,7 +490,7 @@ function Row.PaintPosition(row, entry, ctx)
   -- What is off about this row, if anything -- see rowTag.
   row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
     or GC.SellViewModel.SourceText(p))
-    .. (notOnHand and (DIM_HEX .. " · not on hand|r") or "")
+    .. (notOnHand and (dimHex() .. " · not on hand|r") or "")
     .. rowTag(p, heldBackReason[p.positionKey], notOnHand)
     .. (ROW.foreverMark and ROW.foreverMark(p) or "") -- then a followed group's name, in gold:
     .. (p.rule and p.rule.name and ("  " .. GC.Sell._InlineColor(Theme.color.gold, p.rule.name)) or ""))
@@ -566,7 +594,7 @@ function Row.PaintPosition(row, entry, ctx)
       and GC.Util.IntText(math.floor(p.profitAtHold / 10000)) .. "g"
       or formatCell(p.profitAtHold)
     row.cells.profit:SetText(("%s %s@%s|r"):format(
-      formatCell(profit), DIM_HEX, hold))
+      formatCell(profit), dimHex(), hold))
     setColor(row.cells.profit, profit < 0 and Theme.color.red or Theme.color.gold)
   else
     row.cells.profit:SetText(formatCell(profit))
@@ -670,11 +698,12 @@ function Row.PaintPosition(row, entry, ctx)
   for slot, mark in ipairs(row.standMarks) do
     if not standing then
       -- No book, no marks: five grey ticks beside nothing read as a broken widget.
-      mark:SetColorTexture(1, 1, 1, 0)
+      mark:SetColorTexture(1, 1, 1, 0) -- untinted
     elseif slot == standing.slot then
       mark:SetColorTexture(lit[1], lit[2], lit[3], 1)
     else
-      mark:SetColorTexture(1, 1, 1, slot < standing.slot and 0.32 or 0.10)
+      local ink = GC.Kit.Tokens.color.ink
+      mark:SetColorTexture(ink[1], ink[2], ink[3], slot < standing.slot and 0.32 or 0.10)
     end
   end
   if not standing then
@@ -720,7 +749,7 @@ function Row.PaintHeading(row, entry)
     -- bundled face drew tofu for the arrows the design used).
     row.sectionLabel:SetText((entry.open and "- " or "+ ")
       .. (GC.L["NOT ON HAND %d"]):format(entry.count)
-      .. "  " .. DIM_HEX .. GC.L["in the mail, the bank or on another character"] .. "|r")
+      .. "  " .. dimHex() .. GC.L["in the mail, the bank or on another character"] .. "|r")
     row.action:Hide()
   elseif entry.kind == "section" then
     row.sectionLabel:SetText(ROW.sectionText(entry.section))
@@ -900,5 +929,11 @@ function Row.Style(row, entry)
     UI.Inspector.LayoutDetailRow(row)
   else
     UI.List.LayoutCells(row)
+  end
+  if row.iconFrame then row.iconFrame:SetShown(row.icon:IsShown()) end
+  if row.nameFrame then
+    -- Classic's rows are the square name frame: the glass wash is not drawn over it.
+    row.nameFrame:SetShown(row.zebra:IsShown())
+    row.zebra:Hide()
   end
 end

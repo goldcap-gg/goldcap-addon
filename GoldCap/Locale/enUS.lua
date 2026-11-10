@@ -462,6 +462,11 @@ GC.Locales.enUS = {
   ["LISTED AS"] = "LISTED AS",
   ["Language"] = "Language",
   ["Language changed. Type /reload to apply it everywhere."] = "Language changed. Type /reload to apply it everywhere.",
+  ["Skin"] = "Skin",
+  ["Applies after a reload"] = "Applies after a reload",
+  ["Reload now"] = "Reload now",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "the chosen skin could not be applied, so this session uses the GoldCap skin",
   ["Last result: %ds ago"] = "Last result: %ds ago",
   ["Last result: none yet this visit"] = "Last result: none yet this visit",
   ["Listed"] = "Listed",

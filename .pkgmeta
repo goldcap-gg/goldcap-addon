@@ -29,5 +29,6 @@ ignore:
   - .luacheckrc
   - .pkgmeta
   - .release
+  - GoldCap/Dev
 move-folders:
   GoldCap/GoldCap: GoldCap

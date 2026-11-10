@@ -132,6 +132,9 @@ describe("locale contract", function()
       -- loads the face at login. The player never sees it.
       ["GoldCap/UI/FontPreload.lua"] = true,
     }
+    -- One line of a file that is not exempt: the addon's name, written the same in every language
+    -- (Classic's title plate in UI/Kit/Card.lua).
+    local BRAND_LINE = { ["GoldCap/UI/Kit/Card.lua"] = 'text:SetText("GoldCap")' }
     local EMITS = { "AddDoubleLine", "AddLine%(", "SetText%(", "GC%.Print%(" }
 
     local listing = io.popen('find GoldCap/Core GoldCap/Services GoldCap/UI -name "*.lua"')
@@ -140,6 +143,11 @@ describe("locale contract", function()
       local file = assert(io.open(path))
       local text = file:read("*a")
       file:close()
+      local brand = BRAND_LINE[path]
+      if brand then
+        local from, to = text:find(brand, 1, true)
+        if from then text = text:sub(1, from - 1) .. text:sub(to + 1) end
+      end
       local emits = false
       for _, pattern in ipairs(EMITS) do
         if text:find(pattern) then emits = true break end

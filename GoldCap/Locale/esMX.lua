@@ -334,6 +334,11 @@ GC.Locales.esMX = {
   ["Language"] = "Idioma",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Idioma cambiado. Escribe /reload para aplicarlo en todas partes.",
+  ["Skin"] = "Apariencia",
+  ["Applies after a reload"] = "Se aplica al recargar",
+  ["Reload now"] = "Recargar ahora",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "no se pudo aplicar la apariencia elegida; esta sesión usa la apariencia GoldCap",
   ["Last post may still go up. Wait a minute"] = "Aún puede publicarse. Espera un minuto",
   ["Level 40 reached: %s to go."] = "Nivel 40 alcanzado: aún te faltan %s.",
   ["Last result: %ds ago"] = "Último resultado: hace %ds",

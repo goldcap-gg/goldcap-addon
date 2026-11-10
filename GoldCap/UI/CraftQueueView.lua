@@ -57,11 +57,11 @@ local CELL_TEXT_X = LAYOUT.CELL_PAD + LAYOUT.CELL_ICON + LAYOUT.COL_GAP
 -- the gold This recipe wears; Crafting ringed in gold; a dimmed Craft in a faint white outline,
 -- drawn at the kit's disabled share of it (0.45: the board's 0.12); Missing's cells on the window's
 -- dark.
-local BUSY_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
-local BUSY_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
-local GOLD_RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }
-local DIM_RING = { 1, 1, 1, 0.27 }
-local CELL_FILL, NO_RING = { 0, 0, 0, 0.25 }, { 0, 0, 0, 0 }
+local BUSY_FILL = GC.Kit.Tokens.alpha("gold", 0.07)
+local BUSY_RING = GC.Kit.Tokens.alpha("gold", 0.6)
+local GOLD_RING = GC.Kit.Tokens.alpha("gold", 0.5)
+local DIM_RING = GC.Kit.Tokens.alpha("ink", 0.27)
+local CELL_FILL, NO_RING = { 0, 0, 0, 0.25 }, { 0, 0, 0, 0 } -- untinted
 
 -- How wide the view's content is: the panel's body less the scroll's bar.
 local function contentWidth()
@@ -260,7 +260,7 @@ local function newLine(v)
   local T = GC.Theme
   local frame = U.plate(v.content, K.glassBorder, "plaque")
   frame:SetWidth(contentWidth())
-  frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassTop, T.SLICE.plaque)
+  frame.fill = T.ShapeTexture(frame, "BACKGROUND", "control", K.glassTop)
   frame.fill:SetAllPoints()
   local line = { frame = frame }
   line.slot = U.NewIcon(frame, LAYOUT.ICON)

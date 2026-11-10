@@ -179,13 +179,11 @@ local function matchRow(bar, i)
   row:EnableMouse(true)
   local hc, gc = Theme.color.hover, Theme.color.gold
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-  highlight:SetTexture(Theme.MEDIA .. "plaque.png")
-  highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(highlight, "control")
   highlight:SetAllPoints()
   highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   local picked = row:CreateTexture(nil, "BORDER")
-  picked:SetTexture(Theme.MEDIA .. "plaque.png")
-  picked:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(picked, "control")
   picked:SetAllPoints()
   picked:SetVertexColor(gc[1], gc[2], gc[3], 0.14)
   picked:Hide()
@@ -254,8 +252,8 @@ local function paint(bar)
   local quiet = listed and not focused
   if text ~= "" or focused then bar.hint:Hide() else bar.hint:Show() end
   -- The well's edge: gold while it has the keyboard, the glass's own otherwise.
-  local gc = Theme.color.gold
-  if focused then bar.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.6) else bar.ring:SetVertexColor(1, 1, 1, 0.14) end
+  local gc, edge = Theme.color.gold, GC.Kit.Tokens.color.windowBorder
+  if focused then bar.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.6) else bar.ring:SetVertexColor(edge[1], edge[2], edge[3], edge[4]) end
   -- The button says what Enter does: a name searches, unless the arrow keys picked a match. Gold
   -- and lit when there are items to add, a gold outline for a search, quiet with nothing to do.
   local searching = bar.mode == "search" and (bar.selected or 0) == 0
@@ -628,8 +626,8 @@ function GC.BuyAddBox.Create(parent)
   local well = CreateFrame("Frame", nil, frame)
   well:SetHeight(AB.WELL_H)
   local wc = Theme.color.bg or Theme.color.panel
-  Theme.SlicedTexture(well, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(well)
-  local ring = Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.14 }, 12)
+  Theme.ShapeTexture(well, "BACKGROUND", "control", { wc[1], wc[2], wc[3], 1 }):SetAllPoints(well)
+  local ring = Theme.ShapeTexture(well, "BORDER", "control", GC.Kit.Tokens.ink(0.14), true)
   ring:SetAllPoints(well)
   local plus = well:CreateTexture(nil, "ARTWORK")
   plus:SetSize(16, 16)
@@ -665,9 +663,9 @@ function GC.BuyAddBox.Create(parent)
   pop:EnableMouse(true)
   local K = GC.Kit and GC.Kit.Tokens and GC.Kit.Tokens.color
   local pc = (K and K.popup) or Theme.color.panel
-  Theme.SlicedTexture(pop, "BACKGROUND", Theme.MEDIA .. "plaque.png", { pc[1], pc[2], pc[3], pc[4] or 0.98 }, 12)
+  Theme.ShapeTexture(pop, "BACKGROUND", "control", { pc[1], pc[2], pc[3], pc[4] or 0.98 })
     :SetAllPoints(pop)
-  Theme.SlicedTexture(pop, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.09 }, 12):SetAllPoints(pop)
+  Theme.ShapeTexture(pop, "BORDER", "control", GC.Kit.Tokens.ink(0.09), true):SetAllPoints(pop)
   if Theme.Shadow then Theme.Shadow(pop, 12, 0.5) end
   pop:Hide()
   local collected = Theme.Num(pop, 10)

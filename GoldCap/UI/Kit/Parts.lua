@@ -19,12 +19,12 @@ local KP = GC.Theme.Parts
 -- The sunken track of a two-way switch, the bank switch's and the search row's filter
 -- (UI/HoardList.lua): black at 0.35 under the glass, as the boards draw it; the kit has no token for
 -- it.
-local SWITCH_TRACK = { 0, 0, 0, 0.35 }
+local SWITCH_TRACK = { 0, 0, 0, 0.35 } -- untinted
 -- An icon with no quality colour edged dark.
-local ICON_EDGE = { 0, 0, 0, 0.75 }
+local ICON_EDGE = { 0, 0, 0, 0.75 } -- untinted
 -- An icon whose item has moved in the run: shaded in the window's own dark under the check, as
 -- the board draws it.
-local MOVED_SHADE = { K.windowBottom[1], K.windowBottom[2], K.windowBottom[3], 0.6 }
+local MOVED_SHADE = GC.Kit.Tokens.alpha("windowBottom", 0.6)
 -- The sizes an item's count over its icon tries, largest first, so it fits inside the icon.
 local COUNT_SIZES = { 8, 7, 6 }
 -- In UI units: the check a moved item's icon wears, and the price line's dot and the room right of
@@ -92,34 +92,36 @@ end
 
 -- A switch's sunken track in the glass's border, over the whole of `switch`: the Hoard's switches
 -- and the crafting panel's tabs (UI/CraftPanel.lua).
-function KP.sunkenTrack(switch)
+-- `plated`: the switch's tabs are plaque-class buttons, which a skin that frames its tabs
+-- (Theme.Plate) gives each a plate of its own, so it draws no track. The crafting panel's badge-class
+-- tabs are never plated and keep the track in every skin.
+function KP.sunkenTrack(switch, plated)
   local T = GC.Theme
-  switch.track = T.SlicedTexture(switch, "BACKGROUND", T.MEDIA .. "plaque.png", SWITCH_TRACK, T.SLICE.plaque)
+  if plated and T.Plate() then return end
+  switch.track = T.ShapeTexture(switch, "BACKGROUND", "control", SWITCH_TRACK)
   switch.track:SetAllPoints(switch)
-  switch.edge = T.SlicedTexture(switch, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)
+  switch.edge = T.ShapeTexture(switch, "BORDER", "control", K.glassBorder, true)
   switch.edge:SetAllPoints(switch)
 end
 
--- The kit's rounded art a plate is cut from, by its size class: plaque for a widget taller than
--- twice its 12px slice, badge (6px) for one down to 13px (UI/Kit/Textures.lua's slice rule).
-local PLATE_ART = {
-  plaque = { fill = "plaque.png", ring = "plaque_ring.png" },
-  badge = { fill = "badge.png", ring = "badge_ring.png" },
-}
+-- The kit's rounded art a plate is cut from, by its size class: plaque (the control shape) for a
+-- widget taller than twice its 12px slice, badge (the chip shape, 6px) for one down to 13px
+-- (UI/Kit/Textures.lua's slice rule), each at the applied skin's radius for it (Theme.Shape).
+local PLATE_ROLE = { plaque = "control", badge = "chip" }
 
 -- A quiet clickable plate: a ring when asked, and the engine's gold wash under the cursor.
 function KP.plate(parent, ring, art)
   local T = GC.Theme
-  local files, slice = PLATE_ART[art], T.SLICE[art]
+  local role = PLATE_ROLE[art]
   local b = CreateFrame("Button", nil, parent)
   b:RegisterForClicks("LeftButtonUp")
   -- Required for the HIGHLIGHT layer (docs/addon/AGENTS.md "Buttons and hover").
   b:EnableMouse(true)
   if ring then
-    b.ring = T.SlicedTexture(b, "BORDER", T.MEDIA .. files.ring, ring, slice)
+    b.ring = T.ShapeTexture(b, "BORDER", role, ring, true)
     b.ring:SetAllPoints()
   end
-  b.wash = T.SlicedTexture(b, "HIGHLIGHT", T.MEDIA .. files.fill, K.hoverWash, slice)
+  b.wash = T.ShapeTexture(b, "HIGHLIGHT", role, K.hoverWash)
   b.wash:SetAllPoints()
   b.wash:SetBlendMode("ADD")
   return b
@@ -127,7 +129,8 @@ end
 
 -- The GoldCap mark on `f` (f.logo, `logo` square, full colour as the rail and the welcome window
 -- draw it) and the brand `gap` right of it (f.brand, `size` points, among f's lines for the
--- re-show), in the condensed heavy face whatever the language: it is the name, written in Latin.
+-- re-show), in the condensed heavy face whatever the language: it is the name, written in Latin. A
+-- skin with a heading face of its own writes it in that (T.FONT_BRAND).
 -- The caller places the mark: a window's header (UI/HoardFrame.lua's newHeader), and the crafting
 -- panel's (UI/CraftPanel.lua).
 function KP.newBrand(f, logo, size, gap)
@@ -136,8 +139,12 @@ function KP.newBrand(f, logo, size, gap)
   f.logo:SetTexture(T.MEDIA .. "GoldCap")
   f.logo:SetSize(logo, logo)
   f.brand = track(f, f:CreateFontString(nil, "OVERLAY"))
-  f.brand:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "")
-  T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = size })
+  if T.ClientFonts() and T.UseClientFont(f.brand, size) then
+    T.TrackFont(f.brand, { role = "brand", size = size, object = true }) -- the client's own face
+  else
+    f.brand:SetFont(T.FONT_BRAND, size * T.Scale(), "")
+    T.TrackFont(f.brand, { role = "brand", path = T.FONT_BRAND, size = size })
+  end
   f.brand:SetWordWrap(false)
   colour(f.brand, K.goldText)
   f.brand:SetPoint("LEFT", f.logo, "RIGHT", gap, 0)
@@ -148,7 +155,7 @@ end
 -- ---------------------------------------------------------------------------------------------
 
 -- A count over an item's icon: the condensed heavy face with an outline, as the game writes a
--- stack's count over its slot.
+-- stack's count over its slot. Fira in every skin (a number, and smaller than a display face goes).
 local function countText(parent, size)
   local T = GC.Theme
   local fs = parent:CreateFontString(nil, "OVERLAY")

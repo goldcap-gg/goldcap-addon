@@ -85,6 +85,30 @@ describe("GoldCap's own font files are loaded at login", function()
     end
   end)
 
+  it("the applied skin's faces are preloaded", function()
+    local GC = helper.loadModule("UI/Theme.lua")
+    helper.loadModule("UI/FontPreload.lua", GC)
+    GC.Kit.Skins.Apply("alliance")
+    assert.is_not_nil(preloaderFor(GC.Kit.MEDIA .. "PlayfairDisplaySC-Bold.ttf"))
+    assert.is_nil(preloaderFor(GC.Kit.MEDIA .. "RuslanDisplay-Regular.ttf"))
+    -- Twice with the same path adds no second string.
+    local count = 0
+    for _, f in ipairs(frames) do
+      for _, fs in ipairs(f.strings) do
+        if fs.font.path == GC.Kit.MEDIA .. "PlayfairDisplaySC-Bold.ttf" then count = count + 1 end
+      end
+    end
+    GC.Theme.PreloadFaces({ GC.Kit.MEDIA .. "PlayfairDisplaySC-Bold.ttf" })
+    local after = 0
+    for _, f in ipairs(frames) do
+      for _, fs in ipairs(f.strings) do
+        if fs.font.path == GC.Kit.MEDIA .. "PlayfairDisplaySC-Bold.ttf" then after = after + 1 end
+      end
+    end
+    assert.equal(1, count)
+    assert.equal(1, after)
+  end)
+
   it("loads right after UI/Theme.lua in both TOCs, before any window is built", function()
     for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) do
       assert.is_truthy(read(toc):find("UI/Theme.lua\r?\nUI/FontPreload.lua\r?\n"),

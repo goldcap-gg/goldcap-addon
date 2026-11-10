@@ -330,6 +330,11 @@ GC.Locales.itIT = {
   ["Language"] = "Lingua",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Lingua cambiata. Digita /reload per applicarla ovunque.",
+  ["Skin"] = "Aspetto",
+  ["Applies after a reload"] = "Si applica dopo un ricaricamento",
+  ["Reload now"] = "Ricarica ora",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "non è stato possibile applicare l'aspetto scelto, questa sessione usa l'aspetto GoldCap",
   ["Last post may still go up. Wait a minute"] = "Può ancora uscire. Aspetta un minuto",
   ["Level 40 reached: %s to go."] = "Livello 40 raggiunto: ti mancano ancora %s.",
   ["Last result: %ds ago"] = "Ultimo risultato: %ds fa",

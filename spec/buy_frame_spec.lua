@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- The BUY tab's render, exercised the way spec/soldframe_spec.lua exercises Sold's: the real
 -- Core/BuyRun.lua and Core/BagStock.lua underneath, fake widgets above, and the row pool / header
@@ -154,6 +155,8 @@ describe("BuyFrame", function()
       Num = function(parent, _, _) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
       SlicedTexture = function(parent) return region("Texture", parent) end,
+      ShapeTexture = function(parent) return region("Texture", parent) end,
+      Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       WithQuality = function(name) return name end,
       -- UI/Theme.lua's own opens GameTooltip on the row, placed beside the window.
       ItemTooltipOutside = function(row) _G.GameTooltip:SetOwner(row, "ANCHOR_NONE") end,
@@ -1914,8 +1917,9 @@ describe("BuyFrame", function()
     local craft = lineWith(lines, "craft it: ")
     assert.equal("craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each", craft.text)
     assert.truthy(lineWith(lines, "vs 5800c at the auction house, right-click to split"))
-    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
-      craft.color)
+    -- A tooltip line wears the fixed Blizzard-surface colour, not the window's.
+    local green = GC.Kit.Tokens.blizzard.profit
+    assert.same({ green[1], green[2], green[3] }, craft.color)
   end)
 
   it("greys the comparison when the auction house is cheaper", function()
@@ -1928,8 +1932,8 @@ describe("BuyFrame", function()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
     local vs = lineWith(lines, "vs 300c at the auction house, right-click to split")
     assert.truthy(vs)
-    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
-      vs.color)
+    local dim = GC.Kit.Tokens.blizzard.text3
+    assert.same({ dim[1], dim[2], dim[3] }, vs.color)
   end)
 
   it("offers the way back on a line that is already split", function()

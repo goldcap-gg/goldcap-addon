@@ -16,7 +16,7 @@ end
 local function tocEntries(path)
   local out = {}
   for line in read(path):gmatch("[^\r\n]+") do
-    if not line:match("^##") and line:match("%S") then out[#out + 1] = (line:gsub("\\", "/")) end
+    if not line:match("^#") and line:match("%S") then out[#out + 1] = (line:gsub("\\", "/")) end
   end
   return out
 end

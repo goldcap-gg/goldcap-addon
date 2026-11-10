@@ -7,32 +7,33 @@ local T = GC.Theme
 -- `green` are what TEXT wears (a loss, a profit), `redFill` is what a BUTTON is filled with,
 -- `cost` is a price paid, `hover` is the gold wash a row wears under the cursor, `watch` is a
 -- state that persists while you look elsewhere (the player's own lots) and so has its own colour.
-local K = GC.Kit.Tokens.color
-local function rgb(color) return { color[1], color[2], color[3] } end
+local Tokens = GC.Kit.Tokens
+local K = Tokens.color
+local rgb = Tokens.rgb
 T.color = {
-  bg      = rgb(K.windowBottom),
-  panel   = rgb(K.windowTop),
-  panelHi = rgb(K.raised),
+  bg      = rgb("windowBottom"),
+  panel   = rgb("windowTop"),
+  panelHi = rgb("raised"),
   border  = K.glassBorder,
-  gold    = rgb(K.gold),
-  goldHi  = rgb(K.goldText),
-  fg      = rgb(K.text1),
-  fgMuted = rgb(K.text2),
-  fgDim   = rgb(K.text3),
-  red     = rgb(K.loss),
-  redFill = rgb(K.lossFill),
-  green   = rgb(K.profit),
-  cost    = rgb(K.cost),
-  zebra   = { 1, 1, 1, 0.035 },
-  hover   = { K.gold[1], K.gold[2], K.gold[3], 0.16 },
-  watch   = rgb(K.yours),
+  gold    = rgb("gold"),
+  goldHi  = rgb("goldText"),
+  fg      = rgb("text1"),
+  fgMuted = rgb("text2"),
+  fgDim   = rgb("text3"),
+  red     = rgb("loss"),
+  redFill = rgb("lossFill"),
+  green   = rgb("profit"),
+  cost    = rgb("cost"),
+  zebra   = Tokens.alpha("ink", 0.035),
+  hover   = Tokens.alpha("gold", 0.16),
+  watch   = rgb("yours"),
 }
 
 T.tier = {
-  HOT     = { 1, 0.35, 0.15 },
-  GOOD    = { 0.25, 0.85, 0.25 },
-  WATCH   = { 0.65, 0.65, 0.65 },
-  SUSPECT = { 1, 0.85, 0.1 },
+  HOT     = rgb("tierHot"),
+  GOOD    = rgb("tierGood"),
+  WATCH   = rgb("tierWatch"),
+  SUSPECT = rgb("tierSuspect"),
 }
 
 T.pad = { xs = 4, s = 8, m = 12, l = 16 }
@@ -43,7 +44,7 @@ T.RAIL_W = 76
 
 -- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
 -- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
-local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
+local HOVER_WASH = Tokens.alpha("gold", 0.18)
 
 -- QuietScrollBar: UIPanelScrollFrameTemplate's scrollbar without Blizzard's chrome -- the two
 -- arrow buttons and the knurled thumb floated beside panels drawn in none of that style (seen
@@ -71,7 +72,7 @@ function T.QuietScrollBar(scroll)
     thumb:SetTexture(T.MEDIA .. "bar.png")
     if thumb.SetTexCoord then thumb:SetTexCoord(0, 1, 0, 1) end
     if thumb.SetTextureSliceMargins then thumb:SetTextureSliceMargins(2, 2, 2, 2) end
-    if thumb.SetVertexColor then thumb:SetVertexColor(1, 1, 1, 0.22) end
+    if thumb.SetVertexColor then thumb:SetVertexColor(K.ink[1], K.ink[2], K.ink[3], 0.22) end
     if thumb.SetSize then thumb:SetSize(4, 36) end
   end
 end
@@ -81,9 +82,9 @@ end
 -- reuses setTabActive's functional contract: the current view's button is
 -- Disable()d (not clickable), visuals ride on top of that.
 local RAIL_BTN_W, RAIL_BTN_H = 60, 54
-local RAIL_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.12 }
-local RAIL_RING = { K.gold[1], K.gold[2], K.gold[3], 0.38 }
-local RAIL_GLOW = { K.gold[1], K.gold[2], K.gold[3], 0.12 }
+local RAIL_FILL = Tokens.alpha("gold", 0.12)
+local RAIL_RING = Tokens.alpha("gold", 0.38)
+local RAIL_GLOW = Tokens.alpha("gold", 0.12)
 local BADGE_TEXT = K.onGold
 
 function T.RailButton(parent, iconName, labelText)
@@ -93,27 +94,96 @@ function T.RailButton(parent, iconName, labelText)
   -- Required for the HIGHLIGHT layer, exactly as in T.Button.
   b:EnableMouse(true)
 
-  b.glow = T.Glow(b, RAIL_GLOW, 10)
-  b.bg = T.SlicedTexture(b, "BACKGROUND", T.MEDIA .. "card.png", RAIL_FILL)
-  b.bg:SetAllPoints()
-  b.ring = T.SlicedTexture(b, "BORDER", T.MEDIA .. "ring.png", RAIL_RING)
-  b.ring:SetAllPoints()
+  -- Art is chosen here, as the button is built; the skin is applied before any window exists.
+  local skin = GC.Kit.Skins.Current()
+  local plate = T.Plate()
+  -- A skin without a glow (Pixel, Parchment, Classic) draws no halo at all.
+  if skin.glow then b.glow = T.Glow(b, RAIL_GLOW, 10) end
+  local washFile, washSlice
+  local client = plate and plate.client
+  if client then
+    -- Classic: the client's quickslot frame round the icon, its hilight when selected (below).
+    b.plate = plate
+  elseif plate then
+    -- A framed plate: the baked ring (untinted, it carries its own colours) over a vertical
+    -- gradient, drawn all the time and lit when the button is the selected one.
+    b.plate = plate
+    b.plateFill = T.GradientFill(b, K.plateTop, K.plateBottom, plate.fill, plate.fillSlice, 32)
+    b.ring = T.SlicedTexture(b, "BORDER", plate.ring, { 1, 1, 1, 1 }, plate.ringSlice) -- untinted
+    b.ring:SetAllPoints()
+    washFile, washSlice = plate.fill, plate.fillSlice
+  elseif skin.railCard then
+    -- Parchment: the selected button is a slip of the paper (skin.railCard), shown only when selected.
+    local card, radius = skin.railCard, skin.railRadius or skin.radius[3]
+    washFile, washSlice = T.Art("card", radius), T.ArtSlice("card", radius)
+    b.card = T.GradientFill(b, card.top, card.bottom, washFile, washSlice, 64)
+    b.ring = T.SlicedTexture(b, "BORDER", T.Art("ring", radius), card.ring, washSlice)
+    b.ring:SetAllPoints()
+    b.edge = T.SlicedTexture(b, "BORDER", T.Art("ring", radius), card.edge, washSlice)
+    b.edge:SetPoint("TOPLEFT", -1, 1)
+    b.edge:SetPoint("BOTTOMRIGHT", 1, -1)
+  else
+    local radius = skin.railRadius or skin.radius[3]
+    washFile, washSlice = T.Art("card", radius), T.ArtSlice("card", radius)
+    b.bg = T.SlicedTexture(b, "BACKGROUND", washFile, RAIL_FILL, washSlice)
+    b.bg:SetAllPoints()
+    b.ring = T.SlicedTexture(b, "BORDER", T.Art("ring", radius), RAIL_RING, washSlice)
+    b.ring:SetAllPoints()
+  end
+  if skin.railBar then
+    -- Pixel: the selected button is marked by a bar on its left edge, not a halo.
+    b.bar = T.Solid(b, "BORDER", K.gold)
+    b.bar:SetPoint("TOPLEFT")
+    b.bar:SetPoint("BOTTOMLEFT")
+    b.bar:SetWidth(3)
+  end
 
   b.icon = b:CreateTexture(nil, "ARTWORK")
-  T.SetIcon(b.icon, iconName)
-  b.icon:SetSize(20, 20)
-  b.icon:SetPoint("TOP", 0, -8)
+  if client then
+    -- The client's item icon in its quickslot frame, 40px, trimmed of the icon's own border.
+    b.icon:SetTexture(T.CLASSIC.icons[iconName])
+    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    b.icon:SetSize(40, 40)
+    b.icon:SetPoint("TOP", 0, -1)
+    b.iconFrame = T.ClientSliced(b, "OVERLAY", T.CLASSIC.quickslot)
+    b.iconFrame:SetAllPoints(b.icon)
+  else
+    T.SetIcon(b.icon, iconName)
+    b.icon:SetSize(20, 20)
+    b.icon:SetPoint("TOP", 0, -8)
+  end
 
-  b.text = T.Heading(b, 9.5)
-  b.text:SetPoint("BOTTOM", 0, 7)
+  b.text = T.Heading(b, client and 11 or 9.5)
+  if client then
+    -- Classic: 2px under the icon, as on the board, so a larger font scale grows the label down
+    -- into the gap between buttons, never up into the icon and its glow.
+    b.text:SetPoint("TOP", b.icon, "BOTTOM", 0, -2)
+  else
+    b.text:SetPoint("BOTTOM", 0, 7)
+  end
   b.text:SetText(labelText)
 
   -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
   -- the button's whole square, so hovering a rail button drew a square around the rounded
   -- plate the active one wears (owner, Forever beta 2026-10-01).
-  b.highlightTexture = T.SlicedTexture(b, "HIGHLIGHT", T.MEDIA .. "card.png", HOVER_WASH)
-  b.highlightTexture:SetAllPoints()
-  b.highlightTexture:SetBlendMode("ADD")
+  if client then
+    -- The client's hilight over the 40px icon, at its size as on the client's own action buttons:
+    -- under the cursor, and kept on the selected one. At 46px it glowed onto the label below.
+    local function hilight(layer)
+      local tx = b:CreateTexture(nil, layer)
+      tx:SetTexture(T.CLASSIC.hilight)
+      tx:SetBlendMode("ADD")
+      tx:SetSize(40, 40)
+      tx:SetPoint("CENTER", b.icon, "CENTER", 0, 0)
+      return tx
+    end
+    b.highlightTexture = hilight("HIGHLIGHT")
+    b.selected = hilight("OVERLAY")
+  else
+    b.highlightTexture = T.SlicedTexture(b, "HIGHLIGHT", washFile, HOVER_WASH, washSlice)
+    b.highlightTexture:SetAllPoints()
+    b.highlightTexture:SetBlendMode("ADD")
+  end
 
   -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
   -- can still raise a tooltip), so the wash is hidden here instead of guarded in a script.
@@ -127,7 +197,7 @@ function T.RailButton(parent, iconName, labelText)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
   -- badge.png/T.SLICE.badge, not card.png/T.SLICE.card or plaque.png/T.SLICE.plaque: the badge is
   -- 14px tall and both of those margins exceed half that (see T.SLICE.badge's own comment).
-  b.badge.bg = T.SlicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, T.SLICE.badge)
+  b.badge.bg = T.ShapeTexture(b.badge, "BACKGROUND", "chip", T.color.gold)
   b.badge.bg:SetAllPoints()
   b.badge.text = T.Heading(b.badge, 9.5)
   b.badge.text:SetPoint("CENTER")
@@ -148,16 +218,37 @@ function T.RailButton(parent, iconName, labelText)
   end
 
   function b:SetActive(active)
-    local c = active and T.color.goldHi or T.color.fgDim
-    b.icon:SetVertexColor(c[1], c[2], c[3], 1)
-    b.text:SetTextColor(c[1], c[2], c[3], 1)
-    if active then
-      b.glow:Show(); b.bg:Show(); b.ring:Show()
-      b:Disable()
+    local c = active and K.railActive or K.railIdle
+    if client then
+      -- The client's icon keeps its own colours.
+      b.icon:SetVertexColor(1, 1, 1, 1) -- untinted
     else
-      b.glow:Hide(); b.bg:Hide(); b.ring:Hide()
-      b:Enable()
+      b.icon:SetVertexColor(c[1], c[2], c[3], 1)
     end
+    b.text:SetTextColor(c[1], c[2], c[3], 1)
+    if client then
+      b.selected:SetShown(active)
+    elseif b.plateFill then
+      -- The plate stays; only its fill lights.
+      if active then
+        T.PaintGradientFill(b.plateFill, K.plateOnTop, K.plateOnBottom)
+      else
+        T.PaintGradientFill(b.plateFill, K.plateTop, K.plateBottom)
+      end
+    elseif b.card then
+      for _, piece in ipairs(b.card) do piece:SetShown(active) end
+      b.ring:SetShown(active)
+      b.edge:SetShown(active)
+    else
+      if active then b.bg:Show(); b.ring:Show() else b.bg:Hide(); b.ring:Hide() end
+    end
+    if b.glow then
+      if active then b.glow:Show() else b.glow:Hide() end
+    end
+    if b.bar then
+      if active then b.bar:Show() else b.bar:Hide() end
+    end
+    if active then b:Disable() else b:Enable() end
   end
   b:SetActive(false)
 
@@ -169,9 +260,33 @@ function T.Rail(parent)
   frame:SetWidth(T.RAIL_W)
   -- card_left.png: left corners rounded to match the window card's own radius 12, right edge
   -- square (it borders content, not window chrome) -- a flat rectangle here would poke square
-  -- corners past the window's rounded top-left/bottom-left arcs.
-  local bg = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { 0, 0, 0, 0.22 })
-  bg:SetAllPoints()
+  -- corners past the window's rounded top-left/bottom-left arcs. Cut at the applied skin's window
+  -- radius (card_left_r<N>.png), so the corners stay the window's in every skin.
+  -- The skin's rail fill (K.railTop to K.railBottom): flat, as it always was, where the two are the
+  -- same; else a vertical gradient cut from the same art (T.GradientFill).
+  local skin = GC.Kit.Skins.Current()
+  local radius = skin.radius[1]
+  local top, bottom = K.railTop, K.railBottom
+  local flat = top[1] == bottom[1] and top[2] == bottom[2] and top[3] == bottom[3] and top[4] == bottom[4]
+  if flat then
+    frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.Art("cardLeft", radius), top, T.ArtSlice("cardLeft", radius))
+    frame.fill:SetAllPoints()
+  else
+    frame.fill = T.GradientFill(frame, top, bottom, T.Art("cardLeft", radius), 16, 64)
+  end
+  -- Docked, a skin's window has square corners (UI/Kit/Card.lua's SetDocked), and so has its rail;
+  -- goldcap's keeps its rounded ones, as it always has.
+  local function setDocked(docked)
+    if skin.frame == "hairline" then return end
+    if flat then
+      local r = docked and 0 or radius
+      local margin = T.ArtSlice("cardLeft", r)
+      frame.fill:SetTexture(T.Art("cardLeft", r))
+      frame.fill:SetTextureSliceMargins(margin, margin, margin, margin)
+    else
+      T.SquareCorners(frame.fill, docked, 16, 64)
+    end
+  end
   local edge = frame:CreateTexture(nil, "BORDER")
   edge:SetColorTexture(K.hairline[1], K.hairline[2], K.hairline[3], K.hairline[4])
   edge:SetPoint("TOPRIGHT")
@@ -190,8 +305,8 @@ function T.Rail(parent)
   logo.mark = logo:CreateTexture(nil, "ARTWORK")
   logo.mark:SetTexture(T.MEDIA .. "GoldCap")
   logo.mark:SetAllPoints()
-  -- A soft gold glow behind the mark, the window's one warm light.
-  logo.glow = T.Glow(logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10)
+  -- A soft gold glow behind the mark, the window's one warm light; none in a skin without a glow.
+  if skin.glow then logo.glow = T.Glow(logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10) end
   local LOGO_GAP = 14
 
   local buttons = {}
@@ -216,7 +331,14 @@ function T.Rail(parent)
   gear:SetSize(28, 28)
   gear:SetPoint("BOTTOM", 0, 14)
   gear.icon = gear:CreateTexture(nil, "ARTWORK")
-  T.SetIcon(gear.icon, "gear", T.color.fgDim)
+  local framed = T.Plate()
+  if framed and framed.client then
+    gear.icon:SetTexture(T.CLASSIC.icons.gear) -- the client's own icon, in its own colours
+    gear.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    gear.clientIcon = true -- SettingsFrame's tint of the icon leaves it alone
+  else
+    T.SetIcon(gear.icon, "gear", T.color.fgDim)
+  end
   gear.icon:SetSize(17, 17)
   gear.icon:SetPoint("CENTER")
 
@@ -228,7 +350,20 @@ function T.Rail(parent)
     logo:SetPoint("TOP", 0, -(16 + (px or 0)))
   end
 
-  return { frame = frame, buttons = buttons, gear = gear, logo = logo, SetTopInset = setTopInset }
+  return { frame = frame, buttons = buttons, gear = gear, logo = logo, SetTopInset = setTopInset,
+    SetDocked = setDocked }
+end
+
+--- The cross of a window's close button, in `color`. On paper (Parchment) the client's paper is
+--- burnt dark at the corners where these buttons sit (a text3 cross measured about 1.5:1 there), so
+--- the cross is drawn in the darkest ink on a slip of clean paper.
+function T.CloseIcon(button, color)
+  if GC.Kit.Skins.Current().paper then
+    button.slip = T.ShapeTexture(button, "BACKGROUND", "chip", K.raised)
+    button.slip:SetAllPoints()
+    color = K.text1
+  end
+  T.SetIcon(button.icon, "close", color)
 end
 
 -- TitleBar: 32px drag region at top of `frame`, title Label 13; close sits at the outer
@@ -260,7 +395,7 @@ function T.TitleBar(frame, titleText)
   close.icon = close:CreateTexture(nil, "ARTWORK")
   close.icon:SetSize(12, 12)
   close.icon:SetPoint("CENTER")
-  T.SetIcon(close.icon, "close", K.text3)
+  T.CloseIcon(close, K.text3)
   close:SetScript("OnClick", function()
     frame:Hide()
   end)
@@ -378,14 +513,47 @@ function T.QualityMarkup(itemID, size)
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)
 end
 
---- The game's colour for `itemID`'s quality (ITEM_QUALITY_COLORS: r, g, b, hex), uncommon and
--- better; nil for common and poor, whose colours are no brighter than the interface's own text,
--- and when the client will not say.
-function T.QualityColor(itemID)
-  local api = _G.C_Item and _G.C_Item.GetItemQualityByID
-  if not (api and itemID) then return nil end
-  local ok, quality = pcall(api, itemID)
-  if not (ok and type(quality) == "number" and quality >= 2) then return nil end
+local skinQualities = {}
+
+--- The applied skin's colour for item quality `quality` ({ r, g, b, hex = "|cff......", color }), or
+-- nil when the skin sets none (only the skins whose window is light, or whose blue the game's does
+-- not read on, do: Skins.lua `quality`). Made once per skin and quality.
+function T.SkinQuality(quality)
+  local skin = GC.Kit.Skins.Current()
+  local value = skin.quality and skin.quality[quality]
+  if not value then return nil end
+  local made = skinQualities[skin.id]
+  if not made then made = {}; skinQualities[skin.id] = made end
+  if not made[quality] then
+    local c = GC.Kit.Tokens.hex(value)
+    made[quality] = { r = c[1], g = c[2], b = c[3], hex = "|cff" .. value:lower(),
+      color = _G.CreateColor and _G.CreateColor(c[1], c[2], c[3], 1) or nil }
+  end
+  return made[quality]
+end
+
+--- The colour for an item's quality ({ r, g, b, hex, color }): the applied skin's own where it sets
+-- one, else the game's (ITEM_QUALITY_COLORS), for text on one of GoldCap's windows.
+--
+-- By item (an id, link or name the client takes): uncommon and better only; nil for common and poor,
+-- whose colours are no brighter than the interface's own text, and when the client will not say.
+--
+-- With `isQuality`, `quality` is the quality number itself (Enum.ItemQuality; an id can be as small
+-- as one) and every quality has a colour, nil only when the game has none for it.
+--
+-- `onBlizzard`: the text is on a Blizzard surface (a tooltip, a menu), which keeps the game's
+-- colour in every skin.
+function T.QualityColor(quality, isQuality, onBlizzard)
+  if not quality then return nil end
+  if not isQuality then
+    local api = _G.C_Item and _G.C_Item.GetItemQualityByID
+    if not api then return nil end
+    local ok, found = pcall(api, quality)
+    if not ok or type(found) ~= "number" or found < 2 then return nil end
+    quality = found
+  end
+  local skinned = not onBlizzard and T.SkinQuality(quality)
+  if skinned then return skinned end
   return _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality] or nil
 end
 
@@ -393,9 +561,9 @@ end
 -- game's colour for common is pure white, brighter than anything else on these panels, so a
 -- common name stays in the interface's own foreground) with its reagent-tier pip AFTER it, so
 -- names start on one edge down a list. `name` unchanged when the client knows neither.
-function T.WithQuality(name, itemID, size)
+function T.WithQuality(name, itemID, size, onBlizzard)
   local label = tostring(name)
-  local colour = T.QualityColor(itemID)
+  local colour = T.QualityColor(itemID, false, onBlizzard)
   if colour and type(colour.hex) == "string" then label = colour.hex .. label .. "|r" end
   local markup = T.QualityMarkup(itemID, size)
   if markup == "" then return label end

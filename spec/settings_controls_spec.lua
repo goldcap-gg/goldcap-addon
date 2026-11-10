@@ -1,4 +1,5 @@
 local helper = require("spec.spec_helper")
+local ThemeShape = require("spec.support.theme_shape")
 
 -- Loads UI/SettingsFrame.lua standalone (like sell_widget_behavior_spec.lua loads
 -- the Sell view) against a minimal fake Theme -- this spec is about the controls
@@ -154,6 +155,8 @@ describe("Settings controls", function()
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent, _, rounded) local b = region("Button", parent); b.rounded = rounded; return b end,
       SlicedTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
+      ShapeTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
+      Shape = ThemeShape.Shape, SetShape = ThemeShape.SetShape,
       -- Every numeric field/toggle wires a hover explanation through this -- the double just
       -- has to hand back something SOMETHING can call, not pick a real side (that geometry is
       -- theme_tooltip_anchor_spec.lua's job against the real Theme.lua).
@@ -315,6 +318,9 @@ describe("Settings controls", function()
     -- buy". A stubbed constant would let the field and the engine drift apart unseen.
     helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
+    -- The nine skins' defs, which the Skin row names and tints its menu from.
+    helper.loadModule("UI/Kit/Tokens.lua", GC)
+    helper.loadModule("UI/Kit/Skins.lua", GC)
     helper.loadModule("UI/SettingsFrame.lua", GC)
   end)
 
@@ -914,7 +920,7 @@ describe("Settings controls", function()
       ["POSTING"] = { "Duration", "Buy cap (% of usual price)", "Min. undercut to cancel (%)" },
       ["AUTOMATION & ALERTS"] = { "Sound on SAFE deal", "Auto-scan on next AH visit", "Post above the cheapest",
         "Stop and open the buy window on your price" },
-      ["DISPLAY"] = { "Font scale", "Window position & size", "Language" },
+      ["DISPLAY"] = { "Font scale", "Window position & size", "Language", "Skin" },
     }
 
     local function labelIn(card, text)
@@ -975,7 +981,7 @@ describe("Settings controls", function()
       assert.equal(-(24 + 34), top(labelIn(display, "Window position & size")))
       assert.equal(-(24 + 34) + 3, top(buttonIn(display, "RESET WINDOW"), "TOPRIGHT"))
       assert.equal(-(24 + 34 + 34), top(labelIn(display, "Language")))
-      assert.equal(24 + 34 + 34 + 26 + 6, display.height)
+      assert.equal(24 + 34 + 34 + 26 + 26 + 6, display.height)
 
       -- M7: the cancel threshold's label wraps inside POSTING, which grows for it. Default price
       -- takes its label's line and a line of buttons under it (24 + 26), and its rule three lines
@@ -1089,6 +1095,140 @@ describe("Settings controls", function()
     assert.equal("Українська", button.label)
 
     _G.MenuUtil = nil
+  end)
+
+  -- The Skin row: a choice among nine looks, applied once at load, so picking one stores it and asks
+  -- for a reload rather than re-skinning anything live.
+  describe("the Skin row", function()
+    local captured, reloads
+    local function skinButton()
+      local display = cardByTitle(settingsPanel(), "DISPLAY")
+      -- Built right after its label, as the Language row's button is.
+      for i, child in ipairs(display.children) do
+        if child.kind == "FontString" and child.textValue == "Skin" then return display.children[i + 1] end
+      end
+    end
+    local function hintAndReload()
+      local display = cardByTitle(settingsPanel(), "DISPLAY")
+      local hint, reload
+      for _, child in ipairs(display.children) do
+        if child.kind == "FontString" and child.textValue == "Applies after a reload" then hint = child end
+        if child.kind == "Button" and child.label == "Reload now" then reload = child end
+      end
+      return hint, reload
+    end
+    before_each(function()
+      reloads = 0
+      _G.ReloadUI = function() reloads = reloads + 1 end
+      _G.MenuUtil = {
+        CreateRadioContextMenu = function(owner, isSelected, setSelected, ...)
+          captured = { owner = owner, isSelected = isSelected, setSelected = setSelected, entries = { ... } }
+        end,
+      }
+      GC.SettingsUI.Toggle()
+    end)
+    after_each(function()
+      _G.ReloadUI, _G.MenuUtil, _G.FACTION_HORDE, _G.FACTION_ALLIANCE = nil, nil, nil, nil
+    end)
+
+    it("names the stored skin on its button", function()
+      GC.db.settings.sniper.skin = "classic"
+      GC.SettingsUI.Toggle()
+      GC.SettingsUI.Toggle()
+      assert.is_not_nil(skinButton())
+      assert.equal("Classic", skinButton().label)
+    end)
+
+    it("shows GoldCap when the stored skin is unknown", function()
+      GC.db.settings.sniper.skin = "nonsense"
+      GC.SettingsUI.Toggle()
+      GC.SettingsUI.Toggle()
+      assert.equal("GoldCap", skinButton().label)
+    end)
+
+    it("lists the nine skins in order, each behind two swatches of its own colours", function()
+      local button = skinButton()
+      button.scripts.OnClick(button)
+      local Skins = GC.Kit.Skins
+      assert.equal(9, #captured.entries)
+      for i, id in ipairs(Skins.ORDER) do
+        local entry = captured.entries[i]
+        assert.equal(id, entry[2])
+        local function tint(c)
+          return ("%d:%d:%d"):format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5),
+            math.floor(c[3] * 255 + 0.5))
+        end
+        local swatch = "|TInterface\\Buttons\\WHITE8X8:12:12:0:0:8:8:0:8:0:8:%s|t"
+        local top = swatch:format(tint(Skins.defs[id].color.windowTop))
+        local gold = swatch:format(tint(Skins.defs[id].color.gold))
+        assert.equal(1, entry[1]:find(top, 1, true), id)
+        assert.equal(#top + 1, entry[1]:find(gold, 1, true), id)
+      end
+    end)
+
+    -- Owner, round B 2026-11-10: the list read "Орда" and "Альянс" among English names. A skin's
+    -- name is its name in every language, whatever the client calls the factions.
+    it("names every skin in English, whatever the client's language", function()
+      _G.FACTION_HORDE, _G.FACTION_ALLIANCE = "Орда", "Альянс"
+      skinButton().scripts.OnClick(skinButton())
+      local names = { "GoldCap", "Forever", "Pixel", "Parchment", "Horde", "Alliance", "Midnight", "Classic",
+        "Leather" }
+      for i, name in ipairs(names) do
+        local label = captured.entries[i][1]
+        assert.equal(name, label:sub(-#name), name)
+      end
+      _G.FACTION_HORDE, _G.FACTION_ALLIANCE = nil, nil
+    end)
+
+    it("picking a skin stores it and asks for a reload", function()
+      local hint, reload = hintAndReload()
+      assert.is_false(hint:IsShown())
+      assert.is_false(reload:IsShown())
+      local button = skinButton()
+      button.scripts.OnClick(button)
+      local before = GC.Theme.color.gold
+      captured.setSelected("pixel")
+      assert.equal("pixel", GC.db.settings.sniper.skin)
+      assert.is_true(captured.isSelected("pixel"))
+      assert.equal("Pixel", button.label)
+      assert.is_true(hint:IsShown())
+      assert.is_true(reload:IsShown())
+      assert.equal(before, GC.Theme.color.gold)
+      assert.equal(0, reloads)
+    end)
+
+    it("picking the skin already applied takes the reload hint away again", function()
+      local hint, reload = hintAndReload()
+      assert.equal("goldcap", GC.Kit.Skins.Current().id)
+      skinButton().scripts.OnClick(skinButton())
+      captured.setSelected("pixel")
+      assert.is_true(hint:IsShown())
+      captured.setSelected("goldcap")
+      assert.equal("goldcap", GC.db.settings.sniper.skin)
+      assert.is_false(hint:IsShown())
+      assert.is_false(reload:IsShown())
+      -- and asking for the applied one first never shows it
+      captured.setSelected("goldcap")
+      assert.is_false(hint:IsShown())
+    end)
+
+    it("still asks for the reload when the settings open again before it", function()
+      skinButton().scripts.OnClick(skinButton())
+      captured.setSelected("leather")
+      GC.SettingsUI.Toggle()
+      GC.SettingsUI.Toggle()
+      local hint, reload = hintAndReload()
+      assert.is_true(hint:IsShown())
+      assert.is_true(reload:IsShown())
+    end)
+
+    it("Reload now reloads", function()
+      local _, reload = hintAndReload()
+      skinButton().scripts.OnClick(skinButton())
+      captured.setSelected("horde")
+      reload.scripts.OnClick(reload)
+      assert.equal(1, reloads)
+    end)
   end)
 
   it("rail gear lights up while the overlay is open (T6)", function()

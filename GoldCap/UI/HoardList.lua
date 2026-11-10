@@ -16,6 +16,7 @@ local _, GC = ...
 -- item or presses for the player.
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
+local KB = GC.Kit.Tokens.blizzard -- what a line in the game tooltip reads
 local U = HF.ui
 local L = U.L
 local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrapping, U.heightOf, U.track
@@ -27,13 +28,13 @@ local HL = HF.List
 -- checked one is filled and ringed in gold), a cast bar's track under its gold fill, the selection
 -- bar in a gold wash with a gold ring, its Take out ringed in gold (its clear button wears the
 -- window's own border).
-local CHECK_OFF = { 1, 1, 1, 0.28 }
-local FILL_TRACK = { 1, 1, 1, 0.08 }
-local BAR_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.10 }
-local BAR_RING = { K.gold[1], K.gold[2], K.gold[3], 0.55 }
-local TAKE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }
+local CHECK_OFF = GC.Kit.Tokens.alpha("ink", 0.28)
+local FILL_TRACK = GC.Kit.Tokens.alpha("ink", 0.08)
+local BAR_FILL = GC.Kit.Tokens.alpha("gold", 0.10)
+local BAR_RING = GC.Kit.Tokens.alpha("gold", 0.55)
+local TAKE_RING = GC.Kit.Tokens.alpha("gold", 0.5)
 -- A move button's Stop: the kit's stop look with a ring in its colour.
-local STOP_RING = { K.loss[1], K.loss[2], K.loss[3], 0.5 }
+local STOP_RING = GC.Kit.Tokens.alpha("loss", 0.5)
 -- The most a run's count can say: the bags and both banks hold fewer than a thousand stacks.
 local COUNT_MOST = 999
 
@@ -239,7 +240,7 @@ function HL.NewCheck(row)
   local T = GC.Theme
   local check = U.plate(row, CHECK_OFF, "badge")
   check:SetSize(L.CHECK, L.CHECK)
-  check.fill = T.SlicedTexture(check, "BACKGROUND", T.MEDIA .. "badge.png", K.gold, T.SLICE.badge)
+  check.fill = T.ShapeTexture(check, "BACKGROUND", "chip", K.gold)
   check.fill:SetAllPoints()
   check.glyph = check:CreateTexture(nil, "OVERLAY")
   check.glyph:SetSize(L.CHECK_GLYPH, L.CHECK_GLYPH)
@@ -273,7 +274,7 @@ local function showClearTip(button)
   local tooltip = _G.GameTooltip
   if not tooltip then return end
   tooltip:SetOwner(button, GC.Theme.TooltipAnchor(button))
-  tooltip:AddLine(GC.Util.ClientText(GC.L["Clear the selection"]), K.text1[1], K.text1[2], K.text1[3])
+  tooltip:AddLine(GC.Util.ClientText(GC.L["Clear the selection"]), KB.text1[1], KB.text1[2], KB.text1[3])
   tooltip:Show()
 end
 
@@ -283,9 +284,9 @@ local function buildSelection()
   local T = GC.Theme
   local bar = CreateFrame("Frame", nil, frame)
   bar:EnableMouse(true)
-  bar.bg = T.SlicedTexture(bar, "BACKGROUND", T.MEDIA .. "plaque.png", BAR_FILL, T.SLICE.plaque)
+  bar.bg = T.ShapeTexture(bar, "BACKGROUND", "control", BAR_FILL)
   bar.bg:SetAllPoints()
-  bar.ring = T.SlicedTexture(bar, "BORDER", T.MEDIA .. "plaque_ring.png", BAR_RING, T.SLICE.plaque)
+  bar.ring = T.ShapeTexture(bar, "BORDER", "control", BAR_RING, true)
   bar.ring:SetAllPoints()
   bar.title = track(frame, wrapping(T.Label(bar, 11)))
   colour(bar.title, K.goldText)
@@ -475,9 +476,9 @@ local function buildSearch()
   local well = CreateFrame("Frame", nil, row)
   well:SetHeight(L.WELL_H)
   local wc = T.color.bg or T.color.panel
-  local fill = T.SlicedTexture(well, "BACKGROUND", T.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, T.SLICE.plaque)
+  local fill = T.ShapeTexture(well, "BACKGROUND", "control", { wc[1], wc[2], wc[3], 1 })
   fill:SetAllPoints(well)
-  T.SlicedTexture(well, "BORDER", T.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, T.SLICE.plaque):SetAllPoints(well)
+  T.ShapeTexture(well, "BORDER", "control", GC.Kit.Tokens.ink(0.12), true):SetAllPoints(well)
   well.icon = well:CreateTexture(nil, "ARTWORK")
   well.icon:SetSize(L.WELL_ICON, L.WELL_ICON)
   well.icon:SetPoint("LEFT", well, "LEFT", L.WELL_PAD, 0)

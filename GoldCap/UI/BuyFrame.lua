@@ -3295,7 +3295,7 @@ local function showLineTooltip(row)
   if not GameTooltip then return end
   local line = row.lineItemID and lineFor(row.lineItemID) or nil
   if not line then return end
-  local dim, fg, gold = Theme.color.fgDim, Theme.color.fg, Theme.color.gold
+  local dim, fg, gold = GC.Kit.Tokens.blizzard.text3, GC.Kit.Tokens.blizzard.text1, GC.Kit.Tokens.blizzard.gold
   local tip = GC.Util.ClientText
   local buyHere = not line.vendor and line.kind ~= "craft" and not line.done
   -- A gear line's lots, and the lot it buys next: the one its armed read chose, else the one the
@@ -3333,7 +3333,7 @@ local function showLineTooltip(row)
       dim[1], dim[2], dim[3], true)
   end
   if line.vendor then
-    local muted = Theme.color.fgMuted
+    local muted = GC.Kit.Tokens.blizzard.text2
     GameTooltip:AddLine(tip(line.vendorUnit and (GC.L["a vendor sells it for %s each"]):format(formatAmount(line.vendorUnit))
       or GC.L["a vendor sells it"]), muted[1], muted[2], muted[3], true)
   end
@@ -3343,7 +3343,7 @@ local function showLineTooltip(row)
       -- One lot per press: the lots by price (the dock's groups), the dear ones marked, and the one
       -- the next press buys -- never a walk up the book.
       for _, g in ipairs(GC.BuyLots.Groups(lots, line.cap, line.minIlvl)) do
-        local rc = g.over and Theme.tier.SUSPECT or dim
+        local rc = g.over and GC.Kit.Tokens.blizzard.tierSuspect or dim
         GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(g.count, formatAmount(g.buyout))),
           tip(g.over and GC.L["over your cap"] or ""), fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
       end
@@ -3352,7 +3352,7 @@ local function showLineTooltip(row)
           tip((nextLot.itemLevel or 0) > 0 and (GC.L["ilvl %d"]):format(nextLot.itemLevel) or ""),
           gold[1], gold[2], gold[3], gold[1], gold[2], gold[3])
       elseif why == "nocap" or why == "wallet" then
-        local sc = Theme.tier.SUSPECT
+        local sc = GC.Kit.Tokens.blizzard.tierSuspect
         GameTooltip:AddLine(tip(why == "nocap" and GC.L["no cap for this item. Right-click the line to set one"]
           or GC.L["not enough gold"]), sc[1], sc[2], sc[3], true)
       elseif why == "none" then
@@ -3361,7 +3361,7 @@ local function showLineTooltip(row)
     elseif read and read.ladder then
       for _, r in ipairs(GC.BuyView.Ladder(read.ladder, offered(line), line.cap)) do
         local right = (r.take > 0 and (GC.L["you take %d"]):format(r.take)) or (r.over and GC.L["over your cap"]) or ""
-        local rc = r.take > 0 and gold or (r.over and Theme.tier.SUSPECT or dim)
+        local rc = r.take > 0 and gold or (r.over and GC.Kit.Tokens.blizzard.tierSuspect or dim)
         GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit))), tip(right),
           fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
       end
@@ -3412,7 +3412,7 @@ local function showLineTooltip(row)
   -- including when the auction house has no price to compare against at all.
   local compare = not line.done and GC.BuyRun.CraftText(line) or nil
   if compare then
-    local cc = compare.cheaper and Theme.color.green or dim
+    local cc = compare.cheaper and GC.Kit.Tokens.blizzard.profit or dim
     local parts = {}
     for _, reagent in ipairs(compare.reagents) do
       parts[#parts + 1] = (GC.L["%d× %s"]):format(
@@ -3454,18 +3454,18 @@ createRow = function(parent)
   -- stand that far apart. The dock's line wears a gold edge over it (paintLine).
   local inset = BD.ROW_GAP / 2
   local zc = Theme.color.zebra
-  row.card = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { zc[1], zc[2], zc[3], zc[4] or 0.035 }, 12)
+  row.card = Theme.ShapeTexture(row, "BACKGROUND", "control",
+    { zc[1], zc[2], zc[3], zc[4] or 0.035 })
   row.card:SetPoint("TOPLEFT", 2, -inset)
   row.card:SetPoint("BOTTOMRIGHT", -2, inset)
   local gb = Theme.color.border
-  row.cardRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { gb[1], gb[2], gb[3], gb[4] or 0.075 }, 12)
+  row.cardRing = Theme.ShapeTexture(row, "BORDER", "control",
+    { gb[1], gb[2], gb[3], gb[4] or 0.075 }, true)
   row.cardRing:SetPoint("TOPLEFT", 2, -inset)
   row.cardRing:SetPoint("BOTTOMRIGHT", -2, inset)
   local gc = Theme.color.gold
-  row.selectRing = Theme.SlicedTexture(row, "ARTWORK", Theme.MEDIA .. "plaque_ring.png",
-    { gc[1], gc[2], gc[3], 0.38 }, 12)
+  row.selectRing = Theme.ShapeTexture(row, "ARTWORK", "control",
+    { gc[1], gc[2], gc[3], 0.38 }, true)
   row.selectRing:SetPoint("TOPLEFT", 2, -inset)
   row.selectRing:SetPoint("BOTTOMRIGHT", -2, inset)
   row.selectRing:Hide()
@@ -3474,8 +3474,7 @@ createRow = function(parent)
   -- OnEnter/OnLeave repaint (the addon's engineering notes' "Buttons and hover").
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-  highlight:SetTexture(Theme.MEDIA .. "plaque.png")
-  highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(highlight, "control")
   highlight:SetPoint("TOPLEFT", 2, -inset)
   highlight:SetPoint("BOTTOMRIGHT", -2, inset)
   highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
@@ -3704,7 +3703,7 @@ local function createBand(parent)
   setColor(picker.name, Theme.color.fg)
   -- The tile: a gold plate with the BUY glyph on it.
   local gc = Theme.color.gold
-  local tile = Theme.SlicedTexture(picker, "ARTWORK", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.14 }, 12)
+  local tile = Theme.ShapeTexture(picker, "ARTWORK", "control", { gc[1], gc[2], gc[3], 0.14 })
   tile:SetSize(26, 26)
   tile:SetPoint("LEFT", picker, "LEFT", 7, 0)
   local glyph = picker:CreateTexture(nil, "OVERLAY")
@@ -3758,8 +3757,8 @@ local function createBand(parent)
   well:SetSize(200, 22)
   well:SetPoint("LEFT", tools, "LEFT", 0, 0)
   local wc = Theme.color.bg or Theme.color.panel
-  Theme.SlicedTexture(well, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(well)
-  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, 12):SetAllPoints(well)
+  Theme.ShapeTexture(well, "BACKGROUND", "control", { wc[1], wc[2], wc[3], 1 }):SetAllPoints(well)
+  Theme.ShapeTexture(well, "BORDER", "control", GC.Kit.Tokens.ink(0.12), true):SetAllPoints(well)
   local search = CreateFrame("EditBox", nil, well)
   search:SetAutoFocus(false)
   search:SetPoint("TOPLEFT", 10, -2)
@@ -3836,11 +3835,11 @@ local function createDock(parent)
   dock.h = BD.DOCK_H
   dock:EnableMouse(true)
   local phc, gb, gc = Theme.color.panelHi or Theme.color.panel, Theme.color.border, Theme.color.gold
-  Theme.SlicedTexture(dock, "BACKGROUND", Theme.MEDIA .. "plaque.png", { phc[1], phc[2], phc[3], 1 }, 12):SetAllPoints(dock)
-  dock.wash = Theme.SlicedTexture(dock, "BORDER", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.10 }, 12)
+  Theme.ShapeTexture(dock, "BACKGROUND", "control", { phc[1], phc[2], phc[3], 1 }):SetAllPoints(dock)
+  dock.wash = Theme.ShapeTexture(dock, "BORDER", "control", { gc[1], gc[2], gc[3], 0.10 })
   dock.wash:SetAllPoints(dock)
   dock.wash:Hide()
-  dock.ring = Theme.SlicedTexture(dock, "ARTWORK", Theme.MEDIA .. "plaque_ring.png", { gb[1], gb[2], gb[3], gb[4] or 0.075 }, 12)
+  dock.ring = Theme.ShapeTexture(dock, "ARTWORK", "control", { gb[1], gb[2], gb[3], gb[4] or 0.075 }, true)
   dock.ring:SetAllPoints(dock)
   dock.countdown = dock:CreateTexture(nil, "OVERLAY")
   dock.countdown:SetColorTexture(gc[1], gc[2], gc[3], 0.9)
@@ -3875,12 +3874,11 @@ local function createDock(parent)
   dock.cap:EnableMouse(true)
   dock.cap:RegisterForClicks("LeftButtonUp")
   local wc = Theme.color.bg or Theme.color.panel
-  Theme.SlicedTexture(dock.cap, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(dock.cap)
-  Theme.SlicedTexture(dock.cap, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.14 }, 12):SetAllPoints(dock.cap)
+  Theme.ShapeTexture(dock.cap, "BACKGROUND", "control", { wc[1], wc[2], wc[3], 1 }):SetAllPoints(dock.cap)
+  Theme.ShapeTexture(dock.cap, "BORDER", "control", GC.Kit.Tokens.ink(0.14), true):SetAllPoints(dock.cap)
   local hc = Theme.color.hover
   local capHover = dock.cap:CreateTexture(nil, "HIGHLIGHT")
-  capHover:SetTexture(Theme.MEDIA .. "plaque.png")
-  capHover:SetTextureSliceMargins(12, 12, 12, 12)
+  Theme.SetShape(capHover, "control")
   capHover:SetAllPoints(dock.cap)
   capHover:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   dock.cap.value = Theme.Num(dock.cap, 12, true)
@@ -3987,9 +3985,9 @@ local function createEmpty(parent, scroll)
   empty:SetSize(64, 64)
   empty:SetPoint("BOTTOM", scroll, "CENTER", 0, 30)
   local gc = Theme.color.gold
-  Theme.SlicedTexture(empty, "BACKGROUND", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.08 }, 12)
+  Theme.ShapeTexture(empty, "BACKGROUND", "control", { gc[1], gc[2], gc[3], 0.08 })
     :SetAllPoints(empty)
-  Theme.SlicedTexture(empty, "BORDER", Theme.MEDIA .. "plaque_ring.png", { gc[1], gc[2], gc[3], 0.3 }, 12)
+  Theme.ShapeTexture(empty, "BORDER", "control", { gc[1], gc[2], gc[3], 0.3 }, true)
     :SetAllPoints(empty)
   if Theme.Glow then Theme.Glow(empty, { gc[1], gc[2], gc[3], 0.12 }, 16) end
   empty.icon = empty:CreateTexture(nil, "ARTWORK")
@@ -4056,8 +4054,8 @@ local function createHero(parent)
   tile:SetSize(48, 48)
   tile:SetPoint("TOP", hero, "TOP", 0, -12)
   local gc = Theme.color.gold
-  Theme.SlicedTexture(tile, "BACKGROUND", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.10 }, 12):SetAllPoints(tile)
-  Theme.SlicedTexture(tile, "BORDER", Theme.MEDIA .. "plaque_ring.png", { gc[1], gc[2], gc[3], 0.35 }, 12):SetAllPoints(tile)
+  Theme.ShapeTexture(tile, "BACKGROUND", "control", { gc[1], gc[2], gc[3], 0.10 }):SetAllPoints(tile)
+  Theme.ShapeTexture(tile, "BORDER", "control", { gc[1], gc[2], gc[3], 0.35 }, true):SetAllPoints(tile)
   if Theme.Glow then Theme.Glow(tile, { gc[1], gc[2], gc[3], 0.14 }, 16) end
   local check = tile:CreateTexture(nil, "ARTWORK")
   check:SetSize(24, 24)

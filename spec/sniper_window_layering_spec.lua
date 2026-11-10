@@ -159,7 +159,7 @@ describe("Sniper window layering", function()
     local files = {}
     for rawLine in toc:lines() do
       local line = rawLine:gsub("%s+$", "")
-      if line ~= "" and not line:match("^##") then files[#files + 1] = line end
+      if line ~= "" and not line:match("^#") then files[#files + 1] = line end
     end
     toc:close()
     for _, rel in ipairs(files) do

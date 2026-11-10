@@ -236,7 +236,8 @@ local function layoutDetailRow(row)
   row.sectionRule:ClearAllPoints()
   row.sectionRule:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -2)
   row.sectionRule:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, -2)
-  row.sectionRule:SetColorTexture(1, 1, 1, 0.06)
+  local hl = GC.Kit.Tokens.color.hairline
+  row.sectionRule:SetColorTexture(hl[1], hl[2], hl[3], hl[4])
   setColor(row.sectionLabel, Theme.color.fgMuted)
   -- The head lays itself out over this: called from here so renderRows has one panel layout
   -- to know about, not two (see rowTag on why that function counts its upvalues).
@@ -258,13 +259,14 @@ function Inspector.Decorate(row)
   -- ground colour, a step darker than the panel; several of this suite's theme doubles carry no
   -- `bg`, hence the fallback.
   local wellc = Theme.color.bg or Theme.color.panel
-  row.chipsBg = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  row.chipsBg = Theme.ShapeTexture(row, "BACKGROUND", "control",
+    { wellc[1], wellc[2], wellc[3], 1 })
   row.chipsBg:Hide()
   row.headRules = {}
   for i = 1, 1 do
     local rule = row:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(1, 1, 1, 0.06)
+    local hl = GC.Kit.Tokens.color.hairline
+    rule:SetColorTexture(hl[1], hl[2], hl[3], hl[4])
     rule:SetHeight(1)
     rule:Hide()
     row.headRules[i] = rule
@@ -394,7 +396,7 @@ function INSP.paintHead(row, p, d)
       if source or chip.handsBack then chip:Enable() else chip:Disable() end
       -- A segment of the strip behind it, not a pill of its own: only the one in force keeps
       -- a fill. After Enable/Disable on purpose -- the kit repaints the fill on both.
-      if chip.bg and not lit then chip.bg:SetVertexColor(1, 1, 1, 0) end
+      if chip.bg and not lit then chip.bg:SetVertexColor(1, 1, 1, 0) end -- untinted
       if chip.ring then chip.ring:Hide() end
       chip:Show()
     end
@@ -601,18 +603,29 @@ function Inspector.Build()
   inspector:SetFrameLevel((container:GetFrameLevel() or 0) + 20)
   inspector:EnableMouse(true)
   inspector:Hide()
-  local ipc = Theme.color.panel
-  local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
-    { ipc[1], ipc[2], ipc[3], 1 }, 24)
-  inspectorFill:SetAllPoints(inspector)
+  -- Classic: the client's tooltip border over its panel colour, in place of the card and its ring.
+  local clientPanel = Theme.ClientPanel and Theme.ClientPanel(inspector)
   local ibc = Theme.color.border
-  local inspectorEdge = Theme.SlicedTexture(inspector, "BORDER", Theme.MEDIA .. "ring.png",
-    { 1, 1, 1, (ibc[4] or 0.06) * 2 }, 24)
-  inspectorEdge:SetAllPoints(inspector)
+  if clientPanel then
+    clientPanel:SetAllPoints(inspector)
+  else
+    local ipc = Theme.color.panel
+    local inspectorFill = Theme.ShapeTexture(inspector, "BACKGROUND", "panel",
+      { ipc[1], ipc[2], ipc[3], 1 })
+    inspectorFill:SetAllPoints(inspector)
+    -- A bevel skin frames the panel in its own bevel, which takes the ring's place.
+    inspector.bevel = Theme.PanelBevel and Theme.PanelBevel(inspector, "panel", inspector)
+    if not inspector.bevel then
+      local inspectorEdge = Theme.ShapeTexture(inspector, "BORDER", "panel",
+        GC.Kit.Tokens.ink((ibc[4] or 0.06) * 2), true)
+      inspectorEdge:SetAllPoints(inspector)
+    end
+  end
 
   inspector.icon = inspector:CreateTexture(nil, "ARTWORK")
   inspector.icon:SetSize(36, 36)
   inspector.icon:SetPoint("TOPLEFT", INSP.PAD + 4, -11)
+  inspector.iconFrame = Theme.IconFrame and Theme.IconFrame(inspector.icon, inspector)
   -- Guarded for busted: most of this suite's frame doubles hand back textures that were never
   -- taught SetTexCoord, because nothing built at Attach time trimmed an icon before this.
   if inspector.icon.SetTexCoord then inspector.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
@@ -723,6 +736,7 @@ function Inspector.PaintInspector(position)
     icon = ok and texture or nil
   end
   if icon then inspector.icon:SetTexture(icon); inspector.icon:Show() else inspector.icon:Hide() end
+  if inspector.iconFrame then inspector.iconFrame:SetShown(icon ~= nil) end
   local left = icon and (INSP.PAD + 50) or (INSP.PAD + 4)
   -- Top points only, so a wrapped name pushes its stock line down rather than over it.
   local right = -(INSP.PAD + 2 + 22 + 6) -- clear of the close button

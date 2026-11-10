@@ -324,6 +324,11 @@ GC.Locales.ukUA = {
   ["Language"] = "Мова",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
+  ["Skin"] = "Оформлення",
+  ["Applies after a reload"] = "Застосується після перезавантаження",
+  ["Reload now"] = "Перезавантажити зараз",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "не вдалося застосувати вибране оформлення, у цьому сеансі використовується оформлення GoldCap",
   ["Last post may still go up. Wait a minute"] = "Ще може виставитися. Зачекайте хвилину",
   ["Level 40 reached: %s to go."] = "Рівень 40 досягнуто: бракує %s.",
   ["Last result: %ds ago"] = "Останній результат: %dс тому",

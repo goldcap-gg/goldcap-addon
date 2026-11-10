@@ -18,6 +18,24 @@ describe("kit media", function()
     end
   end)
 
+  it("every skin face ships with its licence", function()
+    local GC = helper.loadModule("UI/Theme.lua")
+    local Skins = GC.Kit.Skins
+    local seen = 0
+    for id, def in pairs(Skins.defs) do
+      local files = {}
+      if def.fonts.head then files[#files + 1] = def.fonts.head end
+      for _, file in pairs(def.fonts.text or {}) do files[#files + 1] = file end
+      for _, file in ipairs(files) do
+        seen = seen + 1
+        assert.is_true(exists("GoldCap/Media/" .. file), id .. ": " .. file .. " is missing")
+        local family = file:match("^(.-)%-[%w]+%.ttf$")
+        assert.is_true(exists("GoldCap/Media/OFL-" .. family .. ".txt"), id .. ": no licence for " .. family)
+      end
+    end
+    assert.is_true(seen >= 10)
+  end)
+
   it("indexes every icon inside the atlas, one cell each", function()
     local GC = helper.loadModule("UI/Kit/Icons.lua")
     local icons = GC.Kit.Icons

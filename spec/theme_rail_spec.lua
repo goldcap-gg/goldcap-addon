@@ -149,3 +149,34 @@ describe("Theme.Rail navigation widgets", function()
     assert.same({ "TOP", 0, -44 }, point)
   end)
 end)
+
+-- The rail in every skin, on the API-shaped doubles (spec/support/wow_frames.lua): the glow behind
+-- the mark is a glow skin's alone.
+describe("Theme.Rail in each skin", function()
+  local W = require("spec.support.wow_frames")
+  local GC, restore
+
+  before_each(function()
+    restore = W.install()
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
+    GC = helper.loadModule("UI/Theme.lua")
+  end)
+
+  after_each(function()
+    GC.Kit.Skins.Apply("goldcap")
+    restore()
+    _G.CreateColor = nil
+  end)
+
+  it("draws the glow behind the mark only in a skin that has one", function()
+    for _, id in ipairs(GC.Kit.Skins.ORDER) do
+      GC.Kit.Skins.Apply(id)
+      local glow = GC.Theme.Rail(W.CreateFrame("Frame")).logo.glow
+      if GC.Kit.Skins.Current().glow then
+        assert.is_not_nil(glow, id)
+      else
+        assert.is_nil(glow, id)
+      end
+    end
+  end)
+end)
