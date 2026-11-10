@@ -338,6 +338,38 @@ describe("Theme fonts per locale", function()
       assert.equal(GC.Kit.MEDIA .. "FiraSansCondensed-Bold.ttf", path(GC.Theme.Heading(W.CreateFrame("Frame"), 12)))
     end)
 
+    -- Skin probe, WoW: Forever 2026-11-10: a face the client has not loaded yet in this run fails
+    -- its first SetFont and draws two seconds later. Asked once at ADDON_LOADED and remembered, it
+    -- left a skin in Fira for the whole session (Leather, Parchment, Pixel, Horde in round B).
+    it("a face still loading at login is taken as soon as it loads", function()
+      local timers = {}
+      _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+      local head = GC.Kit.MEDIA .. "OldStandard-Bold.ttf"
+      refuse[head] = true
+      GC.Kit.Skins.Apply("leather")
+      assert.equal(GC.Kit.MEDIA .. "FiraSansCondensed-Bold.ttf", GC.Theme.FONT_HEAD)
+      timers[1]()
+      assert.equal(GC.Kit.MEDIA .. "FiraSansCondensed-Bold.ttf", GC.Theme.FONT_HEAD)
+      refuse[head] = nil
+      timers[2]()
+      assert.equal(head, GC.Theme.FONT_HEAD)
+      assert.equal(head, path(GC.Theme.Heading(W.CreateFrame("Frame"), 12)))
+      assert.equal(2, #timers) -- nothing left to wait for
+      _G.C_Timer = nil
+    end)
+
+    it("stops asking after ten seconds for a face that never loads", function()
+      local timers = {}
+      _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+      refuse[GC.Kit.MEDIA .. "RuslanDisplay-Regular.ttf"] = true
+      GC.Kit.Skins.Apply("horde")
+      local i = 1
+      while timers[i] and i <= 100 do timers[i](); i = i + 1 end
+      assert.equal(20, #timers)
+      assert.equal(GC.Kit.MEDIA .. "FiraSansCondensed-Bold.ttf", GC.Theme.FONT_HEAD)
+      _G.C_Timer = nil
+    end)
+
     it("respells only the triangles on a skin face", function()
       GC.Kit.Skins.Apply("parchment")
       local fs = GC.Theme.Heading(W.CreateFrame("Frame"), 12)

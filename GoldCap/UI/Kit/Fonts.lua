@@ -103,6 +103,8 @@ local CJK_FACES = {
 -- this runs at ADDON_LOADED and must degrade to "no face found" rather than error -- and
 -- because only an explicit `true` counts, a client whose SetFont returns nothing leaves the
 -- previous behaviour exactly as it was instead of losing a face that already worked.
+-- Only a yes is remembered: a face the client has not loaded yet in this run fails its first
+-- SetFont (an error or false) and loads a moment later (skin probe, WoW: Forever 2026-11-10).
 local probeFontString, faceCache = nil, {}
 local function faceLoads(path)
   if not probeFontString then
@@ -112,11 +114,10 @@ local function faceLoads(path)
     if not ok or not fs then return false end
     probeFontString = fs
   end
-  local cached = faceCache[path]
-  if cached ~= nil then return cached end
+  if faceCache[path] then return true end
   local ok, valid = pcall(probeFontString.SetFont, probeFontString, path, 12, "")
   local loads = (ok and valid == true) and true or false
-  faceCache[path] = loads
+  if loads then faceCache[path] = true end
   return loads
 end
 
@@ -289,8 +290,7 @@ local function skinFace(file)
   return nil
 end
 
-function T.ApplySkinFonts(fonts)
-  fonts = fonts or {}
+local function setSkinFaces(fonts)
   local text = fonts.text or {}
   local head = skinFace(fonts.head)
   T.FONT_HEAD = head or FIRA.head
@@ -303,6 +303,41 @@ function T.ApplySkinFonts(fonts)
   -- FONT_HEADING and FONT_LABEL derive from the faces above, and from the language (CJK keeps
   -- its own faces).
   T.RefreshFonts(lastCode)
+end
+
+local function allFacesLoad(fonts)
+  if fonts.head and not faceLoads(MEDIA .. fonts.head) then return false end
+  for _, file in pairs(fonts.text or {}) do
+    if not faceLoads(MEDIA .. file) then return false end
+  end
+  return true
+end
+
+-- A skin face the client is still loading draws in Fira for now. The skin's faces are asked again
+-- every half second for ten seconds, each one taken as it loads: long before a window is built
+-- (the first is built on the first auction house visit). A face that never loads stays Fira.
+local ASK_EVERY, ASK_TIMES = 0.5, 20
+local waiting
+
+local function askAgain()
+  if not waiting then return end
+  waiting.asked = waiting.asked + 1
+  setSkinFaces(waiting.fonts)
+  if allFacesLoad(waiting.fonts) or waiting.asked >= ASK_TIMES then
+    waiting = nil
+  else
+    _G.C_Timer.After(ASK_EVERY, askAgain)
+  end
+end
+
+function T.ApplySkinFonts(fonts)
+  fonts = fonts or {}
+  setSkinFaces(fonts)
+  waiting = nil
+  if not allFacesLoad(fonts) and _G.C_Timer and _G.C_Timer.After then
+    waiting = { fonts = fonts, asked = 0 }
+    _G.C_Timer.After(ASK_EVERY, askAgain)
+  end
 end
 
 --- True while the applied skin draws its text through the client's Font objects.
