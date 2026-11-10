@@ -7,12 +7,6 @@ local W = require("spec.support.wow_frames")
 describe("skin plates", function()
   local GC, T, Skins, K, restore, MEDIA
 
-  local function exists(path)
-    local file = io.open(path, "rb")
-    if file then file:close() return true end
-    return false
-  end
-
   -- Every texture any frame of the spec made, so a file a widget draws can be checked on disk.
   local made
 
@@ -234,6 +228,10 @@ describe("skin plates", function()
   end)
 
   it("ships every file the rail, the buttons and the chips draw in every skin", function()
+    -- The check itself: a GoldCap path missing from Media fails, a client path is the client's.
+    assert.is_false(helper.shipsMedia(MEDIA .. "does_not_exist.png", MEDIA))
+    assert.is_nil(helper.shipsMedia("Interface\\Buttons\\UI-Panel-Button-Up", MEDIA))
+    local checked = 0
     for _, id in ipairs(Skins.ORDER) do
       Skins.Apply(id)
       made = {}
@@ -247,11 +245,14 @@ describe("skin plates", function()
       T.Chip(p)
       for _, t in ipairs(made) do
         local file = W.state(t).file
-        -- Classic's textures are the client's, by path.
-        if file and not file:find("^Interface\\") then
-          assert.is_true(exists("GoldCap/Media/" .. file:match("[^\\]+$")), id .. ": " .. file .. " is missing")
+        -- Classic's textures are the client's, by path: only GoldCap's own are looked for on disk.
+        local ships = helper.shipsMedia(file, MEDIA)
+        if ships ~= nil then
+          checked = checked + 1
+          assert.is_true(ships, id .. ": " .. file .. " is missing")
         end
       end
     end
+    assert.is_true(checked > 50, "checked " .. checked)
   end)
 end)

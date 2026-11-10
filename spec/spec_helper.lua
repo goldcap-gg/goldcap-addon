@@ -142,6 +142,20 @@ function helper.sellSource()
   return table.concat(parts, "\n")
 end
 
+--- Whether a texture path the addon draws is shipped: a path under GC.Kit.MEDIA (`media`) is true only
+--- when its file is in GoldCap/Media (a path without an extension is a .tga or .blp, as the client
+--- reads it); any other path is the client's own art and answers nil.
+function helper.shipsMedia(file, media)
+  if type(file) ~= "string" or file:sub(1, #media) ~= media then return nil end
+  local rel = "GoldCap/Media/" .. file:sub(#media + 1):gsub("\\", "/")
+  local candidates = rel:find("%.%w+$") and { rel } or { rel .. ".tga", rel .. ".blp" }
+  for _, path in ipairs(candidates) do
+    local handle = io.open(path, "rb")
+    if handle then handle:close() return true end
+  end
+  return false
+end
+
 --- A top-level function's text, from its `header` line to the `end` that closes it at column 0.
 function helper.functionBody(text, header)
   local start = assert(text:find(header, 1, true), "missing " .. header)

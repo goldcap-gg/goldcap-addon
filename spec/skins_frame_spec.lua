@@ -6,12 +6,6 @@ local W = require("spec.support.wow_frames")
 describe("skin frames", function()
   local GC, T, Skins, K, restore, MEDIA
 
-  local function exists(path)
-    local file = io.open(path, "rb")
-    if file then file:close() return true end
-    return false
-  end
-
   -- A window frame that remembers every texture drawn on it.
   local function windowFrame()
     local f = W.CreateFrame("Frame")
@@ -61,6 +55,10 @@ describe("skin frames", function()
   end)
 
   it("ships every file a skin's window and panel draw", function()
+    -- The check itself: a GoldCap path missing from Media fails, a client path is the client's.
+    assert.is_false(helper.shipsMedia(MEDIA .. "does_not_exist.png", MEDIA))
+    assert.is_nil(helper.shipsMedia("Interface\\Buttons\\WHITE8x8", MEDIA))
+    local checked = 0
     for _, id in ipairs(Skins.ORDER) do
       Skins.Apply(id)
       local f, made = windowFrame()
@@ -69,13 +67,15 @@ describe("skin frames", function()
       T.Card(f, nil, nil, true)
       for _, t in ipairs(made) do
         local file = W.state(t).file
-        -- Classic's textures are the client's, by path.
-        if file and not file:find("^Interface\\") then
-          local onDisk = "GoldCap/Media/" .. file:match("[^\\]+$")
-          assert.is_true(exists(onDisk), id .. ": " .. file .. " is missing")
+        -- Classic's textures are the client's, by path: only GoldCap's own are looked for on disk.
+        local ships = helper.shipsMedia(file, MEDIA)
+        if ships ~= nil then
+          checked = checked + 1
+          assert.is_true(ships, id .. ": " .. file .. " is missing")
         end
       end
     end
+    assert.is_true(checked > 50, "checked " .. checked)
   end)
 
   it("goldcap builds today's window", function()
