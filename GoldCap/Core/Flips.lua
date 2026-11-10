@@ -381,9 +381,14 @@ end
 -- everything already sitting on it (newest-first), so that rung's own stock is behind the new
 -- post, not in front of it. What those units must fit -- OVERCUT_ABSORB_HOURS of the item's
 -- measured daily sales -- is unchanged, and is the guard against a fresh wall: 90k units at 5g
--- moving 22k a day is a match, not a climb. Six hours rather than wallAbsorbHours' two: this
--- is not reaching a flip's approved exit, it is landing inside the 24h horizon the study
--- measured, with room for the sellers who arrive after you.
+-- moving 22k a day is a match, not a climb. Two hours, the same as wallAbsorbHours; six until
+-- 0.27.1. Measured on the lots players posted in one day (prod, 2026-11-10, one lot in a hundred,
+-- the site's scripts/analytics/sell-queue-backtest.sql), sold inside 24 hours: 76 in 100 with up
+-- to an hour of sales queued under the lot, 63 with one to two hours, 41 with two to six, 15 with
+-- six to twelve, against 54 for a lot posted at the cheapest ask. The lots that sold went in an
+-- hour or two whatever the queue: the rest were never reached, because cheaper lots keep arriving
+-- and a queue does not drain in the order it stands. Retail commodities only: a rate read off
+-- WoW: Forever's own sale tape keeps six hours until its lots are measured the same way.
 --
 -- Gone with v1: the synthetic rung one silver above the cheapest ask. It put the post behind
 -- the entire cheapest rung in exchange for one silver.
@@ -392,7 +397,7 @@ end
 -- the caller can still name the line that was in force. unit is nil when the mode does not
 -- apply: no book, no velocity, no ceiling, a cap at or under the cheapest ask, or nothing
 -- reachable inside the budget.
-GC.Flips.OVERCUT_ABSORB_HOURS = 6
+GC.Flips.OVERCUT_ABSORB_HOURS = 2
 
 -- What an hour in the queue is worth, as a share of the price: the rate at which the climb
 -- trades money for time. The budget and the cap say which rungs MAY be posted at; they do not
@@ -406,7 +411,8 @@ GC.Flips.OVERCUT_ABSORB_HOURS = 6
 --
 -- Half a percent an hour sits inside the band the worked examples leave open: above 0.18%/h
 -- the Bloom joins the head of its wall at 1g91s rather than standing behind it, and under
--- 0.98%/h Amphibious Scrap still climbs to 6g35s (+6% for under six hours) and the Bloom
+-- 0.98%/h Amphibious Scrap still climbed to 6g35s (+6% for under six hours, while the budget
+-- was six; at two it matches) and the Bloom
 -- still takes 1g91s over 1g90s. It also rejects by itself the rung one silver over a deep
 -- cheapest level -- the case the synthetic rung was removed for.
 GC.Flips.OVERCUT_WAIT_COST_PER_HOUR = 0.005
@@ -452,7 +458,11 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   end
   if not cap or cap <= marketUnit then return nil, nil, cap, capBy end
 
-  local budget = opts.sold * GC.Flips.OVERCUT_ABSORB_HOURS / 24
+  -- `opts.overcutHours`: the caller's own budget, for a sales rate the two hours were not
+  -- measured on (Core/SellPositions.lua's TAPE_OVERCUT_ABSORB_HOURS).
+  local absorb = type(opts.overcutHours) == "number" and opts.overcutHours > 0 and opts.overcutHours
+    or GC.Flips.OVERCUT_ABSORB_HOURS
+  local budget = opts.sold * absorb / 24
   -- A price weighed against the hours its queue takes to sell through (see
   -- OVERCUT_WAIT_COST_PER_HOUR). The cheapest ask, at no queue at all, is the score to beat.
   local function worth(price, queued) return GC.Flips.QueuedWorth(price, queued, opts.sold) end

@@ -22,14 +22,16 @@ describe("RecommendPost, the climb (v2)", function()
     level(930000, 507), level(940000, 233), level(950000, 40), level(1000000, 34),
     level(1250000, 12), level(1500000, 1), level(2000000, 1), level(2500000, 1), level(3000000, 1),
   }
-  local STINKY_SOLD = 11046 -- budget = 11046 * 6 / 24 = 2761.5 units
+  local STINKY_SOLD = 11046 -- budget = 11046 * 2 / 24 = 920.5 units
 
   -- Amphibious Scrap: a dense book in silver steps just over a 5g99s floor. v1 posted at 7g50s.
   local amphibious = {
     level(59900, 300), level(60000, 250), level(60800, 120), level(60900, 90),
     level(61000, 200), level(63500, 150), level(65000, 400), level(75000, 800),
   }
-  local AMPHIBIOUS_SOLD = 4000 -- budget = 1000 units
+  -- The book was seen selling 4000 a day; the budget arithmetic below is kept at the 1000 units it
+  -- was written for, which two hours make of 12000 a day.
+  local AMPHIBIOUS_SOLD = 12000 -- budget = 1000 units
 
   -- 1g cheapest, rungs every half silver, then a wall.
   local ladder = {
@@ -68,6 +70,15 @@ describe("RecommendPost, the climb (v2)", function()
       assert.equal(960, r.ahead)
     end)
 
+    it("matches Amphibious at the 4000 a day it was seen selling: 960 units is near six hours", function()
+      -- Two to six hours of sales queued under a lot sold inside a day 41 times in 100 on prod
+      -- (2026-11-10), against 54 for a lot at the cheapest ask.
+      local r = GC.Flips.RecommendPost(nil, 59900, 62000,
+        { levels = amphibious, sold = 4000, reachUnit = 64000 })
+      assert.equal("match", r.mode)
+      assert.equal(59900, r.unit)
+    end)
+
     it("does not count the chosen rung's own units against the budget", function()
       -- The 150 units sitting AT 6g35s would push the queue to 1110 and disqualify the rung,
       -- dropping the post to 6g10s. They are behind a fresh post, not ahead of it.
@@ -81,7 +92,7 @@ describe("RecommendPost, the climb (v2)", function()
   describe("the ceiling", function()
     it("prefers reach over the quarter line when both are present", function()
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = ladder, sold = 4000, reachUnit = 10500, quarterUnit = 15000 })
+        { levels = ladder, sold = 12000, reachUnit = 10500, quarterUnit = 15000 })
       assert.equal("reach", r.capBy)
       assert.equal(10500, r.cap)
       assert.equal(10500, r.unit)
@@ -89,7 +100,7 @@ describe("RecommendPost, the climb (v2)", function()
 
     it("caps the quarter fallback at 10% over the cheapest ask", function()
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = ladder, sold = 4000, quarterUnit = 15000 })
+        { levels = ladder, sold = 12000, quarterUnit = 15000 })
       assert.equal("quarter", r.capBy)
       assert.equal(11000, r.cap) -- 10000 * 1.10, on the grid
       assert.equal(11000, r.unit)
@@ -97,14 +108,14 @@ describe("RecommendPost, the climb (v2)", function()
 
     it("matches when the cap sits at or below the cheapest ask", function()
       local at = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = ladder, sold = 4000, reachUnit = 10000 })
+        { levels = ladder, sold = 12000, reachUnit = 10000 })
       assert.equal("match", at.mode)
       assert.equal(10000, at.unit)
       -- The line that was in force still comes back, so the caller can say why.
       assert.equal("reach", at.capBy)
 
       local under = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = ladder, sold = 4000, reachUnit = 9000 })
+        { levels = ladder, sold = 12000, reachUnit = 9000 })
       assert.equal("match", under.mode)
     end)
 
@@ -123,7 +134,7 @@ describe("RecommendPost, the climb (v2)", function()
       -- -- so it fits; the 15000 rung above the cap is what is out of reach. The highest rung
       -- inside the cap is 12000 itself.
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = ladder, sold = 4000, reachUnit = 12000 })
+        { levels = ladder, sold = 12000, reachUnit = 12000 })
       assert.equal("overcut", r.mode)
       assert.equal(12000, r.unit)
       assert.equal(1000, r.ahead)
@@ -144,7 +155,7 @@ describe("RecommendPost, the climb (v2)", function()
       -- 9500 (600) + 10000 (600) = 1200 units under the 10500 rung, budget 1000.
       local levels = { level(9500, 600), level(10000, 600), level(10500, 100) }
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = levels, sold = 4000, reachUnit = 11000 })
+        { levels = levels, sold = 12000, reachUnit = 11000 })
       assert.equal("match", r.mode)
     end)
 
@@ -182,13 +193,13 @@ describe("RecommendPost, the climb (v2)", function()
       assert.equal(338 + 1000 + 8600, ahead)
     end)
 
-    it("still steps over the same wall when the step is worth the wait", function()
-      -- The same 56k in front, but the next occupied rung is most of the way to the cap: most
-      -- of the climb for most of the budget is the trade the budget was set for.
+    it("does not step over a wall deeper than two hours of sales, whatever the step", function()
+      -- The same 56k in front (three and a half hours), and the next occupied rung most of the
+      -- way to the cap. Six hours of budget took that step; two join the head of the wall.
       local far = { level(18800, 338), level(18900, 1000), level(19000, 8600), level(19100, 46000),
         level(20000, 52000), level(20400, 5000) }
       local unit = GC.Flips.OvercutCandidate(18800, { levels = far, sold = 386749, reachUnit = 20300 })
-      assert.equal(20000, unit)
+      assert.equal(19100, unit)
     end)
 
     it("leaves a climb whose queue is small for its gain exactly where it was", function()
@@ -202,7 +213,7 @@ describe("RecommendPost, the climb (v2)", function()
     it("posts at the cap when no rung is occupied under it, with a stocked level above it", function()
       local thin = { level(10000, 400), level(13000, 100) }
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = thin, sold = 4000, reachUnit = 11000 })
+        { levels = thin, sold = 12000, reachUnit = 11000 })
       assert.equal("overcut", r.mode)
       assert.equal(11000, r.unit)
       assert.equal(400, r.ahead)
@@ -213,7 +224,7 @@ describe("RecommendPost, the climb (v2)", function()
       -- and the cap. The book is cut at 100 levels; its end is not the market's end.
       local ends = { level(10000, 400) }
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = ends, sold = 4000, reachUnit = 11000 })
+        { levels = ends, sold = 12000, reachUnit = 11000 })
       assert.equal("match", r.mode)
       assert.equal(10000, r.unit)
     end)
@@ -223,7 +234,7 @@ describe("RecommendPost, the climb (v2)", function()
       -- 10000 sits in front of them, for one silver less.
       local thin = { level(10000, 400), level(30000, 100) }
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = thin, sold = 4000, reachUnit = 10050 })
+        { levels = thin, sold = 12000, reachUnit = 10050 })
       assert.equal("match", r.mode)
       assert.equal(10000, r.unit)
     end)
@@ -235,7 +246,7 @@ describe("RecommendPost, the climb (v2)", function()
       -- 300 units there queue alongside the new post rather than below it.
       local levels = { level(10000, 400), level(10500, 300), level(10550, 100) }
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = levels, sold = 4000, reachUnit = 11000 })
+        { levels = levels, sold = 12000, reachUnit = 11000 })
       assert.equal("overcut", r.mode)
       assert.equal(10500, r.unit)
       assert.equal(400, r.ahead)
@@ -244,7 +255,7 @@ describe("RecommendPost, the climb (v2)", function()
     it("does not call it a climb when the only rung above the ask rounds down onto it", function()
       local levels = { level(10000, 400), level(10050, 100) }
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = levels, sold = 4000, reachUnit = 11000 })
+        { levels = levels, sold = 12000, reachUnit = 11000 })
       assert.equal("match", r.mode)
       assert.equal(10000, r.unit)
     end)
@@ -252,7 +263,7 @@ describe("RecommendPost, the climb (v2)", function()
     it("puts every candidate on the grid, cap included", function()
       local thin = { level(10000, 400), level(13000, 100) }
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = thin, sold = 4000, reachUnit = 11049 })
+        { levels = thin, sold = 12000, reachUnit = 11049 })
       assert.equal(11000, r.unit)
       assert.equal(0, r.unit % GC.Flips.SILVER)
     end)
@@ -265,14 +276,14 @@ describe("RecommendPost, the climb (v2)", function()
 
     it("caps a flip's queue-at-exit ceiling by reach", function()
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = slow, sold = 4000, reachUnit = 12000, targetUnit = 15000, absorbHours = 24 })
+        { levels = slow, sold = 12000, reachUnit = 12000, targetUnit = 15000, absorbHours = 24 })
       assert.equal("queue", r.mode)
       assert.equal(12000, r.unit)
     end)
 
     it("queues at the stored exit itself when no reach figure caps it", function()
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = slow, sold = 4000, targetUnit = 15000, absorbHours = 24 })
+        { levels = slow, sold = 12000, targetUnit = 15000, absorbHours = 24 })
       assert.equal("queue", r.mode)
       assert.equal(15000, r.unit)
     end)
@@ -291,14 +302,14 @@ describe("RecommendPost, the climb (v2)", function()
 
     it("still never posts under the floor", function()
       local r = GC.Flips.RecommendPost(nil, 10000, 12000,
-        { levels = ladder, sold = 4000, reachUnit = 11000, floor = 11500 })
+        { levels = ladder, sold = 12000, reachUnit = 11000, floor = 11500 })
       assert.equal("floor", r.mode)
       assert.equal(11500, r.unit)
     end)
 
     it("reports breakeven and belowCost the same way as every other mode", function()
       local r = GC.Flips.RecommendPost(12000, 10000, 12000,
-        { levels = ladder, sold = 4000, reachUnit = 11000 })
+        { levels = ladder, sold = 12000, reachUnit = 11000 })
       assert.equal("overcut", r.mode)
       assert.equal(math.ceil(12000 / 0.95), r.breakeven)
       assert.is_true(r.belowCost)
@@ -367,7 +378,7 @@ describe("RecommendPost, the climb (v2)", function()
     local real = GC.Flips.RecommendPost
     GC.Flips.RecommendPost = function(paid, market, mv, opts) seen = opts; return real(paid, market, mv, opts) end
     GC.Flips.RepostAdvice({ paidUnit = 100, marketUnit = 10000, mv = 12000,
-      levels = ladder, sold = 4000, reachUnit = 11000, quarterUnit = 15000, qty = 10 })
+      levels = ladder, sold = 12000, reachUnit = 11000, quarterUnit = 15000, qty = 10 })
     assert.equal(11000, seen.reachUnit)
     assert.equal(15000, seen.quarterUnit)
   end)

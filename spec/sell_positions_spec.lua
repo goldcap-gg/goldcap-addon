@@ -226,7 +226,7 @@ describe("Sell positions", function()
       bagStock = { { positionKey = "commodity:42", itemID = 42, itemName = "Ore", quantity = 50,
         isCommodity = true } },
       quotes = { [42] = { unit = 10000, at = 9, levels = ladder } },
-      statsByItemID = { [42] = { mv = 12000, sold = 4000, reach = 11000 } },
+      statsByItemID = { [42] = { mv = 12000, sold = 12000, reach = 11000 } },
     })[1]
     assert.equal("overcut", p.postRecommendation.mode)
     assert.equal(11000, p.postRecommendation.unit)

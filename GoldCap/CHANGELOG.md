@@ -4,6 +4,9 @@
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
   the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- Sell: the suggested price climbs above the cheapest lot only past a short queue. Lots posted
+  behind more than two hours of sales sold inside a day less often than lots at the cheapest
+  price, so the limit is now two hours instead of six. WoW: Forever is unchanged.
 - Sniper: a buy can now be up to two and a half times bigger. It used to take at most 2% of what
   an item sells in a day; a week of real sales showed 5% resells inside a day nearly as often, so
   that is the new limit. Your max quantity and gold limits still apply.

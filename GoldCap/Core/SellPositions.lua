@@ -8,6 +8,10 @@ GC.SellPositions.TAPE_OVERCUT_HOURS = 72
 -- WoW: Forever: a lot priced under the next price by more than this share is offered for a raise.
 GC.SellPositions.RAISE_GAP = 0.20
 GC.SellPositions.TAPE_OVERCUT_SALES = 5
+-- The queue a tape-fed climb may stand behind, in hours of the tape's sales: what
+-- GC.Flips.OVERCUT_ABSORB_HOURS was until 0.27.1. That one came down to two on retail's commodity
+-- lots; nothing has measured a Forever lot against its queue yet, so its climb is left as it was.
+GC.SellPositions.TAPE_OVERCUT_ABSORB_HOURS = 6
 -- ...and how old its newest hour (`at`) may be before it says nothing about today's auction house:
 -- no pace and no overcut from it then.
 GC.SellPositions.TAPE_STALE_HOURS = 72
@@ -588,7 +592,8 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   local postOpts = { levels = levels, sold = position.soldPerDay or tapeSold, floor = position.postFloor,
     targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
     trendPct = marketStats and marketStats.trend, reachUnit = reachUnit or tapeReach, quarterUnit = quarterUnit,
-    isCommodity = commodity }
+    isCommodity = commodity,
+    overcutHours = not position.soldPerDay and tapeSold and GC.SellPositions.TAPE_OVERCUT_ABSORB_HOURS or nil }
   if positive(position.bagQty) then
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue, postOpts)
   else
