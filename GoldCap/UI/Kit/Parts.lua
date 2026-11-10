@@ -131,7 +131,8 @@ end
 
 -- The GoldCap mark on `f` (f.logo, `logo` square, full colour as the rail and the welcome window
 -- draw it) and the brand `gap` right of it (f.brand, `size` points, among f's lines for the
--- re-show), in the condensed heavy face whatever the language: it is the name, written in Latin.
+-- re-show), in the condensed heavy face whatever the language: it is the name, written in Latin. A
+-- skin with a heading face of its own writes it in that (T.FONT_BRAND).
 -- The caller places the mark: a window's header (UI/HoardFrame.lua's newHeader), and the crafting
 -- panel's (UI/CraftPanel.lua).
 function KP.newBrand(f, logo, size, gap)
@@ -143,8 +144,8 @@ function KP.newBrand(f, logo, size, gap)
   if T.ClientFonts() and T.UseClientFont(f.brand, size) then
     T.TrackFont(f.brand, { role = "brand", size = size, object = true }) -- the client's own face
   else
-    f.brand:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "")
-    T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = size })
+    f.brand:SetFont(T.FONT_BRAND, size * T.Scale(), "")
+    T.TrackFont(f.brand, { role = "brand", path = T.FONT_BRAND, size = size })
   end
   f.brand:SetWordWrap(false)
   colour(f.brand, K.goldText)
@@ -156,7 +157,7 @@ end
 -- ---------------------------------------------------------------------------------------------
 
 -- A count over an item's icon: the condensed heavy face with an outline, as the game writes a
--- stack's count over its slot.
+-- stack's count over its slot. Fira in every skin (a number, and smaller than a display face goes).
 local function countText(parent, size)
   local T = GC.Theme
   local fs = parent:CreateFontString(nil, "OVERLAY")

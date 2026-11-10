@@ -17,7 +17,13 @@
 -- 12-point face's and scale with the size SetFont gave, a colour escape (|cAARRGGBB, |r) takes no
 -- room, and a texture or atlas escape (|T..|t, |A..|a) the face's height plus its 2px offset, as
 -- the coin a money figure ends in does.
-local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {}, missingTextures = {}, CLIENT_METRICS = false }
+--
+-- With W.FACE_WIDTH (a spec sets it to a function(path, text, size) and back to nil after), a
+-- FontString's one-line width is the width of its text in the face SetFont gave it, as the client
+-- measures it: a spec that checks a label against its button measures it in the shipped file
+-- (spec/support/font_metrics.lua).
+local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {}, missingTextures = {}, CLIENT_METRICS = false,
+  FACE_WIDTH = nil }
 
 local STATE = setmetatable({}, { __mode = "k" })
 
@@ -32,7 +38,8 @@ local function chars(text)
 end
 
 -- How wide `text` draws on one line at `size` points (CLIENT_METRICS above).
-local function measure(text, size)
+local function measure(text, size, path)
+  if W.FACE_WIDTH then return W.FACE_WIDTH(path, tostring(text or ""), size) end
   if not W.CLIENT_METRICS then return chars(text) * W.CHAR_W end
   local plain = tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
   local icons
@@ -154,13 +161,13 @@ function W.FontString(parent, inherits)
     s.fontObject = font
     if font and font.GetFont then s.font = { font:GetFont() } end
   end
-  function f:GetStringWidth() return measure(s.text, s.font[2]) end
+  function f:GetStringWidth() return measure(s.text, s.font[2], s.font[1]) end
   -- The width the text would take on one line, whatever width the FontString was given.
-  function f:GetUnboundedStringWidth() return measure(s.text, s.font[2]) end
+  function f:GetUnboundedStringWidth() return measure(s.text, s.font[2], s.font[1]) end
   function f:GetStringHeight()
     if chars(s.text) == 0 then return 0 end
     if s.wordWrap ~= false and (s.width or 0) > 0 then
-      return math.ceil(measure(s.text, s.font[2]) / s.width) * lineHeight(s.font[2])
+      return math.ceil(measure(s.text, s.font[2], s.font[1]) / s.width) * lineHeight(s.font[2])
     end
     return lineHeight(s.font[2])
   end

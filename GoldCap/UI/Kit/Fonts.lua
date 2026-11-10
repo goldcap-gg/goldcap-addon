@@ -16,6 +16,10 @@ T.FONT_TEXT_SEMI = MEDIA .. "FiraSans-SemiBold.ttf"
 T.FONT_TEXT_BOLD = MEDIA .. "FiraSans-Bold.ttf"
 T.FONT_HEAD = MEDIA .. "FiraSansCondensed-Bold.ttf"
 T.FONT_HEAD_HEAVY = MEDIA .. "FiraSansCondensed-ExtraBold.ttf"
+-- The brand (the name, KP.newBrand): the heavy face, or the skin's heading face (ApplySkinFonts).
+-- FONT_HEAD_HEAVY itself stays Fira in every skin: it draws the counts over an item's icon, which
+-- are numbers and 6 to 8px.
+T.FONT_BRAND = T.FONT_HEAD_HEAVY
 -- What a skin falls back to, per role: ApplySkinFonts starts from these every time.
 local FIRA = { text = T.FONT_TEXT, semi = T.FONT_TEXT_SEMI, bold = T.FONT_TEXT_BOLD, head = T.FONT_HEAD,
   heavy = T.FONT_HEAD_HEAVY }
@@ -213,8 +217,9 @@ local clientFonts = false
 
 -- Classic's family: one member per alphabet, so the client picks the face for the script of the text
 -- (Latin, Cyrillic, Korean, both Chinese). A Font object has one size, so there is one family per
--- size, made on first use and kept. Where the client cannot make one, GameFontNormal stands, at its
--- own size; where it has not even that, nil, and the caller keeps the bundled face.
+-- size, made on first use and kept; sizes go in half-pixel steps, so a font-scale drag makes few.
+-- Where the client cannot make one, GameFontNormal stands, at its own size; where it has not even
+-- that, nil, and the caller keeps the bundled face.
 local CLASSIC_FACES = {
   { "roman", "Fonts\\FRIZQT__.TTF" }, { "russian", "Fonts\\FRIZQT___CYR.TTF" },
   { "korean", "Fonts\\2002.TTF" }, { "simplifiedchinese", "Fonts\\ARKai_T.ttf" },
@@ -224,6 +229,7 @@ T.CLASSIC_FACES = CLASSIC_FACES
 local classicFamilies = {}
 
 function T.ClassicFont(size)
+  size = math.floor(size * 2 + 0.5) / 2
   local cached = classicFamilies[size]
   if cached ~= nil then return cached or nil end
   local name = "GoldCapClassic" .. string.format("%g", size):gsub("%.", "_")
@@ -241,17 +247,36 @@ function T.ClassicFont(size)
   return family
 end
 
---- Puts `fs` on the client's face for `size`; false when there is none, and the caller draws in Fira.
-function T.UseClientFont(fs, size)
-  local object = T.ClassicFont(size)
-  if not object then return false end
-  fs:SetFontObject(object)
-  -- A Font object made here carries no shadow; Classic's text has the client's.
+-- A Font object made here carries no shadow; Classic's text has the client's.
+local function clientShadow(fs)
   if fs.SetShadowOffset then
     fs:SetShadowOffset(1, -1)
     fs:SetShadowColor(0, 0, 0, 0.95) -- untinted
   end
+end
+
+--- Puts `fs` on the client's face for `size` at the font scale; false when there is none, and the
+-- caller draws in Fira.
+function T.UseClientFont(fs, size)
+  local object = T.ClassicFont(size * T.Scale())
+  if not object then return false end
+  fs:SetFontObject(object)
+  clientShadow(fs)
   return true
+end
+
+-- Puts a FontString already drawn through a Font object on `object` (the font scale moved), keeping
+-- what its caller gave it since: a Font object carries a colour and a justification of its own.
+local function reuseFontObject(fs, object)
+  local r, g, b, a
+  if fs.GetTextColor then r, g, b, a = fs:GetTextColor() end
+  local justifyH = fs.GetJustifyH and fs:GetJustifyH()
+  local justifyV = fs.GetJustifyV and fs:GetJustifyV()
+  fs:SetFontObject(object)
+  if r then fs:SetTextColor(r, g, b, a) end
+  if justifyH then fs:SetJustifyH(justifyH) end
+  if justifyV then fs:SetJustifyV(justifyV) end
+  clientShadow(fs)
 end
 
 local function skinFace(file)
@@ -269,7 +294,7 @@ function T.ApplySkinFonts(fonts)
   local text = fonts.text or {}
   local head = skinFace(fonts.head)
   T.FONT_HEAD = head or FIRA.head
-  T.FONT_HEAD_HEAVY = head or FIRA.heavy
+  T.FONT_BRAND = head or FIRA.heavy
   T.FONT_TEXT = skinFace(text.regular) or FIRA.text
   T.FONT_TEXT_SEMI = skinFace(text.semi) or FIRA.semi
   T.FONT_TEXT_BOLD = skinFace(text.bold) or FIRA.bold
@@ -305,12 +330,48 @@ function T.OnRescale(fn)
   hooks[#hooks + 1] = fn
 end
 
-local function applyFont(fs, info)
+-- The widget's own face at the scale: its path, or its Font object (Classic) made for the scaled size.
+local function applyOwnFont(fs, info)
+  if info.object then
+    local object = T.ClassicFont(info.size * scale)
+    if object then reuseFontObject(fs, object) end
+    return
+  end
   if not info.path then return end
   -- Flags come from the widget, not from "": a Label inherits its outline from
   -- GameFontHighlightSmall, and passing "" here used to strip it off every label the first
   -- time the font-scale slider moved.
   pcall(fs.SetFont, fs, info.path, info.size * scale, info.flags or "")
+end
+
+-- A heading given a room (T.FitHeading) whose text runs wider than that in its own face: drawn in
+-- the face and at the size goldcap draws it (info.fallback, info.fallbackSize) instead. Expects the
+-- own face on.
+local function fitHeading(fs, info)
+  info.fitted = nil
+  local room = info.room
+  if not (room and room > 0 and fs.GetUnboundedStringWidth) then return end
+  if (fs:GetUnboundedStringWidth() or 0) <= room then return end
+  pcall(fs.SetFont, fs, info.fallback, info.fallbackSize * scale, "")
+  info.fitted = true
+end
+
+local function applyFont(fs, info)
+  applyOwnFont(fs, info)
+  if info.fallback then fitHeading(fs, info) end
+end
+
+-- What T.FitHeading falls back to for a heading T.Heading built at `info.asked`: the face goldcap
+-- draws it in, Fira's condensed face (the language's own on Korean and Chinese, which Fira cannot
+-- draw), at the size asked for, under the display floor. None where the heading is drawn so already:
+-- goldcap's look.
+local function setFallback(info)
+  local fallback = CJK_LOCALES[lastCode] and (T.FONT_HEADING or FIRA.head) or FIRA.head
+  if info.object or info.path ~= fallback or info.size ~= info.asked then
+    info.fallback, info.fallbackSize = fallback, info.asked
+  else
+    info.fallback, info.fallbackSize = nil, nil
+  end
 end
 
 --- Moves ONE already-built widget onto the face in force now, and pins it there (a later
@@ -338,6 +399,7 @@ function T.RefontWidget(fs)
   else path = T.FONT_UI end
   if not path then return end
   info.path = path
+  if info.asked then setFallback(info) end
   applyFont(fs, info)
 end
 
@@ -441,14 +503,37 @@ end
 -- client's bold face for its script on Korean and Chinese (T.RefreshFonts). Drawn through
 -- T.ClientFont, because the condensed face has no ▲ or ▼ either.
 function T.Heading(parent, size, layer)
+  local asked = size
   if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, layer or "OVERLAY"))
+  local info
   if clientFonts and T.UseClientFont(fs, size) then
-    widgetFonts[fs] = { role = "head", size = size, object = true }
-    return fs
+    info = { role = "head", size = size, object = true }
+  else
+    local path = T.FONT_HEADING or T.FONT_HEAD
+    fs:SetFont(path, size * T.Scale(), "")
+    info = { role = "head", path = path, size = size }
   end
-  local path = T.FONT_HEADING or T.FONT_HEAD
-  fs:SetFont(path, size * T.Scale(), "")
-  widgetFonts[fs] = { role = "head", path = path, size = size }
+  info.asked = asked
+  setFallback(info)
+  widgetFonts[fs] = info
   return fs
+end
+
+--- Whether a heading T.Heading built can be drawn in a second face when its own runs too wide
+-- (T.FitHeading): false in goldcap's look, where its face is the second one.
+function T.CanFitHeading(fs)
+  local info = fs and widgetFonts[fs]
+  return info ~= nil and info.fallback ~= nil
+end
+
+--- Keeps a heading T.Heading built inside `room` px (nil: no room to keep): in its own face while
+-- its text fits there, else in the face and size goldcap draws it (T.Heading's fallback). Asked by
+-- whoever changes the text or the room (Theme.Button); T.SetScale and T.RefontWidget ask again.
+function T.FitHeading(fs, room)
+  local info = fs and widgetFonts[fs]
+  if not (info and info.fallback) then return end
+  info.room = room
+  if info.fitted then applyOwnFont(fs, info) end
+  fitHeading(fs, info)
 end

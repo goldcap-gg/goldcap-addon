@@ -298,6 +298,26 @@ describe("Theme fonts per locale", function()
       assert.is_true(math.abs(W.state(fs).font[2] - 11 * 1.3) < 1e-9)
     end)
 
+    -- A count over an item's icon is a number and 6 to 8px: Fira in every skin. The brand is the
+    -- name, written in the skin's own heading face.
+    it("keeps counts over an icon in Fira under a display skin, and gives the brand the skin's face", function()
+      local KP = GC.Theme.Parts
+      local heavy = GC.Kit.MEDIA .. "FiraSansCondensed-ExtraBold.ttf"
+      GC.Kit.Skins.Apply("horde")
+      assert.equal(heavy, GC.Theme.FONT_HEAD_HEAVY)
+      local slot = KP.NewIcon(W.CreateFrame("Frame"), 24, true)
+      assert.equal(heavy, path(slot.count))
+      assert.equal(8, W.state(slot.count).font[2])
+      local f = W.CreateFrame("Frame")
+      KP.newBrand(f, 20, 14, 4)
+      assert.equal(GC.Kit.MEDIA .. "RuslanDisplay-Regular.ttf", path(f.brand))
+      GC.Kit.Skins.Apply("goldcap")
+      local g = W.CreateFrame("Frame")
+      KP.newBrand(g, 20, 14, 4)
+      assert.equal(heavy, path(g.brand))
+      assert.equal(heavy, path(KP.NewIcon(W.CreateFrame("Frame"), 24, true).count))
+    end)
+
     it("a skin that is not a display skin keeps the size asked for", function()
       GC.Kit.Skins.Apply("pixel")
       assert.equal(9.5, W.state(GC.Theme.Heading(W.CreateFrame("Frame"), 9.5)).font[2])

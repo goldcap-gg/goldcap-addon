@@ -166,14 +166,45 @@ describe("classic skin", function()
     assert.equal(T.ClassicFont(13), W.state(l).fontObject)
     local n = T.Num(parent, 12)
     assert.equal(T.FONT_MONO, (n:GetFont()))
-    -- the font-scale slider cannot move a Font object; it must not break it either
-    T.SetScale(1.2)
-    assert.equal(T.ClassicFont(12), W.state(h).fontObject)
-    T.SetScale(1.0)
     Skins.Apply("goldcap")
     local g = T.Heading(parent, 12)
     assert.is_nil(W.state(g).fontObject)
     assert.equal(T.FONT_HEAD, (g:GetFont()))
+  end)
+
+  -- The font-scale slider moves Classic's words too: a family for the scaled size (in half-pixel
+  -- steps, so a slider drag makes few), put on again at every scale, keeping the text's colour.
+  it("words follow the font scale through a family per scaled size", function()
+    Skins.Apply("classic")
+    local parent = W.CreateFrame("Frame")
+    local h = T.Heading(parent, 12)
+    local l = T.Label(parent, 13)
+    h:SetTextColor(1, 0.82, 0, 1)
+    T.SetScale(1.2)
+    assert.equal("GoldCapClassic14_5", W.state(h).fontObject.name) -- 14.4
+    assert.equal("GoldCapClassic15_5", W.state(l).fontObject.name) -- 15.6
+    assert.same({ 1, 0.82, 0, 1 }, W.state(h).color)
+    local built = T.Heading(parent, 10)
+    assert.equal("GoldCapClassic12", W.state(built).fontObject.name)
+    local fs = parent:CreateFontString(nil, "OVERLAY")
+    assert.is_true(T.UseClientFont(fs, 10))
+    assert.equal("GoldCapClassic12", W.state(fs).fontObject.name)
+    T.SetScale(1.0)
+    assert.equal(T.ClassicFont(12), W.state(h).fontObject)
+    assert.equal(T.ClassicFont(13), W.state(l).fontObject)
+    assert.same({ 1, 0.82, 0, 1 }, W.state(h).color)
+  end)
+
+  it("GameFontNormal keeps its own size at every scale", function()
+    Skins.Apply("classic")
+    failFamily = true
+    local normal = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
+    _G.GameFontNormal = normal
+    local h = T.Heading(W.CreateFrame("Frame"), 13)
+    T.SetScale(1.3)
+    assert.equal(normal, W.state(h).fontObject)
+    assert.equal(12, W.state(h).font[2])
+    T.SetScale(1.0)
   end)
 
   it("a client that cannot make a family draws with GameFontNormal", function()

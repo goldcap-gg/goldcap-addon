@@ -1,37 +1,180 @@
 local helper = require("spec.spec_helper")
+local Font = require("spec.support.font_metrics")
 
 -- The Sell tab's action column is 86px wide and its button is sized to the pixel: UI/Sell/Row.lua
--- comments the choice as "the largest width that still leaves >=2px clearance" for
--- "Cancel lot?" at 85.8px, using this project's own measured figure of ~7.8px per character
--- (mono-10 at Theme.Scale() 1.3). Eleven characters is therefore the whole budget.
---
--- Nothing checked that. English is the only language whose action labels were ever short
--- enough, so eight locales shipped labels that drew straight across the price columns to the
--- left of the button -- "Set cost" as "Задати собівартість" is 19 characters, more than half
--- as wide again as the button holding it. Theme.Button now bounds its FontString to the
--- button's own edges (spec/theme_button_contract_spec.lua), so the damage is contained to a
+-- comments the choice as "the largest width that still leaves >=2px clearance" for "Cancel lot?".
+-- Nothing checked that once. English is the only language whose action labels were ever short
+-- enough, so eight locales shipped labels that drew straight across the price columns to the left
+-- of the button -- "Set cost" as "Задати собівартість". Theme.Button now bounds its FontString to
+-- the button's own edges (spec/theme_button_contract_spec.lua), so the damage is contained to a
 -- clipped label; this spec is the other half, keeping the label short enough not to clip.
 --
--- Deliberately a CHARACTER budget rather than a pixel one: no font metrics are available off
--- the client, and a count that is right to within a character is worth more here than a width
--- computed from a made-up per-glyph table. CJK counts by codepoint, where one glyph is roughly
--- two Latin ones -- hence its own, halved budget.
+-- The fixed-width row buttons are measured in the faces that draw them, from the shipped files
+-- (spec/support/font_metrics.lua): a skin's heading face at its size, a display face at 11 at
+-- least, and, where a label runs wider than its button in that, Fira Sans Condensed Bold at 10,
+-- the face and size goldcap draws it in (Theme.Button and Theme.FitHeading,
+-- spec/skins_button_fit_spec.lua). Korean and Chinese draw in the client's own face, which is not on
+-- disk here, so they keep a character budget, one Han or Hangul glyph about two Latin ones.
 describe("row button labels fit the button", function()
-  -- Two fixed-width row buttons, each with the set of labels its own code can put on it, and
-  -- each budget derived the same way: width divided by ~7.8px per character.
+  local MEDIA = "GoldCap/Media/"
+  local FIRA = "FiraSansCondensed-Bold.ttf"
+  local faces = {}
+  local function face(file)
+    if not faces[file] then faces[file] = Font.load(MEDIA .. file) end
+    return faces[file]
+  end
+
+  -- Each fixed-width row button, its room in px and the labels its code can put on it, drawn as
+  -- written and in capitals (the Sell row's position and cancel buttons and the Deals button draw
+  -- capitals):
   --   row.action:SetSize(86, 18)          -- UI/Sell/Row.lua, showRowAction
   --   COLUMNS { key = "buy", w = 64 }     -- UI/SniperFrame.lua, setRowDeal
-  --
-  -- A button that is posting shares its width with the client's spinner (Theme.Button's
-  -- SetBusy: a 12px ring 2px in from the edge, the label 1px after it), so its label has 15px
-  -- less to live in:
+  -- A button that is posting shares its width with the client's spinner (Theme.Button's SetBusy: a
+  -- 12px ring 2px in from the edge, the label 1px after it), so its label has 15px less:
   --   row.action (86px)                    -- the row's Post while its post is out
   --   queueButton:SetSize(136, 26)         -- the dock's POST while a post is out
-  local BUTTONS = {
-    { what = "the 86px Sell action button", budget = 11,
+  -- `budget` is the character budget Korean and Chinese keep (7.8px a character at 1.3).
+  local ROW_BUTTONS = {
+    { what = "the 86px Sell action button", width = 86, room = 86, budget = 11,
       keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?", "Confirm", "Pricing…" } },
-    { what = "the 64px Deals buy button", budget = 8,
-      keys = { "Buy", "Check", "Avoid" } },
+    { what = "the 64px Deals buy button", width = 64, room = 64, budget = 8, keys = { "Buy", "Check", "Avoid" } },
+    { what = "the 86px Sell action button beside its spinner", width = 86, room = 86 - 15, busy = true,
+      budget = 9, keys = { "Posting…" } },
+    { what = "the 136px dock POST button beside its spinner", width = 136, room = 136 - 15, busy = true,
+      budget = 15, keys = { "POSTING…" } },
+  }
+  local SCALE = 1.3
+
+  -- Theme.Button as the client builds it, in skin `id` at SCALE, its FontStrings measured in the face
+  -- each was given (W.FACE_WIDTH). `measure(width, busy, shown)` answers how wide `shown` draws on a
+  -- row button `width` wide, posting when `busy`. Classic draws in the client's own face, which is
+  -- not on disk, so it is measured only through the Fira it falls back to.
+  local W = require("spec.support.wow_frames")
+  local function inSkin(id, code, run)
+    local restore = W.install()
+    W.FACE_WIDTH = function(path, text, size) return face(tostring(path):match("[^\\]+$")):width(text, size) end
+    _G.UIParent = { CreateFontString = function() return { SetFont = function() return true end } end }
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
+    local ok, err = pcall(function()
+      local GC = helper.loadModule("Core/Util.lua")
+      helper.loadModule("UI/Theme.lua", GC)
+      GC.Theme.RefreshFonts(code)
+      GC.Kit.Skins.Apply(id)
+      GC.Theme.SetScale(SCALE)
+      _G.CreateFrame = function(kind, name, parent, template)
+        if template == "SpinnerTemplate" then return W.CreateFrame("Frame", name, parent) end
+        return W.CreateFrame(kind, name, parent)
+      end
+      run(function(width, busy, shown)
+        local button = GC.Theme.Button(W.CreateFrame("Frame"), "ghost", "badge")
+        button:SetSize(width, 18)
+        if busy then button:SetBusy(true) end
+        button:SetLabel(shown)
+        return button.text:GetUnboundedStringWidth()
+      end)
+    end)
+    W.FACE_WIDTH, _G.UIParent, _G.CreateColor = nil, nil, nil
+    restore()
+    assert(ok, err)
+  end
+
+  local upper = helper.loadModule("Core/Util.lua").Util.Upper
+  local CJK = { koKR = true, zhCN = true, zhTW = true }
+
+  -- Codepoints, not bytes: string.len on UTF-8 counts bytes, so "Витрати" would score 14 and
+  -- every Cyrillic locale would fail on encoding alone. Full-width CJK/Hangul counts double,
+  -- because one of those glyphs is about two Latin characters wide.
+  local function displayWidth(text)
+    local width, i = 0, 1
+    while i <= #text do
+      local byte = text:byte(i)
+      local size = (byte < 0x80 and 1) or (byte < 0xE0 and 2) or (byte < 0xF0 and 3) or 4
+      local code = byte
+      if size == 2 then code = (byte - 0xC0) * 64 + (text:byte(i + 1) - 0x80)
+      elseif size == 3 then
+        code = (byte - 0xE0) * 4096 + (text:byte(i + 1) - 0x80) * 64 + (text:byte(i + 2) - 0x80)
+      end
+      local wide = (code >= 0x1100 and code <= 0x11FF) or (code >= 0x2E80 and code <= 0x9FFF)
+        or (code >= 0xAC00 and code <= 0xD7AF) or (code >= 0xFF00 and code <= 0xFF60)
+      width = width + (wide and 2 or 1)
+      i = i + size
+    end
+    return width
+  end
+
+  it("measures with a check that can fail: the mono budget's own case reads too wide for 64px", function()
+    assert.is_true(face(FIRA):width("CANCEL LOT?", 10 * SCALE) > 64)
+    assert.is_true(face(FIRA):width("CANCEL LOT?", 10 * SCALE) <= 86)
+  end)
+
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("keeps every %s row-button label inside its button at %.1f, in every skin"):format(code, SCALE), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      -- The locale TABLE, not GC.L: GC.L's metatable falls back to the key, so reading a
+      -- translation through it silently measures the English string for every language that
+      -- happens to be missing the key -- which is how the first draft of this spec passed
+      -- against all twelve locales while measuring nothing.
+      local translations = GC.Locales[code]
+      assert.is_truthy(translations, code .. " registered no locale table")
+      local function each(fn)
+        for _, button in ipairs(ROW_BUTTONS) do
+          local seen = 0
+          for _, key in ipairs(button.keys) do
+            local label = translations[key]
+            if label then
+              seen = seen + 1
+              for _, shown in ipairs({ label, upper(label) }) do fn(button, shown) end
+            end
+          end
+          -- Every locale carries every one of these; a locale that suddenly measures none has
+          -- been renamed or gutted, and a spec that quietly checks nothing is worse than none.
+          assert.equal(#button.keys, seen, code .. " is missing labels for " .. button.what)
+        end
+      end
+      if CJK[code] then
+        each(function(button, shown)
+          assert.is_true(displayWidth(shown) <= button.budget, ("%s: %q is %d wide, over the %d %s holds"):format(
+            code, shown, displayWidth(shown), button.budget, button.what))
+        end)
+        return
+      end
+      -- In Fira, the face every skin falls back to.
+      each(function(button, shown)
+        local fira = face(FIRA):width(shown, 10 * SCALE)
+        assert.is_true(fira <= button.room, ("%s: %q is %.1fpx in Fira, over the %dpx of %s"):format(
+          code, shown, fira, button.room, button.what))
+      end)
+      -- In each skin: drawn in its own face where it fits there, else in Fira.
+      for _, id in ipairs({ "goldcap", "forever", "pixel", "parchment", "horde", "alliance", "midnight", "leather" }) do
+        inSkin(id, code, function(measure)
+          each(function(button, shown)
+            local drawn = measure(button.width, button.busy, shown)
+            assert.is_true(drawn <= button.room, ("%s %s: %q is %.1fpx in %s"):format(
+              id, code, shown, drawn, button.what))
+          end)
+        end)
+      end
+    end)
+  end
+
+  -- The cases the skins brought (final review C1): too wide for their button in Horde's and
+  -- Leather's faces at the largest scale, so Theme.Button draws them in Fira, where they fit.
+  it("needs Fira for Russian Подтвердить and ПРОВЕРКА at 1.3 under horde and leather, and they fit", function()
+    local GC = helper.loadModule("Locale/Core.lua")
+    helper.loadModule("Locale/ruRU.lua", GC)
+    local ru = GC.Locales.ruRU
+    for _, file in ipairs({ "RuslanDisplay-Regular.ttf", "OldStandard-Bold.ttf" }) do
+      for _, case in ipairs({ { upper(ru["Confirm"]), 86 }, { upper(ru["Check"]), 64 } }) do
+        assert.is_true(face(file):width(case[1], 11 * SCALE) > case[2], file .. " " .. case[1])
+        assert.is_true(face(FIRA):width(case[1], 10 * SCALE) <= case[2], case[1])
+      end
+    end
+  end)
+
+  -- The labels whose room is not one fixed button: budgets for the room they leave others, at the
+  -- mono metric (7.8px a character at 1.3).
+  local BUTTONS = {
     -- UI/BuyFrame.lua's dock button (BUY 2.0) is as wide as its label in the player's language
     -- (fitButton, measured by the client), so nothing here can clip it. What this pins is that the
     -- label stays short enough to leave the dock's own two lines their room beside it: 25 at 1.3,
@@ -55,41 +198,12 @@ describe("row button labels fit the button", function()
     -- read "Ниже це..." in the 80px column.
     { what = "the WoW: Forever verdict cell", budget = 12,
       keys = { "Below vendor", "Under market" } },
-    { what = "the 86px Sell action button beside its spinner", budget = 9,
-      keys = { "Posting…" } },
-    { what = "the 136px dock POST button beside its spinner", budget = 15,
-      keys = { "POSTING…" } },
   }
 
-  -- Codepoints, not bytes: string.len on UTF-8 counts bytes, so "Витрати" would score 14 and
-  -- every Cyrillic locale would fail on encoding alone. Full-width CJK/Hangul counts double,
-  -- because one of those glyphs is about two Latin characters wide.
-  local function displayWidth(text)
-    local width, i = 0, 1
-    while i <= #text do
-      local byte = text:byte(i)
-      local size = (byte < 0x80 and 1) or (byte < 0xE0 and 2) or (byte < 0xF0 and 3) or 4
-      local code = byte
-      if size == 2 then code = (byte - 0xC0) * 64 + (text:byte(i + 1) - 0x80)
-      elseif size == 3 then
-        code = (byte - 0xE0) * 4096 + (text:byte(i + 1) - 0x80) * 64 + (text:byte(i + 2) - 0x80)
-      end
-      local wide = (code >= 0x1100 and code <= 0x11FF) or (code >= 0x2E80 and code <= 0x9FFF)
-        or (code >= 0xAC00 and code <= 0xD7AF) or (code >= 0xFF00 and code <= 0xFF60)
-      width = width + (wide and 2 or 1)
-      i = i + size
-    end
-    return width
-  end
-
   for _, code in ipairs(helper.localeCodes()) do
-    it(("keeps every %s row-button label inside its button"):format(code), function()
+    it(("keeps every %s dock and verdict label inside its budget"):format(code), function()
       local GC = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", GC)
-      -- The locale TABLE, not GC.L: GC.L's metatable falls back to the key, so reading a
-      -- translation through it silently measures the English string for every language that
-      -- happens to be missing the key -- which is how the first draft of this spec passed
-      -- against all twelve locales while measuring nothing.
       local translations = GC.Locales[code]
       assert.is_truthy(translations, code .. " registered no locale table")
       for _, button in ipairs(BUTTONS) do
@@ -104,8 +218,6 @@ describe("row button labels fit the button", function()
                 code, label, displayWidth(label), button.budget, button.what))
           end
         end
-        -- Every locale carries every one of these; a locale that suddenly measures none has
-        -- been renamed or gutted, and a spec that quietly checks nothing is worse than none.
         assert.equal(#button.keys, seen, code .. " is missing labels for " .. button.what)
       end
     end)

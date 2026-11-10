@@ -250,7 +250,8 @@ function T.Button(parent, variant, rounded)
   -- The condensed face (T.Heading), 10 on a rounded button and 12 on a square one. Fira Sans
   -- Condensed Bold averages 0.47 em a lower-case Latin letter, 0.54 em a Latin capital and 0.61 em
   -- a Cyrillic capital (measured from the font file): at 10 that is within 2% of the mono-10 the
-  -- rounded buttons drew before, which spec/button_label_width_spec.lua's budgets were set for.
+  -- rounded buttons drew before. spec/button_label_width_spec.lua measures the fixed-width row
+  -- buttons' labels in the shipped faces.
   b.text = T.Heading(b, labelSize)
   b.text:SetJustifyH("CENTER")
   b.text:ClearAllPoints()
@@ -272,6 +273,20 @@ function T.Button(parent, variant, rounded)
   b.text:SetPoint("RIGHT", b, "RIGHT", 0, 0)
   b.text:SetWordWrap(false)
   b.text:SetMaxLines(1)
+
+  -- A skin's heading face runs wider than Fira's, and a display face never under 11px: a label that
+  -- fits a fixed-width button in goldcap can be cut in another skin. Such a label is drawn in
+  -- goldcap's face and size instead (Theme.FitHeading), asked again whenever the label, its room or
+  -- the font scale (the kit asks on its own) changes. Its room: the button less the check box, the
+  -- spinner or the caret beside it. Goldcap's look has no second face, so asks nothing.
+  local fits = T.CanFitHeading(b.text)
+  local function fit()
+    if not fits then return end
+    local left = (b.checkBox and 24) or ((b.busy and b.spinner) and 15) or 0
+    local right = (b.caret and b.caret:IsShown()) and 16 or 0
+    T.FitHeading(b.text, (b:GetWidth() or 0) - left - right)
+  end
+  if fits then b:HookScript("OnSizeChanged", fit) end
 
   -- `b.label` is the contract every caller and every spec test double already assumed --
   -- ACTION_HELP's tooltip lookup in UI/Sell/Row.lua reads `self.label`, and every fake
@@ -298,6 +313,7 @@ function T.Button(parent, variant, rounded)
     -- Russian label stayed as written). b.label above stays the caller's exact SOURCE string
     -- either way; only the drawn FontString text is transformed.
     b.text:SetText(b.uppercase and GC.Util.Upper(shown) or shown)
+    fit()
   end
 
   -- Draws the label upper-case without touching `.label` -- theme_button_contract_spec pins
@@ -317,6 +333,8 @@ function T.Button(parent, variant, rounded)
   function b:FitLabels(labels, minW, busy)
     local fs = b.text
     if not (fs and fs.GetUnboundedStringWidth) then return end
+    -- Measured in the label's own face: the button is made wide enough for it.
+    if fits then T.FitHeading(fs, nil) end
     local widest = 0
     for _, label in ipairs(labels) do
       fs:SetText(b.uppercase and GC.Util.Upper(label) or label)
@@ -325,6 +343,7 @@ function T.Button(parent, variant, rounded)
     fs:SetText("")
     if b.label then b:SetLabel(b.label) end
     b:SetWidth(math.max(minW or 0, math.ceil(widest) + 2 * T.pad.m))
+    fit()
   end
 
   -- The fill in its variant's colour, dimmed to 0.45 of its own alpha while disabled. Dimmed by
@@ -471,6 +490,7 @@ function T.Button(parent, variant, rounded)
       b.text:SetPoint("LEFT", b, "LEFT", 0, 0)
     end
     b.text:SetPoint("RIGHT", b, "RIGHT", (b.caret and b.caret:IsShown()) and -16 or 0, 0)
+    fit()
   end
 
   -- Classic's filters: a check box and the label, with no button plate. Returns the width the box
@@ -499,6 +519,7 @@ function T.Button(parent, variant, rounded)
     b.text:SetJustifyH("LEFT")
     b.text:SetPoint("LEFT", b.checkBox, "RIGHT", 0, 0)
     b.text:SetPoint("RIGHT", b, "RIGHT", 0, 0)
+    fit()
     return 22
   end
 
