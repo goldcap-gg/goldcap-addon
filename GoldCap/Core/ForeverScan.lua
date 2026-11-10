@@ -94,6 +94,14 @@ function GC.ForeverScan.New(driver)
     if type(s) ~= "table" then return end
     if type(s.journal) ~= "table" then s.journal = {} end
     local j = s.journal
+    -- The same step with the same answer again is counted on the one line: the client fired the
+    -- dump's event 23 times in a second and pushed a whole scan out of the journal (owner's
+    -- client, 2026-11-10).
+    local last = j[#j]
+    if last and last[2] == step and last[3] == a and last[4] == b then
+      last[5] = (last[5] or 1) + 1
+      return
+    end
     j[#j + 1] = { driver.now(), step, a, b }
     while #j > C.JOURNAL_KEEP do table.remove(j, 1) end
   end
@@ -780,8 +788,9 @@ function GC.ForeverScan.Summary(now)
   local journal = type(s) == "table" and type(s.journal) == "table" and s.journal or {}
   for i = math.max(1, #journal - 19), #journal do
     local e = journal[i]
-    lines[#lines + 1] = ("own scan: %ds ago %s%s%s"):format(now - (e[1] or now), tostring(e[2]),
-      e[3] ~= nil and (" " .. tostring(e[3])) or "", e[4] ~= nil and (" " .. tostring(e[4])) or "")
+    lines[#lines + 1] = ("own scan: %ds ago %s%s%s%s"):format(now - (e[1] or now), tostring(e[2]),
+      e[3] ~= nil and (" " .. tostring(e[3])) or "", e[4] ~= nil and (" " .. tostring(e[4])) or "",
+      e[5] and (" x" .. e[5]) or "")
   end
   local g = type(s) == "table" and s.gear or nil
   if type(g) == "table" and type(g.items) == "table" then

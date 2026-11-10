@@ -286,9 +286,13 @@ describe("ForeverScan", function()
     assert.equal("asked", steps[2])
     assert.is_truthy(table.concat(steps, ","):find("rows,read", 1, true))
     assert.equal(now, store.journal[1][1])
+    -- The same step again is counted on its line, not written again.
+    local before = #store.journal
     for _ = 1, 200 do s:OnAuctionHouseClosed() end
+    assert.equal(before + 1, #store.journal)
+    assert.same({ "closed", 200 }, { store.journal[#store.journal][2], store.journal[#store.journal][5] })
+    for i = 1, 200 do s:OnAuctionHouseShow(); if i % 2 == 0 then s:OnAuctionHouseClosed() end end
     assert.equal(GC.ForeverScan.C.JOURNAL_KEEP, #store.journal)
-    assert.equal("closed", store.journal[#store.journal][2])
   end)
 
   it("stops a frame's read at its time budget, gear links included, and still finishes the dump", function()
