@@ -275,6 +275,22 @@ describe("ForeverScan", function()
     assert.is_true(store.fold.partial)
   end)
 
+  it("keeps a journal of the scan's steps in the save, the last of them only", function()
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(500)
+    assert.has_no.errors(runAll)
+    local steps = {}
+    for _, e in ipairs(store.journal) do steps[#steps + 1] = e[2] end
+    assert.equal("opened", steps[1])
+    assert.equal("asked", steps[2])
+    assert.is_truthy(table.concat(steps, ","):find("rows,read", 1, true))
+    assert.equal(now, store.journal[1][1])
+    for _ = 1, 200 do s:OnAuctionHouseClosed() end
+    assert.equal(GC.ForeverScan.C.JOURNAL_KEEP, #store.journal)
+    assert.equal("closed", store.journal[#store.journal][2])
+  end)
+
   it("stops a frame's read at its time budget, gear links included, and still finishes the dump", function()
     local ms = 0
     local s = GC.ForeverScan.New(driver({

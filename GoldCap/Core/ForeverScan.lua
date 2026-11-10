@@ -52,6 +52,8 @@ local C = {
   MERGE_MAX_AGE_SECONDS = 12 * 3600,
   -- How many of this account's own fold stamps are remembered (rememberAt below).
   KEEP_FOLD_ATS = 8,
+  -- Steps of the scan's journal kept in the save (note below): three or four scans' worth.
+  JOURNAL_KEEP = 60,
 }
 GC.ForeverScan.C = C
 
@@ -81,6 +83,20 @@ function GC.ForeverScan.New(driver)
   -- account throttle, or item data arriving), and an idle scanner used to read all ~72k rows over
   -- again for it (owner, beta 2026-09-27). One read per dump: see OnReplicateUpdate.
   local lastRead
+
+  -- The scan's journal, GoldCapDB.foreverScan.journal: each step with its time and what the client
+  -- answered, the last C.JOURNAL_KEEP of them. A scan that comes back short leaves no other trace
+  -- of why (owner's client, 2026-11-10: one scan saved nothing and the next 2,048 rows of 286,158,
+  -- and the save could not say whether the window was closed or the dump never came). Read by
+  -- /gc forever (Summary).
+  local function note(step, a, b)
+    local s = driver.store()
+    if type(s) ~= "table" then return end
+    if type(s.journal) ~= "table" then s.journal = {} end
+    local j = s.journal
+    j[#j + 1] = { driver.now(), step, a, b }
+    while #j > C.JOURNAL_KEEP do table.remove(j, 1) end
+  end
 
   local function reset()
     state, acc, total, readIndex = "idle", nil, nil, nil
@@ -132,6 +148,7 @@ function GC.ForeverScan.New(driver)
     reset()
     if a then dropCutDump(a) end
     if not a or next(a.items) == nil then
+      note("saved nothing")
       driver.notify("done", nil)
       return
     end
@@ -209,6 +226,7 @@ function GC.ForeverScan.New(driver)
         s.gear = a.gear and GC.ForeverGear.Freeze(a.gear, s.fold.at) or nil
       end
     end
+    note("saved", count, (a.cut and "cut " or "") .. (a.partial and "partial " or "") .. (a.givenUp and "given up" or ""))
     driver.notify("done", { rows = a.replicated and a.rows or nil, items = count,
       partial = a.partial == true, replicated = a.replicated == true, pending = a.pending,
       skipped = a.skipped, givenUp = a.givenUp })
@@ -216,6 +234,7 @@ function GC.ForeverScan.New(driver)
 
   local function toBrowse(kind)
     local answer = driver.startBrowse(kind)
+    note("browse pass", kind, tostring(answer))
     if answer ~= "started" and answer ~= "running" then return false end
     state = "browsing"
     token = token + 1
@@ -244,6 +263,7 @@ function GC.ForeverScan.New(driver)
 
   local function afterRead()
     if acc.dumpRows % C.SUSPECT_CAP == 0 then acc.partial, acc.cut = true, true end
+    note("read", acc.dumpRows, acc.cut and "cut" or nil)
     if not toBrowse(acc.partial and "wide" or "classes") then commit() end
   end
 
@@ -266,6 +286,7 @@ function GC.ForeverScan.New(driver)
     if token ~= t or state ~= "reading" then return end
     local now = driver.numRows() or 0
     if now < total then
+      note("dump shrank", now, total)
       acc.partial, acc.cut = true, true
       total = now
       lastRead.rows = now
@@ -310,6 +331,7 @@ function GC.ForeverScan.New(driver)
     end
     acc.dumpRows = n
     acc.replicated = true
+    note("rows", n)
     lastRead = { rows = n, at = driver.now() }
     state, total, readIndex = "reading", n, 0
     token = token + 1
@@ -318,6 +340,7 @@ function GC.ForeverScan.New(driver)
   end
 
   local function noAnswer()
+    note("no rows")
     driver.notify("noanswer")
     acc.partial = true
     if not toBrowse("wide") then
@@ -345,6 +368,7 @@ function GC.ForeverScan.New(driver)
     -- A stamp from the future is a clock that stepped back, not a throttle.
     if since < 0 then since = math.huge end
     if since < C.COOLDOWN_SECONDS then
+      note("throttled", reason, math.floor(since))
       if reason ~= "button" then return "cooldown" end
       driver.notify("cooldown", math.ceil((C.COOLDOWN_SECONDS - since) / 60))
       acc = GC.ForeverFold.New()
@@ -352,6 +376,7 @@ function GC.ForeverScan.New(driver)
       return "cooldown"
     end
     s.requestedAt = now
+    note("asked", reason)
     acc = GC.ForeverFold.New()
     driver.notify("started")
     if not driver.replicate() then
@@ -366,6 +391,7 @@ function GC.ForeverScan.New(driver)
   end
 
   function obj:OnReplicateUpdate()
+    note("dump event", state, driver.numRows() or 0)
     if state == "waiting" then beginRead(); return end
     -- A later stage of the dump this scan is reading or browsing after: the client hands a dump
     -- over in stages, each with its own event (2048 rows, then the rest). It is read from the
@@ -395,6 +421,7 @@ function GC.ForeverScan.New(driver)
 
   function obj:OnBrowsePassDone(book)
     if state ~= "browsing" then return end
+    note("pass done")
     takeBook(book)
     acc.browsed = true
     commit()
@@ -405,6 +432,7 @@ function GC.ForeverScan.New(driver)
   -- BROWSE_WAIT_SECONDS with the SCAN button on SCANNING all the while.
   function obj:OnBrowsePassAbandoned(book)
     if state ~= "browsing" then return end
+    note("pass abandoned")
     takeBook(book)
     acc.partial, acc.givenUp = true, true
     commit()
@@ -412,11 +440,13 @@ function GC.ForeverScan.New(driver)
 
   function obj:OnAuctionHouseShow()
     ahOpen = true
+    note("opened")
     return self:Request("auto")
   end
 
   function obj:OnAuctionHouseClosed()
     ahOpen = false
+    note("closed", state)
     if state == "idle" then return end
     if state == "waiting" then reset(); return end
     acc.partial = true
@@ -735,6 +765,13 @@ function GC.ForeverScan.Summary(now)
         now - (f.at or now), tostring(f.region), tostring(f.realm), tostring(f.faction))
   else
     lines[#lines + 1] = "own scan: no fold saved yet"
+  end
+  -- The journal's last steps, newest last: seconds ago, the step, what came with it.
+  local journal = type(s) == "table" and type(s.journal) == "table" and s.journal or {}
+  for i = math.max(1, #journal - 19), #journal do
+    local e = journal[i]
+    lines[#lines + 1] = ("own scan: %ds ago %s%s%s"):format(now - (e[1] or now), tostring(e[2]),
+      e[3] ~= nil and (" " .. tostring(e[3])) or "", e[4] ~= nil and (" " .. tostring(e[4])) or "")
   end
   local g = type(s) == "table" and s.gear or nil
   if type(g) == "table" and type(g.items) == "table" then
