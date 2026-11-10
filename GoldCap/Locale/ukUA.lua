@@ -329,13 +329,6 @@ GC.Locales.ukUA = {
   ["Reload now"] = "Перезавантажити зараз",
   ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
     "не вдалося застосувати вибране оформлення, у цьому сеансі використовується оформлення GoldCap",
-  ["GoldCap"] = "GoldCap",
-  ["Forever"] = "Forever",
-  ["Pixel"] = "Пікселі",
-  ["Parchment"] = "Пергамент",
-  ["Midnight"] = "Midnight",
-  ["Classic"] = "Класика",
-  ["Leather"] = "Шкіра",
   ["Last post may still go up. Wait a minute"] = "Ще може виставитися. Зачекайте хвилину",
   ["Level 40 reached: %s to go."] = "Рівень 40 досягнуто: бракує %s.",
   ["Last result: %ds ago"] = "Останній результат: %dс тому",

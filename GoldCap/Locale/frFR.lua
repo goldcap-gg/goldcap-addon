@@ -335,13 +335,6 @@ GC.Locales.frFR = {
   ["Reload now"] = "Recharger maintenant",
   ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
     "le thème choisi n'a pas pu être appliqué, cette session utilise le thème GoldCap",
-  ["GoldCap"] = "GoldCap",
-  ["Forever"] = "Forever",
-  ["Pixel"] = "Pixel",
-  ["Parchment"] = "Parchemin",
-  ["Midnight"] = "Midnight",
-  ["Classic"] = "Classique",
-  ["Leather"] = "Cuir",
   ["Last post may still go up. Wait a minute"] = "Le dépôt peut aboutir. Attends une minute",
   ["Level 40 reached: %s to go."] = "Niveau 40 atteint : il vous manque encore %s.",
   ["Last result: %ds ago"] = "Dernier résultat : il y a %ds",

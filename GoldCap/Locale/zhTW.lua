@@ -325,13 +325,6 @@ GC.Locales.zhTW = {
   ["Reload now"] = "立即重新載入",
   ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
     "無法套用所選外觀，本次工作階段使用 GoldCap 外觀",
-  ["GoldCap"] = "GoldCap",
-  ["Forever"] = "Forever",
-  ["Pixel"] = "像素",
-  ["Parchment"] = "羊皮紙",
-  ["Midnight"] = "Midnight",
-  ["Classic"] = "經典",
-  ["Leather"] = "皮革",
   ["Last post may still go up. Wait a minute"] = "上次上架可能仍會成功。請等一分鐘",
   ["Level 40 reached: %s to go."] = "已達到 40 級：還差 %s。",
   ["Last result: %ds ago"] = "上次結果：%d 秒前",

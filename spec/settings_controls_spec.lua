@@ -1166,15 +1166,18 @@ describe("Settings controls", function()
       end
     end)
 
-    it("names Horde and Alliance from the client", function()
-      _G.FACTION_HORDE, _G.FACTION_ALLIANCE = "Orda", "Allianz"
+    -- Owner, round B 2026-11-10: the list read "Орда" and "Альянс" among English names. A skin's
+    -- name is its name in every language, whatever the client calls the factions.
+    it("names every skin in English, whatever the client's language", function()
+      _G.FACTION_HORDE, _G.FACTION_ALLIANCE = "Орда", "Альянс"
       skinButton().scripts.OnClick(skinButton())
-      assert.is_truthy(captured.entries[5][1]:find("Orda", 1, true))
-      assert.is_truthy(captured.entries[6][1]:find("Allianz", 1, true))
+      local names = { "GoldCap", "Forever", "Pixel", "Parchment", "Horde", "Alliance", "Midnight", "Classic",
+        "Leather" }
+      for i, name in ipairs(names) do
+        local label = captured.entries[i][1]
+        assert.equal(name, label:sub(-#name), name)
+      end
       _G.FACTION_HORDE, _G.FACTION_ALLIANCE = nil, nil
-      skinButton().scripts.OnClick(skinButton())
-      assert.is_truthy(captured.entries[5][1]:find("Horde", 1, true))
-      assert.is_truthy(captured.entries[6][1]:find("Alliance", 1, true))
     end)
 
     it("picking a skin stores it and asks for a reload", function()

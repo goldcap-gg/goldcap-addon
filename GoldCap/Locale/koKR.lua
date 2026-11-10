@@ -327,13 +327,6 @@ GC.Locales.koKR = {
   ["Reload now"] = "지금 다시 불러오기",
   ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
     "선택한 스킨을 적용하지 못해 이번 세션에는 GoldCap 스킨을 사용합니다",
-  ["GoldCap"] = "GoldCap",
-  ["Forever"] = "Forever",
-  ["Pixel"] = "픽셀",
-  ["Parchment"] = "양피지",
-  ["Midnight"] = "Midnight",
-  ["Classic"] = "클래식",
-  ["Leather"] = "가죽",
   ["Last post may still go up. Wait a minute"] = "아직 등록될 수 있습니다. 1분 기다리세요",
   ["Level 40 reached: %s to go."] = "40레벨 도달: %s 부족합니다.",
   ["Last result: %ds ago"] = "마지막 결과: %d초 전",

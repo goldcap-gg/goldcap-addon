@@ -1243,16 +1243,12 @@ local function build(sniperFrame)
   skinBtn:SetSize(120, 26)
   skinBtn:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(4) + 3)
 
-  -- Horde and Alliance are the client's own words (both clients define them); the rest are ours.
+  -- A skin's name is its name in every language (owner, 2026-11-10): never translated, and not the
+  -- client's words for the factions either.
+  local SKIN_NAMES = { goldcap = "GoldCap", forever = "Forever", pixel = "Pixel", parchment = "Parchment",
+    horde = "Horde", alliance = "Alliance", midnight = "Midnight", classic = "Classic", leather = "Leather" }
   local function skinName(id)
-    if id == "horde" then return _G.FACTION_HORDE or "Horde" end
-    if id == "alliance" then return _G.FACTION_ALLIANCE or "Alliance" end
-    local names = {
-      goldcap = GC.L["GoldCap"], forever = GC.L["Forever"], pixel = GC.L["Pixel"],
-      parchment = GC.L["Parchment"], midnight = GC.L["Midnight"], classic = GC.L["Classic"],
-      leather = GC.L["Leather"],
-    }
-    return names[id] or GC.L["GoldCap"]
+    return SKIN_NAMES[id] or SKIN_NAMES.goldcap
   end
 
   local function skinSetting()

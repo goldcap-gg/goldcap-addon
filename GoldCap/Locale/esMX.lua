@@ -339,13 +339,6 @@ GC.Locales.esMX = {
   ["Reload now"] = "Recargar ahora",
   ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
     "no se pudo aplicar la apariencia elegida; esta sesión usa la apariencia GoldCap",
-  ["GoldCap"] = "GoldCap",
-  ["Forever"] = "Forever",
-  ["Pixel"] = "Píxel",
-  ["Parchment"] = "Pergamino",
-  ["Midnight"] = "Midnight",
-  ["Classic"] = "Clásico",
-  ["Leather"] = "Cuero",
   ["Last post may still go up. Wait a minute"] = "Aún puede publicarse. Espera un minuto",
   ["Level 40 reached: %s to go."] = "Nivel 40 alcanzado: aún te faltan %s.",
   ["Last result: %ds ago"] = "Último resultado: hace %ds",
