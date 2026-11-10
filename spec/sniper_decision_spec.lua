@@ -127,9 +127,11 @@ describe("SniperDecision", function()
     assertReason(result, "velocity_too_low")
   end)
 
-  it("accepts the exact sold-per-day floor of three", function()
+  it("avoids nine sold a day and accepts the exact floor of ten", function()
+    local low = validInput(); low.market.soldPerDay = 9
+    assert.equal("AVOID", evaluate(low).status)
     local input = validInput()
-    input.market.soldPerDay = 3
+    input.market.soldPerDay = 10
     input.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 3000001, quantity = 1 } }
     assert.equal("SAFE", evaluate(input).computedStatus)
   end)
@@ -146,9 +148,11 @@ describe("SniperDecision", function()
     assert.equal("SAFE", evaluate(validInput()).computedStatus)
   end)
 
-  it("avoids a trend at minus ten but not minus nine", function()
-    local falling = validInput(); falling.market.trend24hPct = -10
+  it("avoids a trend at minus thirty but not minus twenty-nine", function()
+    local falling = validInput(); falling.market.trend24hPct = -30
     assert.equal("AVOID", evaluate(falling).status)
+    local dipped = validInput(); dipped.market.trend24hPct = -29
+    assert.equal("SAFE", evaluate(dipped).computedStatus)
     assert.equal("SAFE", evaluate(validInput()).computedStatus)
   end)
 
@@ -541,7 +545,7 @@ describe("SniperDecision", function()
 
     it("names nothing when another gate refuses as well", function()
       local input = broke()
-      input.market.trend24hPct = -10 -- market_falling
+      input.market.trend24hPct = -30 -- market_falling
       local result = evaluate(input)
       assertReason(result, "capital_limit")
       assertReason(result, "market_falling")
@@ -683,7 +687,7 @@ describe("SniperDecision", function()
 
   it("orders reasons by confidence, market risk, book, capital, and profit", function()
     local input = validInput()
-    input.market.observations = 11; input.market.trend24hPct = -10
+    input.market.observations = 11; input.market.trend24hPct = -30
     input.walletCopper = 0
     local result = evaluate(input)
     assert.same({ "price_history_sparse", "market_falling", "capital_limit" }, result.reasons)
@@ -731,12 +735,13 @@ describe("SniperDecision", function()
 
     it("names each hard gate a discovery row can never pass", function()
       assert.same({ "listings_too_low" }, screen({ listings = 2 }))
-      assert.same({ "velocity_too_low" }, screen({ soldPerDay = 2 }))
+      assert.same({ "velocity_too_low" }, screen({ soldPerDay = 9 }))
       local noVelocity = screenable(); noVelocity.soldPerDay = nil
       assert.same({ "velocity_missing" }, GC.SniperDecision.PreScreen(noVelocity, config))
       assert.same({ "sell_through_too_low" }, screen({ sellThroughBps = 6999 }))
       assert.same({ "liquidity_confidence_low" }, screen({ liquidityConfidence = 69 }))
-      assert.same({ "market_falling" }, screen({ trend24hPct = -10 }))
+      assert.same({ "market_falling" }, screen({ trend24hPct = -30 }))
+      assert.same({}, screen({ trend24hPct = -29 }))
       assert.same({ "stress_exit_missing" }, screen({ stressUnit = 0 }))
     end)
 
@@ -755,7 +760,7 @@ describe("SniperDecision", function()
     -- Evaluate floors its demand cap at 1, so the cap alone can never make a row hopeless; the
     -- only way it reaches zero is a velocity the gates above already reject.
     it("leaves a thin but qualifying market alone rather than inventing a demand limit", function()
-      assert.same({}, screen({ soldPerDay = 3, currentQty = 100000000 }))
+      assert.same({}, screen({ soldPerDay = 10, currentQty = 100000000 }))
     end)
 
     it("fails closed on input it cannot read", function()
@@ -774,7 +779,7 @@ describe("SniperDecision", function()
       -- A garbage value is not an excuse to stop braking: discovery clamps rather than fails,
       -- the same way it clamps the demand fields it is handed raw.
       local broken = { maxDailyDemandShare = 0.02, maxQuantity = 200, dumpTrendPct = "lots" }
-      assert.same({ "market_falling" }, GC.SniperDecision.PreScreen(screenable({ trend24hPct = -10 }), broken))
+      assert.same({ "market_falling" }, GC.SniperDecision.PreScreen(screenable({ trend24hPct = -30 }), broken))
     end)
   end)
 
@@ -798,10 +803,20 @@ describe("SniperDecision", function()
       assert.equal(1, cap(200, 2000, 0))
     end)
 
+    it("buys up to 5% of a day's sales, and no more however the setting reads", function()
+      local function at(share)
+        return GC.SniperDecision.DemandCap({ soldPerDay = 5000, currentQty = 5000, madBps = 250 },
+          { maxDailyDemandShare = share, maxQuantity = 5000 }, 0)
+      end
+      assert.equal(106, at(0.05))
+      assert.equal(106, at(0.5))
+    end)
+
     it("floors at 1 rather than reaching zero", function()
       -- A thin market (soldPerDay barely above the velocity floor, deep stock) still returns a
       -- buyable quantity, never a zero that would make the row look like it has no cap at all.
-      assert.equal(1, cap(3, 1000000, 0))
+      assert.equal(1, cap(10, 1000000, 0))
+      assert.equal(0, cap(9, 1000000, 0))
     end)
 
     it("caps at config.maxQuantity regardless of how permissive the raw arithmetic is", function()
@@ -1059,8 +1074,8 @@ describe("SniperDecision", function()
       assert.equal(2307692, deflated.exitUnit) -- floor(3000000 / 1.3)
     end)
 
-    it("refuses a falling market at the player's own threshold, not a baked-in 10", function()
-      -- A tighter cap refuses a fall the default 10 would have allowed...
+    it("refuses a falling market at the player's own threshold, not a baked-in one", function()
+      -- A tighter cap refuses a fall the default 30 would have allowed...
       local strict = validInput()
       strict.market.trend24hPct = -6
       strict.config.dumpTrendPct = 5
@@ -1076,10 +1091,12 @@ describe("SniperDecision", function()
       assert.equal("SAFE", allowed.computedStatus)
       assertNoReason(allowed, "market_falling")
 
-      -- Unset keeps the long-standing 10.
+      -- Unset is the default, 30.
       local default = validInput()
-      default.market.trend24hPct = -10
+      default.market.trend24hPct = -30
       assertReason(evaluate(default), "market_falling")
+      default.market.trend24hPct = -29
+      assertNoReason(evaluate(default), "market_falling")
     end)
 
     it("fails closed on a malformed dumpTrendPct", function()

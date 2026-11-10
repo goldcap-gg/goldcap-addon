@@ -351,7 +351,7 @@ describe("CancelQueue", function()
     it("leaves retail's advice as it was: no forfeit, the same lot is a repost at the queue's head", function()
       local positions = meat({ 40 })
       assert.equal("repost", positions[1].recommendation.action)
-      assert.is_nil(positions[1].ownedLots[1].cancelWorth)
+      assert.is_true(positions[1].ownedLots[1].cancelWorth) -- the relist puts it lower, and costs nothing
       local entries = GC.CancelQueue.Build(positions, { undercutPct = 0 })
       assert.equal(1, #entries)
       assert.equal(777, entries[1].auctionID)

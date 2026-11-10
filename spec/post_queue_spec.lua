@@ -503,6 +503,36 @@ describe("PostQueue", function()
       assert.equal("queued", with(n - 19, 0))
     end)
 
+    -- A slow item's post comes back unsold several times for each time it sells, and every one
+    -- of those loses its deposit: the gain has to cover them all, not one.
+    it("asks a slow seller's gain to cover the deposits lost before it sells", function()
+      local positions = pair()
+      local n = net(positions[1])
+      local function with(perDay, deposit)
+        positions[1].pacePerDay = perDay
+        local entries, skipped = GC.PostQueue.Build(positions, { depositFor = function() return deposit end })
+        return entries[1] and "queued" or skipped[1].reason
+      end
+      local d = math.floor(n / 8) -- 8 deposits fit in the gain, 9 do not
+      assert.is_true(d >= 2)
+      -- No pace known, or a busy item: one deposit, as before.
+      assert.equal("queued", with(nil, n - 1))
+      assert.equal("below_deposit", with(nil, n))
+      assert.equal("queued", with(300, n - 1))
+      -- Under 1 a day: 8 unsold posts for each sale.
+      assert.equal("below_deposit", with(0.5, d + 1))
+      assert.equal("queued", with(0.5, math.floor((n - 1) / 8)))
+      -- 1-3 a day 4, 3-10 a day 3, 10-30 a day 2, 30-300 a day one and a half.
+      assert.equal("below_deposit", with(2, math.ceil(n / 4)))
+      assert.equal("queued", with(2, math.floor((n - 1) / 4)))
+      assert.equal("below_deposit", with(5, math.ceil(n / 3)))
+      assert.equal("queued", with(5, math.floor((n - 1) / 3)))
+      assert.equal("below_deposit", with(20, math.ceil(n / 2)))
+      assert.equal("queued", with(20, math.floor((n - 1) / 2)))
+      assert.equal("below_deposit", with(100, math.ceil(n * 2 / 3)))
+      assert.equal("queued", with(100, math.floor((n - 1) * 2 / 3)))
+    end)
+
     it("holds an item that keeps coming back", function()
       local positions = pair()
       local function with(rounds, opts, rule)

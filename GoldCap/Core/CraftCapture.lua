@@ -129,6 +129,19 @@ function GC.CraftCapture.Plan(session)
       end
     end
   end
+  -- No result at all: the client told the session nothing, which on WoW: Forever is every craft
+  -- (owner's save, 2026-11-10: ten sessions, ten "no-output", none with a result on record, and
+  -- every crafted item "no cost"). The rise in the recipe's own outputs between the session's two
+  -- counts is then what it made, read the way the reagents' fall is read. Only then: where the
+  -- client does report, its results are the count, and a reward it also reported stays ignored.
+  if #session.results == 0 and type(session.beforeOutputs) == "table" and type(session.afterOutputs) == "table" then
+    for itemID in pairs(allowed) do
+      local opened, closed = session.beforeOutputs[itemID], session.afterOutputs[itemID]
+      if isExactInteger(opened) and isExactInteger(closed) and closed > opened then
+        produced[itemID] = closed - opened
+      end
+    end
+  end
   local outputs = sortedTotals(produced)
   if #outputs == 0 then return nil, "no-output" end
 
@@ -653,6 +666,13 @@ local function spendUncosted(session, reagents, now)
   end
 end
 
+-- The ids a recipe can make, as Plan reads them: for the bag counts of a session's outputs.
+local function outputsOf(recipe)
+  if type(recipe.outputs) == "table" then return recipe.outputs end
+  if isPositiveInteger(recipe.outputItemID) then return { [recipe.outputItemID] = true } end
+  return {}
+end
+
 local function remember(outcome)
   outcomes[#outcomes + 1] = outcome
   while #outcomes > RECENT_CAP do table.remove(outcomes, 1) end
@@ -666,6 +686,7 @@ local function close(now)
   local outcome = { recipeID = session.recipe.recipeID, at = now,
     outputItemID = session.recipe.outputItemID }
   session.after = driver.countsFor(session.recipe.candidates)
+  session.afterOutputs = driver.countsFor(outputsOf(session.recipe))
 
   local plan, reason = GC.CraftCapture.Plan(session)
   if not plan then
@@ -774,6 +795,7 @@ function GC.CraftCapture.OnCastSent(spellID, now)
   current = {
     recipe = recipe,
     before = driver.countsFor(recipe.candidates),
+    beforeOutputs = driver.countsFor(outputsOf(recipe)),
     results = {},
     lastAt = now,
     key = table.concat({ "craft", recipe.recipeID, now, sessionSeq }, ":"),
@@ -794,5 +816,14 @@ end
 --- open. Settles the run once it has gone quiet.
 function GC.CraftCapture.Tick(now)
   if not current or not isExactInteger(now) then return end
+  -- A craft still being cast has made nothing yet. On retail a result arrives inside the quiet
+  -- seconds and keeps the session open; on WoW: Forever none does and the cast itself runs longer
+  -- than they do (owner's client, 2026-11-10: a session settled three seconds after its cast was
+  -- sent, its reagents and its output exactly as it had found them). The quiet seconds count from
+  -- the cast's end.
+  if driver and type(driver.casting) == "function" and driver.casting() == true then
+    current.lastAt = now
+    return
+  end
   if now - current.lastAt >= QUIET_SECONDS then close(now) end
 end

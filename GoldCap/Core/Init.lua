@@ -177,7 +177,9 @@ GC.DEFAULTS = {
       -- Anti-dump gate (Sniper v2): units are whole percent, matching the
       -- import string's signed trend field; a deal whose 24h market-value
       -- trend is <= -dumpTrendPct is capped below GOOD, see DealMath.Evaluate.
-      dumpTrendPct = 10,
+      dumpTrendPct = 30,
+      -- Stamped here for a fresh database; migrateSniperDumpTrend stamps it for an existing one.
+      dumpTrendVersion = 1,
       -- How long a posted auction runs: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration`
       -- argument C_AuctionHouse.PostCommodity/PostItem take. 2 preserves what the Sell tab
       -- had hardcoded, so an existing save keeps posting exactly as it did and needs no
@@ -189,7 +191,9 @@ GC.DEFAULTS = {
       -- would buy structure nobody reads at the cost of a second accessor.
       postDuration = 2,
       maxCapitalShare = 0.05,
-      maxDailyDemandShare = 0.02,
+      maxDailyDemandShare = 0.05,
+      -- Stamped here for a fresh database; migrateSniperDemandShare stamps it for an existing one.
+      demandShareVersion = 1,
       maxQuantity = 200,
       minimumProfitCopper = 50000,
       -- foreverMinimumProfitCopper: undeclared here on purpose (Task S, UI/SettingsFrame.lua's
@@ -403,6 +407,28 @@ local function migrateSniperTierProfit(db)
   sniper.tierProfitVersion = 1
 end
 
+-- "Dump-trend cap %" shipped as 10 and is 30 now (GC.SniperDecision.DUMP_TREND_PCT has the
+-- measurement). Same contract as the two above: only the exact old default moves, a value the
+-- player typed stays, and the stamp keeps it to once.
+local function migrateSniperDumpTrend(db)
+  local settings = type(db) == "table" and db.settings or nil
+  local sniper = type(settings) == "table" and settings.sniper or nil
+  if type(sniper) ~= "table" or sniper.dumpTrendVersion ~= nil then return end
+  if sniper.dumpTrendPct == 10 then sniper.dumpTrendPct = 30 end
+  sniper.dumpTrendVersion = 1
+end
+
+-- The share of a day's sales one buy may take went from 2% to 5% (Core/SniperDecision.lua's
+-- MAX_DAILY_DEMAND_SHARE). It has no settings control, so a saved 0.02 is the old default and
+-- moves once; anything else was set by hand and stays.
+local function migrateSniperDemandShare(db)
+  local settings = type(db) == "table" and db.settings or nil
+  local sniper = type(settings) == "table" and settings.sniper or nil
+  if type(sniper) ~= "table" or sniper.demandShareVersion ~= nil then return end
+  if sniper.maxDailyDemandShare == 0.02 then sniper.maxDailyDemandShare = 0.05 end
+  sniper.demandShareVersion = 1
+end
+
 -- Batch-1's rail consumed 76px of every window's content area, so a width a
 -- player chose before the rail shows 76px less list than they chose it for.
 -- One-time: hand those 76px back. 1100 mirrors WIN.RESIZE_MAX_WIDTH.
@@ -489,6 +515,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     migrateSniperProfitFloor(GoldCapDB)
     migrateSniperTierProfit(GoldCapDB)
+    migrateSniperDumpTrend(GoldCapDB)
+    migrateSniperDemandShare(GoldCapDB)
     local sniper = GoldCapDB.settings and GoldCapDB.settings.sniper or nil
     if type(sniper) == "table" then migrateSniperWindowWidth(sniper) end
     migrateSniperDialogDetails(GoldCapDB)
@@ -634,6 +662,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
         -- reports nothing. Opening one mid-run would move a count for reasons that are not the
         -- craft; the FIFO cover check is the backstop, since a jump like that is not something
         -- the player's recorded batches can pay for.
+        -- Whether the player is casting right now: a craft still on its cast bar has made
+        -- nothing yet (CraftCapture.Tick).
+        casting = function()
+          if type(UnitCastingInfo) ~= "function" then return false end
+          local ok, spellName = pcall(UnitCastingInfo, "player")
+          return ok and spellName ~= nil
+        end,
         countsFor = function(candidates)
           local fn = (C_Item and C_Item.GetItemCount) or GetItemCount
           local counts = {}

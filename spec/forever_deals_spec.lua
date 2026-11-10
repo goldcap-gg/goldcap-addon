@@ -61,36 +61,41 @@ describe("ForeverDeals", function()
     -- the AH value, and two prices are under the thin-market guard's three (review 2026-11-07).
     local UNDERCUT = "50,200,10,;0x30 50x170|50,50,2"
     local function sold(sales, perDay, median)
-      return function() return { units = perDay * 7, sales = sales, median = median or 100, p25 = 95, perDay = perDay } end
+      return function() return { units = perDay * 7, sales = sales, median = median or 100, p25 = 95, perDay = perDay, hours = 168 } end
     end
 
     it("finds a big undercut the listings alone never show", function()
       commodity[1] = true
       assert.equal(0, #D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = function() return 0 end })))
-      local rows = D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = function() return 0 end, salesFor = sold(20, 20) }))
+      local rows = D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = function() return 0 end, salesFor = sold(300, 120) }))
       assert.equal(1, #rows)
       local r = rows[1]
-      assert.same({ "market", 30, 1500, 100, "sold", 20, 40 },
+      assert.same({ "market", 30, 1500, 100, "sold", 120, 30 },
         { r.forever, r.qty, r.capTotal, r.refUnit, r.refSource, r.soldPerDay, r.maxUnits })
       assert.equal(1321, r.profit) -- resold at 99c, under the 100c level left: 2970 - 149 cut - 1500
     end)
 
-    it("lists nothing sold under three times, however cheap", function()
+    it("lists nothing sold under 40 times a day, however cheap", function()
       commodity[765] = true
       local silverleaf = { [765] = "10,4062,200,;0x165 5x100 8x3797|0,8,15" }
       local zero = function() return 0 end
       assert.equal(1, #D.Build(fold(silverleaf), ctx({ depositFor = zero })))  -- no tape: the listings
-      assert.equal(0, #D.Build(fold(silverleaf), ctx({ depositFor = zero, salesFor = sold(2, 50, 30) })))
+      -- A week of tape: 279 sales is 39.9 a day, 280 is 40.
+      assert.equal(0, #D.Build(fold(silverleaf), ctx({ depositFor = zero, salesFor = sold(279, 700, 30) })))
+      assert.equal(1, #D.Build(fold(silverleaf), ctx({ depositFor = zero, salesFor = sold(280, 700, 30) })))
+      -- Two days of tape: 80 sales is 40 a day already.
+      assert.equal(1, #D.Build(fold(silverleaf), ctx({ depositFor = zero,
+        salesFor = function() return { units = 1400, sales = 80, median = 30, perDay = 700, hours = 48 } end })))
       assert.equal(0, #D.Build(fold(silverleaf), ctx({ depositFor = zero,
         salesFor = function() return { units = 0, sales = 0, perDay = 0 } end })))
     end)
 
-    it("takes no more than two days of what sells", function()
+    it("takes no more than a quarter of a day of what sells", function()
       commodity[1] = true
       local zero = function() return 0 end
-      -- 5 a day: 10 units at most, and the cheapest level alone holds 30.
-      assert.equal(0, #D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = zero, salesFor = sold(20, 5) })))
-      assert.equal(1, #D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = zero, salesFor = sold(20, 15) })))
+      -- 119 a day: 29 units at most, and the cheapest level alone holds 30.
+      assert.equal(0, #D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = zero, salesFor = sold(300, 119) })))
+      assert.equal(1, #D.Build(fold({ [1] = UNDERCUT }), ctx({ depositFor = zero, salesFor = sold(300, 120) })))
     end)
   end)
 
@@ -157,6 +162,33 @@ describe("ForeverDeals", function()
         referenceFor = crowd(1000, 4000) })))                              -- under 20 units listed
       assert.equal(0, #D.Build(fold(entry), ctx({ depositFor = deposit,     -- the crowd saw under 20
         referenceFor = function() return { value = 1000, source = "crowd", at = 4000, scanners = 1, qty = 19 } end })))
+    end)
+  end)
+
+  describe("Build, a lot under the vendor price on an item that resells for far more", function()
+    -- 5 at 8c, 100 at 20c, 300 at 1s; a vendor pays 13c and it sells at 1s, 420 a day.
+    local DEEP = "8,405,5,;0x5 12x100 80x300|12,92,3"
+    local sells = function() return { sales = 300, median = 100, perDay = 420, hours = 168 } end
+
+    it("is the market row when that pays more than the five units a vendor would take", function()
+      vendor[2589], commodity[2589] = 13, true
+      local rows = D.Build(fold({ [2589] = DEEP }),
+        ctx({ depositFor = function() return 0 end, salesFor = sells }))
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.equal("market", r.forever)
+      assert.equal(105, r.qty)          -- the vendor's 5 and the 100 at 20c
+      assert.equal(2040, r.capTotal)
+      assert.equal(7835, r.profit)      -- 99c x105 - 5% - 2040
+    end)
+
+    it("stays the vendor row when the resale pays less", function()
+      vendor[2589], commodity[2589] = 13, true
+      local rows = D.Build(fold({ [2589] = DEEP }), ctx({ depositFor = function() return 0 end,
+        salesFor = function() return { sales = 300, median = 100, perDay = 1, hours = 168 } end }))
+      assert.equal(1, #rows)
+      assert.equal("vendor", rows[1].forever)
+      assert.equal(25, rows[1].profit)
     end)
   end)
 
@@ -373,10 +405,22 @@ describe("ForeverDeals", function()
       assert.equal(1000, thick[1].refUnit); assert.equal("crowd", thick[1].refSource)
     end)
 
-    it("prefers a vendor deal when both hold", function()
+    it("takes the resale when both hold and it pays more", function()
+      -- A vendor pays 41c: 6 units make 36c there. Resold under the 1s level they make far more.
       commodity[2592], vendor[2592] = true, 41
       local rows = D.Build(fold({ [2592] = WOOL }), marketCtx())
+      assert.equal(1, #rows)
+      assert.equal("market", rows[1].forever)
+      assert.is_true(rows[1].profit > 36)
+    end)
+
+    it("prefers a vendor deal when both hold and it pays no less", function()
+      -- A vendor pays 95c: the same 6 units make 360c there, more than their resale.
+      commodity[2592], vendor[2592] = true, 95
+      local rows = D.Build(fold({ [2592] = WOOL }), marketCtx())
+      assert.equal(1, #rows)
       assert.equal("vendor", rows[1].forever)
+      assert.equal(360, rows[1].profit)
     end)
 
     it("falls through to a market row when the vendor row fails the minimum profit", function()
@@ -691,11 +735,11 @@ describe("ForeverDeals", function()
     end)
 
     it("names the units a day's sales allow, for the live Check to hold its buy to", function()
-      GC.Data = { ForeverSales = function() return { units = 140, sales = 30, median = 20, p25 = 18, perDay = 20 } end }
+      GC.Data = { ForeverSales = function() return { units = 420, sales = 300, median = 20, p25 = 18, perDay = 60, hours = 168 } end }
       GC.ForeverValue.CommodityDeposit = function() return 0 end
       local ceiling = (function() D.Rows(clock); return D.CeilingFor(2589) end)()
       assert.equal("market", ceiling.kind)
-      assert.equal(40, ceiling.maxUnits)
+      assert.equal(15, ceiling.maxUnits) -- a quarter of 60 a day
       assert.equal(20, ceiling.exitUnit)
     end)
 
@@ -761,10 +805,15 @@ describe("ForeverDeals", function()
       assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
         D.CeilingFor(2592))
       assert.is_true(GC.db.commodityByItem[2592])   -- remembered, as the Sell tab remembers it
-      -- No deposit quoted, no row: still fail-closed.
+      -- The client stops quoting: the quotes it gave for these buys stand (GC.ForeverValue's
+      -- session memory), and the row with them.
       _G.C_AuctionHouse.CalculateCommodityDeposit = function() return nil end
       saved = { at = 6000, items = saved.items }
       D.Rows(clock + 1)
+      assert.equal(2, D.CeilingFor(2592).depositUnit)
+      -- A buy it never quoted has no deposit, and no row: still fail-closed.
+      saved = { at = 7000, items = { [2592] = "30,100,5,;0x4 10x3 60x24 10x30 10x40|70,80,5" } }
+      D.Rows(clock + 2)
       assert.is_nil(D.CeilingFor(2592))
       _G.C_AuctionHouse = nil
     end)

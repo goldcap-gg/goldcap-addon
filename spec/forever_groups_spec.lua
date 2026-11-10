@@ -73,12 +73,23 @@ describe("ForeverDeals, followed groups", function()
       assert.equal(0, #D.Build(fold({ [1] = BOOK }), ctx({ groupFor = followed("Herbs", 40, 100) })))
     end)
 
-    it("marks a vendor row of a followed item, and keeps it a vendor row", function()
-      vendor[1] = 50
+    it("marks a vendor row of a followed item, and keeps it a vendor row while a vendor pays more", function()
+      -- A vendor pays 96c: 50 units make 4100c there, against 4050c resold at the group's 1s.
+      vendor[1] = 96
       local rows = D.Build(fold({ [1] = BOOK }), ctx({ groupFor = followed("Herbs", 40, 100) }))
       assert.equal(1, #rows)
       assert.same({ "vendor", "Herbs", true, nil }, { rows[1].forever, rows[1].capGroup, rows[1].capFollowed,
         rows[1].refSource })
+    end)
+
+    it("is the group's row when its resale pays more than a vendor does", function()
+      -- A vendor pays 50c: 1800c there, 4050c resold.
+      vendor[1] = 50
+      local rows = D.Build(fold({ [1] = BOOK }), ctx({ groupFor = followed("Herbs", 40, 100) }))
+      assert.equal(1, #rows)
+      assert.same({ "market", "Herbs", true, "group" }, { rows[1].forever, rows[1].capGroup, rows[1].capFollowed,
+        rows[1].refSource })
+      assert.equal(4050, rows[1].profit)
     end)
 
     it("marks nothing without a followed group", function()

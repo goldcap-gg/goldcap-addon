@@ -165,7 +165,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
   local fv = opts.forever
   if type(fv) == "table" then
     local verdict = GC.ForeverValue and GC.ForeverValue.Verdict
-      and GC.ForeverValue.Verdict(v.mv, fv.vendorUnit, fv.depositUnit, v.gear == true) or nil
+      and GC.ForeverValue.Verdict(v.mv, fv.vendorUnit, fv.depositUnit, v.gear == true, fv.perDay) or nil
     if verdict == "ah" then
       lines[#lines + 1] = { kind = "verdict", tone = "good", text = GC.L["Sell it on the AH"] }
     elseif verdict == "ah_nodeposit" then
@@ -226,6 +226,11 @@ local function addBlock(tooltip, itemID, now, heading, shown)
   local forever = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
     and GC.ForeverValue and { vendorUnit = GC.ForeverValue.VendorUnit(itemID),
       depositUnit = GC.ForeverValue.DepositUnit(itemID) } or nil
+  -- ...and how fast the house sells the item, which decides how many deposits the gain must cover.
+  if forever then
+    local sales = GC.Data.ForeverSales and GC.Data.ForeverSales(itemID) or nil
+    forever.perDay = type(sales) == "table" and sales.perDay or nil
+  end
   local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,

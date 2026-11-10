@@ -13,6 +13,18 @@ describe("ForeverValue", function()
   describe("Verdict", function()
     local V
     before_each(function() V = GC.ForeverValue.Verdict end)
+    -- 1000c on the AH is 950 after the cut, 850 over a vendor's 100.
+    it("holds a slow seller's gain to the deposits it loses before it sells, as the Sell queue does", function()
+      helper.loadModule("Core/PostQueue.lua", GC)
+      assert.equal("ah", V(1000, 100, 120, false))          -- no pace known: one deposit
+      assert.equal("ah", V(1000, 100, 120, false, 500))     -- a busy item: one deposit
+      assert.equal("deposit", V(1000, 100, 120, false, 0.5)) -- under 1 a day: eight, 960
+      assert.equal("ah", V(1000, 100, 106, false, 0.5))      -- 848
+      assert.equal("deposit", V(1000, 100, 213, false, 2))   -- 1-3 a day: four, 852
+      assert.equal("ah", V(1000, 100, 212, false, 2))        -- 848
+      assert.equal("deposit", V(1000, 100, 567, false, 100)) -- 30-300 a day: one and a half, 850.5
+      assert.equal("ah", V(1000, 100, 566, false, 100))      -- 849
+    end)
     it("sends to the vendor what the AH pays no more for, after its cut", function()
       assert.equal("vendor", V(100, 95, 5, false))    -- floor(95) - 95 = 0
     end)
@@ -82,6 +94,67 @@ describe("ForeverValue", function()
     assert.is_nil(GC.ForeverValue.CommodityDepositUnit(2589))
     GC.db.settings.sniper.postDuration = "48"
     assert.equal(2, GC.Flips.PostDurationIndex())
+  end)
+
+  -- The client forgets. On WoW: Forever (owner's client, 2026-11-10, a probe of 56 board builds
+  -- from one unchanged scan) C_Item.GetItemInfo answered for an item at one build and not at the
+  -- next, five seconds on: the items with a quality went 138 to 184 and back, the board's rows 2
+  -- to 8 and back, and 2,740 of 4,710 items never had one when asked. A vendor price and a quality
+  -- are the item's own and never change, so the first answer is kept.
+  it("keeps an item's vendor price and quality once the client has answered", function()
+    GC.db = {}
+    local answers = true
+    _G.C_Item = { GetItemInfo = function(id)
+      if not answers or id ~= 2589 then return nil end
+      return "Linen Cloth", nil, 1, 5, 0, "Trade Goods", "Cloth", 20, "", 0, 13
+    end }
+    assert.equal(13, GC.ForeverValue.VendorUnit(2589))
+    answers = false
+    assert.equal(13, GC.ForeverValue.VendorUnit(2589))
+    assert.equal(1, GC.ForeverValue.Quality(2589))
+    assert.is_nil(GC.ForeverValue.VendorUnit(2590))
+    assert.is_nil(GC.ForeverValue.Quality(2590))
+    -- Saved with the account, so the next session starts with it.
+    local GC2 = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Flips.lua", GC2)
+    helper.loadModule("Core/ForeverValue.lua", GC2)
+    GC2.db = GC.db
+    assert.equal(1, GC2.ForeverValue.Quality(2589))
+    assert.equal(13, GC2.ForeverValue.VendorUnit(2589))
+  end)
+
+  -- The same forgetting, measured on the build that kept the item's own figures (owner's client,
+  -- 2026-11-10): from one scan, with every other answer steady, the client quoted a deposit for 45
+  -- of 53 asks at one build and 5 of 28 at the next, and the commodity rows went 8, 0, 8, 0.
+  it("keeps a commodity deposit quote for the session once the client has given it", function()
+    local answers = true
+    _G.C_AuctionHouse = { CalculateCommodityDeposit = function(_, duration, quantity)
+      if not answers then return nil end
+      return 100 * duration + quantity
+    end }
+    assert.equal(210, GC.ForeverValue.CommodityDeposit(2589, 10))
+    answers = false
+    assert.equal(210, GC.ForeverValue.CommodityDeposit(2589, 10))
+    assert.is_nil(GC.ForeverValue.CommodityDeposit(2589, 11)) -- never quoted
+    assert.is_nil(GC.ForeverValue.CommodityDeposit(2590, 10))
+    -- Another post duration is another quote.
+    GC.db = { settings = { sniper = { postDuration = 3 } } }
+    assert.is_nil(GC.ForeverValue.CommodityDeposit(2589, 10))
+    answers = true
+    assert.equal(310, GC.ForeverValue.CommodityDeposit(2589, 10))
+  end)
+
+  it("keeps a quality for an item no vendor buys", function()
+    GC.db = {}
+    local answers = true
+    _G.C_Item = { GetItemInfo = function()
+      if not answers then return nil end
+      return "Thing", nil, 2, 5, 0, "Trade Goods", "Other", 20, "", 0, 0
+    end }
+    assert.is_nil(GC.ForeverValue.VendorUnit(7))
+    answers = false
+    assert.is_nil(GC.ForeverValue.VendorUnit(7))
+    assert.equal(2, GC.ForeverValue.Quality(7))
   end)
 end)
 

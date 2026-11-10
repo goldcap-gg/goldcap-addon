@@ -395,7 +395,7 @@ function FIT.need(key, deck)
       FIT.width(10, (GC.L["%s+ ahead"]):format(count)),
       FIT.width(10, (GC.L["%s under you"]):format(count)))
     if stand > 0 then FIT.cache.price = math.max(FIT.cache.price or 0, stand + ROW.MARKS_W) end
-    local margin = math.max(FIT.width(11, GC.L["no cost"]), FIT.width(11, "+9999%"))
+    local margin = math.max(FIT.width(11, GC.L["no cost"]), FIT.width(11, (GC.L["no cost for %d"]):format(999)), FIT.width(11, "+9999%"))
     if margin > 0 then FIT.cache.gross = math.max(FIT.cache.gross or 0, margin) end
     -- A few pixels of air: an exactly-fitting string sits flush against its neighbour.
     for columnKey, width in pairs(FIT.cache) do

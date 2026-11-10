@@ -103,6 +103,25 @@ end
 --      the item came back unsold that many rounds in a row, or the post would earn under the
 --      minimum after the cut, the vendor and the deposit.
 --
+-- How many posts of an item come back unsold for each one that sells, doubled to stay whole, by
+-- the units a day the house sells of it (position.pacePerDay, WoW: Forever's sale tape). Each of
+-- those loses its deposit, so `below_deposit` holds the gain to that many deposits, where it held
+-- it to one. Measured over every lot the 24 houses posted at their item's cheapest ask or under
+-- (wow-auction's scripts/analytics/forever-sell-bands.sql, to 2026-11-08, 2 million lots): 7.8
+-- unsold for each sale under 1 a day, 4.0 at 1-3, 3.1 at 3-10, 2.1 at 10-30, 1.6 and 1.3 at
+-- 30-300, and under one from there. No pace known, or a busy item: one deposit, as before.
+local UNSOLD_PER_SALE_X2 = { { 1, 16 }, { 3, 8 }, { 10, 6 }, { 30, 4 }, { 300, 3 } }
+
+local function unsoldPerSaleX2(perDay)
+  if type(perDay) ~= "number" or perDay ~= perDay or perDay < 0 then return 2 end
+  for _, step in ipairs(UNSOLD_PER_SALE_X2) do
+    if perDay < step[1] then return step[2] end
+  end
+  return 2
+end
+-- The tooltip's verdict weighs the same deposits (Core/ForeverValue.lua's Verdict).
+GC.PostQueue.UnsoldPerSaleX2 = unsoldPerSaleX2
+
 -- Returns reason, unit, value -- unit/value are only meaningful when reason is nil.
 local function evaluate(position, opts)
   if position.unresolved or position.protectedAction == false or position.invalid then
@@ -171,7 +190,9 @@ local function evaluate(position, opts)
   local deposit = opts and opts.depositFor and opts.depositFor(position, postable) or nil
   if exact(deposit) then
     local vendorTotal = positive(vendorUnit) and mulExact(vendorUnit, postable) or 0
-    if vendorTotal and value - math.ceil(value / 20) - vendorTotal <= deposit then
+    -- Twice the gain against twice the deposits lost before the lot sells (unsoldPerSaleX2).
+    if vendorTotal and (value - math.ceil(value / 20) - vendorTotal) * 2
+        <= deposit * unsoldPerSaleX2(position.pacePerDay) then
       return "below_deposit"
     end
     -- WoW: Forever only (opts.minimumProfit): what is left after the cut, the vendor and the

@@ -137,8 +137,9 @@ local function readRefs(body, medians, listingsInto)
 end
 
 -- F (GCM1 only): a realm item that trades, `itemId=refCopper=sales7d=saleRealms7d`. refCopper is
--- the median price per unit it SOLD for over the last 7 days across the region's realms (the
--- site's realm sales tape), with the sales and realms behind it. All four positive. Anchored per
+-- the price a deal on it is measured against: the low quarter of what a unit SOLD for over the
+-- last 7 days across the region's realms (the site's realm sales tape; the median until site
+-- 1.74.1), with the sales and realms behind it. All four positive. Anchored per
 -- token like M: a malformed token drops itself and is not counted.
 local function readFlips(body, into)
   local n = 0

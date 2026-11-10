@@ -1,5 +1,44 @@
 # GoldCap
 
+## 0.27.1 (2026-11-10)
+
+- Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
+  the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- Sell: a row where only some units have a cost now says how many do not ("no cost for 4")
+  instead of a bare "no cost".
+- WoW: Forever: an item you craft now has a cost in Sell, worked out from the reagents it used.
+  It read "no cost" for every craft.
+- WoW: Forever: the Deals list no longer flickers, with rows leaving and coming back every few
+  seconds, and it now weighs items it used to skip. The game kept forgetting item details the list
+  needs; GoldCap now remembers them.
+- Sell: Cancel no longer offers a lot that already stands where Post would put it. A lot posted
+  one step above the cheapest price, past a short queue, was called undercut and offered for a
+  cancel straight after.
+- Sell: the suggested price climbs above the cheapest lot only past a short queue. Lots posted
+  behind more than two hours of sales sold inside a day less often than lots at the cheapest
+  price, so the limit is now two hours instead of six. WoW: Forever is unchanged.
+- Sniper: a buy can now be up to two and a half times bigger. It used to take at most 2% of what
+  an item sells in a day; a week of real sales showed 5% resells inside a day nearly as often, so
+  that is the new limit. Your max quantity and gold limits still apply.
+- Sniper: a price that fell in the last day no longer rules a buy out by itself. Three weeks of
+  real prices showed those buys resell as well as any other, so the "Dump-trend cap %" setting now
+  starts at 30 instead of 10. If you changed it yourself, your number stays.
+- Sniper: an item has to sell at least 10 a day to be bought for resale, where it was 3. Slower
+  ones reached their resale price less than half the time.
+- WoW: Forever: an Under market row now needs an item that sells about 40 times a day. For slower
+  items a cheap lot was nearly always the new price, not a bargain, and four in five such buys
+  lost money. The board shows fewer rows, and the ones it shows resell far more often.
+- WoW: Forever: an Under market buy takes at most a quarter of a day of the item's sales, where it
+  took up to two days. What you buy you have to sell again, and the market almost never took two
+  days of an item at the full price inside a day.
+- WoW: Forever: SELL holds back more posts of slow sellers. An item that sells under one a day
+  comes back unsold about eight times for each time it sells, and every return loses its deposit.
+  A post now has to be worth the deposits it is likely to lose, not just one. Busy items post as
+  before. The item's tooltip says the same: it no longer reads "Sell it on the AH" for a post SELL
+  holds back.
+- WoW: Forever: when a lot sits under the vendor price on an item that resells for much more, the
+  Deals board now offers the bigger buy, not only the few units a vendor would take.
+
 ## 0.27.0 (2026-11-10)
 
 - Skins: pick how GoldCap's windows look in Settings, DISPLAY, Skin. Nine to choose from: GoldCap

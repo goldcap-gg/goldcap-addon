@@ -93,6 +93,26 @@ describe("CraftCapture session", function()
     assert.is_nil(crafted())
   end)
 
+  -- WoW: Forever (owner's client, 2026-11-10, a probe of one craft): the session closed three
+  -- seconds after the cast was sent with its reagents and its output exactly as it found them,
+  -- 15 and 6 and 1. A craft there takes longer to cast than the three quiet seconds, and with no
+  -- result arriving to keep the session open it was settled before anything had been made.
+  it("holds a session open while the craft is still being cast, and reads it off the bags after", function()
+    local casting = true
+    local d = driver()
+    d.casting = function() return casting end
+    GC.CraftCapture.SetDriver(d)
+    GC.CraftCapture.OnCastSent(RECIPE_SPELL, 100)
+    GC.CraftCapture.Tick(105)
+    assert.is_true(GC.CraftCapture.HasOpenSession())
+    counts[10], counts[500] = 15, 1                        -- the cast ends: 5 mats gone, 1 made
+    casting = false
+    GC.CraftCapture.Tick(106)
+    assert.is_true(GC.CraftCapture.HasOpenSession())       -- the quiet seconds start at the cast's end
+    GC.CraftCapture.Tick(109)
+    assert.equal(500, crafted().originalTotal)             -- 5 mats at 100
+  end)
+
   it("drops a session that produced nothing", function()
     GC.CraftCapture.OnCastSent(RECIPE_SPELL, 100)
     counts[10] = 10                                        -- an interrupted craft

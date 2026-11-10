@@ -61,6 +61,39 @@ describe("Trigger", function()
   end)
 end)
 
+describe("Trigger, a buy of many units", function()
+  local GC
+  local settings = { minimumProfitCopper = 50000, minimumRoi = 0.10,
+    maxDailyDemandShare = 0.02, maxQuantity = 200 }
+  -- A 4g commodity selling 20,000 a day with 20,000 listed: the demand cap plans 180 units.
+  local cloth = { mv = 40000, stressUnit = 40000, sold = 20000, currentQty = 20000 }
+
+  before_each(function()
+    GC = helper.loadModule("Core/SniperDecision.lua")
+    helper.loadModule("Core/Trigger.lua", GC)
+  end)
+
+  it("spreads the minimum profit over the units the buy plans, not over one", function()
+    -- netExit = 38000; byProfit = 38000 - 50000 / 180 = 37722.2; byRoi = 38000 / 1.10 = 34545.4
+    assert.equal(34545, GC.Trigger.For(cloth, settings))
+  end)
+
+  it("plans no more units than are listed", function()
+    -- 10 listed: byProfit = 38000 - 50000 / 10 = 33000, stricter than the ROI floor
+    assert.equal(33000, GC.Trigger.For(cloth, settings, 10))
+  end)
+
+  it("takes the listed units for stock when the value carries none", function()
+    local bare = { mv = 40000, stressUnit = 40000, sold = 20000 }
+    assert.equal(GC.Trigger.For(cloth, settings, 20000), GC.Trigger.For(bare, settings, 20000))
+  end)
+
+  it("stays a one-unit floor for an item with no measured sales", function()
+    assert.is_nil(GC.Trigger.For({ mv = 40000, stressUnit = 40000 }, settings))
+    assert.equal(140000, GC.Trigger.For({ mv = 250000, stressUnit = 200000 }, settings))
+  end)
+end)
+
 describe("Trigger.RealmReference", function()
   local GC
 

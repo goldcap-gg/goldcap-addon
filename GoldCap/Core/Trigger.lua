@@ -1,15 +1,32 @@
 local _, GC = ...
 
 -- Sniper fast loop, phase 1 (docs/superpowers/specs/2026-09-10-sniper-fast-loop-design.md
--- §2 Trigger): the highest unit price at which one unit could still clear the player's own
--- floor, computed from the import alone -- no order book. A pre-filter for Core/BookPass.lua,
+-- §2 Trigger): the highest unit price at which the buy the board plans could still clear the
+-- player's own floor, computed from the import alone -- no order book. A pre-filter for Core/BookPass.lua,
 -- never a verdict: the live ladder (SniperDecision.Evaluate) still decides everything the
 -- purchase path reads. nil whenever the import carries nothing to compute from (no V fact at
 -- all -- mv or stressUnit missing/non-positive), or when no positive price clears both the
 -- flat profit floor and the ROI floor -- in either case the item can never register a hit.
 GC.Trigger = {}
 
-function GC.Trigger.For(value, settings)
+-- How many units the buy this trigger arms would take: the demand cap the board row and the live
+-- Check plan by (GC.SniperDecision.DemandCap), held to the units listed when the caller knows them
+-- (`listedQty`, a browse row's totalQuantity, which also stands in for stock the value does not
+-- carry, as Core/FullScan.lua's RowsFromBrowse has it). One unit for anything the cap does not
+-- answer for: no measured sales, a realm item, a reference alone.
+local function plannedUnits(value, settings, listedQty)
+  local decision = GC.SniperDecision
+  if not (decision and decision.DemandCap and decision.MarketFromValue) then return 1 end
+  local listed = type(listedQty) == "number" and listedQty >= 1 and listedQty or nil
+  local market = decision.MarketFromValue(value)
+  market.currentQty = market.currentQty or listed
+  local units = decision.DemandCap(market, settings, 0)
+  if type(units) ~= "number" or units ~= units or units < 1 then return 1 end
+  if listed and listed < units then units = math.floor(listed) end
+  return units
+end
+
+function GC.Trigger.For(value, settings, listedQty)
   if type(value) ~= "table" or type(settings) ~= "table" then return nil end
   local mv = value.mv
   local stressUnit = value.stressUnit
@@ -23,7 +40,10 @@ function GC.Trigger.For(value, settings)
   -- Same cap SniperDecision.Evaluate applies to its own exit price.
   local exit = math.min(stressUnit, mv)
   local netExit = exit * 0.95 -- the AH cut; the deposit is quoted live later, by the ladder
-  local byProfit = netExit - minimumProfitCopper
+  -- The minimum profit is per BUY, as the Check holds it (SniperDecision.Evaluate, on the whole
+  -- fill): spread over the units the buy plans. Held to one unit it never armed a commodity under
+  -- 5g 26s at the shipped 5g minimum, and asked 30% off a 20g one the ROI floor passes at 14%.
+  local byProfit = netExit - minimumProfitCopper / plannedUnits(value, settings, listedQty)
   local byRoi = netExit / (1 + minimumRoi)
   local trigger = math.min(byProfit, byRoi)
   if trigger <= 0 then return nil end

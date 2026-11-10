@@ -75,6 +75,29 @@ describe("CraftCapture.Plan", function()
     assert.equal("no-output", reason)
   end)
 
+  -- WoW: Forever (owner's save, 2026-11-10): ten sessions, ten "no-output", not one result on
+  -- record. TRADE_SKILL_ITEM_CRAFTED_RESULT did not reach the session there, so every crafted item
+  -- read "no cost". With no result at all, the rise in the recipe's own outputs between the
+  -- session's two counts is what it made, as the fall in its reagents is what it spent.
+  it("reads the output off the bags when the client reported no result", function()
+    local plan = GC.CraftCapture.Plan(session({ results = {},
+      beforeOutputs = { [500] = 1 }, afterOutputs = { [500] = 3 } }))
+    assert.same({ { itemID = 500, quantity = 2 } }, plan.outputs)
+  end)
+
+  it("still refuses a session with no result and no more of the output than before", function()
+    local plan, reason = GC.CraftCapture.Plan(session({ results = {},
+      beforeOutputs = { [500] = 1 }, afterOutputs = { [500] = 1 } }))
+    assert.is_nil(plan)
+    assert.equal("no-output", reason)
+  end)
+
+  it("trusts the client's results over the bags when it reported any", function()
+    local plan = GC.CraftCapture.Plan(session({ results = { { itemID = 500, quantity = 5 } },
+      beforeOutputs = { [500] = 0 }, afterOutputs = { [500] = 9 } }))
+    assert.same({ { itemID = 500, quantity = 5 } }, plan.outputs)
+  end)
+
   it("refuses a session that consumed nothing", function()
     local plan, reason = GC.CraftCapture.Plan(session({ after = { [10] = 20, [11] = 8 } }))
     assert.is_nil(plan)

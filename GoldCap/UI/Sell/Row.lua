@@ -61,7 +61,10 @@ rowTag = function(position, reason, notOnHand)
     tag, tone = ROW_TAG_TEXT[reason] and GC.L[ROW_TAG_TEXT[reason]] or nil, ROW_TAG_TONE[reason]
     if tag and reason == "low_profit" then tag = tag:format(formatCell(GC.Sell.MinimumProfit())) end
   end
-  local uncosted = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
+  -- Of the units held, in the bags and listed together: the quantity the coverage itself is
+  -- measured against (Core/SellPositions.lua's heldQty). Against the listed units alone, 1 in the
+  -- bags and 5 listed with a cost on 2 read "no cost for 3" (owner's client, 2026-11-10).
+  local uncosted = math.max(0, (position.heldQty or position.exposureQty or 0) - (position.knownQty or 0))
   if not tag and position.coverage ~= "COMPLETE" and not notOnHand and uncosted > 0 then
     tag = (GC.L["no cost for %d"]):format(uncosted)
   end
@@ -683,7 +686,12 @@ function Row.PaintPosition(row, entry, ctx)
   else
     -- Nothing is "no price yet"; the words are "no receipt, so the margin is not a number
     -- anybody can know". Conflating them is what made Unknown read as broken.
-    row.grossNote:SetText(rowUnit and not paidUnit and GC.L["no cost"] or "")
+    -- Some units with a cost and some without says so, with the count: a bare "no cost" there
+    -- read as nothing known, on a position whose inspector listed what two of its six had cost
+    -- (owner's client, 2026-11-10). The words are the row tag's, which a queue reason displaces.
+    local uncosted = p.coverage == "PARTIAL" and math.max(0, (p.heldQty or p.exposureQty or 0) - (p.knownQty or 0)) or 0
+    row.grossNote:SetText(rowUnit and not paidUnit
+      and (uncosted > 0 and (GC.L["no cost for %d"]):format(uncosted) or GC.L["no cost"]) or "")
     setColor(row.grossNote, Theme.color.fgDim)
   end
   -- Where rowUnit stands in the live book. The marks count price levels from the
