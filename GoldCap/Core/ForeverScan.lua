@@ -43,8 +43,13 @@ local C = {
   -- A cut replicate read merges into the saved fold (below) only while the saved fold is no
   -- older than this: otherwise every item they share would keep the OLD fold's price forever, as
   -- long as every later read happens to come back cut too. Past this, a cut read replaces the
-  -- stale fold wholesale, same as a whole one always does.
-  MERGE_MAX_AGE_SECONDS = 2 * 3600,
+  -- stale fold wholesale, same as a whole one always does. Twelve hours, where it was two: a cut
+  -- read prices an item by its lowest price alone, and one that replaced a whole scan three hours
+  -- old left the Deals board 470 floors to weigh in place of 4,792 items' lots (owner's client,
+  -- 2026-11-10). Merged, a known item keeps its lots under the floor the pass just saw
+  -- (GC.ForeverFold.Refloor), and the Check reads the live book before any buy. Half a day is one
+  -- sitting; yesterday's scan still goes.
+  MERGE_MAX_AGE_SECONDS = 12 * 3600,
   -- How many of this account's own fold stamps are remembered (rememberAt below).
   KEEP_FOLD_ATS = 8,
 }

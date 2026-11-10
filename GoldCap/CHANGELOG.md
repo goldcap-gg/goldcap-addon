@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.27.2 (unreleased)
+
+- WoW: Forever: a scan the game cuts short no longer wipes the Deals board. The board keeps the
+  lots of your last whole scan from the same sitting and updates their lowest prices, where it
+  used to throw them away and show almost nothing until the next whole scan.
+
 ## 0.27.1 (2026-11-10)
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
