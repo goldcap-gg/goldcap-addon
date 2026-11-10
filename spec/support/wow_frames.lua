@@ -106,11 +106,16 @@ end
 
 function W.Texture(parent)
   local t, s = region("Texture", parent)
-  -- TextureBase:SetTexture returns whether the client has the file; a spec lists a path it lacks in
-  -- W.missingTextures.
+  -- Measured in the client (WoW: Forever 1.60.1, skin probe 2026-11-10): SetTexture returns true
+  -- for a path the client does not have as well, and GetTextureFileID returns nil for it, a number
+  -- for a file the client has. A spec lists a path the client lacks in W.missingTextures.
   function t:SetTexture(file)
     s.file = file
-    return not W.missingTextures[file]
+    return true
+  end
+  function t:GetTextureFileID()
+    if s.file == nil or W.missingTextures[s.file] then return nil end
+    return 130000
   end
   -- TextureBase:SetAtlas(atlas [, useAtlasSize]): the game's own art by its atlas name.
   function t:SetAtlas(atlas, useAtlasSize) s.atlas, s.useAtlasSize = atlas, useAtlasSize end

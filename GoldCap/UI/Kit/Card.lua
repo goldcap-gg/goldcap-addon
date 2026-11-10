@@ -342,8 +342,10 @@ function T.Window(window, opts)
       -- The title plate over the top edge, "GoldCap" in white on it.
       local plate = border:CreateTexture(nil, "OVERLAY")
       local coords = T.CLASSIC.headerCoords
-      -- A client that has not the plate (SetTexture says so) gets the one gen_art.py draws.
-      if plate:SetTexture(T.CLASSIC.goldHeader) == false then
+      -- A client that has not the plate gets the one gen_art.py draws. SetTexture answers true for
+      -- a file the client lacks too; its file ID is nil (skin probe, WoW: Forever 2026-11-10).
+      plate:SetTexture(T.CLASSIC.goldHeader)
+      if not plate:GetTextureFileID() then
         plate:SetTexture(MEDIA .. "classic_header.png")
         plate:SetTexCoord(0, 1, 0, 1)
       else
