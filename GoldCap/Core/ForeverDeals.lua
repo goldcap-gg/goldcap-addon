@@ -44,6 +44,16 @@ local C = {
   -- time; from 100 sales in the two to three days of tape there was, 51-90%, losing 39-10%. A slow
   -- item's cheap lot is its new price, not a lot under it.
   SOLD_MIN_SALES_A_DAY = 40,
+  -- An item sold this many times a day is a deal up to BUSY_MARKET_SHARE of what it sells for,
+  -- where a slower one stays at MARKET_SHARE. On the same tape, against the reference the payload
+  -- carries since 2026-11-10 (the lowest of the week's, the last day's and the last six hours'
+  -- median) and resold at the next day's median sale: items sold 100 times a day or more returned
+  -- 39% of the gold spent on lots at 70-75% of the reference, 12% at 75-80% and at 80-85%, 2% at
+  -- 85-90%, the buy losing 18, 28, 27 and 33 times in 100; items sold 40 to 100 times a day
+  -- returned 3% and 1% at 70-75% and 75-80% and lost money above. Four times the rows for a busy
+  -- item (800 such lots a day over 24 houses against 218 at 70% or less).
+  BUSY_SALES_A_DAY = 100,
+  BUSY_MARKET_SHARE = 0.85,
   SOLD_WINDOW_HOURS = 168,           -- the window when the tape does not say (the payload's own)
   -- A buy takes at most this many days of what sells. A quarter of a day, where it was 2: what a
   -- buy takes it has to sell again, and after a cheap lot appeared the house went on to sell two
@@ -159,7 +169,8 @@ local function soldReference(sold)
       or type(sold.median) ~= "number" or sold.median <= 0 then
     return nil
   end
-  return { value = sold.median, source = "sold", perDay = sold.perDay }
+  return { value = sold.median, source = "sold", perDay = sold.perDay,
+    busy = (sold.sales or 0) * 24 >= C.BUSY_SALES_A_DAY * hours }
 end
 
 -- The buy that makes the most out of the ladder's levels at or under `limit` a unit, resold at
@@ -223,7 +234,8 @@ local function underMarket(itemID, e, ctx, isCommodity)
   local refUnit = referenceUnit(ref)
   if not refUnit then return nil end
   local net = math.floor(refUnit * KEEP)
-  local row = resaleRow(itemID, e, ctx, isCommodity, refUnit, math.min(math.floor(refUnit * C.MARKET_SHARE), net - 1),
+  local share = ref.busy and C.BUSY_MARKET_SHARE or C.MARKET_SHARE
+  local row = resaleRow(itemID, e, ctx, isCommodity, refUnit, math.min(math.floor(refUnit * share), net - 1),
     maxUnits)
   if not row then return nil end
   -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd,

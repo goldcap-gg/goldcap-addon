@@ -2066,7 +2066,37 @@ function GC.Sniper._ForeverReadout()
   if GC.ForeverDeals.MostlyFloors and GC.ForeverDeals.MostlyFloors() then
     line = line .. " · " .. GC.L["the server cut the full scan short: deals from lowest prices only"]
   end
+  -- How old the scan the rows come from is, in the item tooltip's own words. A full list can be
+  -- asked for once in a quarter of an hour, and nothing on the board said whether the rows were a
+  -- minute old or fourteen (owner, 2026-11-10: "I run it and cannot see where it is").
+  if fold and type(fold.at) == "number" then
+    local words = GC.Util.FormatElapsedWords(time() - fold.at) or GC.Util.FormatElapsedWords(0)
+    if words then line = line .. " · " .. (GC.L["your scan, %s ago"]):format(words) end
+  end
   return line
+end
+
+-- The readout's age moves with the clock, not with a fold: rebuilt every five seconds from the
+-- board's ticker, and written only while the status line still shows the readout (the rule
+-- OnForeverFold's clock follows) or the "N hidden" note, which is said once and then stood there
+-- until the next fold: the owner's board read "1 hidden: the live check refused them" through a
+-- whole scan, with the chat the only place that said one was running (2026-11-10). The note's
+-- own hold (setStatus) still keeps it its four seconds. A field, not a local: this chunk sits
+-- near its 200-local ceiling.
+function GC.Sniper._AgeReadout()
+  -- Retail has no such readout (_ForeverReadout is nil there) and leaves here every time.
+  if not frame then return end
+  local now = GetTime()
+  if now - (GC.Sniper._readoutAgedAt or 0) < 5 then return end
+  GC.Sniper._readoutAgedAt = now
+  local readout = GC.Sniper._ForeverReadout()
+  if not readout then return end
+  local showing = frame.status and frame.status.GetText and frame.status:GetText()
+  local hiddenNote = showing ~= nil and showing == GC.Sniper._hiddenShown
+  if not hiddenNote and (readout == GC.Sniper._readout and showing == GC.Sniper._ReadoutLine()) then return end
+  local stillReadout = showing ~= nil and showing == GC.Sniper._readoutShown
+  GC.Sniper._readout = readout
+  if stillReadout or hiddenNote then GC.Sniper._ShowReadout() end
 end
 
 -- Every row as tall as its item cell needs (a name that wraps grows its row instead of ending in
@@ -4885,8 +4915,10 @@ function GC.Sniper.StartBrowsePass(kind)
 end
 
 -- The Forever scan's progress on the toolbar's status line.
-function GC.Sniper.SetScanStatus(text)
-  if frame then setStatus(text) end
+-- `holdSeconds`: the line is the scan's for that long (setStatus), so the next periodic writer does
+-- not take it before it can be read.
+function GC.Sniper.SetScanStatus(text, holdSeconds)
+  if frame then setStatus(text, holdSeconds) end
 end
 
 -- ---------------------------------------------------------------------------
@@ -7385,7 +7417,8 @@ stampVerdict = function(deal, data, manual)
   -- already recomputed refusedCount, so the number quoted is the one the toggle is about to show.
   if not manual and not buyable and not unverified and not (decision and decision.needsGold)
       and not isPinned(deal.itemID) and refusedCount > 0 then
-    setStatus((GC.L["%d hidden: the live check refused them"]):format(refusedCount), 4)
+    GC.Sniper._hiddenShown = (GC.L["%d hidden: the live check refused them"]):format(refusedCount)
+    setStatus(GC.Sniper._hiddenShown, 4)
   end
 
   if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
@@ -13069,6 +13102,7 @@ function GC.Sniper.OnAuctionHouseShow()
     refreshVerifyButton()
     GC.Sniper._PaintBoardChips()
     refreshSessionText()
+    GC.Sniper._AgeReadout()
   end)
   -- Everything a Buy click's own state is written by runs on clocks of its own, never in the tick
   -- above (WoW: Forever, 3c taint fix, round 1). Each C_Timer callback is its own execution and

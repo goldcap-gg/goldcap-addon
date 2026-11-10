@@ -227,6 +227,12 @@ describe("WoW: Forever", function()
     api.GC.ForeverDeals.MostlyFloors = function() return true end
     assert.equal("deals 0 · items 2249 · the server cut the full scan short: deals from lowest prices only",
       api.GC.Sniper._ForeverReadout())
+    -- How old the scan is, in the tooltip's own words: a board that says nothing of it reads as
+    -- live a quarter of an hour on (owner, 2026-11-10: "I run it and cannot see where it is").
+    api.GC.ForeverDeals.MostlyFloors = function() return false end
+    api.GC.ForeverScan.Fold = function() return { itemCount = 2249, items = {}, at = time() - 14 * 60 } end
+    assert.equal("deals 0 · items 2249 · " .. api.GC.L["your scan, %s ago"]:format(api.GC.Util.FormatElapsedWords(14 * 60)),
+      api.GC.Sniper._ForeverReadout())
     api.GC.ForeverScan.Enabled = function() return false end
     assert.is_nil(api.GC.Sniper._ForeverReadout())
   end)

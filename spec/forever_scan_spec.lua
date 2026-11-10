@@ -254,6 +254,43 @@ describe("ForeverScan", function()
     assert.equal(now, store.fold.at)      -- stamped fresh, not the old fold's `at`
   end)
 
+  -- The owner's client, 2026-11-10: a whole scan at 19:24 (249,543 rows, 4,792 items with their
+  -- lots), then one at 22:47 the client cut at 2,048 rows, whose browse pass priced 470 items by
+  -- their lowest price alone. Three hours was past the window, the cut read replaced the whole
+  -- one, and the Deals board had nothing to weigh.
+  it("keeps a whole scan from earlier in the session under a cut read three hours later", function()
+    store.fold = { source = "replicate", region = 90, realm = "Forever", faction = "Horde",
+      ruleset = nil, at = now - (3 * 3600 + 23 * 60), rows = 9000,
+      items = { [9999] = "70,40,4,;5x10 5x30", [1000] = "70,40,4,;5x10 5x30" } }
+    d.browseAnswer = "started"
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(5000)
+    s:OnReplicateUpdate()
+    rows = {}                                    -- cut
+    runRead(s)
+    s:OnBrowsePassAbandoned({ [1000] = { floor = 60, qty = 45 } })
+    assert.equal("70,40,4,;5x10 5x30", store.fold.items[9999])        -- the whole scan's lots, kept
+    assert.equal(60, GC.ForeverFold.Decode(store.fold.items[1000]).min) -- its floor as the pass saw it now
+    assert.is_true(store.fold.partial)
+  end)
+
+  it("keeps a journal of the scan's steps in the save, the last of them only", function()
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(500)
+    assert.has_no.errors(runAll)
+    local steps = {}
+    for _, e in ipairs(store.journal) do steps[#steps + 1] = e[2] end
+    assert.equal("opened", steps[1])
+    assert.equal("asked", steps[2])
+    assert.is_truthy(table.concat(steps, ","):find("rows,read", 1, true))
+    assert.equal(now, store.journal[1][1])
+    for _ = 1, 200 do s:OnAuctionHouseClosed() end
+    assert.equal(GC.ForeverScan.C.JOURNAL_KEEP, #store.journal)
+    assert.equal("closed", store.journal[#store.journal][2])
+  end)
+
   it("stops a frame's read at its time budget, gear links included, and still finishes the dump", function()
     local ms = 0
     local s = GC.ForeverScan.New(driver({
