@@ -60,15 +60,32 @@ function GC.ForeverValue.CommodityDepositUnit(itemID)
   return nil
 end
 
+-- The client's deposit quotes, per item and "duration:quantity", for this session. The client
+-- forgets these as it forgets an item's own figures (itemInfo above): on the owner's client
+-- (2026-11-10), from one scan and with every other answer steady, it quoted 45 of 53 asks at one
+-- board build and 5 of 28 at the next, and the board's commodity rows went 8, 0, 8, 0. The last
+-- quote the client gave stands in when it gives none. Not saved: a patch may change the rule. The
+-- Post and Buy clicks ask the client themselves (Core/Flips.lua) and never read this.
+local depositQuotes = {}
+
 -- The deposit for one post of `quantity` units of a commodity, as the client quotes it. On WoW:
 -- Forever a post pays at least 1s whatever its size, and about a fifth of the vendor price a unit
 -- above that (owner's client, 2026-11-07: Linen Cloth 1s for 1 unit, 1s for 10, 2s for 100), so
 -- the 1-unit quote is a post's floor, never a unit's share of a bigger one. nil when the client
 -- does not answer.
 function GC.ForeverValue.CommodityDeposit(itemID, quantity)
+  -- The duration Core/Flips.lua's CommodityDeposit will quote at, for the key alone.
+  local duration = GC.GroupRules and GC.GroupRules.durationByItem and GC.GroupRules.durationByItem[itemID]
+  if duration ~= 1 and duration ~= 2 and duration ~= 3 then duration = GC.Flips.PostDurationIndex() end
+  local key = duration .. ":" .. tostring(quantity)
   local ok, deposit = pcall(GC.Flips.CommodityDeposit, itemID, quantity)
-  if ok and type(deposit) == "number" and deposit >= 0 then return deposit end
-  return nil
+  if ok and type(deposit) == "number" and deposit >= 0 then
+    local quotes = depositQuotes[itemID]
+    if not quotes then quotes = {}; depositQuotes[itemID] = quotes end
+    quotes[key] = deposit
+    return deposit
+  end
+  return depositQuotes[itemID] and depositQuotes[itemID][key] or nil
 end
 
 -- The tooltip's deposit: only for an item the Sell tab has seen is a commodity

@@ -805,10 +805,15 @@ describe("ForeverDeals", function()
       assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
         D.CeilingFor(2592))
       assert.is_true(GC.db.commodityByItem[2592])   -- remembered, as the Sell tab remembers it
-      -- No deposit quoted, no row: still fail-closed.
+      -- The client stops quoting: the quotes it gave for these buys stand (GC.ForeverValue's
+      -- session memory), and the row with them.
       _G.C_AuctionHouse.CalculateCommodityDeposit = function() return nil end
       saved = { at = 6000, items = saved.items }
       D.Rows(clock + 1)
+      assert.equal(2, D.CeilingFor(2592).depositUnit)
+      -- A buy it never quoted has no deposit, and no row: still fail-closed.
+      saved = { at = 7000, items = { [2592] = "30,100,5,;0x4 10x3 60x24 10x30 10x40|70,80,5" } }
+      D.Rows(clock + 2)
       assert.is_nil(D.CeilingFor(2592))
       _G.C_AuctionHouse = nil
     end)

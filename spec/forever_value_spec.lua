@@ -123,6 +123,27 @@ describe("ForeverValue", function()
     assert.equal(13, GC2.ForeverValue.VendorUnit(2589))
   end)
 
+  -- The same forgetting, measured on the build that kept the item's own figures (owner's client,
+  -- 2026-11-10): from one scan, with every other answer steady, the client quoted a deposit for 45
+  -- of 53 asks at one build and 5 of 28 at the next, and the commodity rows went 8, 0, 8, 0.
+  it("keeps a commodity deposit quote for the session once the client has given it", function()
+    local answers = true
+    _G.C_AuctionHouse = { CalculateCommodityDeposit = function(_, duration, quantity)
+      if not answers then return nil end
+      return 100 * duration + quantity
+    end }
+    assert.equal(210, GC.ForeverValue.CommodityDeposit(2589, 10))
+    answers = false
+    assert.equal(210, GC.ForeverValue.CommodityDeposit(2589, 10))
+    assert.is_nil(GC.ForeverValue.CommodityDeposit(2589, 11)) -- never quoted
+    assert.is_nil(GC.ForeverValue.CommodityDeposit(2590, 10))
+    -- Another post duration is another quote.
+    GC.db = { settings = { sniper = { postDuration = 3 } } }
+    assert.is_nil(GC.ForeverValue.CommodityDeposit(2589, 10))
+    answers = true
+    assert.equal(310, GC.ForeverValue.CommodityDeposit(2589, 10))
+  end)
+
   it("keeps a quality for an item no vendor buys", function()
     GC.db = {}
     local answers = true
