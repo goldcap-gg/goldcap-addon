@@ -64,7 +64,7 @@ read_globals = {
   -- calendar clock is realm time, `date("!*t", GetServerTime())` the same instant in UTC.
   "C_DateAndTime", "GetServerTime", "date",
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
-  "UnitName", "GetMoney",
+  "UnitName", "UnitCastingInfo", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
   "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT", "AUCTION_OUTBID_MAIL_SUBJECT",
   -- The Collect button (UI/MailCollect.lua): the take calls, the inbox refresh, the mailbox

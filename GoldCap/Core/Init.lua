@@ -662,6 +662,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
         -- reports nothing. Opening one mid-run would move a count for reasons that are not the
         -- craft; the FIFO cover check is the backstop, since a jump like that is not something
         -- the player's recorded batches can pay for.
+        -- Whether the player is casting right now: a craft still on its cast bar has made
+        -- nothing yet (CraftCapture.Tick).
+        casting = function()
+          if type(UnitCastingInfo) ~= "function" then return false end
+          local ok, spellName = pcall(UnitCastingInfo, "player")
+          return ok and spellName ~= nil
+        end,
         countsFor = function(candidates)
           local fn = (C_Item and C_Item.GetItemCount) or GetItemCount
           local counts = {}

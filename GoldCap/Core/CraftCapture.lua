@@ -816,5 +816,14 @@ end
 --- open. Settles the run once it has gone quiet.
 function GC.CraftCapture.Tick(now)
   if not current or not isExactInteger(now) then return end
+  -- A craft still being cast has made nothing yet. On retail a result arrives inside the quiet
+  -- seconds and keeps the session open; on WoW: Forever none does and the cast itself runs longer
+  -- than they do (owner's client, 2026-11-10: a session settled three seconds after its cast was
+  -- sent, its reagents and its output exactly as it had found them). The quiet seconds count from
+  -- the cast's end.
+  if driver and type(driver.casting) == "function" and driver.casting() == true then
+    current.lastAt = now
+    return
+  end
   if now - current.lastAt >= QUIET_SECONDS then close(now) end
 end
