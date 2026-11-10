@@ -234,6 +234,8 @@ end
 
 local function qualityColor(quality)
   if type(quality) ~= "number" or quality < 2 then return nil end
+  -- The skin's colour first; the game's below comes from the client's colour call before the table
+  -- (so this one site does not take the root's table fallback).
   local skinned = Theme.SkinQuality(quality)
   if skinned then return { skinned.r, skinned.g, skinned.b } end
   local api = _G.C_Item

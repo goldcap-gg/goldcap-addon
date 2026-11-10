@@ -463,60 +463,57 @@ function T.QualityMarkup(itemID, size)
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)
 end
 
+local skinQualities = {}
+
 --- The applied skin's colour for item quality `quality` ({ r, g, b, hex = "|cff......", color }), or
 -- nil when the skin sets none (only the skins whose window is light, or whose blue the game's does
--- not read on, do: Skins.lua `quality`).
+-- not read on, do: Skins.lua `quality`). Made once per skin and quality.
 function T.SkinQuality(quality)
-  local set = GC.Kit.Skins.Current().quality
-  local value = set and set[quality]
+  local skin = GC.Kit.Skins.Current()
+  local value = skin.quality and skin.quality[quality]
   if not value then return nil end
-  local c = GC.Kit.Tokens.hex(value)
-  return { r = c[1], g = c[2], b = c[3], hex = "|cff" .. value:lower(),
-    color = _G.CreateColor and _G.CreateColor(c[1], c[2], c[3], 1) or nil }
+  local made = skinQualities[skin.id]
+  if not made then made = {}; skinQualities[skin.id] = made end
+  if not made[quality] then
+    local c = GC.Kit.Tokens.hex(value)
+    made[quality] = { r = c[1], g = c[2], b = c[3], hex = "|cff" .. value:lower(),
+      color = _G.CreateColor and _G.CreateColor(c[1], c[2], c[3], 1) or nil }
+  end
+  return made[quality]
 end
 
---- The colour for an item's quality, for text on one of GoldCap's windows: an item id, or with
--- `isQuality` the quality number itself (Enum.ItemQuality; an id can be as small as one). The applied skin's own colour where it sets one for it; else the game's
--- (ITEM_QUALITY_COLORS: r, g, b, hex), uncommon and better; nil for common and poor, whose colours
--- are no brighter than the interface's own text, and when the client will not say.
-function T.QualityColor(itemOrQuality, isQuality)
-  if type(itemOrQuality) ~= "number" then return nil end
-  local quality = itemOrQuality
+--- The colour for an item's quality ({ r, g, b, hex, color }): the applied skin's own where it sets
+-- one, else the game's (ITEM_QUALITY_COLORS), for text on one of GoldCap's windows.
+--
+-- By item (an id, link or name the client takes): uncommon and better only; nil for common and poor,
+-- whose colours are no brighter than the interface's own text, and when the client will not say.
+--
+-- With `isQuality`, `quality` is the quality number itself (Enum.ItemQuality; an id can be as small
+-- as one) and every quality has a colour, nil only when the game has none for it.
+--
+-- `onBlizzard`: the text is on a Blizzard surface (a tooltip, a menu), which keeps the game's
+-- colour in every skin.
+function T.QualityColor(quality, isQuality, onBlizzard)
+  if not quality then return nil end
   if not isQuality then
     local api = _G.C_Item and _G.C_Item.GetItemQualityByID
     if not api then return nil end
-    local ok, found = pcall(api, itemOrQuality)
-    if not ok then return nil end
+    local ok, found = pcall(api, quality)
+    if not ok or type(found) ~= "number" or found < 2 then return nil end
     quality = found
   end
-  if type(quality) ~= "number" then return nil end
-  -- An item's common and poor colours are never drawn (nil, as before); only a caller that asks
-  -- by quality number, and so colours every quality, reads them from the skin.
-  if quality < 2 and not isQuality then return nil end
-  local skinned = T.SkinQuality(quality)
+  local skinned = not onBlizzard and T.SkinQuality(quality)
   if skinned then return skinned end
-  if quality < 2 then return nil end
   return _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality] or nil
-end
-
---- `text` with the colour of every item link in it set to the skin's for that item's quality, so a
--- link shown on a window reads as well as a name does. `text` unchanged under a skin that sets no
--- quality colours, and for a link whose item the client does not know.
-function T.RecolorLink(text)
-  if type(text) ~= "string" or not GC.Kit.Skins.Current().quality then return text end
-  return (text:gsub("|c%x%x%x%x%x%x%x%x(|Hitem:(%d+)[^|]*|h)", function(link, id)
-    local c = T.QualityColor(tonumber(id))
-    return c and (c.hex .. link) or nil
-  end))
 end
 
 --- `name` as a list shows an item: in its item quality's colour (uncommon and better -- the
 -- game's colour for common is pure white, brighter than anything else on these panels, so a
 -- common name stays in the interface's own foreground) with its reagent-tier pip AFTER it, so
 -- names start on one edge down a list. `name` unchanged when the client knows neither.
-function T.WithQuality(name, itemID, size)
+function T.WithQuality(name, itemID, size, onBlizzard)
   local label = tostring(name)
-  local colour = T.QualityColor(itemID)
+  local colour = T.QualityColor(itemID, false, onBlizzard)
   if colour and type(colour.hex) == "string" then label = colour.hex .. label .. "|r" end
   local markup = T.QualityMarkup(itemID, size)
   if markup == "" then return label end

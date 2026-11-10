@@ -536,7 +536,7 @@ function S._ShowTip(owner)
   local dim = B.text3
   GC.Theme.ItemTooltipOutside(owner, GC.Buy._view.container:GetParent())
   if row.known and row.commodity == false and row.itemLevel > 0 then
-    GameTooltip:SetText(tip(GC.Theme.WithQuality(nameOf(row), row.itemID)))
+    GameTooltip:SetText(tip(GC.Theme.WithQuality(nameOf(row), row.itemID, nil, true)))
     GameTooltip:AddLine(tip((GC.L["ilvl %d"]):format(row.itemLevel)), B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
   else
     GameTooltip:SetItemByID(row.itemID)

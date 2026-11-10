@@ -221,7 +221,7 @@ describe("BUY search", function()
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
       SlicedTexture = function(parent) return region("Texture", parent) end,
-      WithQuality = function(name) return name end,
+      WithQuality = function(name, _, _, onBlizzard) GC._tipOnBlizzard = onBlizzard; return name end,
       ItemTooltipOutside = function() end,
     }
     GC.db = { settings = { sniper = { buyCapPct = 130 } }, runs = {
@@ -482,6 +482,16 @@ describe("BUY search", function()
       enter("linen")
       answer(LINEN_ANSWER)
       open("Handstitched Linen Britches")
+    end)
+
+    it("names the item in its tooltip in the game's own colour, whatever the skin", function()
+      local texts = {}
+      _G.GameTooltip = { SetText = function(_, text) texts[#texts + 1] = text end, AddLine = function() end,
+        SetItemByID = function() end, Show = function() end }
+      local row = resultRow("Handstitched Linen Britches")
+      GC.BuySearch._ShowTip(row)
+      assert.is_true(GC._tipOnBlizzard)
+      assert.is_true(#texts > 0)
     end)
 
     it("arms its own item key at once: a buy search on that variant, no whole-item read", function()

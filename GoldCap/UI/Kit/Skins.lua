@@ -188,8 +188,9 @@ defs.parchment = {
     soldTile = hex("FAEECE"), soldRoad = hex("FAEECE"), soldBanner = hex("FAEECE"), soldEmpty = hex("FAEECE"),
     soldFaint = hex("6A4F30"),
   },
-  -- Every quality that can stand on paper, darkened to read on it (1, common, is the body text).
-  quality = { [0] = "474747", [1] = "2A1A0A", [2] = "0C5300", [3] = "004394", [4] = "5A1F9A", [5] = "7A2D00" },
+  -- Every quality that can stand on paper (poor to WoW token), darkened to read on it (1, common, is the body text).
+  quality = { [0] = "474747", [1] = "2A1A0A", [2] = "0C5300", [3] = "004394", [4] = "5A1F9A", [5] = "7A2D00",
+    [6] = "5E4000", [7] = "004B59", [8] = "004B59" },
   -- The window is the client's quest paper (Card.lua), not a gradient.
   paper = true,
   radius = { 5, 3, 4, 4 },

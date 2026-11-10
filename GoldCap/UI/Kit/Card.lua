@@ -280,7 +280,8 @@ function T.Window(window, opts)
   elseif skin.paper then
     -- The client's quest paper where it has the atlas (GetAtlasInfo answers; SetAtlas says nothing
     -- of its own), else the one gen_art.py draws in the skin's window colours. One untinted piece
-    -- over the whole window; the frame ring sits over its corners.
+    -- over the window, 2px in from its edge (as the leather grain is) so no square corner shows past
+    -- the ring's arc; a docked window, whose ring is gone and corners square, takes the whole of it.
     local paper = window:CreateTexture(nil, "BACKGROUND")
     local info = _G.C_Texture and _G.C_Texture.GetAtlasInfo
     if info and info("QuestBG-Parchment") then
@@ -288,8 +289,9 @@ function T.Window(window, opts)
     else
       paper:SetTexture(MEDIA .. "parchment.png")
     end
-    paper:SetAllPoints()
-    win = { fill = { paper } }
+    paper:SetPoint("TOPLEFT", window, "TOPLEFT", 2, -2)
+    paper:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -2, 2)
+    win = { fill = { paper }, paper = paper }
   else
     win = { fill = windowFill(window, K.windowTop, K.windowBottom, T.Art("card", radius)) }
   end
@@ -376,7 +378,17 @@ function T.Window(window, opts)
       return
     end
     for _, region in ipairs(frame) do setShown(region, not docked) end
-    if classic or skin.paper then return end -- the marble and the paper have no corners to square
+    if self.paper then
+      self.paper:ClearAllPoints()
+      if docked then
+        self.paper:SetAllPoints(window)
+      else
+        self.paper:SetPoint("TOPLEFT", window, "TOPLEFT", 2, -2)
+        self.paper:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -2, 2)
+      end
+      return
+    end
+    if classic then return end -- the marble has no corners to square
     for _, i in ipairs({ 1, 3, 7, 9 }) do
       local c = docked and WINDOW_PIECES[5] or WINDOW_PIECES[i]
       self.fill[i]:SetTexCoord(c[1], c[2], c[3], c[4])

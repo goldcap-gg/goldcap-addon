@@ -94,7 +94,7 @@ describe("parchment skin", function()
   it("the parchment table covers every quality and passes contrast", function()
     Skins.Apply("parchment")
     local top, bottom = rgb(K.windowTop), rgb(K.windowBottom)
-    for q = 0, 5 do
+    for q = 0, 8 do
       local c = T.SkinQuality(q)
       assert.is_table(c, "quality " .. q)
       assert.is_true(contrast(c, top) >= 4.5, ("quality %d on the lighter stop: %.2f"):format(q, contrast(c, top)))
@@ -102,12 +102,24 @@ describe("parchment skin", function()
     end
   end)
 
-  it("an item link in window text takes the skin's colour", function()
+  it("a Blizzard surface keeps the game's colour under parchment", function()
     Skins.Apply("parchment")
-    local link = "|cff1eff00|Hitem:101::::::::|h[Wolf Fang]|h|r"
-    assert.equal("|cff0c5300|Hitem:101::::::::|h[Wolf Fang]|h|r", T.RecolorLink(link))
-    Skins.Apply("goldcap")
-    assert.equal(link, T.RecolorLink(link))
+    assert.equal(GAME[2], T.QualityColor(101, false, true))
+    assert.equal(GAME[3], T.QualityColor(3, true, true))
+    assert.equal("|cff1eff00Wolf|r", T.WithQuality("Wolf", 101, nil, true))
+    assert.equal("|cff0c5300Wolf|r", T.WithQuality("Wolf", 101))
+  end)
+
+  it("the quality-number path falls back to the game's table for every quality", function()
+    Skins.Apply("forever")
+    assert.equal(GAME[0], T.QualityColor(0, true))
+    assert.equal(GAME[1], T.QualityColor(1, true))
+    assert.is_nil(T.QualityColor(7, true))
+  end)
+
+  it("a skin's colour is made once", function()
+    Skins.Apply("parchment")
+    assert.equal(T.SkinQuality(2), T.SkinQuality(2))
   end)
 
   it("the window fill is the quest paper atlas", function()
@@ -146,6 +158,22 @@ describe("parchment skin", function()
     assert.is_true(win.fill[1]:IsShown())
     win:SetDocked(false)
     assert.is_true(win.fill[1]:IsShown())
+  end)
+
+  it("the paper sits 2px in from the edge, and fills a docked window", function()
+    Skins.Apply("parchment")
+    local f = windowFrame()
+    local win = T.Window(f)
+    local points = W.state(win.fill[1]).points
+    assert.same({ "TOPLEFT", f, "TOPLEFT", 2, -2 }, points[1])
+    assert.same({ "BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2 }, points[2])
+    win:SetDocked(true)
+    assert.equal(f, W.state(win.fill[1]).allPoints)
+    assert.equal(0, #W.state(win.fill[1]).points)
+    win:SetDocked(false)
+    points = W.state(win.fill[1]).points
+    assert.same({ "TOPLEFT", f, "TOPLEFT", 2, -2 }, points[1])
+    assert.same({ "BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2 }, points[2])
   end)
 
   it("the other skins keep their gradient fill", function()
