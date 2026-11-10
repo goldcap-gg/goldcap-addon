@@ -2076,21 +2076,27 @@ function GC.Sniper._ForeverReadout()
   return line
 end
 
--- The readout's age moves with the clock, not with a fold: rebuilt every half a minute from the
+-- The readout's age moves with the clock, not with a fold: rebuilt every five seconds from the
 -- board's ticker, and written only while the status line still shows the readout (the rule
--- OnForeverFold's clock follows). A field, not a local: this chunk sits near its 200-local ceiling.
+-- OnForeverFold's clock follows) or the "N hidden" note, which is said once and then stood there
+-- until the next fold: the owner's board read "1 hidden: the live check refused them" through a
+-- whole scan, with the chat the only place that said one was running (2026-11-10). The note's
+-- own hold (setStatus) still keeps it its four seconds. A field, not a local: this chunk sits
+-- near its 200-local ceiling.
 function GC.Sniper._AgeReadout()
   -- Retail has no such readout (_ForeverReadout is nil there) and leaves here every time.
   if not frame then return end
   local now = GetTime()
-  if now - (GC.Sniper._readoutAgedAt or 0) < 30 then return end
+  if now - (GC.Sniper._readoutAgedAt or 0) < 5 then return end
   GC.Sniper._readoutAgedAt = now
   local readout = GC.Sniper._ForeverReadout()
-  if not readout or readout == GC.Sniper._readout then return end
+  if not readout then return end
   local showing = frame.status and frame.status.GetText and frame.status:GetText()
+  local hiddenNote = showing ~= nil and showing == GC.Sniper._hiddenShown
+  if not hiddenNote and (readout == GC.Sniper._readout and showing == GC.Sniper._ReadoutLine()) then return end
   local stillReadout = showing ~= nil and showing == GC.Sniper._readoutShown
   GC.Sniper._readout = readout
-  if stillReadout then GC.Sniper._ShowReadout() end
+  if stillReadout or hiddenNote then GC.Sniper._ShowReadout() end
 end
 
 -- Every row as tall as its item cell needs (a name that wraps grows its row instead of ending in
@@ -7411,7 +7417,8 @@ stampVerdict = function(deal, data, manual)
   -- already recomputed refusedCount, so the number quoted is the one the toggle is about to show.
   if not manual and not buyable and not unverified and not (decision and decision.needsGold)
       and not isPinned(deal.itemID) and refusedCount > 0 then
-    setStatus((GC.L["%d hidden: the live check refused them"]):format(refusedCount), 4)
+    GC.Sniper._hiddenShown = (GC.L["%d hidden: the live check refused them"]):format(refusedCount)
+    setStatus(GC.Sniper._hiddenShown, 4)
   end
 
   if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check

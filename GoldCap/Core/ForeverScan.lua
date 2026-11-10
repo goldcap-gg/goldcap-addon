@@ -536,6 +536,12 @@ local function notify(kind, a, b)
   if kind == "started" or kind == "done" then sayToken = sayToken + 1; sayHeld = false end
   if kind == "started" then
     GC.Print(GC.L["Scanning the auction house…"])
+    -- On the board from the press: the client takes about ten seconds to hand the list over, and
+    -- until the first "reading the auction house" line the board said nothing (owner, 2026-11-10).
+    -- Held past that wait; a progress line, which holds the line too, takes it over.
+    if GC.Sniper and GC.Sniper.SetScanStatus then
+      GC.Sniper.SetScanStatus(GC.L["Scanning the auction house…"], C.WAIT_SECONDS + 4)
+    end
   elseif kind == "closed" then
     GC.Print(GC.L["Open the Auction House first."])
   elseif kind == "cooldown" then
