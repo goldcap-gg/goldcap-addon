@@ -3302,6 +3302,12 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("no cost for 30", rows[1].grossNote.text)
       local none = topRows(GC, { stock({ coverage = "UNKNOWN", knownQty = 0 }) })
       assert.equal("no cost", none[1].grossNote.text)
+      -- Counted over the bags and the listed units together: 1 and 5, a cost on 2.
+      local held = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 2, heldQty = 6, exposureQty = 5 }) })
+      assert.equal("no cost for 4", held[1].grossNote.text)
+      GC.SellState.queueSkipped = {}
+      held = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 2, heldQty = 6, exposureQty = 5 }) })
+      assert.matches("no cost for 4", held[1].itemStock.text, 1, true) -- the tag counts the same units
     end)
 
     it("leads with a lot standing far below market, over every other tag", function()
