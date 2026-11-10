@@ -144,19 +144,26 @@ function T.RailButton(parent, iconName, labelText)
   end
 
   b.text = T.Heading(b, client and 11 or 9.5)
-  b.text:SetPoint("BOTTOM", 0, client and 1 or 7)
+  if client then
+    -- Classic: 2px under the icon, as on the board, so a larger font scale grows the label down
+    -- into the gap between buttons, never up into the icon and its glow.
+    b.text:SetPoint("TOP", b.icon, "BOTTOM", 0, -2)
+  else
+    b.text:SetPoint("BOTTOM", 0, 7)
+  end
   b.text:SetText(labelText)
 
   -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
   -- the button's whole square, so hovering a rail button drew a square around the rounded
   -- plate the active one wears (owner, Forever beta 2026-10-01).
   if client then
-    -- The client's round hilight, 46px over the 40px icon: under the cursor, and kept on the selected one.
+    -- The client's hilight over the 40px icon, at its size as on the client's own action buttons:
+    -- under the cursor, and kept on the selected one. At 46px it glowed onto the label below.
     local function hilight(layer)
       local tx = b:CreateTexture(nil, layer)
       tx:SetTexture(T.CLASSIC.hilight)
       tx:SetBlendMode("ADD")
-      tx:SetSize(46, 46)
+      tx:SetSize(40, 40)
       tx:SetPoint("CENTER", b.icon, "CENTER", 0, 0)
       return tx
     end

@@ -120,7 +120,13 @@ describe("classic skin", function()
     assert.same({ 6, 6, 6, 6 }, W.state(b.iconFrame).slice)
     assert.equal("Interface\\Buttons\\CheckButtonHilight", W.state(b.selected).file)
     assert.equal("ADD", W.state(b.selected).blend)
-    assert.equal(46, b.selected:GetWidth())
+    -- The glow covers the icon and no more, as on the client's own action buttons: at 46px it
+    -- reached 3px under the icon onto the label (owner, round B 2026-11-10).
+    assert.equal(b.icon:GetWidth(), b.selected:GetWidth())
+    assert.equal(b.icon:GetWidth(), b.highlightTexture:GetWidth())
+    -- The label hangs 2px under the icon (the board's gap), so a larger font scale grows it down.
+    local point, relativeTo, relativePoint, x, y = b.text:GetPoint(1)
+    assert.same({ "TOP", b.icon, "BOTTOM", 0, -2 }, { point, relativeTo, relativePoint, x, y })
     assert.is_false(shown(b.selected))
     b:SetActive(true)
     assert.is_true(shown(b.selected))
