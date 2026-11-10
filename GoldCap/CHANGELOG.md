@@ -4,13 +4,11 @@
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
   the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
-- WoW: Forever: when a lot sits under the vendor price on an item that resells for much more, the
-  Deals board now offers the bigger buy, not only the few units a vendor would take.
-
-## 0.27.1 (unreleased)
-
-- Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
-  the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- Sniper: a price that fell in the last day no longer rules a buy out by itself. Three weeks of
+  real prices showed those buys resell as well as any other, so the "Dump-trend cap %" setting now
+  starts at 30 instead of 10. If you changed it yourself, your number stays.
+- Sniper: an item has to sell at least 10 a day to be bought for resale, where it was 3. Slower
+  ones reached their resale price less than half the time.
 - WoW: Forever: when a lot sits under the vendor price on an item that resells for much more, the
   Deals board now offers the bigger buy, not only the few units a vendor would take.
 
