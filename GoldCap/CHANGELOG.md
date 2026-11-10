@@ -1,5 +1,13 @@
 # GoldCap
 
+## 0.27.0 (2026-11-10)
+
+- Skins: pick how GoldCap's windows look in Settings, DISPLAY, Skin. Nine to choose from: GoldCap
+  (the look you know, and the default), Forever, Pixel, Parchment, Horde, Alliance, Midnight,
+  Classic and Leather. Each brings its own frames, colours and lettering, and prices keep the same
+  clear numbers. Every skin works in retail and in WoW: Forever.
+- A new skin shows after a reload: press Reload now under the setting.
+
 ## 0.26.0 (2026-11-10)
 
 - WoW: Forever: SELL posts about as many as sell within the auction's time, from the sales the
