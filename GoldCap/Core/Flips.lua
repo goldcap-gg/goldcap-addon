@@ -394,8 +394,10 @@ end
 -- to an hour of sales queued under the lot, 63 with one to two hours, 41 with two to six, 15 with
 -- six to twelve, against 54 for a lot posted at the cheapest ask. The lots that sold went in an
 -- hour or two whatever the queue: the rest were never reached, because cheaper lots keep arriving
--- and a queue does not drain in the order it stands. Retail commodities only: a rate read off
--- WoW: Forever's own sale tape keeps six hours until its lots are measured the same way.
+-- and a queue does not drain in the order it stands. WoW: Forever's sale tape kept six hours for
+-- one release (0.27.1) and takes the two since: its queue drains worse, the newest lot at a
+-- price selling first there, and the six put 18 Linen Cloth at 25c behind 6,800 units, 3.6 hours
+-- of sales, with 96 units under the 24c level one copper below (owner's client, 2026-11-11).
 --
 -- Gone with v1: the synthetic rung one silver above the cheapest ask. It put the post behind
 -- the entire cheapest rung in exchange for one silver.
@@ -465,11 +467,7 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   end
   if not cap or cap <= marketUnit then return nil, nil, cap, capBy end
 
-  -- `opts.overcutHours`: the caller's own budget, for a sales rate the two hours were not
-  -- measured on (Core/SellPositions.lua's TAPE_OVERCUT_ABSORB_HOURS).
-  local absorb = type(opts.overcutHours) == "number" and opts.overcutHours > 0 and opts.overcutHours
-    or GC.Flips.OVERCUT_ABSORB_HOURS
-  local budget = opts.sold * absorb / 24
+  local budget = opts.sold * GC.Flips.OVERCUT_ABSORB_HOURS / 24
   -- A price weighed against the hours its queue takes to sell through (see
   -- OVERCUT_WAIT_COST_PER_HOUR). The cheapest ask, at no queue at all, is the score to beat.
   local function worth(price, queued) return GC.Flips.QueuedWorth(price, queued, opts.sold) end

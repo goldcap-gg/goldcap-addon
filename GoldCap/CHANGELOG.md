@@ -2,6 +2,10 @@
 
 ## 0.27.3 (unreleased)
 
+- WoW: Forever: SELL no longer prices a post behind a wall of cheaper lots for a copper more. It
+  climbs above the cheapest price only past a short queue, two hours of the item's sales, as on
+  retail. Linen Cloth with 6,700 units at 24c was priced at 25c behind all of them; it now goes
+  at 24c, in front.
 - WoW: Forever: an item's tooltip now weighs the deposit for the whole stack you hold, not for a
   single unit. A stack of a cheap item that pays to post read "The deposit outweighs the gain",
   because one unit posted alone would not.
