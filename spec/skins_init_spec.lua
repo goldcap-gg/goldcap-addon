@@ -4,7 +4,7 @@ describe("Skin applied at load", function()
   local GC, onEvent
 
   local function stubFrame()
-    return setmetatable({}, { __index = function(t, k)
+    return setmetatable({}, { __index = function(_, k)
       if k == "GetFrameLevel" then return function() return 1 end end
       if k == "GetHeight" then return function() return 0 end end
       if k == "GetVerticalScroll" or k == "GetVerticalScrollRange" then return function() return 0 end end

@@ -17,6 +17,7 @@ _G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 -- UI file. A spec that builds its own GC and loads a UI file with loadfile gets the same: the
 -- tokens are put on that GC first, unless it already has them.
 local realLoadfile = loadfile
+-- luacheck: push ignore 122 -- deliberately replacing loadfile itself; the wrapper is this block's job.
 function loadfile(path, ...)
   local chunk, err = realLoadfile(path, ...)
   if chunk and type(path) == "string" and path:match("^GoldCap/UI/") and not path:match("^GoldCap/UI/Kit/Tokens%.lua$") then
@@ -30,6 +31,7 @@ function loadfile(path, ...)
   end
   return chunk, err
 end
+-- luacheck: pop
 
 --- UI/Kit/*.lua, in the order both TOCs load them, right before UI/Theme.lua
 --- (spec/kit_structure_spec.lua holds the TOCs to this list). Theme.lua builds on them.
