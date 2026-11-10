@@ -322,6 +322,8 @@ GC.Locales.ruRU = {
   ["Skin"] = "Оформление",
   ["Applies after a reload"] = "Применится после перезагрузки",
   ["Reload now"] = "Перезагрузить сейчас",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "не удалось применить выбранное оформление, в этом сеансе используется оформление GoldCap",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "Пиксели",

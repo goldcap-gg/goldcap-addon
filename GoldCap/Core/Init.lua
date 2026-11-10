@@ -504,12 +504,24 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.ForeverScan then GC.ForeverScan.Init(GC.db) end
     -- Before the language and before any frame: the skin writes the palette every widget reads
     -- at construction, and the locale's font refresh must run on the skin's faces. Never written
-    -- back, so a broken stored id stays as it was.
-    if GC.Kit and GC.Kit.Skins then GC.Kit.Skins.Apply(GC.db.settings.sniper.skin) end
+    -- back, so a broken stored id stays as it was. A skin that fails to apply gives way to goldcap
+    -- (itself guarded), so the language, the data and the windows still load; the line saying so
+    -- waits for the language.
+    local skinFailed = false
+    if GC.Kit and GC.Kit.Skins then
+      local Skins = GC.Kit.Skins
+      if not pcall(Skins.Apply, GC.db.settings.sniper.skin) then
+        skinFailed = true
+        pcall(Skins.Apply, "goldcap")
+      end
+    end
     -- Before any frame is built: every widget reads its label through GC.L at construction,
     -- so the active language has to be settled first. After ApplyDefaults, because it reads
     -- settings.locale.
     if GC.ApplyLocale then GC.ApplyLocale() end
+    if skinFailed and GC.Print then
+      GC.Print(GC.L["the chosen skin could not be applied, so this session uses the GoldCap skin"])
+    end
     -- Said AFTER the language is settled, so the one line explaining a lost feature is not
     -- the only English sentence in an otherwise translated addon.
     if not acquisitionsInitialized and GC.Print then

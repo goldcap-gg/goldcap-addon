@@ -327,6 +327,8 @@ GC.Locales.ukUA = {
   ["Skin"] = "Оформлення",
   ["Applies after a reload"] = "Застосується після перезавантаження",
   ["Reload now"] = "Перезавантажити зараз",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "не вдалося застосувати вибране оформлення, у цьому сеансі використовується оформлення GoldCap",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "Пікселі",

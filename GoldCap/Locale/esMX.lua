@@ -337,6 +337,8 @@ GC.Locales.esMX = {
   ["Skin"] = "Apariencia",
   ["Applies after a reload"] = "Se aplica al recargar",
   ["Reload now"] = "Recargar ahora",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "no se pudo aplicar la apariencia elegida; esta sesión usa la apariencia GoldCap",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "Píxel",

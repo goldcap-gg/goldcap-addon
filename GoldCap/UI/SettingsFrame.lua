@@ -1222,7 +1222,7 @@ local function build(sniperFrame)
   -- Skin. Same shape as Language: a label, a ghost button showing the stored choice, a radio
   -- context menu. The skin is applied once at ADDON_LOADED, before any frame exists, so a pick is
   -- stored and then waits for a reload: the hint and its button take a row of their own that
-  -- appears with the pick.
+  -- appears with a pick other than the skin applied.
   local Skins = GC.Kit and GC.Kit.Skins
   local SWATCH = "|TInterface\\Buttons\\WHITE8X8:12:12:0:0:8:8:0:8:0:8:%d:%d:%d|t"
 
@@ -1284,9 +1284,20 @@ local function build(sniperFrame)
   local hintRow = display.rows[#display.rows]
   hintRow.hidden = true
 
+  -- The hint and its button stand while the stored pick is not the skin this session runs:
+  -- picking the applied one again takes them away.
   local function displaySkin()
     skinBtn:SetLabel(skinName(skinSetting()))
     if Theme.RefontWidget then Theme.RefontWidget(skinBtn.text) end
+    local waiting = Skins ~= nil and skinSetting() ~= Skins.Current().id
+    hintRow.hidden = not waiting
+    if waiting then
+      skinHint:Show()
+      reloadBtn:Show()
+    else
+      skinHint:Hide()
+      reloadBtn:Hide()
+    end
   end
 
   skinBtn:SetScript("OnClick", function(self)
@@ -1302,9 +1313,6 @@ local function build(sniperFrame)
         if not (GC.db and GC.db.settings and GC.db.settings.sniper) then return end
         GC.db.settings.sniper.skin = id
         displaySkin()
-        hintRow.hidden = false
-        skinHint:Show()
-        reloadBtn:Show()
         flowCard(display)
         fitContent()
       end,

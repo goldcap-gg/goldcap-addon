@@ -333,6 +333,8 @@ GC.Locales.frFR = {
   ["Skin"] = "Thème",
   ["Applies after a reload"] = "S'applique après un rechargement",
   ["Reload now"] = "Recharger maintenant",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "le thème choisi n'a pas pu être appliqué, cette session utilise le thème GoldCap",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "Pixel",

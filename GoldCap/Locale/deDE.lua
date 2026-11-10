@@ -333,6 +333,8 @@ GC.Locales.deDE = {
   ["Skin"] = "Design",
   ["Applies after a reload"] = "Wird nach einem Neuladen angewendet",
   ["Reload now"] = "Jetzt neu laden",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "das gewählte Design ließ sich nicht anwenden, diese Sitzung nutzt das GoldCap-Design",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "Pixel",

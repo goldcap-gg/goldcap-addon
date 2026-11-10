@@ -333,6 +333,8 @@ GC.Locales.itIT = {
   ["Skin"] = "Aspetto",
   ["Applies after a reload"] = "Si applica dopo un ricaricamento",
   ["Reload now"] = "Ricarica ora",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "non è stato possibile applicare l'aspetto scelto, questa sessione usa l'aspetto GoldCap",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "Pixel",

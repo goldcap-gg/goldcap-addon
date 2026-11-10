@@ -322,6 +322,8 @@ GC.Locales.zhCN = {
   ["Skin"] = "外观",
   ["Applies after a reload"] = "重新加载后生效",
   ["Reload now"] = "立即重新加载",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "无法应用所选外观，本次会话使用 GoldCap 外观",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "像素",

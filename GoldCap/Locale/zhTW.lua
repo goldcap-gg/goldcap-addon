@@ -323,6 +323,8 @@ GC.Locales.zhTW = {
   ["Skin"] = "外觀",
   ["Applies after a reload"] = "重新載入後生效",
   ["Reload now"] = "立即重新載入",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "無法套用所選外觀，本次工作階段使用 GoldCap 外觀",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "像素",

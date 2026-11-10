@@ -325,6 +325,8 @@ GC.Locales.koKR = {
   ["Skin"] = "스킨",
   ["Applies after a reload"] = "다시 불러오면 적용됩니다",
   ["Reload now"] = "지금 다시 불러오기",
+  ["the chosen skin could not be applied, so this session uses the GoldCap skin"] =
+    "선택한 스킨을 적용하지 못해 이번 세션에는 GoldCap 스킨을 사용합니다",
   ["GoldCap"] = "GoldCap",
   ["Forever"] = "Forever",
   ["Pixel"] = "픽셀",
