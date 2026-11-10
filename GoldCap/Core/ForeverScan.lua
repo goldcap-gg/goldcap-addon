@@ -539,12 +539,16 @@ local function notify(kind, a, b)
   elseif kind == "closed" then
     GC.Print(GC.L["Open the Auction House first."])
   elseif kind == "cooldown" then
-    GC.Print(GC.L["The full scan is cooling down (%d min left). Scanning by browsing instead"]:format(a))
+    local text = GC.L["The full scan is cooling down (%d min left). Scanning by browsing instead"]:format(a)
+    GC.Print(text)
+    -- On the board too, where the SCAN that was pressed is: the chat line scrolls away under the
+    -- auction house window (owner, 2026-11-10).
+    if GC.Sniper and GC.Sniper.SetScanStatus then GC.Sniper.SetScanStatus(text, 6) end
   elseif kind == "noanswer" then
     GC.Print(GC.L["The auction house did not answer the full scan. Scanning by browsing instead"])
   elseif kind == "progress" then
     if GC.Sniper and GC.Sniper.SetScanStatus then
-      GC.Sniper.SetScanStatus(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b)))
+      GC.Sniper.SetScanStatus(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b)), 1)
     end
   elseif kind == "done" then
     local timer = _G.C_Timer
