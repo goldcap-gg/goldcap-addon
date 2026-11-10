@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.27.2 (unreleased)
+## 0.27.2 (2026-11-10)
 
 - WoW: Forever: more Under market rows for the busiest items. An item that sells 100 times a day
   or more is now a deal up to 85% of what it sells for, where the line was 70% for everything. On
