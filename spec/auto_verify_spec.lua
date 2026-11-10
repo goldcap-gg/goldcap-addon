@@ -1200,7 +1200,7 @@ describe("Deals background verification", function()
     it("still hides a deal that another gate refuses as well", function()
       local falling = {}
       for k, v in pairs(PASSING) do falling[k] = v end
-      falling.trend = -10 -- market_falling, beside capital_limit
+      falling.trend = -30 -- market_falling, beside capital_limit
       local api = realEngine(falling, function() return 0 end)
       checkInBackground(api)
 
