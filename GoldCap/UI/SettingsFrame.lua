@@ -658,7 +658,12 @@ local function build(sniperFrame)
   local function flowCard(c, width)
     width = width or c:GetWidth() or 0
     local y = 24
+    -- A row hidden for now (the Skin row's reload hint) takes no room.
+    local rows = {}
     for _, row in ipairs(c.rows) do
+      if not row.hidden then rows[#rows + 1] = row end
+    end
+    for _, row in ipairs(rows) do
       local label = row.label
       if row.buttons then
         local total = 0
@@ -772,7 +777,7 @@ local function build(sniperFrame)
   automation:SetPoint("LEFT", content, "CENTER", 7, 0)
   columns.right[#columns.right + 1] = automation
 
-  local display = card(content, GC.L["DISPLAY"], 3)
+  local display = card(content, GC.L["DISPLAY"], 4)
   display:SetPoint("TOPRIGHT", automation, "BOTTOMRIGHT", 0, -12)
   display:SetPoint("LEFT", content, "CENTER", 7, 0)
   columns.right[#columns.right + 1] = display
@@ -1214,6 +1219,100 @@ local function build(sniperFrame)
   end)
 
   refreshers[#refreshers + 1] = displayLanguage
+
+  -- Skin. Same shape as Language: a label, a ghost button showing the stored choice, a radio
+  -- context menu. The skin is applied once at ADDON_LOADED, before any frame exists, so a pick is
+  -- stored and then waits for a reload: the hint and its button take a row of their own that
+  -- appears with the pick.
+  local Skins = GC.Kit and GC.Kit.Skins
+  local SWATCH = "|TInterface\\Buttons\\WHITE8X8:12:12:0:0:8:8:0:8:0:8:%d:%d:%d|t"
+
+  local skinLabel = Theme.Label(display, 12)
+  skinLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(4))
+  skinLabel:SetText(GC.L["Skin"])
+
+  local skinBtn = Theme.Button(display, "ghost", "plaque")
+  skinBtn:SetSize(120, 26)
+  skinBtn:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(4) + 3)
+
+  -- Horde and Alliance are the client's own words (both clients define them); the rest are ours.
+  local function skinName(id)
+    if id == "horde" then return _G.FACTION_HORDE or "Horde" end
+    if id == "alliance" then return _G.FACTION_ALLIANCE or "Alliance" end
+    local names = {
+      goldcap = GC.L["GoldCap"], forever = GC.L["Forever"], pixel = GC.L["Pixel"],
+      parchment = GC.L["Parchment"], midnight = GC.L["Midnight"], classic = GC.L["Classic"],
+      leather = GC.L["Leather"],
+    }
+    return names[id] or GC.L["GoldCap"]
+  end
+
+  local function skinSetting()
+    local id = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.skin
+    if Skins and Skins.defs[id] then return id end
+    return "goldcap"
+  end
+
+  -- A swatch in the skin's window colour and one in its gold, from its def (not from the tokens
+  -- in force), before the name.
+  local function skinChoiceLabel(id)
+    local color = Skins.defs[id].color
+    local function swatch(c)
+      return SWATCH:format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5),
+        math.floor(c[3] * 255 + 0.5))
+    end
+    return swatch(color.windowTop) .. swatch(color.gold) .. " " .. skinName(id)
+  end
+
+  local skinHint = Theme.Label(display, 12)
+  skinHint:SetText(GC.L["Applies after a reload"])
+  local reloadBtn = Theme.Button(display, "primary", "plaque")
+  reloadBtn:SetSize(120, 26)
+  reloadBtn:SetLabel(GC.L["Reload now"])
+  reloadBtn:SetScript("OnClick", function() ReloadUI() end)
+  skinHint:Hide()
+  reloadBtn:Hide()
+
+  if Skins then
+    -- As wide as the longest name, so no language cuts one.
+    local widest = {}
+    for _, id in ipairs(Skins.ORDER) do widest[#widest + 1] = skinName(id) end
+    if skinBtn.FitLabels then skinBtn:FitLabels(widest, 120) end
+    if reloadBtn.FitLabels then reloadBtn:FitLabels({ GC.L["Reload now"] }, 120) end
+  end
+  addRow(display, skinLabel, skinBtn, skinBtn:GetWidth() or 120, 3)
+  addButtonsRow(display, skinHint, { reloadBtn })
+  local hintRow = display.rows[#display.rows]
+  hintRow.hidden = true
+
+  local function displaySkin()
+    skinBtn:SetLabel(skinName(skinSetting()))
+    if Theme.RefontWidget then Theme.RefontWidget(skinBtn.text) end
+  end
+
+  skinBtn:SetScript("OnClick", function(self)
+    local menu = _G.MenuUtil
+    if not (menu and menu.CreateRadioContextMenu and Skins) then return end
+    local entries = {}
+    for _, id in ipairs(Skins.ORDER) do
+      entries[#entries + 1] = { GC.Util.ClientText(skinChoiceLabel(id)), id }
+    end
+    menu.CreateRadioContextMenu(self,
+      function(id) return skinSetting() == id end,
+      function(id)
+        if not (GC.db and GC.db.settings and GC.db.settings.sniper) then return end
+        GC.db.settings.sniper.skin = id
+        displaySkin()
+        hintRow.hidden = false
+        skinHint:Show()
+        reloadBtn:Show()
+        flowCard(display)
+        fitContent()
+      end,
+      unpack(entries))
+  end)
+
+  refreshers[#refreshers + 1] = displaySkin
 
   -- Every card flows its rows again whenever its width changes, and every card on a font scale
   -- change (the kit re-fonts before it calls this, so the labels measure at the new size); the
