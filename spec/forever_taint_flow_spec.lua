@@ -363,6 +363,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       Enable = function() d.enabled = true end,
       IsEnabled = function() return d.enabled end,
       SetLabel = function(_, text) d.label = text end,
+      RepaintLabel = function() end,
       text = { SetTextColor = function() end },
     }
     d.cancelBtn = { Enable = function() end, Disable = function() end, SetLabel = function() end }

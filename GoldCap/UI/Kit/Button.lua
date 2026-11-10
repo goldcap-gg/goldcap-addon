@@ -430,6 +430,14 @@ function T.Button(parent, variant, rounded)
   end
   b:SetVariant(variant)
 
+  -- The label back in the button's own colour (its variant's, Classic's gold), for a caller that
+  -- coloured it for a moment: the Deals dialog's red Confirm. A disabled button keeps its dim.
+  function b:RepaintLabel()
+    if b.dimmed then return end
+    local c = ink()
+    b.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+  end
+
   -- An outline for the one badge button that should stand out of its list (the Sell row's
   -- Post). nil takes it off again: rows are pooled, and the next kind to take the row must not
   -- inherit it. Built on first use and kept, so a render does not mint a texture per call.

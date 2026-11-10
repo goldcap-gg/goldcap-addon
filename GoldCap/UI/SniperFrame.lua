@@ -4913,9 +4913,8 @@ end
 -- ---------------------------------------------------------------------------
 
 -- Every stage that touches the primary button goes through here, so its colour can never be
--- left red from a previous requote. Gold is the dialog's own default text colour
--- (Theme.Button's "primary" text color is dark-on-gold; this only overrides for the
--- red Confirm state and back).
+-- left red from a previous requote. Without a colour the label goes back to the button's own
+-- (the skin's primary text, Classic's gold); a colour is only the red Confirm state.
 --
 -- Final fix wave (item 4): the color write is skipped while the button is DISABLED --
 -- previously this ran unconditionally, so e.g. armLoudConfirm's Disable() immediately followed
@@ -4930,7 +4929,7 @@ end
 local function setPrimaryLabel(text, r, g, b)
   dialog.primaryBtn:SetLabel(text)
   if not dialog.primaryBtn:IsEnabled() then return end
-  dialog.primaryBtn.text:SetTextColor(r or 0.05, g or 0.05, b or 0.06)
+  if r then dialog.primaryBtn.text:SetTextColor(r, g, b) else dialog.primaryBtn:RepaintLabel() end
 end
 
 local function hideRequoteBanner()

@@ -17,6 +17,17 @@ describe("kit button", function()
     return GC.Theme.Button(W.CreateFrame("Frame"), variant, rounded)
   end
 
+  it("repaints its label in the variant's own colour, and leaves a disabled one dim", function()
+    local K = GC.Kit.Tokens.color
+    local b = button("primary", "plaque")
+    b.text:SetTextColor(1, 0.35, 0.35)
+    b:RepaintLabel()
+    assert.same({ K.primaryText[1], K.primaryText[2], K.primaryText[3], 1 }, W.state(b.text).color)
+    b:Disable()
+    b:RepaintLabel()
+    assert.same({ K.text3[1], K.text3[2], K.text3[3], 1 }, W.state(b.text).color)
+  end)
+
   it("darkens while held through the engine's pushed state, not a mouse script", function()
     local b = button("ghost", "plaque")
     assert.equal(b.pressedTexture, W.state(b).pushed)
