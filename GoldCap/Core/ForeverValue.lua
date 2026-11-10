@@ -91,9 +91,18 @@ end
 -- The tooltip's deposit: only for an item the Sell tab has seen is a commodity
 -- (GC.db.commodityByItem, learned at the auction house). An item needs an ItemLocation the
 -- tooltip does not reliably carry, so it gets nil and its verdict says the deposit is not counted.
+-- A unit's share of the deposit for one post of the units the player holds: a post pays its floor
+-- once (CommodityDeposit above), so a stack's units carry a fraction of what a single unit posted
+-- alone would. With none held, or no count to read, the 1-unit quote, as before.
 function GC.ForeverValue.DepositUnit(itemID)
   local known = GC.db and GC.db.commodityByItem and GC.db.commodityByItem[itemID]
   if known ~= true then return nil end
+  local count = _G.C_Item and _G.C_Item.GetItemCount
+  local ok, held = pcall(function() return count(itemID) end)
+  if ok and type(held) == "number" and held > 1 then
+    local deposit = GC.ForeverValue.CommodityDeposit(itemID, held)
+    if deposit then return deposit / held end
+  end
   return GC.ForeverValue.CommodityDepositUnit(itemID)
 end
 

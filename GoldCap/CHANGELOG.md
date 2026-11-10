@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.27.3 (unreleased)
+
+- WoW: Forever: an item's tooltip now weighs the deposit for the whole stack you hold, not for a
+  single unit. A stack of a cheap item that pays to post read "The deposit outweighs the gain",
+  because one unit posted alone would not.
+
 ## 0.27.2 (2026-11-10)
 
 - WoW: Forever: the Deals board now says how old its scan is ("your scan, 14m ago"), and tells
