@@ -4,6 +4,8 @@
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
   the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- WoW: Forever: an item you craft now has a cost in Sell, worked out from the reagents it used.
+  It read "no cost" for every craft.
 - WoW: Forever: the Deals list no longer flickers, with rows leaving and coming back every few
   seconds, and it now weighs items it used to skip. The game kept forgetting item details the list
   needs; GoldCap now remembers them.
