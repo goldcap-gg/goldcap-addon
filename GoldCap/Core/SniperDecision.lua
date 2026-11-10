@@ -36,6 +36,15 @@ GC.SniperDecision.SPIKE_TREND_PCT = 30
 -- about a fifth of the buys that would have passed, for nothing.
 GC.SniperDecision.DUMP_TREND_PCT = 30
 
+-- The most of an item's daily sales one buy may take, before the stock listed and the stress
+-- discount shrink it further (DemandCap). 2% until 0.27.1. Measured on the week to 2026-11-09
+-- against the lots that really sold at the exit price or more in the next 24 hours (the site's
+-- scripts/analytics/sniper-exit-backtest.sql, 1,269 buys): 2% of a day's sales resold inside a day
+-- in 78-83 buys of 100, 5% in 73-78, 10% in 67-71, and half the buys could have resold a quarter of
+-- a day. A buy two and a half times the size gives up five of those hundred, and what does not
+-- resell inside the day is still stock bought under the exit.
+GC.SniperDecision.MAX_DAILY_DEMAND_SHARE = 0.05
+
 -- The fewest units a day an item must sell to be bought for resale. 10, where it was 3: over the
 -- same three weeks an item selling 3-9 a day reached its exit within a day 36-44% of the time,
 -- one selling 10-49 a day 89-92%.
@@ -139,7 +148,7 @@ local function normalizeConfig(config)
   if dump ~= nil and not isFinite(dump) then return nil end
   return {
     maxCapitalShare = clamp(capital, 0.01, 0.20),
-    maxDailyDemandShare = clamp(demand, 0, 0.02),
+    maxDailyDemandShare = clamp(demand, 0, GC.SniperDecision.MAX_DAILY_DEMAND_SHARE),
     maxQuantity = clamp(quantity, 1, GC.SniperDecision.MAX_QUANTITY_CEILING),
     minimumProfitCopper = math.max(profit, 10000),
     minimumRoi = math.max(roi, 0.10),
@@ -321,7 +330,7 @@ function GC.SniperDecision.DemandCap(market, config, visible)
     return 0
   end
   if not (isFinite(market.soldPerDay) and market.soldPerDay >= GC.SniperDecision.MIN_SOLD_PER_DAY and visible) then return 0 end
-  local demandShare = clamp(config.maxDailyDemandShare, 0, 0.02)
+  local demandShare = clamp(config.maxDailyDemandShare, 0, GC.SniperDecision.MAX_DAILY_DEMAND_SHARE)
   local maxQuantity = clamp(config.maxQuantity, 1, GC.SniperDecision.MAX_QUANTITY_CEILING)
   local mad = market.madBps or 0
   local stressDiscount = clamp(0.10 + 2 * mad / 10000, 0.10, 0.30)

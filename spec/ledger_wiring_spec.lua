@@ -153,6 +153,21 @@ describe("Ledger event wiring", function()
     assert.equal(10, _G.GoldCapDB.settings.sniper.dumpTrendPct)
   end)
 
+  it("moves the shipped 2% daily-demand share to 5% once, and keeps a hand-set one", function()
+    _G.GoldCapDB = { settings = { sniper = { maxDailyDemandShare = 0.02 } } }
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+    assert.equal(0.05, _G.GoldCapDB.settings.sniper.maxDailyDemandShare)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.demandShareVersion)
+
+    _G.GoldCapDB = { settings = { sniper = { maxDailyDemandShare = 0.01 } } }
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+    assert.equal(0.01, _G.GoldCapDB.settings.sniper.maxDailyDemandShare)
+
+    _G.GoldCapDB = { settings = { sniper = { maxDailyDemandShare = 0.02, demandShareVersion = 1 } } }
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+    assert.equal(0.02, _G.GoldCapDB.settings.sniper.maxDailyDemandShare)
+  end)
+
   it("preserves a custom sniper profit floor while versioning the setting", function()
     _G.GoldCapDB = { settings = { sniper = { minimumProfitCopper = 2500000 } } }
 

@@ -191,7 +191,9 @@ GC.DEFAULTS = {
       -- would buy structure nobody reads at the cost of a second accessor.
       postDuration = 2,
       maxCapitalShare = 0.05,
-      maxDailyDemandShare = 0.02,
+      maxDailyDemandShare = 0.05,
+      -- Stamped here for a fresh database; migrateSniperDemandShare stamps it for an existing one.
+      demandShareVersion = 1,
       maxQuantity = 200,
       minimumProfitCopper = 50000,
       -- foreverMinimumProfitCopper: undeclared here on purpose (Task S, UI/SettingsFrame.lua's
@@ -416,6 +418,17 @@ local function migrateSniperDumpTrend(db)
   sniper.dumpTrendVersion = 1
 end
 
+-- The share of a day's sales one buy may take went from 2% to 5% (Core/SniperDecision.lua's
+-- MAX_DAILY_DEMAND_SHARE). It has no settings control, so a saved 0.02 is the old default and
+-- moves once; anything else was set by hand and stays.
+local function migrateSniperDemandShare(db)
+  local settings = type(db) == "table" and db.settings or nil
+  local sniper = type(settings) == "table" and settings.sniper or nil
+  if type(sniper) ~= "table" or sniper.demandShareVersion ~= nil then return end
+  if sniper.maxDailyDemandShare == 0.02 then sniper.maxDailyDemandShare = 0.05 end
+  sniper.demandShareVersion = 1
+end
+
 -- Batch-1's rail consumed 76px of every window's content area, so a width a
 -- player chose before the rail shows 76px less list than they chose it for.
 -- One-time: hand those 76px back. 1100 mirrors WIN.RESIZE_MAX_WIDTH.
@@ -503,6 +516,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     migrateSniperProfitFloor(GoldCapDB)
     migrateSniperTierProfit(GoldCapDB)
     migrateSniperDumpTrend(GoldCapDB)
+    migrateSniperDemandShare(GoldCapDB)
     local sniper = GoldCapDB.settings and GoldCapDB.settings.sniper or nil
     if type(sniper) == "table" then migrateSniperWindowWidth(sniper) end
     migrateSniperDialogDetails(GoldCapDB)

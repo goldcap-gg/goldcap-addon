@@ -4,6 +4,9 @@
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
   the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- Sniper: a buy can now be up to two and a half times bigger. It used to take at most 2% of what
+  an item sells in a day; a week of real sales showed 5% resells inside a day nearly as often, so
+  that is the new limit. Your max quantity and gold limits still apply.
 - Sniper: a price that fell in the last day no longer rules a buy out by itself. Three weeks of
   real prices showed those buys resell as well as any other, so the "Dump-trend cap %" setting now
   starts at 30 instead of 10. If you changed it yourself, your number stays.

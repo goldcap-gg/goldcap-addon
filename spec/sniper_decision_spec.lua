@@ -803,6 +803,15 @@ describe("SniperDecision", function()
       assert.equal(1, cap(200, 2000, 0))
     end)
 
+    it("buys up to 5% of a day's sales, and no more however the setting reads", function()
+      local function at(share)
+        return GC.SniperDecision.DemandCap({ soldPerDay = 5000, currentQty = 5000, madBps = 250 },
+          { maxDailyDemandShare = share, maxQuantity = 5000 }, 0)
+      end
+      assert.equal(106, at(0.05))
+      assert.equal(106, at(0.5))
+    end)
+
     it("floors at 1 rather than reaching zero", function()
       -- A thin market (soldPerDay barely above the velocity floor, deep stock) still returns a
       -- buyable quantity, never a zero that would make the row look like it has no cap at all.
