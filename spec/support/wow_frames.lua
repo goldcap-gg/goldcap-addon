@@ -159,6 +159,9 @@ function W.FontString(parent, inherits)
   function f:SetMaxLines(n) s.maxLines = n end
   function f:SetTextColor(r, g, b, a) s.color = { r, g, b, a or 1 } end
   function f:GetTextColor() return s.color[1], s.color[2], s.color[3], s.color[4] end
+  -- FontInstance's shadow: a template's own is left nil here; a spec reads what the code set.
+  function f:SetShadowColor(r, g, b, a) s.shadowColor = { r, g, b, a or 1 } end
+  function f:SetShadowOffset(x, y) s.shadowOffset = { x, y } end
   function f:SetFont(path, size, flags) s.font = { path, size, flags }; return true end
   function f:GetFont() return s.font[1], s.font[2], s.font[3] end
   -- FontInstance:SetFontObject: the face and size of a Font object, which it also hands back by GetFont.

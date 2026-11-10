@@ -36,6 +36,20 @@ describe("parchment skin", function()
     restore()
   end)
 
+  -- Owner, round B 2026-11-10: SELL's item names and the item panel's title came up white with a
+  -- black shadow on the paper. T.Label inherits GameFontHighlightSmall (white, shadowed), and a
+  -- label whose caller sets no colour kept it.
+  it("a label starts in the paper's ink, without the template's black shadow", function()
+    Skins.Apply("parchment")
+    local fs = T.Label(W.CreateFrame("Frame"), 12)
+    assert.same({ K.text1[1], K.text1[2], K.text1[3], 1 }, W.state(fs).color)
+    assert.equal(0, W.state(fs).shadowColor[4])
+    Skins.Apply("goldcap")
+    local today = T.Label(W.CreateFrame("Frame"), 12)
+    assert.same({ 1, 1, 1, 1 }, W.state(today).color) -- the template's, as today
+    assert.is_nil(W.state(today).shadowColor)
+  end)
+
   local function luminance(c)
     local function lin(v) return v <= 0.03928 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4 end
     return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)

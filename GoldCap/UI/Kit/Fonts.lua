@@ -477,6 +477,13 @@ end
 function T.Label(parent, size)
   if displayFaces then size = math.max(size, T.MIN_DISPLAY_SIZE) end
   local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
+  -- On a light window (Parchment's paper) the template's white text and black shadow do not read:
+  -- a label starts in the window's ink, unshadowed. A caller that colours it still does.
+  if GC.Kit.Skins.Current().paper then
+    local ink = GC.Kit.Tokens.color.text1
+    fs:SetTextColor(ink[1], ink[2], ink[3], 1)
+    if fs.SetShadowColor then fs:SetShadowColor(0, 0, 0, 0) end
+  end
   if clientFonts and T.UseClientFont(fs, size) then
     -- A font object carries its size; SetScale re-applies a family at size * scale.
     widgetFonts[fs] = { role = "label", size = size, object = true }
