@@ -36,7 +36,15 @@ local C = {
   MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the AH value
   MARKET_MIN_UNITS = 20,             -- thin-market guard: units listed
   MARKET_MIN_LEVELS = 3,             -- thin-market guard: distinct prices listed
-  SOLD_MIN_SALES = 3,                -- sales in the sales window, for a sold reference
+  -- Sales a day, over the sales window, for a sold reference. 40, where the rule was 3 sales in the
+  -- whole window. Against the houses' own sales tape (wow-auction's
+  -- scripts/analytics/forever-deals-backtest.sql, all 24 houses, 2026-11-08 and 09): of the lots
+  -- listed at 70% of the reference or less, the item went on to sell at the reference within a day
+  -- 14% of the time when it had sold 3-19 times and 23% at 20-49, the buy losing 78% and 65% of the
+  -- time; from 100 sales in the two to three days of tape there was, 51-90%, losing 39-10%. A slow
+  -- item's cheap lot is its new price, not a lot under it.
+  SOLD_MIN_SALES_A_DAY = 40,
+  SOLD_WINDOW_HOURS = 168,           -- the window when the tape does not say (the payload's own)
   SOLD_DAYS = 2,                     -- a buy takes at most this many days of what sells
   -- A floor-only entry (below) is measured against the crowd's AH value only when the crowd saw
   -- the item no more than this long before the scan did.
@@ -136,12 +144,14 @@ end
 -- price the item sold at, which is what a buyer pays, and how many units go a day. Measured
 -- against the cheapest tenth of what is listed, a lot holding a tenth of the units set that price
 -- itself and never read as cheap, and a price that was only falling read as a bargain: 18 rows from
--- 3003 items (owner's scan, 2026-11-07). An item sold fewer than SOLD_MIN_SALES times in the
--- window (a partial fill of a lot is one sale) gets no row: a resale nobody buys is no deal at any
--- price. The listings' depth no longer
+-- 3003 items (owner's scan, 2026-11-07). An item sold fewer than SOLD_MIN_SALES_A_DAY times a day
+-- over the window (a partial fill of a lot is one sale) gets no row: a resale nobody buys is no
+-- deal at any price. The listings' depth no longer
 -- matters: the sales are the proof the listings were standing in for.
 local function soldReference(sold)
-  if (sold.sales or 0) < C.SOLD_MIN_SALES or type(sold.median) ~= "number" or sold.median <= 0 then
+  local hours = type(sold.hours) == "number" and sold.hours > 0 and sold.hours or C.SOLD_WINDOW_HOURS
+  if (sold.sales or 0) * 24 < C.SOLD_MIN_SALES_A_DAY * hours
+      or type(sold.median) ~= "number" or sold.median <= 0 then
     return nil
   end
   return { value = sold.median, source = "sold", perDay = sold.perDay }

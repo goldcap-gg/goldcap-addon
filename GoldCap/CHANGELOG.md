@@ -9,6 +9,9 @@
   starts at 30 instead of 10. If you changed it yourself, your number stays.
 - Sniper: an item has to sell at least 10 a day to be bought for resale, where it was 3. Slower
   ones reached their resale price less than half the time.
+- WoW: Forever: an Under market row now needs an item that sells about 40 times a day. For slower
+  items a cheap lot was nearly always the new price, not a bargain, and four in five such buys
+  lost money. The board shows fewer rows, and the ones it shows resell far more often.
 - WoW: Forever: when a lot sits under the vendor price on an item that resells for much more, the
   Deals board now offers the bigger buy, not only the few units a vendor would take.
 
