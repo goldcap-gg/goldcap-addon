@@ -33,6 +33,51 @@ describe("Sell positions", function()
     GC = helper.loadModule("Core/SellPositions.lua", GC)
   end)
 
+  -- Retail. POST climbs to a rung above the cheapest ask when the queue under it is short, and
+  -- the advice then called that very lot undercut and CANCEL offered it: a deposit and one of the
+  -- client's throttled cancels a round, for a lot standing where the addon itself put it. Lots
+  -- with up to two hours of sales queued under them sold inside a day more often than lots at the
+  -- cheapest ask (prod, 2026-11-10: 63-76 in 100 against 54).
+  describe("a lot standing on the rung POST would use", function()
+    local ladder = {
+      { unitPrice = 10000, quantity = 400 }, { unitPrice = 10500, quantity = 300 },
+      { unitPrice = 11000, quantity = 300 }, { unitPrice = 12000, quantity = 2000 },
+    }
+    local function position(listedUnit, sold)
+      GC.db = { settings = { sniper = {} } }
+      GC = helper.loadModule("Core/CancelQueue.lua", GC)
+      return build({
+        acquisitions = { batch("acq:1", "goldcap", 50, 50 * 6000, 1) },
+        ownedLots = { lot(nil, 50, listedUnit, 901, 5) },
+        quotes = { [42] = { unit = 10000, at = 9, levels = ladder } },
+        statsByItemID = { [42] = { mv = 12000, sold = sold or 12000, reach = 11000 } },
+      })[1]
+    end
+
+    it("is held, and is not in the cancel queue", function()
+      local p = position(11000)
+      assert.equal("hold", p.recommendation.action)
+      assert.equal("deposit", p.recommendation.reason)
+      local entries, skipped = GC.CancelQueue.Build({ p }, { undercutPct = 0 })
+      assert.equal(0, #entries)
+      assert.equal("deposit", skipped[1].reason)
+    end)
+
+    it("is held on a lower rung of the climb too", function()
+      assert.equal("hold", position(10500).recommendation.action)
+    end)
+
+    it("is still reposted from above that rung", function()
+      local p = position(11500)
+      assert.equal("repost", p.recommendation.action)
+      assert.equal(1, #GC.CancelQueue.Build({ p }, { undercutPct = 0 }))
+    end)
+
+    it("is still reposted when the item sells too slowly for the climb", function()
+      assert.equal("repost", position(11000, 1200).recommendation.action)
+    end)
+  end)
+
   -- The wiring, not just the capability. The first attempt at this fix worked in a spec that
   -- handed Build raw batches and did nothing at all in the client, because the client's own
   -- call site filters spent batches out before Build ever sees them.

@@ -4,6 +4,9 @@
 
 - Sniper: cheap goods that sell in bulk are now checked by themselves. Your minimum profit is for
   the whole buy, so cloth, herbs and ore no longer wait for you to press Check.
+- Sell: Cancel no longer offers a lot that already stands where Post would put it. A lot posted
+  one step above the cheapest price, past a short queue, was called undercut and offered for a
+  cancel straight after.
 - Sell: the suggested price climbs above the cheapest lot only past a short queue. Lots posted
   behind more than two hours of sales sold inside a day less often than lots at the cheapest
   price, so the limit is now two hours instead of six. WoW: Forever is unchanged.

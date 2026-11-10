@@ -671,7 +671,14 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- settled, since a relist is a post.
   local advice = position.recommendation
   local weighedUnit = fresh
-  if type(cancelForfeit) == "function" and type(advice) == "table" and advice.action == "repost" and fresh then
+  -- Retail (2026-11-10) is weighed the same way with nothing to forfeit, which leaves the one
+  -- question that has no deposit in it: would the relist put the lot any lower than it stands? POST
+  -- climbs to a rung above the cheapest ask when the queue under it is short, and the advice then
+  -- called that very lot undercut and CANCEL offered it, a cancel a round for a lot standing where
+  -- the addon had put it. Lots with up to two hours of sales queued under them sold inside a day
+  -- more often than lots at the cheapest ask (Core/Flips.lua's OVERCUT_ABSORB_HOURS).
+  local forfeitOf = type(cancelForfeit) == "function" and cancelForfeit or function() return 0 end
+  if type(advice) == "table" and advice.action == "repost" and fresh then
     local relist = type(advice.rec) == "table" and positive(advice.rec.unit) and advice.rec.unit
       or GC.Flips.SilverDown(fresh, commodity)
     -- ...or the price POST would relist those units at, when that is higher (review of 2026-11-09,
@@ -689,7 +696,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     for _, ownedLot in ipairs(position.ownedLots) do
       if ownedLot.unitPrice > fresh then
         local gain = ownedLot.unitPrice > relist and valueFor(ownedLot.quantity, ownedLot.unitPrice - relist) or 0
-        local forfeit = cancelForfeit(ownedLot)
+        local forfeit = forfeitOf(ownedLot)
         ownedLot.cancelForfeit = exact(forfeit) and forfeit or nil
         ownedLot.cancelWorth = gain ~= nil and ownedLot.cancelForfeit ~= nil and gain > ownedLot.cancelForfeit
         weighed, worthAny = true, worthAny or ownedLot.cancelWorth

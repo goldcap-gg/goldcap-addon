@@ -33,7 +33,7 @@ local _, GC = ...
 --     `small_undercut`). Urgent lots are queued whatever the threshold.
 -- And one from WoW: Forever (2026-11-06), published by decoratePosition like the advice: a lot's
 -- `cancelWorth == false` -- relisting would not win back the deposit the cancel loses -- holds
--- (`deposit`). Retail never sets it.
+-- (`deposit`). Retail sets it false only for a lot the relist would put no lower than it stands.
 GC.CancelQueue = {}
 
 local MAX_EXACT = 9007199254740991
@@ -106,7 +106,7 @@ function GC.CancelQueue.Build(positions, opts)
             if floorUnit then wanted = undercut and not lossHold
             else wanted = (advice == "repost" or depositHold) and undercut end
             local overFloor = not floorUnit or fresh >= floorUnit
-            -- Only Forever's weighing writes the verdict; nil, everywhere else, is worth it.
+            -- decoratePosition's weighing writes the verdict; nil, where nothing was weighed, is worth it.
             local worth = lot.cancelWorth ~= false
             local advised = wanted and passes and overFloor and worth
             if wanted and passes and not overFloor then heldBy.below_floor = true end
