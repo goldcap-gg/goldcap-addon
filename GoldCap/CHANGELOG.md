@@ -12,6 +12,9 @@
 - WoW: Forever: an Under market row now needs an item that sells about 40 times a day. For slower
   items a cheap lot was nearly always the new price, not a bargain, and four in five such buys
   lost money. The board shows fewer rows, and the ones it shows resell far more often.
+- WoW: Forever: an Under market buy takes at most a quarter of a day of the item's sales, where it
+  took up to two days. What you buy you have to sell again, and the market almost never took two
+  days of an item at the full price inside a day.
 - WoW: Forever: SELL holds back more posts of slow sellers. An item that sells under one a day
   comes back unsold about eight times for each time it sells, and every return loses its deposit.
   A post now has to be worth the deposits it is likely to lose, not just one. Busy items post as

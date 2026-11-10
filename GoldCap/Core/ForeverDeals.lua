@@ -45,7 +45,12 @@ local C = {
   -- item's cheap lot is its new price, not a lot under it.
   SOLD_MIN_SALES_A_DAY = 40,
   SOLD_WINDOW_HOURS = 168,           -- the window when the tape does not say (the payload's own)
-  SOLD_DAYS = 2,                     -- a buy takes at most this many days of what sells
+  -- A buy takes at most this many days of what sells. A quarter of a day, where it was 2: what a
+  -- buy takes it has to sell again, and after a cheap lot appeared the house went on to sell two
+  -- days of the item's sales at the reference or more inside a day 2% of the time, half a day 23%,
+  -- a quarter 33% (wow-auction's scripts/analytics/forever-deals-backtest.sql, 24 houses,
+  -- 2026-11-08 and 09; the upper quarter of those days sold 0.41 of a day there).
+  SOLD_DAYS = 0.25,
   -- A floor-only entry (below) is measured against the crowd's AH value only when the crowd saw
   -- the item no more than this long before the scan did.
   FLOOR_CROWD_MAX_AGE_SECONDS = 6 * 3600,
