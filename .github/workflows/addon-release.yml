@@ -13,7 +13,11 @@ jobs:
     env:
       CF_API_KEY: ${{ secrets.CF_API_KEY }}
       WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
-      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+      # No GITHUB_OAUTH: with it the packager writes the GitHub release itself, with the WHOLE
+      # changelog as its body. GitHub takes 125,000 characters; the changelog passed that at
+      # 0.28.0, the packager failed after CurseForge and Wago had the file, and the Discord post
+      # and the mirror to goldcap.gg were skipped. The release entry is a step of its own below,
+      # with this version's notes alone.
     steps:
       - uses: actions/checkout@v7
         with:
@@ -105,6 +109,20 @@ jobs:
             printf '%s\n' "$body"
             echo 'GOLDCAP_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
+
+      # The GitHub release entry: this version's section of the changelog and the zip. After the
+      # packager on purpose, and never failing the job: CurseForge and Wago already have the file
+      # by now, and a failure here must not skip the Discord post or the mirror.
+      - name: Publish the GitHub release entry
+        if: startsWith(github.ref, 'refs/tags/addon-v') && github.event_name == 'push'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          awk '/^## /{n++; if (n == 2) exit} n == 1' GoldCap/CHANGELOG.md | tail -n +2 > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" .release/*.zip --title "$GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
 
       # Tag pushes only: a workflow_dispatch run is a dry build (-d), and
       # announcing one as a release would be a lie.
