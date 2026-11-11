@@ -298,6 +298,33 @@ describe("Forever craft panel", function()
     assert.equal(GC.L["Slow seller"], P._rows[1].widget.pace.text:GetText())
   end)
 
+  -- A lot can hang at a price nobody pays. What the item sold for (the tape's median, already the
+  -- lowest of the week, the day and six hours) holds the price a craft is counted at; a listing
+  -- under it stands, since the craft has to undercut it.
+  it("counts a craft at what the item sold for when the cheapest listing asks more", function()
+    load()
+    VALUES[901] = scan(2000)
+    local median = 1500
+    GC.Data.ForeverSales = function() return { units = 100, sales = 50, median = median, perDay = 20, hours = 120 } end
+    assert.equal(1500, (CC.SellOf(901)))
+    median = 2600
+    assert.equal(2000, (CC.SellOf(901)))
+    -- Nothing sold over the tape: no median to hold it to, the listing stands and the row says slow.
+    GC.Data.ForeverSales = function() return { units = 0, sales = 0, perDay = 0, hours = 120 } end
+    assert.same({ 2000, 0 }, { CC.SellOf(901) })
+  end)
+
+  it("names the deposit a post of one takes in a row's tooltip, and that a sale returns it", function()
+    load()
+    prices()
+    VALUES[901] = scan(2000)
+    ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+    GC.ForeverValue = { CommodityDepositUnit = function(id) return id == 901 and 100 or nil end }
+    show()
+    local lines = P.RowTip(P._rows[1])
+    assert.same({ GC.L["Deposit to post one"], GC.L["%s, back when it sells"]:format(GC.Util.Money(100)) }, lines[#lines])
+  end)
+
   it("never builds the strip under the reagents: This recipe carries its three figures", function()
     load({ open = { recipeID = 1, allocations = {} } })
     prices()

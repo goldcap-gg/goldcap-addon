@@ -261,6 +261,60 @@ local function addTip(button)
   tip:Show()
 end
 
+--- What a row's tooltip says of the craft under the item's own lines, as { left, right } pairs:
+--- the reagents' cost and each reagent with its own, how many of the item sell a day and what a
+--- day of those sales would make, and on WoW: Forever the deposit a post takes. The row itself
+--- stays as it is (owner, 2026-11-11: more about a craft, nothing more on the list).
+function P.RowTip(data)
+  local CC, lines = GC.CraftClient, {}
+  local recipe, result = data.recipe, data.result
+  if type(recipe) ~= "table" or type(result) ~= "table" then return lines end
+  lines[#lines + 1] = { GC.L["Reagents for one craft"], GC.Util.Money(result.cost) }
+  for _, slot in ipairs(recipe.slots or {}) do
+    local id, unit = GC.CraftMath.SlotChoice(slot, CC.UnitOf)
+    if id then
+      lines[#lines + 1] = { ("%d × %s"):format(slot.q, (CC.MissingName({ itemID = id }))), GC.Util.Money(unit * slot.q) }
+    end
+  end
+  local sold = data.sold
+  if type(sold) == "number" then
+    if GC.CraftMath.IsSlow(sold) then
+      lines[#lines + 1] = { GC.L["Sold a day on your auction house"], GC.L["under one"] }
+    else
+      lines[#lines + 1] = { GC.L["Sold a day on your auction house"], GC.Util.Grouped(sold) }
+      -- A craft makes `per` of it: no more crafts a day than the market takes.
+      lines[#lines + 1] = { GC.L["Profit a day if you sold them all"],
+        GC.L["up to %s"]:format(GC.Util.Money(math.floor(result.profit * sold / (recipe.per or 1)))) }
+    end
+  end
+  local deposit = CC.DepositOf and CC.DepositOf(recipe.output) or nil
+  if deposit then
+    lines[#lines + 1] = { GC.L["Deposit to post one"], GC.L["%s, back when it sells"]:format(GC.Util.Money(deposit)) }
+  end
+  return lines
+end
+
+-- The row's tooltip: the item it makes as the client draws it, then P.RowTip's lines in the game
+-- tooltip's own colours.
+local function rowTip(frame, data)
+  local tip = _G.GameTooltip
+  if not (tip and data and type(data.recipe) == "table" and type(data.recipe.output) == "number") then return end
+  local B = GC.Kit.Tokens.blizzard
+  tip:SetOwner(frame, "ANCHOR_RIGHT")
+  tip:SetItemByID(data.recipe.output)
+  tip:AddLine(" ")
+  for _, line in ipairs(P.RowTip(data)) do
+    tip:AddDoubleLine(GC.Util.ClientText(line[1]), GC.Util.ClientText(line[2]),
+      B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
+  end
+  -- What a press does, for a player who has not used the list before.
+  local hint = data.unlearned and GC.L["Not learned yet. Click to see the recipe."]
+    or GC.L["Click to open the recipe. Right-click to queue it."]
+  tip:AddLine(" ")
+  tip:AddLine(GC.Util.ClientText(hint), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], true)
+  tip:Show()
+end
+
 -- A row on the glass in a hairline, with the engine's gold wash under the cursor (Parts.plate):
 -- what the recipe makes, its name over the craft's math, the profit over the pace chip, the "+".
 local function newRow(v)
@@ -297,6 +351,8 @@ local function newRow(v)
   -- A click opens the row's recipe in Blizzard's window, called from the click itself as Blizzard's
   -- recipe tracker does (CraftClient.Open); a right click offers to queue it (UI/BuyLists.lua's
   -- menu, in the client's font).
+  frame:SetScript("OnEnter", function(self) rowTip(self, row.data) end)
+  frame:SetScript("OnLeave", U.hideTip)
   frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   frame:SetScript("OnClick", function(self, button)
     local data = row.data
