@@ -279,7 +279,7 @@ describe("WoW: Forever's sale pace", function()
     local CONTEXT = { char = "A-R", region = "eu" }
     local KEY = "commodity:42"
     -- 24 a day: the one unit under the 1g40s rung is an hour of sales, inside the two the climb
-    -- allows (GC.Flips.OVERCUT_ABSORB_HOURS; 8 a day was inside the six it allowed until 0.27.3).
+    -- allows (GC.Flips.OVERCUT_ABSORB_HOURS; 8 a day was inside the six it allowed until 0.28.0).
     local TAPE = { units = 90, sales = 36, median = 15000, perDay = 24, hours = 90 }
 
     before_each(function()

@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.27.3 (unreleased)
+## 0.28.0 (2026-11-11)
 
 - Worth crafting can now list recipes you have not learned yet, with what a craft would cost and
   make, so you can see which recipe is worth buying or training. Press "Unlearned recipes too"
