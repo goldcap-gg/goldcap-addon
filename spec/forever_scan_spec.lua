@@ -457,6 +457,46 @@ describe("ForeverScan", function()
     assert.equal(50, fold.itemCount)
   end)
 
+  -- The first stage was read, its browse pass was given up (Auto switched on, the player's own
+  -- search) and the scan saved what it had; the rest of the dump lands about ten seconds after the
+  -- request, and is the scan the fifteen-minute quota was spent on.
+  it("reads the rest of the dump when it lands after the first stage's pass was given up", function()
+    d.browseAnswer = "started"
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(2 * GC.ForeverScan.C.SUSPECT_CAP)
+    runRead(s)
+    s:OnBrowsePassAbandoned({})
+    assert.is_false(s:IsBusy())
+    now = now + 9
+    rows = dump(5000)
+    s:OnReplicateUpdate()
+    assert.equal("reading", s:State())
+    runRead(s)
+    s:OnBrowsePassDone({})
+    assert.equal(5000, store.fold.rows)
+    assert.is_nil(store.fold.partial)
+  end)
+
+  it("says since when it has been busy, and nothing when idle", function()
+    d.browseAnswer = "started"
+    local s = GC.ForeverScan.New(driver())
+    assert.is_nil(s:Since())
+    s:OnAuctionHouseShow()
+    assert.equal(now, s:Since())
+    local asked = now
+    now = now + 3
+    rows = dump(5000)
+    runRead(s)
+    assert.equal(asked, s:Since())               -- one scan, one clock: the read does not restart it
+    s:OnBrowsePassDone({})
+    assert.is_nil(s:Since())
+    -- Inside the throttle the button's browse-only scan is a scan too.
+    now = now + 60
+    s:Request("button")
+    assert.equal(now, s:Since())
+  end)
+
   it("reads a later stage that lands while it is still reading the first", function()
     d.browseAnswer = "running"
     local s = GC.ForeverScan.New(driver())

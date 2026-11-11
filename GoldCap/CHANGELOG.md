@@ -2,6 +2,10 @@
 
 ## 0.27.3 (unreleased)
 
+- WoW: Forever: a full scan now shows on the board for as long as it runs, with Auto on too. The
+  SCAN button lights up and the status line counts the seconds ("Scanning the auction house…
+  7s"), then the lots being read. With Auto on, nothing told the full scan from an ordinary
+  minute of Auto.
 - WoW: Forever: SELL no longer prices a post behind a wall of cheaper lots for a copper more. It
   climbs above the cheapest price only past a short queue, two hours of the item's sales, as on
   retail. Linen Cloth with 6,700 units at 24c was priced at 25c behind all of them; it now goes

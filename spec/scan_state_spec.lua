@@ -113,13 +113,12 @@ describe("one scan state for the toolbar", function()
       local b = fakeButton(function(t) return #t * 8 end)
       local state = "SCANNING"
       autoScan.State = function() return state end
-      foreverBusy = true
       refresh({ fullScanBtn = b })
       assert.equal("SCAN", b.labels[#b.labels])
       assert.equal("ghost", b.variant)
 
       -- Between two passes the player presses SCAN, and the scan it starts runs.
-      state, foreverBusy = "IDLE", false
+      state = "IDLE"
       local createFrame = upvalue(GC.Sniper.OnAuctionHouseShow, "createFrame")
       local click = upvalue(createFrame, "onFullScanClick")
       for i = 1, math.huge do
@@ -139,14 +138,34 @@ describe("one scan state for the toolbar", function()
       -- It ends; Auto's next pass does not light the button again.
       foreverBusy = false
       refresh({ fullScanBtn = b })
-      state, foreverBusy = "SCANNING", true
+      state = "SCANNING"
+      refresh({ fullScanBtn = b })
+      assert.equal("SCAN", b.labels[#b.labels])
+      assert.equal("ghost", b.variant)
+    end)
+
+    -- Owner, WoW: Forever 2026-11-11: with Auto on, the full scan on opening the auction house ran
+    -- its fifteen seconds with the chip on "AUTO · SCANNING", as it always is, and SCAN on idle:
+    -- nothing on the board said a full scan was on. Auto's passes never make the full-scan machine
+    -- busy, so the machine being busy is this button's to say, whatever the chip reads.
+    it("lights for the full scan while the AUTO chip reads AUTO · SCANNING", function()
+      local GC = loadSniper()
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
+      local autoScan = upvalue(GC.Sniper.ScanActive, "autoScan")
+      local b = fakeButton(function(t) return #t * 8 end)
+      autoScan.State = function() return "SCANNING" end
+      foreverBusy = true
+      refresh({ fullScanBtn = b })
+      assert.equal("SCANNING…", b.labels[#b.labels])
+      assert.equal("active", b.variant)
+      foreverBusy = false
       refresh({ fullScanBtn = b })
       assert.equal("SCAN", b.labels[#b.labels])
       assert.equal("ghost", b.variant)
     end)
 
     -- Owner, WoW: Forever 11.10: Auto stood paused, the scan on opening the auction house read
-    -- 75,230 lots, and SCAN read idle the whole time. Only "AUTO · SCANNING" speaks for a scan.
+    -- 75,230 lots, and SCAN read idle the whole time.
     it("lights for a scan while the AUTO chip names a pause or a hold, or reads plain AUTO", function()
       local GC = loadSniper()
       local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
@@ -165,7 +184,8 @@ describe("one scan state for the toolbar", function()
       state, GC.Sniper._autoHeld = "WAITING", "busy"
       refresh({ fullScanBtn = b })
       assert.equal("SCANNING…", b.labels[#b.labels])
-      GC.Sniper._autoHeld = nil
+      -- The scan is over and Auto runs again: its own passes are the chip's to say.
+      GC.Sniper._autoHeld, foreverBusy, state = nil, false, "SCANNING"
       refresh({ fullScanBtn = b })
       assert.equal("SCAN", b.labels[#b.labels])
       assert.equal("ghost", b.variant)
@@ -289,6 +309,59 @@ describe("one scan state for the toolbar", function()
         if name == "view" then debug.setupvalue(refresh, i, "sell"); break end
       end
       assert.is_nil(paint(GC, function(a) a:Input("toggleOn", 1) end))
+    end)
+  end)
+
+  describe("the full scan on the status line (Forever)", function()
+    local function withStatus(GC)
+      local status = { writes = {} }
+      function status:SetText(text) self.text = text; self.writes[#self.writes + 1] = text end
+      function status:GetText() return self.text end
+      local setStatus = upvalue(GC.Sniper.SetScanStatus, "setStatus")
+      for i = 1, math.huge do
+        local name = debug.getupvalue(setStatus, i)
+        if not name then break end
+        if name == "frame" then debug.setupvalue(setStatus, i, { status = status }) end
+      end
+      return status
+    end
+
+    it("counts the seconds while the list is waited for and while the scan browses", function()
+      local GC = loadSniper()
+      GC.Util = { FormatElapsedWords = function(n) return n .. "s" end }
+      local status = withStatus(GC)
+      local run = { "waiting", 1000 }
+      GC.ForeverScan.Running = function() return run[1], run[2] end
+      _G.time = function() return 1007 end
+      GC.Sniper._ScanLine()
+      assert.equal("Scanning the auction house… 7s", status.text)
+      run = { "browsing", 1000 }
+      _G.time = function() return 1012 end
+      GC.Sniper._ScanLine()
+      assert.equal("Scanning the auction house… 12s", status.text)
+      _G.time = os.time
+    end)
+
+    it("leaves the line to the read's own progress, and alone when no scan runs", function()
+      local GC = loadSniper()
+      GC.Util = { FormatElapsedWords = function(n) return n .. "s" end }
+      local status = withStatus(GC)
+      local run = { "reading", 1000 }
+      GC.ForeverScan.Running = function() return run[1], run[2] end
+      GC.Sniper._ScanLine()
+      run = {}
+      GC.Sniper._ScanLine()
+      assert.same({}, status.writes)
+    end)
+
+    it("gives way to a line the player's own action holds", function()
+      local GC = loadSniper()
+      GC.Util = { FormatElapsedWords = function(n) return n .. "s" end }
+      local status = withStatus(GC)
+      GC.ForeverScan.Running = function() return "waiting", 1000 end
+      GC.Sniper.SetScanStatus("watching item 7", 4)
+      GC.Sniper._ScanLine()
+      assert.equal("watching item 7", status.text)
     end)
   end)
 
