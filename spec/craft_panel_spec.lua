@@ -441,6 +441,18 @@ describe("craft panel", function()
       _G.MenuUtil = was
     end)
 
+    it("are listed for their profit alone: none that loses or has no price is counted under the list", function()
+      load({ recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B", { learned = false }),
+        [3] = recipe(3, "C", { learned = false }), [4] = recipe(4, "D", { learned = false }) }, filtered = { 1, 2, 3, 4 } })
+      prices()
+      VALUES[903] = commodity(1000) -- C sells under its reagent; D's reagent has no price
+      local f = show()
+      f.worth.unlearned:GetScript("OnClick")(f.worth.unlearned)
+      assert.same({ 1, 2 }, ids())
+      assert.is_false(f.worth.unprofitable:IsShown())
+      assert.is_false(f.worth.unpriced:IsShown())
+    end)
+
     it("say when the window's own filter is what hides them, only while asked for", function()
       local f = unlearnedWorld({ showUnlearned = false })
       local v = f.worth

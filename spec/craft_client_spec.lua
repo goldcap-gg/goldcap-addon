@@ -182,6 +182,22 @@ describe("craft client", function()
     assert.same({ 11, 21 }, (CC.KnownRecipes(true)))
   end)
 
+  -- WoW: Forever (probe in the owner's client, 2026-11-11): the window lists the 6 recipes learned,
+  -- SetShowUnlearned(true) leaves it at 6, GetAllRecipeIDs answers 592 with their schematics.
+  it("reads the unlearned past the window's list where the client hands the whole profession", function()
+    local two, five = potion(), potion()
+    two.info = TS.info(2, "Two", { learned = false })
+    five.info = TS.info(5, "Five", { learned = false })
+    five.inSkillLine = false
+    load({ recipes = { [1] = potion(), [2] = two, [4] = potion(), [5] = five }, filtered = { 1 }, all = { 1, 2, 4, 5 },
+      professionID = 5, showUnlearned = false })
+    local ids, unlearned = CC.KnownRecipes(true)
+    -- 4 is learned and off the window's list: the player's own search or filter, which stands.
+    assert.same({ 1, 2 }, ids)
+    assert.same({ [2] = true }, unlearned)
+    assert.is_false(CC.UnlearnedFiltered())
+  end)
+
   it("says when the window's own filter keeps unlearned recipes off its list", function()
     load({ recipes = { [1] = potion() }, filtered = { 1 }, professionID = 5, showUnlearned = false })
     assert.is_true(CC.UnlearnedFiltered())

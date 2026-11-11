@@ -4,8 +4,10 @@
 
 - Worth crafting can now list recipes you have not learned yet, with what a craft would cost and
   make, so you can see which recipe is worth buying or training. Press "Unlearned recipes too"
-  above the list; such a row says "Not learned" and cannot be queued. If the profession window's
-  own filter hides unlearned recipes, the panel says so.
+  above the list; such a row says "Not learned" and cannot be queued. Only the ones that make a
+  profit are listed.
+- WoW: Forever: a Worth crafting row now says how many of the item sell a day on your auction
+  house, or "Slow seller" under one a day.
 - WoW: Forever: a full scan now shows on the board for as long as it runs, with Auto on too. The
   SCAN button lights up and the status line counts the seconds ("Scanning the auction house…
   7s"), then the lots being read, with a reminder not to close the auction house: closing it

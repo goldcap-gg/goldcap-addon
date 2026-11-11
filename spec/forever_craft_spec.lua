@@ -272,7 +272,10 @@ describe("Forever craft panel", function()
     assert.equal(text, show().card.missing:GetText())
   end)
 
-  it("shows no daily sales and no slow mark: Forever's scans say nothing of what sells", function()
+  -- Owner, 2026-11-11: how many of it sell, on the craft's row. The site's sales tape of this
+  -- auction house says (GC.Data.ForeverSales, units a day); the scan's own figures say nothing of
+  -- what sells and are never read for it.
+  it("says how many sell a day from the sales tape, slow under one, and nothing while there is no tape", function()
     load()
     prices()
     VALUES[901] = scan(2000, { sold = 12 })
@@ -282,9 +285,17 @@ describe("Forever craft panel", function()
     assert.is_nil(P._rows[1].sold)
     assert.is_nil(select(2, CC.SellOf(901)))
     assert.equal(2000, CC.SellOf(901))
-    VALUES[901] = scan(2000, { sold = 0.5 })
+
+    local perDay = 37.4
+    GC.Data.ForeverSales = function(id) return id == 901 and { units = 187, sales = 60, perDay = perDay, hours = 120 } or nil end
     P.Refresh()
-    assert.is_false(P._rows[1].widget.pace:IsShown())
+    assert.same({ 2000, 37.4 }, { CC.SellOf(901) })
+    assert.is_true(P._rows[1].widget.pace:IsShown())
+    assert.equal(GC.L["about %s a day"]:format("37"), P._rows[1].widget.pace.text:GetText())
+    -- The tape covered the item and nothing sold: a slow seller, said so.
+    perDay = 0
+    P.Refresh()
+    assert.equal(GC.L["Slow seller"], P._rows[1].widget.pace.text:GetText())
   end)
 
   it("never builds the strip under the reagents: This recipe carries its three figures", function()

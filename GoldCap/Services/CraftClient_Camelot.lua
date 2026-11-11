@@ -52,10 +52,15 @@ function CC.UnitOf(itemID)
 end
 
 --- What one of a crafted item sells for on Forever's auction house, from a book of at least 20
---- units, and no daily sales: nothing Forever's scans hold says how many sell.
+--- units, and how many of it sell a day there: the site's sales tape of this auction house
+--- (GC.Data.ForeverSales), nil while the Companion has brought none. The scans say nothing of
+--- what sells.
 function CC.SellOf(itemID)
   if type(itemID) ~= "number" then return nil end
-  return (scanned(itemID))
+  local unit = scanned(itemID)
+  if not unit then return nil end
+  local sales = GC.Data and GC.Data.ForeverSales and GC.Data.ForeverSales(itemID) or nil
+  return unit, type(sales) == "table" and type(sales.perDay) == "number" and sales.perDay or nil
 end
 
 --- Core/CraftMath.lua's Profit at these prices, as on retail. A result missing a price carries

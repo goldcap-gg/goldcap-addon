@@ -448,8 +448,16 @@ function P.Rows()
     local recipe = CC.Snapshot(id)
     if recipe then
       local _, sold = CC.SellOf(recipe.output)
-      rows[#rows + 1] = { recipeID = id, name = recipe.name, recipe = recipe, result = CC.ProfitOf(recipe), sold = sold,
-        unlearned = unlearned[id] == true }
+      local result = CC.ProfitOf(recipe)
+      -- A recipe not learned is listed for its profit alone. One that makes none, or has no price,
+      -- stays out of the counts under the list too: WoW: Forever's client names a whole profession,
+      -- hundreds of recipes the character will never see, and "412 have no GoldCap price" would be
+      -- about those.
+      if not unlearned[id] or (type(result) == "table" and type(result.profit) == "number"
+          and result.missing == nil and result.profit > 0) then
+        rows[#rows + 1] = { recipeID = id, name = recipe.name, recipe = recipe, result = result, sold = sold,
+          unlearned = unlearned[id] == true }
+      end
     end
   end
   return GC.CraftMath.Rank(rows)

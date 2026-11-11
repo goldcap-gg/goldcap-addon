@@ -148,6 +148,26 @@ function CC.KnownRecipes(unlearnedToo)
   if not ok or type(ids) ~= "table" then return {}, {} end
   local skillLine = openSkillLine()
   if not skillLine then return {}, {} end
+  -- The recipes not learned, where the window's list does not hold them: WoW: Forever's window
+  -- turns them off each time it builds its list and has no filter to turn them on
+  -- (Blizzard_ProfessionsTemplates/Camelot/Blizzard_Professions.lua), and SetShowUnlearned does not
+  -- change the list at once; GetAllRecipeIDs answers the whole profession there, 592 recipes of
+  -- Leatherworking, each with its schematic (probe in the owner's client, 2026-11-11). Added after
+  -- the window's own, never twice.
+  if unlearnedToo == true and type(api.GetFilteredRecipeIDs) == "function" and type(rawget(api, "GetAllRecipeIDs")) == "function" then
+    local okA, all = pcall(api.GetAllRecipeIDs)
+    if okA and type(all) == "table" then
+      local listed, merged = {}, {}
+      for i, id in ipairs(ids) do listed[id] = true; merged[i] = id end
+      for _, id in ipairs(all) do
+        if not listed[id] then
+          local okI, info = call("GetRecipeInfo", id)
+          if okI and type(info) == "table" and info.learned ~= true then merged[#merged + 1] = id end
+        end
+      end
+      ids = merged
+    end
+  end
   local out, unlearned = {}, {}
   for _, id in ipairs(ids) do
     local okL, inLine = call("IsRecipeInSkillLine", id, skillLine)
@@ -171,9 +191,12 @@ function CC.KnownRecipes(unlearnedToo)
 end
 
 --- True when the window's own filter keeps recipes the character has not learned off its list
---- (C_TradeSkillUI.GetShowUnlearned, live and forever alike): KnownRecipes reads that list, and the
---- filter is the player's to change.
+--- (C_TradeSkillUI.GetShowUnlearned) and that list is all KnownRecipes can read: the filter is the
+--- player's to change.
 function CC.UnlearnedFiltered()
+  local api = ts()
+  -- Not where the whole profession can be read past the window's list (KnownRecipes).
+  if type(api) == "table" and type(rawget(api, "GetAllRecipeIDs")) == "function" then return false end
   local ok, shown = call("GetShowUnlearned")
   return ok and shown == false
 end
