@@ -936,6 +936,7 @@ GC.Locales.zhTW = {
   ["the Companion wrote it with no prices. Let it sync, then /reload"] =
     "Companion 寫入的資料不含任何價格。請等它再次同步後執行 /reload",
   ["Scanning the auction house…"] = "正在掃描拍賣場…",
+  ["do not close the auction house"] = "請勿關閉拍賣場",
   ["%s lots scanned and saved"] = "已掃描並儲存 %s 個拍賣項",
   ["%s items scanned and saved"] = "已掃描並儲存 %s 件物品",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =

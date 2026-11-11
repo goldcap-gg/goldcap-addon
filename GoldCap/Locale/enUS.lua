@@ -1015,6 +1015,7 @@ GC.Locales.enUS = {
   -- WoW: Forever's own scan (Core/ForeverScan.lua): auto on opening the auction house, and SCAN
   -- on the Deals tab.
   ["Scanning the auction house…"] = "Scanning the auction house…",
+  ["do not close the auction house"] = "do not close the auction house",
   ["%s lots scanned and saved"] = "%s lots scanned and saved",
   ["%s items scanned and saved"] = "%s items scanned and saved",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =

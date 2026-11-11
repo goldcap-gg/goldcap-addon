@@ -556,7 +556,7 @@ local function notify(kind, a, b)
     -- Said here at once; the board's ticker keeps it there and counts the seconds
     -- (GC.Sniper._ScanLine).
     if GC.Sniper and GC.Sniper.SetScanStatus then
-      GC.Sniper.SetScanStatus(GC.L["Scanning the auction house…"], 1)
+      GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(GC.L["Scanning the auction house…"]), 1)
     end
   elseif kind == "closed" then
     GC.Print(GC.L["Open the Auction House first."])
@@ -570,7 +570,7 @@ local function notify(kind, a, b)
     GC.Print(GC.L["The auction house did not answer the full scan. Scanning by browsing instead"])
   elseif kind == "progress" then
     if GC.Sniper and GC.Sniper.SetScanStatus then
-      GC.Sniper.SetScanStatus(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b)), 1)
+      GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b))), 1)
     end
   elseif kind == "done" then
     local timer = _G.C_Timer

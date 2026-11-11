@@ -1012,6 +1012,7 @@ GC.Locales.deDE = {
   ["the Companion wrote it with no prices. Let it sync, then /reload"] =
     "der Companion hat sie ohne Preise gespeichert. Lass ihn synchronisieren und mache dann /reload",
   ["Scanning the auction house…"] = "Scanne das Auktionshaus…",
+  ["do not close the auction house"] = "Auktionshaus nicht schließen",
   ["%s lots scanned and saved"] = "%s Posten gescannt und gespeichert",
   ["%s items scanned and saved"] = "%s Gegenstände gescannt und gespeichert",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =

@@ -2117,7 +2117,15 @@ function GC.Sniper._ScanLine()
   local text = GC.L["Scanning the auction house…"]
   local words = type(since) == "number" and GC.Util.FormatElapsedWords(math.max(0, time() - since))
   if words then text = text .. " " .. words end
-  setStatus(text)
+  setStatus(GC.Sniper._ScanWords(text))
+end
+
+-- A line of the full scan as the status line shows it: with the one thing the player can get wrong
+-- while it runs. Closing
+-- the auction house drops the list the client is still handing over, and the game gives the next
+-- one fifteen minutes later (owner, 2026-11-11).
+function GC.Sniper._ScanWords(text)
+  return text .. " · " .. GC.L["do not close the auction house"]
 end
 
 -- Every row as tall as its item cell needs (a name that wraps grows its row instead of ending in

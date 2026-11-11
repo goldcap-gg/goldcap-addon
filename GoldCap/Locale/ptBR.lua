@@ -1009,6 +1009,7 @@ GC.Locales.ptBR = {
   ["the Companion wrote it with no prices. Let it sync, then /reload"] =
     "o Companion os gravou sem preços. Deixe-o sincronizar e faça /reload",
   ["Scanning the auction house…"] = "Varrendo a casa de leilões…",
+  ["do not close the auction house"] = "não feche a casa de leilões",
   ["%s lots scanned and saved"] = "%s lotes varridos e salvos",
   ["%s items scanned and saved"] = "%s itens varridos e salvos",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =

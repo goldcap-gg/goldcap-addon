@@ -978,6 +978,7 @@ GC.Locales.ruRU = {
   ["the Companion wrote it with no prices. Let it sync, then /reload"] =
     "Companion записал их без цен. Дайте ему синхронизироваться и сделайте /reload",
   ["Scanning the auction house…"] = "Сканируем аукцион…",
+  ["do not close the auction house"] = "не закрывайте аукцион",
   ["%s lots scanned and saved"] = "%s лотов отсканировано и сохранено",
   ["%s items scanned and saved"] = "%s предметов отсканировано и сохранено",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =

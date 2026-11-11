@@ -334,11 +334,11 @@ describe("one scan state for the toolbar", function()
       GC.ForeverScan.Running = function() return run[1], run[2] end
       _G.time = function() return 1007 end
       GC.Sniper._ScanLine()
-      assert.equal("Scanning the auction house… 7s", status.text)
+      assert.equal("Scanning the auction house… 7s · do not close the auction house", status.text)
       run = { "browsing", 1000 }
       _G.time = function() return 1012 end
       GC.Sniper._ScanLine()
-      assert.equal("Scanning the auction house… 12s", status.text)
+      assert.equal("Scanning the auction house… 12s · do not close the auction house", status.text)
       _G.time = os.time
     end)
 

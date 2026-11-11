@@ -1016,6 +1016,7 @@ GC.Locales.esMX = {
   ["the Companion wrote it with no prices. Let it sync, then /reload"] =
     "el Companion los guardó sin precios. Deja que sincronice y haz /reload",
   ["Scanning the auction house…"] = "Escaneando la casa de subastas…",
+  ["do not close the auction house"] = "no cierres la casa de subastas",
   ["%s lots scanned and saved"] = "%s lotes escaneados y guardados",
   ["%s items scanned and saved"] = "%s objetos escaneados y guardados",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =

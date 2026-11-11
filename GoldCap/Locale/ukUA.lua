@@ -992,6 +992,7 @@ GC.Locales.ukUA = {
   ["the Companion wrote it with no prices. Let it sync, then /reload"] =
     "Companion записав їх без цін. Дайте йому синхронізуватися і зробіть /reload",
   ["Scanning the auction house…"] = "Скануємо аукціон…",
+  ["do not close the auction house"] = "не закривайте аукціон",
   ["%s lots scanned and saved"] = "%s лотів відскановано і збережено",
   ["%s items scanned and saved"] = "%s предметів відскановано і збережено",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =

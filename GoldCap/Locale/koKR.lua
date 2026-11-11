@@ -959,6 +959,7 @@ GC.Locales.koKR = {
   ["the Companion wrote it with no prices. Let it sync, then /reload"] =
     "Companion이 시세 없는 자료를 기록했습니다. 다시 동기화될 때까지 기다린 뒤 /reload 하세요",
   ["Scanning the auction house…"] = "경매장을 검색하는 중…",
+  ["do not close the auction house"] = "경매장을 닫지 마세요",
   ["%s lots scanned and saved"] = "%s개 경매 항목 검색되어 저장됨",
   ["%s items scanned and saved"] = "%s개 아이템 검색되어 저장됨",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =
