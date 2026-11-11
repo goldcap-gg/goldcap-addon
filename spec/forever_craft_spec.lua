@@ -272,7 +272,10 @@ describe("Forever craft panel", function()
     assert.equal(text, show().card.missing:GetText())
   end)
 
-  it("shows no daily sales and no slow mark: Forever's scans say nothing of what sells", function()
+  -- Owner, 2026-11-11: how many of it sell, on the craft's row. The site's sales tape of this
+  -- auction house says (GC.Data.ForeverSales, units a day); the scan's own figures say nothing of
+  -- what sells and are never read for it.
+  it("says how many sell a day from the sales tape, slow under one, and nothing while there is no tape", function()
     load()
     prices()
     VALUES[901] = scan(2000, { sold = 12 })
@@ -282,9 +285,44 @@ describe("Forever craft panel", function()
     assert.is_nil(P._rows[1].sold)
     assert.is_nil(select(2, CC.SellOf(901)))
     assert.equal(2000, CC.SellOf(901))
-    VALUES[901] = scan(2000, { sold = 0.5 })
+
+    local perDay = 37.4
+    GC.Data.ForeverSales = function(id) return id == 901 and { units = 187, sales = 60, perDay = perDay, hours = 120 } or nil end
     P.Refresh()
-    assert.is_false(P._rows[1].widget.pace:IsShown())
+    assert.same({ 2000, 37.4 }, { CC.SellOf(901) })
+    assert.is_true(P._rows[1].widget.pace:IsShown())
+    assert.equal(GC.L["about %s a day"]:format("37"), P._rows[1].widget.pace.text:GetText())
+    -- The tape covered the item and nothing sold: a slow seller, said so.
+    perDay = 0
+    P.Refresh()
+    assert.equal(GC.L["Slow seller"], P._rows[1].widget.pace.text:GetText())
+  end)
+
+  -- A lot can hang at a price nobody pays. What the item sold for (the tape's median, already the
+  -- lowest of the week, the day and six hours) holds the price a craft is counted at; a listing
+  -- under it stands, since the craft has to undercut it.
+  it("counts a craft at what the item sold for when the cheapest listing asks more", function()
+    load()
+    VALUES[901] = scan(2000)
+    local median = 1500
+    GC.Data.ForeverSales = function() return { units = 100, sales = 50, median = median, perDay = 20, hours = 120 } end
+    assert.equal(1500, (CC.SellOf(901)))
+    median = 2600
+    assert.equal(2000, (CC.SellOf(901)))
+    -- Nothing sold over the tape: no median to hold it to, the listing stands and the row says slow.
+    GC.Data.ForeverSales = function() return { units = 0, sales = 0, perDay = 0, hours = 120 } end
+    assert.same({ 2000, 0 }, { CC.SellOf(901) })
+  end)
+
+  it("names the deposit a post of one takes in a row's tooltip, and that a sale returns it", function()
+    load()
+    prices()
+    VALUES[901] = scan(2000)
+    ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+    GC.ForeverValue = { CommodityDepositUnit = function(id) return id == 901 and 100 or nil end }
+    show()
+    local lines = P.RowTip(P._rows[1])
+    assert.same({ GC.L["Deposit to post one"], GC.L["%s, back when it sells"]:format(GC.Util.Money(100)) }, lines[#lines])
   end)
 
   it("never builds the strip under the reagents: This recipe carries its three figures", function()

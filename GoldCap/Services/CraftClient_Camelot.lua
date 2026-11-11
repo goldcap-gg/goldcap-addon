@@ -52,10 +52,29 @@ function CC.UnitOf(itemID)
 end
 
 --- What one of a crafted item sells for on Forever's auction house, from a book of at least 20
---- units, and no daily sales: nothing Forever's scans hold says how many sell.
+--- units and no more than it sold for, and how many of it sell a day there: the site's sales tape of this auction house
+--- (GC.Data.ForeverSales), nil while the Companion has brought none. The scans say nothing of
+--- what sells.
 function CC.SellOf(itemID)
   if type(itemID) ~= "number" then return nil end
-  return (scanned(itemID))
+  local unit = scanned(itemID)
+  if not unit then return nil end
+  local sales = GC.Data and GC.Data.ForeverSales and GC.Data.ForeverSales(itemID) or nil
+  if type(sales) ~= "table" then return unit end
+  -- Never above what it sold for: a lot can hang at a price nobody pays. The tape's median is
+  -- already the lowest of its week, day and six hours. A listing under it stands, the craft has
+  -- to undercut it.
+  if type(sales.median) == "number" and sales.median > 0 and sales.median < unit then unit = math.floor(sales.median) end
+  return unit, type(sales.perDay) == "number" and sales.perDay or nil
+end
+
+--- What posting one of an item takes as a deposit, which a sale returns: the client's quote for a
+--- commodity (GC.ForeverValue.CommodityDepositUnit). nil where there is none to quote.
+function CC.DepositOf(itemID)
+  local F = GC.ForeverValue
+  if type(itemID) ~= "number" or not (F and F.CommodityDepositUnit) then return nil end
+  local deposit = F.CommodityDepositUnit(itemID)
+  return type(deposit) == "number" and deposit > 0 and deposit or nil
 end
 
 --- Core/CraftMath.lua's Profit at these prices, as on retail. A result missing a price carries

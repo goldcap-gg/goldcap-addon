@@ -83,6 +83,7 @@ function GC.ForeverScan.New(driver)
   -- account throttle, or item data arriving), and an idle scanner used to read all ~72k rows over
   -- again for it (owner, beta 2026-09-27). One read per dump: see OnReplicateUpdate.
   local lastRead
+  local busySince -- driver.now() when the scan now running began (obj:Since)
 
   -- The scan's journal, GoldCapDB.foreverScan.journal: each step with its time and what the client
   -- answered, the last C.JOURNAL_KEEP of them. A scan that comes back short leaves no other trace
@@ -94,6 +95,14 @@ function GC.ForeverScan.New(driver)
     if type(s) ~= "table" then return end
     if type(s.journal) ~= "table" then s.journal = {} end
     local j = s.journal
+    -- The same step with the same answer again is counted on the one line: the client fired the
+    -- dump's event 23 times in a second and pushed a whole scan out of the journal (owner's
+    -- client, 2026-11-10).
+    local last = j[#j]
+    if last and last[2] == step and last[3] == a and last[4] == b then
+      last[5] = (last[5] or 1) + 1
+      return
+    end
     j[#j + 1] = { driver.now(), step, a, b }
     while #j > C.JOURNAL_KEEP do table.remove(j, 1) end
   end
@@ -372,12 +381,14 @@ function GC.ForeverScan.New(driver)
       if reason ~= "button" then return "cooldown" end
       driver.notify("cooldown", math.ceil((C.COOLDOWN_SECONDS - since) / 60))
       acc = GC.ForeverFold.New()
+      busySince = now
       if not toBrowse("wide") then acc = nil end
       return "cooldown"
     end
     s.requestedAt = now
     note("asked", reason)
     acc = GC.ForeverFold.New()
+    busySince = now
     driver.notify("started")
     if not driver.replicate() then
       noAnswer()
@@ -416,6 +427,7 @@ function GC.ForeverScan.New(driver)
     local s = driver.store()
     if s then s.requestedAt = driver.now() end
     acc = GC.ForeverFold.New()
+    busySince = driver.now()
     beginRead()
   end
 
@@ -456,6 +468,9 @@ function GC.ForeverScan.New(driver)
 
   function obj:IsBusy() return state ~= "idle" end
   function obj:State() return state end
+  -- When this scan began (driver.now), from the request to the save; nil while idle. The board
+  -- counts its seconds from it (GC.Sniper._ScanLine).
+  function obj:Since() return state ~= "idle" and busySince or nil end
   return obj
 end
 
@@ -538,9 +553,10 @@ local function notify(kind, a, b)
     GC.Print(GC.L["Scanning the auction house…"])
     -- On the board from the press: the client takes about ten seconds to hand the list over, and
     -- until the first "reading the auction house" line the board said nothing (owner, 2026-11-10).
-    -- Held past that wait; a progress line, which holds the line too, takes it over.
+    -- Said here at once; the board's ticker keeps it there and counts the seconds
+    -- (GC.Sniper._ScanLine).
     if GC.Sniper and GC.Sniper.SetScanStatus then
-      GC.Sniper.SetScanStatus(GC.L["Scanning the auction house…"], C.WAIT_SECONDS + 4)
+      GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(GC.L["Scanning the auction house…"]), 1)
     end
   elseif kind == "closed" then
     GC.Print(GC.L["Open the Auction House first."])
@@ -554,7 +570,7 @@ local function notify(kind, a, b)
     GC.Print(GC.L["The auction house did not answer the full scan. Scanning by browsing instead"])
   elseif kind == "progress" then
     if GC.Sniper and GC.Sniper.SetScanStatus then
-      GC.Sniper.SetScanStatus(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b)), 1)
+      GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b))), 1)
     end
   elseif kind == "done" then
     local timer = _G.C_Timer
@@ -780,8 +796,9 @@ function GC.ForeverScan.Summary(now)
   local journal = type(s) == "table" and type(s.journal) == "table" and s.journal or {}
   for i = math.max(1, #journal - 19), #journal do
     local e = journal[i]
-    lines[#lines + 1] = ("own scan: %ds ago %s%s%s"):format(now - (e[1] or now), tostring(e[2]),
-      e[3] ~= nil and (" " .. tostring(e[3])) or "", e[4] ~= nil and (" " .. tostring(e[4])) or "")
+    lines[#lines + 1] = ("own scan: %ds ago %s%s%s%s"):format(now - (e[1] or now), tostring(e[2]),
+      e[3] ~= nil and (" " .. tostring(e[3])) or "", e[4] ~= nil and (" " .. tostring(e[4])) or "",
+      e[5] and (" x" .. e[5]) or "")
   end
   local g = type(s) == "table" and s.gear or nil
   if type(g) == "table" and type(g.items) == "table" then
@@ -902,4 +919,11 @@ function GC.ForeverScan.OnBrowsePassDone(book) local s = scanner(); if s then s:
 function GC.ForeverScan.OnBrowsePassAbandoned(book) local s = scanner(); if s then s:OnBrowsePassAbandoned(book); repaint() end end
 function GC.ForeverScan.OnAuctionHouseShow() local s = scanner(); local r = s and s:OnAuctionHouseShow() or nil; repaint(); return r end
 function GC.ForeverScan.OnAuctionHouseClosed() local s = scanner(); if s then s:OnAuctionHouseClosed(); repaint() end end
+-- The scan machine's state and when it began, nil while it is idle. Not IsBusy: the hold on a
+-- partial read's chat block is not a scan the board should count seconds for.
+function GC.ForeverScan.Running()
+  local s = scanner()
+  if not s or s:State() == "idle" then return nil end
+  return s:State(), s:Since()
+end
 function GC.ForeverScan.IsBusy() local s = scanner(); return s ~= nil and (s:IsBusy() or sayHeld) end

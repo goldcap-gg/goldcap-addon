@@ -77,6 +77,22 @@ describe("ForeverValue", function()
     assert.is_nil(GC.ForeverValue.Quality(2589))
   end)
 
+  -- Owner's client, 2026-11-11: 101 Mote of Magic bought at 5c, sold at 7c. One post of them pays
+  -- the 1s floor once, about a copper a unit; the tooltip weighed the 1-unit quote, a whole silver
+  -- against a copper's gain, and said the deposit outweighs it over a stack that pays.
+  it("spreads the deposit over the units held, for the tooltip of a stack", function()
+    _G.C_AuctionHouse = { CalculateCommodityDeposit = function(_, _, qty) return math.max(100, qty) end }
+    GC.db = { settings = { sniper = { postDuration = 3 } }, commodityByItem = { [247786] = true } }
+    _G.C_Item = { GetItemCount = function() return 101 end }
+    assert.equal(1, GC.ForeverValue.DepositUnit(247786))            -- 101c over 101 units
+    assert.equal("ah", GC.ForeverValue.Verdict(7, 1, GC.ForeverValue.DepositUnit(247786), false, 2000))
+    _G.C_Item = { GetItemCount = function() return 0 end }           -- none held: one unit's post
+    assert.equal(100, GC.ForeverValue.DepositUnit(247786))
+    assert.equal("deposit", GC.ForeverValue.Verdict(7, 1, GC.ForeverValue.DepositUnit(247786), false, 2000))
+    _G.C_Item = nil
+    assert.equal(100, GC.ForeverValue.DepositUnit(247786))
+  end)
+
   it("asks a commodity's deposit at the player's post duration, and nothing of an unknown item", function()
     local asked
     _G.C_AuctionHouse = { CalculateCommodityDeposit = function(id, duration, qty)

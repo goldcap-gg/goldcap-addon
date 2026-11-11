@@ -215,6 +215,19 @@ local function buildWorth(body)
   v.empty = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
   v.empty:SetWidth(LAYOUT.INNER)
   colour(v.empty, K.text2)
+  -- The switch for recipes not learned yet (P.ShowsUnlearned), under the heading, and under it the
+  -- line that says the window's own filter is what hides them.
+  v.unlearned = T.Button(v, "ghost", "badge")
+  v.unlearned:SetGlow(false)
+  v.unlearned:SetHeight(LAYOUT.SEG_H)
+  v.unlearned:SetScript("OnClick", function()
+    GC.db.craftUnlearned = not P.ShowsUnlearned()
+    P.Refresh()
+  end)
+  track(v, v.unlearned.text)
+  v.filtered = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
+  v.filtered:SetWidth(LAYOUT.INNER)
+  colour(v.filtered, K.warn)
   v.unprofitable = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
   v.unpriced = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
   for _, fs in ipairs({ v.unprofitable, v.unpriced }) do
@@ -245,6 +258,60 @@ local function addTip(button)
   if not tip then return end
   tip:SetOwner(button, "ANCHOR_RIGHT")
   tip:SetText(GC.Util.ClientText(GC.L["Add one craft to the queue"]), 1, 1, 1, 1, true)
+  tip:Show()
+end
+
+--- What a row's tooltip says of the craft under the item's own lines, as { left, right } pairs:
+--- the reagents' cost and each reagent with its own, how many of the item sell a day and what a
+--- day of those sales would make, and on WoW: Forever the deposit a post takes. The row itself
+--- stays as it is (owner, 2026-11-11: more about a craft, nothing more on the list).
+function P.RowTip(data)
+  local CC, lines = GC.CraftClient, {}
+  local recipe, result = data.recipe, data.result
+  if type(recipe) ~= "table" or type(result) ~= "table" then return lines end
+  lines[#lines + 1] = { GC.L["Reagents for one craft"], GC.Util.Money(result.cost) }
+  for _, slot in ipairs(recipe.slots or {}) do
+    local id, unit = GC.CraftMath.SlotChoice(slot, CC.UnitOf)
+    if id then
+      lines[#lines + 1] = { ("%d × %s"):format(slot.q, (CC.MissingName({ itemID = id }))), GC.Util.Money(unit * slot.q) }
+    end
+  end
+  local sold = data.sold
+  if type(sold) == "number" then
+    if GC.CraftMath.IsSlow(sold) then
+      lines[#lines + 1] = { GC.L["Sold a day on your auction house"], GC.L["under one"] }
+    else
+      lines[#lines + 1] = { GC.L["Sold a day on your auction house"], GC.Util.Grouped(sold) }
+      -- A craft makes `per` of it: no more crafts a day than the market takes.
+      lines[#lines + 1] = { GC.L["Profit a day if you sold them all"],
+        GC.L["up to %s"]:format(GC.Util.Money(math.floor(result.profit * sold / (recipe.per or 1)))) }
+    end
+  end
+  local deposit = CC.DepositOf and CC.DepositOf(recipe.output) or nil
+  if deposit then
+    lines[#lines + 1] = { GC.L["Deposit to post one"], GC.L["%s, back when it sells"]:format(GC.Util.Money(deposit)) }
+  end
+  return lines
+end
+
+-- The row's tooltip: the item it makes as the client draws it, then P.RowTip's lines in the game
+-- tooltip's own colours.
+local function rowTip(frame, data)
+  local tip = _G.GameTooltip
+  if not (tip and data and type(data.recipe) == "table" and type(data.recipe.output) == "number") then return end
+  local B = GC.Kit.Tokens.blizzard
+  tip:SetOwner(frame, "ANCHOR_RIGHT")
+  tip:SetItemByID(data.recipe.output)
+  tip:AddLine(" ")
+  for _, line in ipairs(P.RowTip(data)) do
+    tip:AddDoubleLine(GC.Util.ClientText(line[1]), GC.Util.ClientText(line[2]),
+      B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
+  end
+  -- What a press does, for a player who has not used the list before.
+  local hint = data.unlearned and GC.L["Not learned yet. Click to see the recipe."]
+    or GC.L["Click to open the recipe. Right-click to queue it."]
+  tip:AddLine(" ")
+  tip:AddLine(GC.Util.ClientText(hint), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], true)
   tip:Show()
 end
 
@@ -284,12 +351,14 @@ local function newRow(v)
   -- A click opens the row's recipe in Blizzard's window, called from the click itself as Blizzard's
   -- recipe tracker does (CraftClient.Open); a right click offers to queue it (UI/BuyLists.lua's
   -- menu, in the client's font).
+  frame:SetScript("OnEnter", function(self) rowTip(self, row.data) end)
+  frame:SetScript("OnLeave", U.hideTip)
   frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   frame:SetScript("OnClick", function(self, button)
     local data = row.data
     if not data then return end
     if button == "RightButton" then
-      P.OpenRowMenu(self, data.recipe)
+      if not data.unlearned then P.OpenRowMenu(self, data.recipe) end
     else
       GC.CraftClient.Open(data.recipeID)
     end
@@ -327,13 +396,16 @@ local function paintRow(row, data, ctx)
   frame.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
   U.PaintIcon(row.slot, recipe.output, GC.CraftClient.IconOf(recipe.output), nil, nil, { pip = true })
   setText(row.name, data.name)
-  setText(row.math, mathLine(recipe, data.result))
+  local math_ = mathLine(recipe, data.result)
+  setText(row.math, data.unlearned and (GC.L["Not learned"] .. " · " .. math_) or math_)
   setText(row.profit, "+" .. GC.Util.Money(data.result.profit))
   colour(row.profit, K.profit)
   local pace, tone = paceOf(data.sold)
   if pace then fitChip(row.pace, pace, tone) end
   row.pace:SetShown(pace ~= nil)
-  row.add:SetShown(ctx.canAdd)
+  -- No "+" for a recipe not learned: the queue crafts, and this one cannot be. Its place is kept, so
+  -- the profits stay in one column down the list.
+  row.add:SetShown(ctx.canAdd and not data.unlearned)
 
   local right = LAYOUT.ROW_W - LAYOUT.ROW_PAD - (ctx.canAdd and (LAYOUT.ADD + LAYOUT.COL_GAP) or 0)
   local colW = math.max(textWidth(row.profit), pace and row.pace:GetWidth() or 0)
@@ -390,16 +462,58 @@ local function paintHeading(v)
   return heightOf(v.heading, 11) + LAYOUT.LINE_GAP + heightOf(v.cheapest, 11)
 end
 
+--- Whether Worth crafting lists recipes the character has not learned too: the player's choice,
+--- kept in the save, off until asked for (a player's request, 2026-11-11: what a recipe would make
+--- before buying or training it).
+function P.ShowsUnlearned()
+  return type(GC.db) == "table" and GC.db.craftUnlearned == true
+end
+
+-- The switch under the heading, as wide as its words, filled while it is on; under it, while it is
+-- on and the window's own filter keeps unlearned recipes off its list, the line that says so.
+-- Answers the height the two take, the gap over them included.
+local function paintUnlearned(v, headH)
+  local on = P.ShowsUnlearned()
+  local b = v.unlearned
+  b:SetLabel(GC.L["Unlearned recipes too"])
+  b:SetVariant(on and "active" or "ghost")
+  b:SetWidth(math.min(LAYOUT.INNER, math.ceil(textWidth(b.text)) + 2 * LAYOUT.BUTTON_PAD))
+  b:ClearAllPoints()
+  b:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -(headH + LAYOUT.GAP))
+  local height = LAYOUT.GAP + LAYOUT.SEG_H
+  if on and GC.CraftClient.UnlearnedFiltered() then
+    setText(v.filtered, GC.L["The profession window's own filter hides recipes you have not learned."])
+    v.filtered:ClearAllPoints()
+    v.filtered:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
+    v.filtered:Show()
+    height = height + LAYOUT.LINE_GAP + heightOf(v.filtered, 12)
+  else
+    v.filtered:Hide()
+  end
+  return height
+end
+
 --- Worth crafting's rows: every known recipe that makes a profit, by profit per craft, then how
---- many GoldCap could not price and how many it priced that make no profit.
+--- many GoldCap could not price and how many it priced that make no profit. With the switch on,
+--- the recipes not learned among them, each marked `unlearned`.
 function P.Rows()
   local CC = GC.CraftClient
   local rows = {}
-  for _, id in ipairs(CC.KnownRecipes()) do
+  local ids, unlearned = CC.KnownRecipes(P.ShowsUnlearned())
+  for _, id in ipairs(ids) do
     local recipe = CC.Snapshot(id)
     if recipe then
       local _, sold = CC.SellOf(recipe.output)
-      rows[#rows + 1] = { recipeID = id, name = recipe.name, recipe = recipe, result = CC.ProfitOf(recipe), sold = sold }
+      local result = CC.ProfitOf(recipe)
+      -- A recipe not learned is listed for its profit alone. One that makes none, or has no price,
+      -- stays out of the counts under the list too: WoW: Forever's client names a whole profession,
+      -- hundreds of recipes the character will never see, and "412 have no GoldCap price" would be
+      -- about those.
+      if not unlearned[id] or (type(result) == "table" and type(result.profit) == "number"
+          and result.missing == nil and result.profit > 0) then
+        rows[#rows + 1] = { recipeID = id, name = recipe.name, recipe = recipe, result = result, sold = sold,
+          unlearned = unlearned[id] == true }
+      end
     end
   end
   return GC.CraftMath.Rank(rows)
@@ -409,6 +523,7 @@ function P.PaintWorth()
   local CC = GC.CraftClient
   local v = P._frame.worth
   local headH = paintHeading(v)
+  headH = headH + paintUnlearned(v, headH)
   local ranked, unpriced, unprofitable = P.Rows()
   P._rows = ranked
   local open = CC.OpenRecipe()

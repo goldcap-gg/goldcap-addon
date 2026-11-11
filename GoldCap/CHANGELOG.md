@@ -1,5 +1,31 @@
 # GoldCap
 
+## 0.28.0 (2026-11-11)
+
+- Worth crafting can now list recipes you have not learned yet, with what a craft would cost and
+  make, so you can see which recipe is worth buying or training. Press "Unlearned recipes too"
+  above the list; such a row says "Not learned" and cannot be queued. Only the ones that make a
+  profit are listed.
+- WoW: Forever: a Worth crafting row now says how many of the item sell a day on your auction
+  house, or "Slow seller" under one a day.
+- Point at a Worth crafting row to see the craft in full: the item, each reagent with what it
+  costs, how many sell a day and what a day of those sales would make, and on WoW: Forever the
+  deposit a post takes.
+- WoW: Forever: a craft is no longer counted at a price nobody pays. When the cheapest listing asks
+  more than the item has been selling for, the profit is worked out from what it sold for.
+- WoW: Forever: a full scan now shows on the board for as long as it runs, with Auto on too. The
+  SCAN button lights up and the status line counts the seconds ("Scanning the auction house…
+  7s"), then the lots being read, with a reminder not to close the auction house: closing it
+  loses the scan, and the game allows the next one fifteen minutes later. With Auto on, nothing
+  told the full scan from an ordinary minute of Auto.
+- WoW: Forever: SELL no longer prices a post behind a wall of cheaper lots for a copper more. It
+  climbs above the cheapest price only past a short queue, two hours of the item's sales, as on
+  retail. Linen Cloth with 6,700 units at 24c was priced at 25c behind all of them; it now goes
+  at 24c, in front.
+- WoW: Forever: an item's tooltip now weighs the deposit for the whole stack you hold, not for a
+  single unit. A stack of a cheap item that pays to post read "The deposit outweighs the gain",
+  because one unit posted alone would not.
+
 ## 0.27.2 (2026-11-10)
 
 - WoW: Forever: the Deals board now says how old its scan is ("your scan, 14m ago"), and tells

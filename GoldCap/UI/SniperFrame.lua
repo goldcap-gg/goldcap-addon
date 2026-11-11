@@ -2099,6 +2099,35 @@ function GC.Sniper._AgeReadout()
   if stillReadout or hiddenNote then GC.Sniper._ShowReadout() end
 end
 
+-- WoW: Forever: the full scan on the status line, for as long as its machine runs
+-- (GC.ForeverScan.Running): "Scanning the auction house… 7s" while the client is waited on and
+-- while the scan browses, the seconds being the proof it is alive; the read in between writes its
+-- own "reading the auction house: X of Y lots". From the board's ticker, so a writer that took the
+-- line gives it back within a tick: with Auto on the scan on opening ran its fifteen seconds under
+-- "AUTO · SCANNING", which the chip reads all day, and a line that said something else (owner,
+-- 2026-11-11, on a second computer too). Unheld: a line the player's own action holds (a pin, a
+-- purchase step in its window) is read first.
+function GC.Sniper._ScanLine()
+  if not frame then return end
+  local running = GC.ForeverScan and GC.ForeverScan.Running
+  if not running then return end
+  local state, since = running()
+  if state ~= "waiting" and state ~= "browsing" then return end
+  if dialog and dialog.IsShown and dialog:IsShown() then return end
+  local text = GC.L["Scanning the auction house…"]
+  local words = type(since) == "number" and GC.Util.FormatElapsedWords(math.max(0, time() - since))
+  if words then text = text .. " " .. words end
+  setStatus(GC.Sniper._ScanWords(text))
+end
+
+-- A line of the full scan as the status line shows it: with the one thing the player can get wrong
+-- while it runs. Closing
+-- the auction house drops the list the client is still handing over, and the game gives the next
+-- one fifteen minutes later (owner, 2026-11-11).
+function GC.Sniper._ScanWords(text)
+  return text .. " · " .. GC.L["do not close the auction house"]
+end
+
 -- Every row as tall as its item cell needs (a name that wraps grows its row instead of ending in
 -- "…", the way the Sell tab's cards do; one line keeps WIN.ROW_HEIGHT), and `child`, the scroll
 -- child, as tall as the rows down to the last one shown. Rows hang one under another (createRow),
@@ -4798,6 +4827,12 @@ refreshScanButton = function(targetFrame)
   local state = autoScan and autoScan:State() or "OFF"
   local autoSays = state ~= "OFF" and autoButtonText(state, autoScan:PauseReasons()) == GC.L["AUTO · SCANNING"]
   local busy = active and (GC.Sniper._scanPressed or not autoSays)
+  -- ...and for WoW: Forever's full scan whatever the chip reads: Auto's passes never make that
+  -- machine busy, so this cannot blink with them, and under "AUTO · SCANNING" nothing else on the
+  -- board told the scan on opening from an ordinary minute of Auto (owner, 2026-11-11).
+  if not busy and isForever() and GC.ForeverScan and GC.ForeverScan.IsBusy and GC.ForeverScan.IsBusy() then
+    busy = true
+  end
   -- ...and for the Items board's look the player is waiting on (GC.Sniper._ItemsChecking).
   if not busy and GC.Sniper._ItemsChecking() then busy = true end
   sizeScanButton(f.fullScanBtn)
@@ -4824,6 +4859,7 @@ function GC.Sniper.RepaintScanState()
     GC.Sniper._scanBusyShown = busy
     GC.Sniper._ShowReadout("")
   end
+  GC.Sniper._ScanLine()
 end
 
 -- Re-derives the toolbar's session readout from GC.Sniper.session (buys/spent/estProfit).
@@ -7416,7 +7452,10 @@ stampVerdict = function(deal, data, manual)
   -- row leaves when the player leaves its pane, which is their own doing. refreshRows above has
   -- already recomputed refusedCount, so the number quoted is the one the toggle is about to show.
   if not manual and not buyable and not unverified and not (decision and decision.needsGold)
-      and not isPinned(deal.itemID) and refusedCount > 0 then
+      and not isPinned(deal.itemID) and refusedCount > 0
+      -- Not over a full scan: Auto's checks go on under it, and this note, said again with every
+      -- one of them, held the line the scan's own words belong on.
+      and not (GC.ForeverScan and GC.ForeverScan.Running and GC.ForeverScan.Running()) then
     GC.Sniper._hiddenShown = (GC.L["%d hidden: the live check refused them"]):format(refusedCount)
     setStatus(GC.Sniper._hiddenShown, 4)
   end
@@ -13103,6 +13142,7 @@ function GC.Sniper.OnAuctionHouseShow()
     GC.Sniper._PaintBoardChips()
     refreshSessionText()
     GC.Sniper._AgeReadout()
+    GC.Sniper._ScanLine()
   end)
   -- Everything a Buy click's own state is written by runs on clocks of its own, never in the tick
   -- above (WoW: Forever, 3c taint fix, round 1). Each C_Timer callback is its own execution and

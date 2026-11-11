@@ -278,7 +278,9 @@ describe("WoW: Forever's sale pace", function()
     local GC
     local CONTEXT = { char = "A-R", region = "eu" }
     local KEY = "commodity:42"
-    local TAPE = { units = 30, sales = 12, median = 15000, perDay = 8, hours = 90 }
+    -- 24 a day: the one unit under the 1g40s rung is an hour of sales, inside the two the climb
+    -- allows (GC.Flips.OVERCUT_ABSORB_HOURS; 8 a day was inside the six it allowed until 0.28.0).
+    local TAPE = { units = 90, sales = 36, median = 15000, perDay = 24, hours = 90 }
 
     before_each(function()
       GC = helper.loadModule("Core/Acquisitions.lua")
@@ -319,6 +321,22 @@ describe("WoW: Forever's sale pace", function()
     local function lot(unit, qty)
       return { itemID = 42, positionKey = KEY, quantity = qty, unitPrice = unit, auctionID = 901, firstSeenAt = 5 }
     end
+
+    -- Owner's client, 2026-11-11: Linen Cloth selling 45,000 a day, 96 units at 23c, 6,700 at 24c,
+    -- 5,500 at 25c. POST chose 25c behind 6,800 units, 3.6 hours of sales, for one copper more
+    -- than the 24c rung with 96 units under it.
+    it("climbs no further than two hours of the tape's sales", function()
+      local levels = { { unitPrice = 23, quantity = 96 }, { unitPrice = 24, quantity = 6700 },
+        { unitPrice = 25, quantity = 5500 }, { unitPrice = 26, quantity = 5800 }, { unitPrice = 27, quantity = 7900 } }
+      local p = GC.SellPositions.Build({
+        acquisitions = {}, ownedLots = {},
+        bagStock = { { positionKey = KEY, itemID = 42, itemName = "Linen Cloth", quantity = 18, isCommodity = true } },
+        quotes = { [42] = { unit = 23, at = 9, levels = levels } },
+        statsByItemID = { [42] = { mv = 25, source = "scan" } }, context = CONTEXT, now = 10,
+        salesFor = function() return { units = 195000, sales = 5000, median = 26, perDay = 45000, hours = 104 } end,
+        cancelForfeit = function() return 100 end, oneLevelPerItem = true })[1]
+      assert.equal(24, p.postRecommendation.unit)
+    end)
 
     it("is not offered for cancel", function()
       local before = build({}, 8)

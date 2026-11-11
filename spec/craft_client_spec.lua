@@ -157,6 +157,55 @@ describe("craft client", function()
     assert.same({ 12, 1 }, CC.KnownRecipes())
   end)
 
+  -- A player's request (Discord, 2026-11-11): the profit of a recipe not learned yet, to know
+  -- which is worth buying or training. Blizzard's list holds them; they were dropped here.
+  it("lists the recipes not learned too when asked, and says which they are", function()
+    local two, three = potion(), potion()
+    two.info = TS.info(2, "Two", { learned = false })
+    three.info = TS.info(3, "Three", { learned = false })
+    three.inSkillLine = false
+    load({ recipes = { [1] = potion(), [2] = two, [3] = three }, filtered = { 1, 2, 3 }, professionID = 2823 })
+    local ids, unlearned = CC.KnownRecipes(true)
+    assert.same({ 1, 2 }, ids)
+    assert.same({ [2] = true }, unlearned)
+    assert.same({ 1 }, (CC.KnownRecipes()))
+  end)
+
+  it("lists a ranked recipe once with the unlearned: the rank learned, not the ranks above it", function()
+    local function rank(id, prev, nxt, learned)
+      local r = potion()
+      r.info = TS.info(id, "Ranked", { previousRecipeID = prev, nextRecipeID = nxt, learned = learned })
+      return r
+    end
+    load({ recipes = { [11] = rank(11, nil, 12, true), [12] = rank(12, 11, 13, false), [13] = rank(13, 12, nil, false),
+      [21] = rank(21, nil, 22, false), [22] = rank(22, 21, nil, false) }, filtered = { 11, 12, 13, 21, 22 }, professionID = 5 })
+    assert.same({ 11, 21 }, (CC.KnownRecipes(true)))
+  end)
+
+  -- WoW: Forever (probe in the owner's client, 2026-11-11): the window lists the 6 recipes learned,
+  -- SetShowUnlearned(true) leaves it at 6, GetAllRecipeIDs answers 592 with their schematics.
+  it("reads the unlearned past the window's list where the client hands the whole profession", function()
+    local two, five = potion(), potion()
+    two.info = TS.info(2, "Two", { learned = false })
+    five.info = TS.info(5, "Five", { learned = false })
+    five.inSkillLine = false
+    load({ recipes = { [1] = potion(), [2] = two, [4] = potion(), [5] = five }, filtered = { 1 }, all = { 1, 2, 4, 5 },
+      professionID = 5, showUnlearned = false })
+    local ids, unlearned = CC.KnownRecipes(true)
+    -- 4 is learned and off the window's list: the player's own search or filter, which stands.
+    assert.same({ 1, 2 }, ids)
+    assert.same({ [2] = true }, unlearned)
+    assert.is_false(CC.UnlearnedFiltered())
+  end)
+
+  it("says when the window's own filter keeps unlearned recipes off its list", function()
+    load({ recipes = { [1] = potion() }, filtered = { 1 }, professionID = 5, showUnlearned = false })
+    assert.is_true(CC.UnlearnedFiltered())
+    restore()
+    load({ recipes = { [1] = potion() }, filtered = { 1 }, professionID = 5 })
+    assert.is_false(CC.UnlearnedFiltered())
+  end)
+
   it("leaves out a known recipe GoldCap does not price", function()
     load({ recipes = { [1] = potion(), [2] = potion({ isSalvageRecipe = true }) }, filtered = { 1, 2 }, professionID = 5 })
     assert.same({ 1 }, CC.KnownRecipes())

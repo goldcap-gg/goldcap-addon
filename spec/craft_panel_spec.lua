@@ -399,6 +399,133 @@ describe("craft panel", function()
     end)
   end)
 
+  -- Owner, 2026-11-11: more about a craft, without more on its row. Under the cursor: what the
+  -- item is (the client's own tooltip, GoldCap's price lines on it as on any item), then the craft.
+  describe("a row's tooltip", function()
+    it("lists what the craft takes with each cost, and what a day of its sales would make", function()
+      load({ names = { [101] = "Herb" } })
+      prices()
+      show()
+      assert.same({
+        { GC.L["Reagents for one craft"], GC.Util.Money(1000) },
+        { "1 × Herb", GC.Util.Money(1000) },
+        { GC.L["Sold a day on your auction house"], "12" },
+        { GC.L["Profit a day if you sold them all"], GC.L["up to %s"]:format(GC.Util.Money(12 * 900)) },
+      }, P.RowTip(P._rows[1]))
+    end)
+
+    it("says nothing of a day where the sales are not known, and no profit a day for a slow seller", function()
+      load({ names = { [102] = "Root", [103] = "Vial" } })
+      prices()
+      show()
+      assert.same({ { GC.L["Reagents for one craft"], GC.Util.Money(1400) }, { "1 × Root", GC.Util.Money(1400) } }, P.RowTip(P._rows[2]))
+      assert.same({ { GC.L["Reagents for one craft"], GC.Util.Money(1700) }, { "1 × Vial", GC.Util.Money(1700) },
+        { GC.L["Sold a day on your auction house"], GC.L["under one"] } }, P.RowTip(P._rows[3]))
+    end)
+
+    it("shows the item's own tooltip with the craft under it, and goes with the cursor", function()
+      load({ names = { [101] = "Herb" } })
+      prices()
+      show()
+      local calls = {}
+      local saved = _G.GameTooltip
+      finally(function() _G.GameTooltip = saved end)
+      _G.GameTooltip = {
+        SetOwner = function() calls[#calls + 1] = "owner" end,
+        SetItemByID = function(_, id) calls[#calls + 1] = "item " .. id end,
+        AddLine = function(_, text) calls[#calls + 1] = text end,
+        AddDoubleLine = function(_, left, right) calls[#calls + 1] = left .. " | " .. right end,
+        Show = function() calls[#calls + 1] = "show" end,
+        Hide = function() calls[#calls + 1] = "hide" end,
+      }
+      local row = P._rows[1].widget
+      row.frame:GetScript("OnEnter")(row.frame)
+      assert.equal("owner", calls[1])
+      assert.equal("item 901", calls[2])
+      assert.equal("1 × Herb | " .. GC.Util.Money(1000), calls[5])
+      assert.equal(GC.L["Click to open the recipe. Right-click to queue it."], calls[#calls - 1])
+      assert.equal("show", calls[#calls])
+      row.frame:GetScript("OnLeave")(row.frame)
+      assert.equal("hide", calls[#calls])
+    end)
+  end)
+
+  describe("recipes not learned yet", function()
+    local function unlearnedWorld(extra)
+      local opts = { recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B", { learned = false }), [3] = recipe(3, "C") },
+        filtered = { 1, 2, 3 } }
+      for k, v in pairs(extra or {}) do opts[k] = v end
+      load(opts)
+      prices()
+      return show()
+    end
+
+    it("are left out until the player asks for them, and the choice is kept", function()
+      local f = unlearnedWorld()
+      local toggle = f.worth.unlearned
+      assert.same({ 1, 3 }, ids())
+      assert.equal(GC.L["Unlearned recipes too"], toggle.text:GetText())
+      toggle:GetScript("OnClick")(toggle)
+      assert.same({ 1, 2, 3 }, ids())
+      assert.is_true(GC.db.craftUnlearned)
+      toggle:GetScript("OnClick")(toggle)
+      assert.same({ 1, 3 }, ids())
+      assert.is_false(GC.db.craftUnlearned)
+    end)
+
+    it("say so on their row and cannot be queued, by the + or by the right click", function()
+      local f = unlearnedWorld()
+      f.worth.unlearned:GetScript("OnClick")(f.worth.unlearned)
+      local learned, unlearned = P._rows[1].widget, P._rows[2].widget
+      assert.equal(GC.L["Not learned"] .. " · " .. GC.L["Costs %s, sells for %s"]:format(GC.Util.Money(1400), GC.Util.Money(1900)),
+        unlearned.math:GetText())
+      assert.equal(GC.L["Costs %s, sells for %s"]:format(GC.Util.Money(1000), GC.Util.Money(1900)), learned.math:GetText())
+      assert.is_true(learned.add:IsShown())
+      assert.is_false(unlearned.add:IsShown())
+      local menus = 0
+      local was = _G.MenuUtil
+      _G.MenuUtil = { CreateContextMenu = function() menus = menus + 1 end }
+      unlearned.frame:GetScript("OnClick")(unlearned.frame, "RightButton")
+      assert.equal(0, menus)
+      learned.frame:GetScript("OnClick")(learned.frame, "RightButton")
+      assert.equal(1, menus)
+      _G.MenuUtil = was
+    end)
+
+    it("are listed for their profit alone: none that loses or has no price is counted under the list", function()
+      load({ recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B", { learned = false }),
+        [3] = recipe(3, "C", { learned = false }), [4] = recipe(4, "D", { learned = false }) }, filtered = { 1, 2, 3, 4 } })
+      prices()
+      VALUES[903] = commodity(1000) -- C sells under its reagent; D's reagent has no price
+      local f = show()
+      f.worth.unlearned:GetScript("OnClick")(f.worth.unlearned)
+      assert.same({ 1, 2 }, ids())
+      assert.is_false(f.worth.unprofitable:IsShown())
+      assert.is_false(f.worth.unpriced:IsShown())
+    end)
+
+    it("say when the window's own filter is what hides them, only while asked for", function()
+      local f = unlearnedWorld({ showUnlearned = false })
+      local v = f.worth
+      assert.is_false(v.filtered:IsShown())
+      v.unlearned:GetScript("OnClick")(v.unlearned)
+      assert.is_true(v.filtered:IsShown())
+      assert.equal(GC.L["The profession window's own filter hides recipes you have not learned."], v.filtered:GetText())
+    end)
+
+    it("keep the list under the heading, the switch and the note, none over another", function()
+      local f = unlearnedWorld({ showUnlearned = false })
+      local v = f.worth
+      v.unlearned:GetScript("OnClick")(v.unlearned)
+      local _, _, _, _, switchY = v.unlearned:GetPoint(1)
+      local _, noteAbove = v.filtered:GetPoint(1)
+      local _, _, _, _, listY = v.scroll:GetPoint(1)
+      assert.is_true(switchY < 0)
+      assert.equal(v.unlearned, noteAbove)
+      assert.is_true(listY < switchY - v.unlearned:GetHeight())
+    end)
+  end)
+
   describe("putting recipes in the queue", function()
     local savedUIParent, savedMenu
 

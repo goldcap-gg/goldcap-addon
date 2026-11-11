@@ -1015,6 +1015,7 @@ GC.Locales.enUS = {
   -- WoW: Forever's own scan (Core/ForeverScan.lua): auto on opening the auction house, and SCAN
   -- on the Deals tab.
   ["Scanning the auction house…"] = "Scanning the auction house…",
+  ["do not close the auction house"] = "do not close the auction house",
   ["%s lots scanned and saved"] = "%s lots scanned and saved",
   ["%s items scanned and saved"] = "%s items scanned and saved",
   ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =
@@ -1509,6 +1510,18 @@ GC.Locales.enUS = {
   ["Worth crafting"] = "Worth crafting",
   ["Sells about %s a day"] = "Sells about %s a day",
   ["Slow seller"] = "Slow seller",
+  ["Reagents for one craft"] = "Reagents for one craft",
+  ["Sold a day on your auction house"] = "Sold a day on your auction house",
+  ["under one"] = "under one",
+  ["Profit a day if you sold them all"] = "Profit a day if you sold them all",
+  ["up to %s"] = "up to %s",
+  ["Deposit to post one"] = "Deposit to post one",
+  ["%s, back when it sells"] = "%s, back when it sells",
+  ["Click to open the recipe. Right-click to queue it."] = "Click to open the recipe. Right-click to queue it.",
+  ["Not learned yet. Click to see the recipe."] = "Not learned yet. Click to see the recipe.",
+  ["Unlearned recipes too"] = "Unlearned recipes too",
+  ["Not learned"] = "Not learned",
+  ["The profession window's own filter hides recipes you have not learned."] = "The profession window's own filter hides recipes you have not learned.",
   ["Best profit a craft"] = "Best profit a craft",
   ["reagents at their cheapest quality"] = "reagents at their cheapest quality",
   ["Costs %s, sells for %s"] = "Costs %s, sells for %s",
