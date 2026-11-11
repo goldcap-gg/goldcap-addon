@@ -120,7 +120,8 @@ end
 
 --- The recipes this character has learned in the profession the window shows, as the window
 --- lists them (the player's search and filters included), that GoldCap can price. A ranked
---- recipe once, at the highest rank learned.
+--- recipe once, at the highest rank learned. With `unlearnedToo`, the ones not learned as well;
+--- the second answer is the set of those.
 -- The skill line of the open profession window, read as Blizzard's own Professions.GetProfessionInfo
 -- reads it (Blizzard_ProfessionsTemplates/Blizzard_Professions.lua, live and forever alike): the
 -- child profession's, else the base profession's. WoW: Forever has no expansion child professions:
@@ -135,28 +136,46 @@ local function openSkillLine()
   return nil
 end
 
-function CC.KnownRecipes()
+function CC.KnownRecipes(unlearnedToo)
   local api = ts()
-  if type(api) ~= "table" then return {} end
+  if type(api) ~= "table" then return {}, {} end
   local ok, ids
   if type(api.GetFilteredRecipeIDs) == "function" then
     ok, ids = pcall(api.GetFilteredRecipeIDs)
   elseif type(api.GetAllRecipeIDs) == "function" then
     ok, ids = pcall(api.GetAllRecipeIDs)
   end
-  if not ok or type(ids) ~= "table" then return {} end
+  if not ok or type(ids) ~= "table" then return {}, {} end
   local skillLine = openSkillLine()
-  if not skillLine then return {} end
-  local out = {}
+  if not skillLine then return {}, {} end
+  local out, unlearned = {}, {}
   for _, id in ipairs(ids) do
     local okL, inLine = call("IsRecipeInSkillLine", id, skillLine)
     local okR, info = call("GetRecipeInfo", id)
-    if okL and inLine == true and okR and type(info) == "table" and info.learned == true
-        and not higherRankLearned(info) and CC.Snapshot(id) then
-      out[#out + 1] = id
+    if okL and inLine == true and okR and type(info) == "table" then
+      -- Learned: the highest rank learned. Not learned, when asked for: a recipe of no rank, or the
+      -- first rank of a chain the character has none of; a rank above one learned is the same row.
+      local wanted
+      if info.learned == true then
+        wanted = not higherRankLearned(info)
+      else
+        wanted = unlearnedToo == true and info.previousRecipeID == nil
+      end
+      if wanted and CC.Snapshot(id) then
+        out[#out + 1] = id
+        if info.learned ~= true then unlearned[id] = true end
+      end
     end
   end
-  return out
+  return out, unlearned
+end
+
+--- True when the window's own filter keeps recipes the character has not learned off its list
+--- (C_TradeSkillUI.GetShowUnlearned, live and forever alike): KnownRecipes reads that list, and the
+--- filter is the player's to change.
+function CC.UnlearnedFiltered()
+  local ok, shown = call("GetShowUnlearned")
+  return ok and shown == false
 end
 
 --- The crafting page's recipe form, or nil before Blizzard_Professions has loaded.

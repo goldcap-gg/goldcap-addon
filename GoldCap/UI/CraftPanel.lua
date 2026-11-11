@@ -215,6 +215,19 @@ local function buildWorth(body)
   v.empty = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
   v.empty:SetWidth(LAYOUT.INNER)
   colour(v.empty, K.text2)
+  -- The switch for recipes not learned yet (P.ShowsUnlearned), under the heading, and under it the
+  -- line that says the window's own filter is what hides them.
+  v.unlearned = T.Button(v, "ghost", "badge")
+  v.unlearned:SetGlow(false)
+  v.unlearned:SetHeight(LAYOUT.SEG_H)
+  v.unlearned:SetScript("OnClick", function()
+    GC.db.craftUnlearned = not P.ShowsUnlearned()
+    P.Refresh()
+  end)
+  track(v, v.unlearned.text)
+  v.filtered = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
+  v.filtered:SetWidth(LAYOUT.INNER)
+  colour(v.filtered, K.warn)
   v.unprofitable = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
   v.unpriced = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
   for _, fs in ipairs({ v.unprofitable, v.unpriced }) do
@@ -289,7 +302,7 @@ local function newRow(v)
     local data = row.data
     if not data then return end
     if button == "RightButton" then
-      P.OpenRowMenu(self, data.recipe)
+      if not data.unlearned then P.OpenRowMenu(self, data.recipe) end
     else
       GC.CraftClient.Open(data.recipeID)
     end
@@ -327,13 +340,16 @@ local function paintRow(row, data, ctx)
   frame.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
   U.PaintIcon(row.slot, recipe.output, GC.CraftClient.IconOf(recipe.output), nil, nil, { pip = true })
   setText(row.name, data.name)
-  setText(row.math, mathLine(recipe, data.result))
+  local math_ = mathLine(recipe, data.result)
+  setText(row.math, data.unlearned and (GC.L["Not learned"] .. " · " .. math_) or math_)
   setText(row.profit, "+" .. GC.Util.Money(data.result.profit))
   colour(row.profit, K.profit)
   local pace, tone = paceOf(data.sold)
   if pace then fitChip(row.pace, pace, tone) end
   row.pace:SetShown(pace ~= nil)
-  row.add:SetShown(ctx.canAdd)
+  -- No "+" for a recipe not learned: the queue crafts, and this one cannot be. Its place is kept, so
+  -- the profits stay in one column down the list.
+  row.add:SetShown(ctx.canAdd and not data.unlearned)
 
   local right = LAYOUT.ROW_W - LAYOUT.ROW_PAD - (ctx.canAdd and (LAYOUT.ADD + LAYOUT.COL_GAP) or 0)
   local colW = math.max(textWidth(row.profit), pace and row.pace:GetWidth() or 0)
@@ -390,16 +406,50 @@ local function paintHeading(v)
   return heightOf(v.heading, 11) + LAYOUT.LINE_GAP + heightOf(v.cheapest, 11)
 end
 
+--- Whether Worth crafting lists recipes the character has not learned too: the player's choice,
+--- kept in the save, off until asked for (a player's request, 2026-11-11: what a recipe would make
+--- before buying or training it).
+function P.ShowsUnlearned()
+  return type(GC.db) == "table" and GC.db.craftUnlearned == true
+end
+
+-- The switch under the heading, as wide as its words, filled while it is on; under it, while it is
+-- on and the window's own filter keeps unlearned recipes off its list, the line that says so.
+-- Answers the height the two take, the gap over them included.
+local function paintUnlearned(v, headH)
+  local on = P.ShowsUnlearned()
+  local b = v.unlearned
+  b:SetLabel(GC.L["Unlearned recipes too"])
+  b:SetVariant(on and "active" or "ghost")
+  b:SetWidth(math.min(LAYOUT.INNER, math.ceil(textWidth(b.text)) + 2 * LAYOUT.BUTTON_PAD))
+  b:ClearAllPoints()
+  b:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -(headH + LAYOUT.GAP))
+  local height = LAYOUT.GAP + LAYOUT.SEG_H
+  if on and GC.CraftClient.UnlearnedFiltered() then
+    setText(v.filtered, GC.L["The profession window's own filter hides recipes you have not learned."])
+    v.filtered:ClearAllPoints()
+    v.filtered:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
+    v.filtered:Show()
+    height = height + LAYOUT.LINE_GAP + heightOf(v.filtered, 12)
+  else
+    v.filtered:Hide()
+  end
+  return height
+end
+
 --- Worth crafting's rows: every known recipe that makes a profit, by profit per craft, then how
---- many GoldCap could not price and how many it priced that make no profit.
+--- many GoldCap could not price and how many it priced that make no profit. With the switch on,
+--- the recipes not learned among them, each marked `unlearned`.
 function P.Rows()
   local CC = GC.CraftClient
   local rows = {}
-  for _, id in ipairs(CC.KnownRecipes()) do
+  local ids, unlearned = CC.KnownRecipes(P.ShowsUnlearned())
+  for _, id in ipairs(ids) do
     local recipe = CC.Snapshot(id)
     if recipe then
       local _, sold = CC.SellOf(recipe.output)
-      rows[#rows + 1] = { recipeID = id, name = recipe.name, recipe = recipe, result = CC.ProfitOf(recipe), sold = sold }
+      rows[#rows + 1] = { recipeID = id, name = recipe.name, recipe = recipe, result = CC.ProfitOf(recipe), sold = sold,
+        unlearned = unlearned[id] == true }
     end
   end
   return GC.CraftMath.Rank(rows)
@@ -409,6 +459,7 @@ function P.PaintWorth()
   local CC = GC.CraftClient
   local v = P._frame.worth
   local headH = paintHeading(v)
+  headH = headH + paintUnlearned(v, headH)
   local ranked, unpriced, unprofitable = P.Rows()
   P._rows = ranked
   local open = CC.OpenRecipe()

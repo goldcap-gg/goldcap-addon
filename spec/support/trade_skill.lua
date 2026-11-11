@@ -131,6 +131,9 @@ function TS.install(opts)
       return recipes[id] and recipes[id].info or nil
     end,
     GetFilteredRecipeIDs = function() record("GetFilteredRecipeIDs"); return opts.filtered or {} end,
+    -- The window's own filter: whether its list holds recipes the character has not learned
+    -- (opts.showUnlearned, true when nil).
+    GetShowUnlearned = function() return opts.showUnlearned ~= false end,
     IsRecipeInSkillLine = function(id, skillLineID)
       record("IsRecipeInSkillLine", id, skillLineID)
       local r = recipes[id]
