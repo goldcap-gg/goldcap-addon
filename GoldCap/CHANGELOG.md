@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.28.1 (unreleased)
+
+- WoW: Forever: an item's tooltip now starts with the cheapest lot on the auction house, the figure
+  goldcap.gg shows first on the item's page. The AH value, what the cheapest tenth of the listed
+  units ask, comes under it only when it is noticeably higher, which means only a few lots are that
+  cheap. It used to come first, and a tooltip could read 72c for an item listed at 60c.
+
 ## 0.28.0 (2026-11-11)
 
 - Worth crafting can now list recipes you have not learned yet, with what a craft would cost and

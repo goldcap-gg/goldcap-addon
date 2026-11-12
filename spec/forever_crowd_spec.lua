@@ -263,8 +263,11 @@ describe("the fresher look prices the tooltip", function()
   it("the tooltip says how many players scanned it and when", function()
     load(TS - 600)
     local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(2589), NOW, {})
-    assert.equal("AH value", lines[1].label)
-    assert.equal(75, lines[1].copper)
+    -- The crowd's cheapest lot first, its AH value under it (UI/Tooltip.lua, owner 2026-11-12).
+    assert.equal("Cheapest", lines[1].label)
+    assert.equal(68, lines[1].copper)
+    assert.equal("AH value", lines[2].label)
+    assert.equal(75, lines[2].copper)
     local source
     for _, l in ipairs(lines) do if l.left == "Source" then source = l.right end end
     assert.equal("3 scanners, 1h ago", source)

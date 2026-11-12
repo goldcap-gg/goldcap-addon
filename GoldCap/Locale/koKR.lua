@@ -945,6 +945,7 @@ GC.Locales.koKR = {
   ["it was set aside when other prices were loaded this session. /reload to use it again"] =
     "이번 세션에서 다른 시세를 불러오면서 보류되었습니다. 다시 쓰려면 /reload",
   ["On the AH now"] = "지금 경매장",
+  ["Cheapest"] = "최저가",
   ["%s listed · %d min ago"] = "%s개 등록 · %d분 전",
   ["%s listed · just now"] = "%s개 등록 · 방금",
   ["it could not be read (%s)"] = "읽을 수 없었습니다 (%s)",

@@ -998,6 +998,7 @@ GC.Locales.frFR = {
   ["it was set aside when other prices were loaded this session. /reload to use it again"] =
     "elles ont été mises de côté quand d'autres prix ont été chargés pendant cette session. /reload pour les réutiliser",
   ["On the AH now"] = "À l'HV maintenant",
+  ["Cheapest"] = "Le moins cher",
   ["%s listed · %d min ago"] = "%s en vente · il y a %d min",
   ["%s listed · just now"] = "%s en vente · à l'instant",
   ["it could not be read (%s)"] = "elles n'ont pas pu être lues (%s)",

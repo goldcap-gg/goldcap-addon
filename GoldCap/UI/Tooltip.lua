@@ -31,14 +31,21 @@ end
 -- saw of the item (GC.Sniper.LiveFloor), inside LIM.LIVE_TOOLTIP_SECONDS. Its own line kind: the
 -- floor is drawn as coins by onTooltip, which owns GC.Util.CoinText, and the rest is text.
 -- The age is clamped at zero: a clock that stepped back says "just now", never a negative minute.
-local function liveLine(live)
+-- `forever`: on WoW: Forever the line is the tooltip's first, "Cheapest", the words goldcap.gg's item
+-- page uses for the same figure; retail's keeps "On the AH now" under the GoldCap value.
+local function liveLine(live, forever)
   if type(live) ~= "table" or type(live.floor) ~= "number" or live.floor <= 0 then return nil end
   local qty = wholeCount(type(live.qty) == "number" and live.qty or 0)
   local minutes = math.floor(math.max(0, tonumber(live.age) or 0) / 60)
   local detail = minutes < 1 and (GC.L["%s listed · just now"]):format(qty)
     or (GC.L["%s listed · %d min ago"]):format(qty, minutes)
-  return { kind = "live", left = GC.L["On the AH now"], copper = live.floor, detail = detail }
+  return { kind = "live", left = forever and GC.L["Cheapest"] or GC.L["On the AH now"], copper = live.floor,
+    detail = detail }
 end
+
+-- WoW: Forever: the AH value is printed under the cheapest lot only when it asks at least this much
+-- more. Within it the two say the same thing, and a second figure only asks the player which to read.
+local AH_VALUE_APART = 1.05
 
 -- The price the tooltip's first line prints for `v` (a GC.Data.GetItemValue answer), and which of
 -- its three lines that is: "region" (an imported realm item's region reference), "median" (an
@@ -48,6 +55,8 @@ end
 -- house -- the quest reward mark, the vendor note, a craft reagent the player never bought -- takes
 -- its number from here, so it never says
 -- something the item's own tooltip does not. The realm-item rule is explained in BuildLines below.
+-- On WoW: Forever the tooltip leads with the cheapest lot and prints this figure, the AH value, under
+-- it only when it asks 5% more or over (BuildLines): within that the two say the same thing.
 function GC.Tooltip.Headline(v)
   if type(v) ~= "table" then return nil end
   if v.kind == "realm_item" and v.source == "import" then
@@ -75,10 +84,10 @@ end
 -- table answered, where the save's prices came from, and what the auction house showed this session.
 function GC.Tooltip.BuildLines(v, now, opts)
   opts = opts or {}
-  local live = liveLine(opts.live)
+  local scan = v ~= nil and v.source == "scan"
+  local live = liveLine(opts.live, scan or type(opts.forever) == "table")
   if not v then return live and { live } or nil end
   local lines = {}
-  local scan = v.source == "scan"
   local headline, headlineKind = GC.Tooltip.Headline(v)
   -- An IMPORTED realm item's `mv` is this one realm's own median, and that is not a price:
   -- a realm item can sit at two listings for days, so a median of two is whatever the odd
@@ -117,11 +126,28 @@ function GC.Tooltip.BuildLines(v, now, opts)
     -- gear the cheapest version's -- several random suffixes share one item id.
     -- The figure is the price level a tenth of the listed units reach (GC.ForeverFold.VALUE_SHARE),
     -- not the item's usual price or the single cheapest lot -- see ForeverFold.lua's header
-    -- comment. "On the AH now", when shown below, is the live cheapest, so the two never mean
-    -- the same thing.
+    -- comment.
     if scan then label = v.gear and GC.L["AH, cheapest version"] or GC.L["AH value"] end
-    lines[1] = { kind = "money", label = label, copper = headline }
+    -- ...and so it does not come first. The cheapest lot does: what the auction house showed this
+    -- session, else the scan's own cheapest, which the Source line below dates. goldcap.gg's item
+    -- page leads with that figure, and a tooltip that led with the AH value read 72c for an item
+    -- the auction house had at 60c and the site at 59c (owner, 2026-11-12). The AH value follows
+    -- only when it asks noticeably more; the verdict below still weighs it, as the deals do.
+    -- Gear keeps its one line: its figure is already the cheapest version's.
+    local cheapest = nil
+    if scan and not v.gear then
+      cheapest = live and live.copper or (type(v.min) == "number" and v.min > 0 and v.min or nil)
+    end
+    if cheapest then
+      lines[1] = live or { kind = "money", label = GC.L["Cheapest"], copper = cheapest }
+      if headline >= cheapest * AH_VALUE_APART then
+        lines[2] = { kind = "money", label = label, copper = headline }
+      end
+    else
+      lines[1] = { kind = "money", label = label, copper = headline }
+    end
   end
+  local liveShown = lines[1] == live
   -- Trend, sale speed and depth belong to a REGION-wide measurement: the trend and sold
   -- fields ride commodity tokens (a realm item's I token carries neither -- see itemToken in
   -- packages/tsm), and the depth pair rides the verification token, which the server writes
@@ -154,7 +180,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
       lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = wholeCount(v.listings) }
     end
   end
-  if live then lines[#lines + 1] = live end
+  if live and not liveShown then lines[#lines + 1] = live end
   if opts.unitCost then
     lines[#lines + 1] = { kind = "money", label = GC.L["You paid"], copper = opts.unitCost }
   end

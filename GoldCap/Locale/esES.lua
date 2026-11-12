@@ -1000,6 +1000,7 @@ GC.Locales.esES = {
   ["it was set aside when other prices were loaded this session. /reload to use it again"] =
     "se apartaron cuando se cargaron otros precios en esta sesión. /reload para volver a usarlos",
   ["On the AH now"] = "En subasta",
+  ["Cheapest"] = "Lo más barato",
   ["%s listed · %d min ago"] = "%s publicados · hace %d min",
   ["%s listed · just now"] = "%s publicados · ahora mismo",
   ["it could not be read (%s)"] = "no se pudieron leer (%s)",

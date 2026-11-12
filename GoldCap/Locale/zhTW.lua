@@ -922,6 +922,7 @@ GC.Locales.zhTW = {
   ["it was set aside when other prices were loaded this session. /reload to use it again"] =
     "本次載入其他價格時已被擱置。輸入 /reload 可重新使用",
   ["On the AH now"] = "拍賣場目前",
+  ["Cheapest"] = "最便宜",
   ["%s listed · %d min ago"] = "在售 %s · %d 分鐘前",
   ["%s listed · just now"] = "在售 %s · 剛剛",
   ["it could not be read (%s)"] = "無法讀取（%s）",
