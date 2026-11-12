@@ -518,21 +518,28 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
       assert.truthy(find(lines, function(l) return l.left == "Source" and l.right == "your scan, 12m ago" end))
     end)
 
-    it("leaves the AH value out when it asks less than 5% more than the cheapest", function()
-      local close = { mv = 62, min = 60, ts = 1000, source = "scan", kind = "own_scan" }
-      local lines = GC.Tooltip.BuildLines(close, 1000, { forever = FOREVER })
-      assert.equal(60, lines[1].copper)
-      assert.equal(0, count(lines, function(l) return l.label == "AH value" end))
-      assert.truthy(find(lines, function(l) return l.left == "Source" end))
+    it("leaves the AH value out when it is within 5% of the cheapest, either way", function()
+      for _, mv in ipairs({ 62, 58 }) do
+        local close = { mv = mv, min = 60, ts = 1000, source = "scan", kind = "own_scan" }
+        local lines = GC.Tooltip.BuildLines(close, 1000, { forever = FOREVER })
+        assert.equal(60, lines[1].copper)
+        assert.equal(0, count(lines, function(l) return l.label == "AH value" end), mv)
+        assert.truthy(find(lines, function(l) return l.left == "Source" end))
+      end
       local apart = { mv = 63, min = 60, ts = 1000, source = "scan", kind = "own_scan" }
-      lines = GC.Tooltip.BuildLines(apart, 1000, { forever = FOREVER })
+      local lines = GC.Tooltip.BuildLines(apart, 1000, { forever = FOREVER })
       assert.equal(63, lines[2].copper)
     end)
 
-    it("leaves out an older AH value the cheapest lot has since climbed past", function()
-      local lines = GC.Tooltip.BuildLines(ITEM, 1000, { forever = FOREVER, live = { floor = 80, qty = 12, age = 60 } })
+    -- An earlier scan's AH value under a lot the auction house shows dearer now: the verdict still
+    -- weighs the AH value, so a "Sell it to a vendor" under "Cheapest 80c" says what it rests on.
+    it("shows an older AH value the cheapest lot has since climbed past, which the verdict rests on", function()
+      local lines = GC.Tooltip.BuildLines(ITEM, 1000, { forever = { vendorUnit = 70, depositUnit = 1 },
+        live = { floor = 80, qty = 12, age = 60 } })
       assert.equal(80, lines[1].copper)
-      assert.equal(0, count(lines, function(l) return l.label == "AH value" end))
+      assert.equal("AH value", lines[2].label)
+      assert.equal(72, lines[2].copper)
+      assert.equal("Sell it to a vendor", find(lines, function(l) return l.kind == "verdict" end).text)
     end)
 
     it("still weighs the AH value for the verdict when it is left out", function()

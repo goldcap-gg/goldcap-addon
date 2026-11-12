@@ -43,9 +43,13 @@ local function liveLine(live, forever)
     detail = detail }
 end
 
--- WoW: Forever: the AH value is printed under the cheapest lot only when it asks at least this much
--- more. Within it the two say the same thing, and a second figure only asks the player which to read.
-local AH_VALUE_APART = 1.05
+-- WoW: Forever: the AH value is printed under the cheapest lot only when the two are at least this
+-- share of the cheapest apart, either way. Within it they say the same thing, and a second figure
+-- only asks the player which to read. Apart, it is printed under it even when lower: an AH value
+-- from an earlier scan than the lot the auction house shows now is still the figure the verdict
+-- below weighs, and a "Sell it to a vendor" under a cheapest lot that would pay more must show
+-- what it rests on.
+local AH_VALUE_APART = 0.05
 
 -- The price the tooltip's first line prints for `v` (a GC.Data.GetItemValue answer), and which of
 -- its three lines that is: "region" (an imported realm item's region reference), "median" (an
@@ -56,7 +60,7 @@ local AH_VALUE_APART = 1.05
 -- its number from here, so it never says
 -- something the item's own tooltip does not. The realm-item rule is explained in BuildLines below.
 -- On WoW: Forever the tooltip leads with the cheapest lot and prints this figure, the AH value, under
--- it only when it asks 5% more or over (BuildLines): within that the two say the same thing.
+-- it only when the two are 5% or more apart (BuildLines): within that they say the same thing.
 function GC.Tooltip.Headline(v)
   if type(v) ~= "table" then return nil end
   if v.kind == "realm_item" and v.source == "import" then
@@ -132,7 +136,8 @@ function GC.Tooltip.BuildLines(v, now, opts)
     -- session, else the scan's own cheapest, which the Source line below dates. goldcap.gg's item
     -- page leads with that figure, and a tooltip that led with the AH value read 72c for an item
     -- the auction house had at 60c and the site at 59c (owner, 2026-11-12). The AH value follows
-    -- only when it asks noticeably more; the verdict below still weighs it, as the deals do.
+    -- only when it is noticeably apart (AH_VALUE_APART); the verdict below still weighs it, as the
+    -- deals do.
     -- Gear keeps its one line: its figure is already the cheapest version's.
     local cheapest = nil
     if scan and not v.gear then
@@ -140,7 +145,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
     end
     if cheapest then
       lines[1] = live or { kind = "money", label = GC.L["Cheapest"], copper = cheapest }
-      if headline >= cheapest * AH_VALUE_APART then
+      if math.abs(headline - cheapest) >= cheapest * AH_VALUE_APART then
         lines[2] = { kind = "money", label = label, copper = headline }
       end
     else

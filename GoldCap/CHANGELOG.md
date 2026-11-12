@@ -4,8 +4,9 @@
 
 - WoW: Forever: an item's tooltip now starts with the cheapest lot on the auction house, the figure
   goldcap.gg shows first on the item's page. The AH value, what the cheapest tenth of the listed
-  units ask, comes under it only when it is noticeably higher, which means only a few lots are that
-  cheap. It used to come first, and a tooltip could read 72c for an item listed at 60c.
+  units ask, comes under it only when the two differ noticeably: only a few lots are that cheap, or
+  the price has moved since the scan. It used to come first, and a tooltip could read 72c for an
+  item listed at 60c.
 
 ## 0.28.0 (2026-11-11)
 
