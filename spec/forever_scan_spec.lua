@@ -870,6 +870,29 @@ describe("ForeverScan", function()
       assert.is_nil(GC.ForeverScan.ValueFor(1))
     end)
 
+    -- GetItemValue asks several times a row on every page of a pass, and once more for every row
+    -- at its end: decoding the entry's text each time was most of that work.
+    it("reads an entry's text once while it stays the same, and again once a scan changes it", function()
+      GC.ForeverScan.Init(db, passport(16001, 90, "Forever"))
+      db.foreverScan = { fold = { region = 90, realm = "Forever", at = 5000,
+        items = { [2589] = "67,4060,31,;0x936 3x3000" } } }
+      local decode, decoded = GC.ForeverFold.Decode, 0
+      GC.ForeverFold.Decode = function(s) decoded = decoded + 1 return decode(s) end
+      local first = GC.ForeverScan.ValueFor(2589)
+      local again = GC.ForeverScan.ValueFor(2589)
+      assert.equal(1, decoded)
+      assert.same(first, again)
+      -- A table of its own each time: a caller may write to what it is handed.
+      assert.are_not.equal(first, again)
+      db.foreverScan.fold = { region = 90, realm = "Forever", at = 6000, items = { [2589] = "70,10,2,;0x10" } }
+      local fresh = GC.ForeverScan.ValueFor(2589)
+      assert.equal(2, decoded)
+      assert.equal(70, fresh.min)
+      assert.equal(6000, fresh.ts)
+      assert.is_nil(GC.ForeverScan.ValueFor(1))
+      GC.ForeverFold.Decode = decode
+    end)
+
     it("answers nothing for another region's or another realm's fold", function()
       GC.ForeverScan.Init(db, passport(16001, 90, "Forever"))
       db.foreverScan = { fold = { region = 1, realm = "Forever", at = 1, items = { [2589] = "67,1,1,;0x1" } } }

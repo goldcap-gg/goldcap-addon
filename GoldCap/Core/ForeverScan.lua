@@ -754,13 +754,32 @@ end
 
 -- The player's own scan as a GC.Data.GetItemValue answer (Core/Data.lua, its last source), or
 -- nil. Reads only: it runs wherever GetItemValue does, the Sell tab's compose included.
+--
+-- What it read from an entry is kept, with the entry's text: GetItemValue asks about an item
+-- several times a row on every page of a scan pass and once more for every row at its end, and
+-- decoding the text each time was most of that work (5800 items: 15 ms in LuaJIT, about six times
+-- that in the game, at the end of every pass). The same text reads the same whichever scan wrote
+-- it, so a new scan needs nothing reset: its entries are new text, and are read again.
+local readEntries = {}
+
 function GC.ForeverScan.ValueFor(itemID)
   local fold = GC.ForeverScan.Fold()
   if not fold then return nil end
-  local e = GC.ForeverFold.Decode(fold.items[itemID])
-  if not e then return nil end
-  return { mv = e.value, min = e.min, currentQty = e.qty, listings = e.lots, ts = fold.at,
-    source = "scan", kind = "own_scan", gear = e.gear or nil, browse = e.browse or nil }
+  local encoded = fold.items[itemID]
+  if encoded == nil then return nil end
+  local kept = readEntries[itemID]
+  if not kept or kept.text ~= encoded then
+    local e = GC.ForeverFold.Decode(encoded)
+    kept = { text = encoded, ok = e ~= nil }
+    if e then
+      kept.value, kept.min, kept.qty, kept.lots, kept.gear, kept.browse =
+        e.value, e.min, e.qty, e.lots, e.gear or nil, e.browse or nil
+    end
+    readEntries[itemID] = kept
+  end
+  if not kept.ok then return nil end
+  return { mv = kept.value, min = kept.min, currentQty = kept.qty, listings = kept.lots, ts = fold.at,
+    source = "scan", kind = "own_scan", gear = kept.gear, browse = kept.browse }
 end
 
 -- The gear lots of the saved fold (Core/ForeverGear.lua) and that fold, only while the lots are the
