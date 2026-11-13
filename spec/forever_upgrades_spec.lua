@@ -434,13 +434,26 @@ describe("ForeverUpgrades", function()
       assert.is_nil(r.set)
     end)
 
-    it("keeps the cheapest SET_STATES states when the front grows past them", function()
+    -- Keeping only the cheapest states made a rich character's set spend less than it could: with
+    -- two kept, the head and the chest together (11) lost to the head alone (5).
+    it("thins a front past SET_STATES evenly, always keeping the cheapest and the strongest", function()
       local h, c = cand("HEAD", "item:1", 10, 5), cand("CHEST", "item:2", 20, 6)
+      U.C.SET_STATES = 2
       assert.equal(11, U.BestSet({ HEAD = { h }, CHEST = { c } }, 100).gain)
-      U.C.SET_STATES = 2                                           -- (0, 0) and the head alone survive
-      local set = U.BestSet({ HEAD = { h }, CHEST = { c } }, 100)
-      assert.equal(h, set.picks.HEAD); assert.is_nil(set.picks.CHEST)
-      assert.equal(5, set.gain)
+      -- Five heads make a front of six states after the head: nothing and 10, 20, 30, 40, 50.
+      -- Three kept are the first, a middle one (30) and the last, whatever comes after them.
+      U.C.SET_STATES = 3
+      local heads = {}
+      for i = 1, 5 do heads[i] = cand("HEAD", "item:" .. i, 10 * i, i) end
+      local function setWith(chest)
+        return U.BestSet({ HEAD = heads, CHEST = { cand("CHEST", "item:9", chest[1], chest[2]) } }, 100)
+      end
+      local set = setWith({ 5, 10 })                               -- the strongest head still there
+      assert.equal(heads[5], set.picks.HEAD); assert.equal(15, set.gain)
+      set = setWith({ 65, 20 })                                    -- 35 left for a head: the middle one
+      assert.equal(heads[3], set.picks.HEAD); assert.equal(95, set.cost)
+      set = setWith({ 95, 30 })                                    -- nothing but the chest: the empty set
+      assert.is_nil(set.picks.HEAD); assert.equal(30, set.gain)
     end)
   end)
 
@@ -736,6 +749,16 @@ describe("ForeverUpgrades", function()
     end)
   end)
 
+  -- Blizzard draws RETRIEVING_ITEM_INFO in RED_FONT_COLOR: a tooltip still loading is not a "no".
+  it("cannot tell from a tooltip that is still loading", function()
+    withGlobals({ RETRIEVING_ITEM_INFO = "Retrieving item information" }, function()
+      assert.is_nil(U.TooltipUsable("item:1121", tip({
+        { leftText = "Retrieving item information", leftColor = { r = 1, g = 0.125, b = 0.125 } } })))
+      assert.is_false(U.TooltipUsable("item:1121", tip({                  -- loaded, and red: a no
+        { leftText = "Feet", leftColor = WHITE, rightText = "Plate", rightColor = { r = 1, g = 0.125, b = 0.125 } } })))
+    end)
+  end)
+
   it("knows Classic's armour and weapon rules, and says nothing for a class it does not know", function()
     assert.is_false(U.ClassAllows("WARRIOR", 4, 4, 39))
     assert.is_true(U.ClassAllows("WARRIOR", 4, 4, 40))
@@ -878,6 +901,24 @@ describe("ForeverUpgrades in the client", function()
     assert.equal(4, reads)
   end)
 
+  it("keeps no \"no\" from a tooltip that was still loading, and asks it again", function()
+    init(16001)
+    local was = _G.RETRIEVING_ITEM_INFO
+    _G.RETRIEVING_ITEM_INFO = "Retrieving item information"
+    finally(function() _G.RETRIEVING_ITEM_INFO = was end)
+    local reads, red = 0, { r = 1, g = 0.125, b = 0.125 }
+    _G.C_TooltipInfo = { GetHyperlink = function()
+      reads = reads + 1
+      if reads == 1 then return { lines = { { leftText = "Retrieving item information", leftColor = red } } } end
+      return { lines = { { leftText = "Cap", leftColor = { r = 1, g = 1, b = 1 } } } }
+    end }
+    assert.equal(1, #GC.ForeverUpgrades.Current().slots)         -- cannot tell: the class rules say yes
+    assert.equal(1, #GC.ForeverUpgrades.Current().slots)
+    assert.equal(2, reads)                                        -- asked again, then kept
+    GC.ForeverUpgrades.Current()
+    assert.equal(2, reads)
+  end)
+
   it("shows a rogue with a dagger in hand only daggers for the main hand, unless it chose otherwise", function()
     init(16001)
     INFO[150] = { loc = "INVTYPE_WEAPON", class = 2, sub = 15, stats = { ITEM_MOD_AGILITY_SHORT = 1 } }
@@ -951,6 +992,28 @@ describe("ForeverUpgrades in the client", function()
     GC.ForeverUpgrades.SlashWeights("reset")
     assert.is_nil(db.forever.weights.WARRIOR)
     assert.equal(printed[1], printed[5])
+  end)
+
+  -- Finding 3 (13.11): the old DPS default of 2 rode along in every table /gc weights saved. It moves
+  -- to the new default once, for the account's every melee class, and never again.
+  it("moves a saved DPS weight of the old default to the new one, once", function()
+    init(16001)
+    db.forever = { weights = { ROGUE = { AGI = 1.5, DPS = 2 }, WARRIOR = { STR = 1, DPS = 2 },
+      MAGE = { INT = 1, DPS = 2 }, PALADIN = { STR = 1, DPS = 3 } } }
+    assert.same({ AGI = 1.5, DPS = 7 }, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE"))
+    assert.same({ STR = 1, DPS = 7 }, db.forever.weights.WARRIOR)   -- the alt's too, in the same pass
+    assert.same({ INT = 1, DPS = 2 }, db.forever.weights.MAGE)      -- a mage's 2 was never the old melee one
+    assert.same({ STR = 1, DPS = 3 }, db.forever.weights.PALADIN)   -- typed, not the old default
+    assert.equal(2, db.forever.weightsV)
+    -- Typed again after the move, a 2 is the player's own.
+    db.forever.weights.ROGUE.DPS = 2
+    assert.same({ AGI = 1.5, DPS = 2 }, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE"))
+    -- A save with no weights of its own is marked done too, so a 2 typed later stays.
+    db.forever = {}
+    GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE")
+    assert.equal(2, db.forever.weightsV)
+    db.forever.weights = { ROGUE = { AGI = 1, DPS = 2 } }
+    assert.equal(2, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE").DPS)
   end)
 
   -- V3: a valid token with nothing after it at all ("/gc weights STR") is a different mistake

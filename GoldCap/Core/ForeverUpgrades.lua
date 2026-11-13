@@ -309,8 +309,8 @@ function GC.ForeverUpgrades.TooltipSpeed(itemString, api)
 end
 
 -- The client's tooltip for the piece, as data: false on any red line, true when it drew coloured
--- lines and none was red, nil when it cannot tell (no client call, nothing loaded, no colours).
--- One red line is not a "no": the level the piece requires, which the client draws red until the
+-- lines and none was red, nil when it cannot tell (no client call, nothing loaded, still loading,
+-- no colours). One red line is not a "no": the level the piece requires, which the client draws red until the
 -- character reaches it (HERO probe P5, 13.11: Feet of the Lynx at level 17, "Requires Level 19" in
 -- 1.00/0.13/0.13, line type 43). Every level-ahead piece used to fail here, so the "at level N"
 -- picks never showed. Type 43 is every usage requirement, class and skill included, so the line is
@@ -318,6 +318,14 @@ end
 function GC.ForeverUpgrades.TooltipUsable(itemString, api)
   local lines = tooltipLines(itemString, api)
   if not lines then return nil end
+  -- A tooltip still loading says so in red (the client's RETRIEVING_ITEM_INFO, which Blizzard's
+  -- own frames draw in RED_FONT_COLOR): that is "cannot tell", never a "no" to keep for the session.
+  local loading = _G.RETRIEVING_ITEM_INFO
+  if type(loading) == "string" and loading ~= "" then
+    for _, line in ipairs(lines) do
+      if type(line) == "table" and (line.leftText == loading or line.rightText == loading) then return nil end
+    end
+  end
   local levelLine = formatPattern(_G.ITEM_MIN_LEVEL)
   local sawColour = false
   for _, line in ipairs(lines) do
@@ -366,12 +374,27 @@ local function paretoFront(list)
   return out
 end
 
+-- At most `cap` of a front's states, spread evenly over it by index: always its cheapest (the
+-- empty set, which every later group builds on) and its strongest. Keeping only the cheapest made
+-- a rich character's set spend less than it could: every partial set that had bought the dearer
+-- pieces was gone before the last groups were weighed.
+local function thinned(front, cap)
+  local n = #front
+  cap = math.max(2, math.floor(tonumber(cap) or 2))
+  if n <= cap then return front end
+  local out = {}
+  for j = 1, cap do
+    out[j] = front[math.floor(1 + (j - 1) * (n - 1) / (cap - 1) + 0.5)]
+  end
+  return out
+end
+
 -- The strongest set the gold carried pays for (HERO plan, 2026-11-13): at most one piece per group,
 -- the most gain whose prices add up to no more than money. options[group]: the group's choices, as
 -- Build makes them (unit, gain, diffs, itemString, twoHand). The two hands are one group: nothing,
 -- either hand alone, both (never one item string in both: one lot cannot fill two hands), or a
 -- two-hander alone. A multiple-choice knapsack over Pareto states: after each group only the
--- partial sets no cheaper one matches in gain are kept, the cheapest SET_STATES of them.
+-- partial sets no cheaper one matches in gain are kept, SET_STATES of them at most (thinned).
 -- nil without a money read; otherwise { picks = { [group] = cand }, list (the picks in GROUPS
 -- order), cost, gain, left = money - cost, diffs (the picks' summed) }.
 function GC.ForeverUpgrades.BestSet(options, money)
@@ -418,8 +441,7 @@ function GC.ForeverUpgrades.BestSet(options, money)
         end
       end
     end
-    states = paretoFront(grown)
-    for i = #states, C.SET_STATES + 1, -1 do states[i] = nil end
+    states = thinned(paretoFront(grown), C.SET_STATES)
   end
 
   -- The front's gain only grows with its cost: its last state is the strongest, and the cheapest
@@ -765,8 +787,25 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   return out
 end
 
+-- The three melee classes' DPS default was 2 until the HERO plan (Finding 3, 13.11), and every
+-- /gc weights call saved the whole table, that 2 included: a saved 2 there is the old default, not
+-- the player's choice. It moves to the new default once, for every class in the account's prefs
+-- at the same time, and prefs.weightsV = 2 says it is done, so a 2 the player types later stays.
+local MELEE_DPS_MOVED = { "WARRIOR", "PALADIN", "ROGUE" }
+local function migrateWeights(prefs)
+  if type(prefs) ~= "table" or (tonumber(prefs.weightsV) or 0) >= 2 then return end
+  if type(prefs.weights) == "table" then
+    for _, class in ipairs(MELEE_DPS_MOVED) do
+      local own = prefs.weights[class]
+      if type(own) == "table" and own.DPS == 2 then own.DPS = GC.ForeverUpgrades.DEFAULT_WEIGHTS[class].DPS end
+    end
+  end
+  prefs.weightsV = 2
+end
+
 -- Stat weights: the player's own for this class, else a copy of the class's default, else none.
 function GC.ForeverUpgrades.WeightsFor(prefs, classFile)
+  migrateWeights(prefs)
   local own = type(prefs) == "table" and type(prefs.weights) == "table" and prefs.weights[classFile] or nil
   if type(own) == "table" then return own end
   local copy = {}
@@ -836,7 +875,7 @@ end
 -- keptUsable: the tooltip's verdict on a piece, the priciest read here, per piece and character
 -- level, so a level-up asks again (a red "Requires Level" line is gone then). A skill trained
 -- mid-session shows on the next level or /reload. Only a yes or a no is kept: "cannot tell"
--- (nothing loaded yet, no colours) is asked again next time.
+-- (nothing loaded yet, still loading, no colours) is asked again next time.
 -- keptSpeed: a weapon's speed per item string or link, only once the tooltip has said it.
 local keptInfo, keptStats, keptUsable, keptSpeed = {}, {}, {}, {}
 
