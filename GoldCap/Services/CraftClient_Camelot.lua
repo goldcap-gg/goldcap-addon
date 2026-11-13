@@ -52,19 +52,24 @@ function CC.UnitOf(itemID)
 end
 
 --- What one of a crafted item sells for on Forever's auction house, from a book of at least 20
---- units and no more than it sold for, and how many of it sell a day there: the site's sales tape of this auction house
---- (GC.Data.ForeverSales), nil while the Companion has brought none. The scans say nothing of
---- what sells.
+--- units and no more than it sells for now, and how many of it sell a day there: the site's sales
+--- tape of this auction house (GC.Data.ForeverSales), nil while the Companion has brought none. The
+--- scans say nothing of what sells.
 function CC.SellOf(itemID)
   if type(itemID) ~= "number" then return nil end
   local unit = scanned(itemID)
   if not unit then return nil end
   local sales = GC.Data and GC.Data.ForeverSales and GC.Data.ForeverSales(itemID) or nil
   if type(sales) ~= "table" then return unit end
-  -- Never above what it sold for: a lot can hang at a price nobody pays. The tape's median is
-  -- already the lowest of its week, day and six hours. A listing under it stands, the craft has
+  -- Never above what it sells for now: a lot can hang at a price nobody pays. The site says that
+  -- for a crafted item (`recent`: the lower of the last day's and six hours' medians that hold
+  -- three sales); the tape's median, the lowest of its week, day and six hours, stood in for it
+  -- before and does for an item the site leaves out. On a market that rose this week the week's
+  -- median is last week's price: Draught of Water Breathing was counted at 2s 40c with its
+  -- cheapest lot at 8s 36c (ClickUp 1an60dzww4h). A listing under the cap stands, the craft has
   -- to undercut it.
-  if type(sales.median) == "number" and sales.median > 0 and sales.median < unit then unit = math.floor(sales.median) end
+  local sold = type(sales.recent) == "number" and sales.recent > 0 and sales.recent or sales.median
+  if type(sold) == "number" and sold > 0 and sold < unit then unit = math.floor(sold) end
   return unit, type(sales.perDay) == "number" and sales.perDay or nil
 end
 

@@ -635,7 +635,8 @@ end
 -- hourly snapshots as goldcap.gg reads them (GCF1's H and S sections). nil while the payload has
 -- under a day of tape: a listing runs up to a day, so less says nothing about what does not sell.
 -- An item the tape covered and S does not list sold nothing: `sales` 0. `perDay` is units a day.
--- `at` is when the tape's newest hour is, the payload's own time (epoch seconds).
+-- `at` is when the tape's newest hour is, the payload's own time (epoch seconds). `recent` is what
+-- a crafted item sells for now (GCF1's R), where the site says it differs from `median`.
 GC.Data.FOREVER_SALES_MIN_HOURS = 24
 
 function GC.Data.ForeverSales(itemID)
@@ -645,7 +646,7 @@ function GC.Data.ForeverSales(itemID)
   local s = p.sales and p.sales[itemID]
   if not s then return { units = 0, sales = 0, perDay = 0, hours = hours, at = p.ts } end
   return { units = s.units, sales = s.sales, median = s.median, p25 = s.p25,
-    perDay = s.units * 24 / hours, hours = hours, at = p.ts }
+    recent = p.recent and p.recent[itemID] or nil, perDay = s.units * 24 / hours, hours = hours, at = p.ts }
 end
 
 function GC.Data.GetItemValue(itemID)

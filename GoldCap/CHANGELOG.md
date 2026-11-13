@@ -7,6 +7,10 @@
   units ask, comes under it only when the two differ noticeably: only a few lots are that cheap, or
   the price has moved since the scan. It used to come first, and a tooltip could read 72c for an
   item listed at 60c.
+- WoW: Forever: Worth crafting now counts a craft at what the item has sold for over the last day,
+  not over the week. On an item whose price rose this week it read far under what the item sells
+  for now, and a craft that pays could show a loss: Draught of Water Breathing was counted at 2s 40c
+  while its cheapest lot asked 8s 36c.
 
 ## 0.28.0 (2026-11-11)
 
