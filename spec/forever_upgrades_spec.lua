@@ -1,10 +1,13 @@
 local helper = require("spec.spec_helper")
 
 describe("ForeverUpgrades", function()
-  local GC, U, items, statsOf, usableOf, speedOf, worn, requested
+  local GC, U, items, statsOf, usableOf, speedOf, worn, requested, speedReads
   local W = { STR = 1, STA = 0.5 }
 
   local function drv(over)
+    -- Speeds as the client's driver keeps them: per itemID, what it already knows on a lookup
+    -- (read false), and one tooltip read (read true) when it knows none, which speedReads records.
+    local kept = {}
     local d = {
       level = function() return 20 end,
       classFile = function() return "WARRIOR" end,
@@ -19,7 +22,12 @@ describe("ForeverUpgrades", function()
       end,
       stats = function(s) return statsOf[s] end,
       usable = function(s) return usableOf[s] end,
-      speed = function(s) return speedOf[s] end,
+      speed = function(id, read)
+        if kept[id] or not read then return kept[id] end
+        speedReads[#speedReads + 1] = id
+        kept[id] = speedOf[id]
+        return kept[id]
+      end,
       requestLoad = function(id) requested[#requested + 1] = id end,
     }
     for k, v in pairs(over or {}) do d[k] = v end
@@ -44,7 +52,7 @@ describe("ForeverUpgrades", function()
     GC = helper.loadModule("Core/ForeverGear.lua")
     helper.loadModule("Core/ForeverUpgrades.lua", GC)
     U = GC.ForeverUpgrades
-    items, statsOf, usableOf, speedOf, worn, requested = {}, {}, {}, {}, {}, {}
+    items, statsOf, usableOf, speedOf, worn, requested, speedReads = {}, {}, {}, {}, {}, {}, {}
   end)
 
   -- Owner, 2026-11-06: the cheapest piece that beat the worn one offered "+1 armour" for 1s in every
@@ -203,7 +211,7 @@ describe("ForeverUpgrades", function()
     items[1600] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }
     items[1601] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }
     statsOf["item:1600"], statsOf["item:1601"] = DPS(10), DPS(10)
-    speedOf = { ["item:1600"] = 1.8, ["item:1601"] = 2.7 }
+    speedOf = { [1600] = 1.8, [1601] = 2.7 }
     local g = gear({ [1600] = "50:0:0", [1601] = "50:0:0" })
     local r = U.Build(g, rogue(), R, false, { style = "sinister" })
     assert.equal(1601, r.slots[1].best.itemID)
@@ -212,7 +220,7 @@ describe("ForeverUpgrades", function()
     assert.equal(1600, U.Build(g, drv(), { STR = 1, DPS = 7 }).slots[1].best.itemID)
     -- The worn sword is weighed by its own speed too: 9 DPS at 2.7 beats 10 at 1.8.
     worn[16] = "item:1690"
-    statsOf["item:1690"], speedOf["item:1690"] = DPS(9), 2.7
+    statsOf["item:1690"], speedOf[1690] = DPS(9), 2.7
     r = U.Build(g, rogue(), R, false, { style = "sinister" })
     assert.equal(1, #r.slots)
     assert.equal(1601, r.slots[1].best.itemID)
@@ -229,21 +237,62 @@ describe("ForeverUpgrades", function()
     worn[16] = "item:1790"
     statsOf = { ["item:1700"] = DPS(10), ["item:1701"] = DPS(10), ["item:1702"] = { ITEM_MOD_AGILITY_SHORT = 3 },
       ["item:1790"] = DPS(5) }
-    local asked = {}
-    local function speed(s) asked[#asked + 1] = s; return 2.6 end
+    speedOf = { [1700] = 2.6, [1701] = 2.6, [1703] = 2.6, [1790] = 2.6 }
     local g = gear({ [1700] = "10:0:0", [1701] = "10:0:0", [1702] = "10:0:0", [1703] = "10:0:0" })
-    U.Build(g, rogue({ speed = speed }), R)
-    table.sort(asked)
-    assert.same({ "item:1700", "item:1790" }, asked)               -- the main-hand candidate and the worn one
-    asked = {}
-    local r = U.Build(g, rogue({ speed = speed, usable = function() error("a tooltip read on the count path") end }),
-      R, true)
-    assert.same({}, asked)
+    U.Build(g, rogue(), R)
+    assert.same({ 1790, 1700 }, speedReads)                       -- the worn one first, then the candidate
+    speedReads = {}
+    local r = U.Build(g, rogue({ speed = function() error("a speed read on the count path") end,
+      usable = function() error("a tooltip read on the count path") end }), R, true)
     assert.equal(4, #r.slots)                                     -- main hand, off hand, gloves, ranged
-    U.Build(g, drv({ speed = speed }), { STR = 1, DPS = 7 })      -- a warrior
-    assert.same({}, asked)
-    U.Build(g, rogue({ speed = speed }), { AGI = 1 })              -- weights that do not count DPS
-    assert.same({}, asked)
+    assert.is_nil(r.speedPending)
+    U.Build(g, drv(), { STR = 1, DPS = 7 })                       -- a warrior
+    assert.same({}, speedReads)
+    U.Build(g, rogue(), { AGI = 1 })                              -- weights that do not count DPS
+    assert.same({}, speedReads)
+  end)
+
+  -- A rogue's first build read a tooltip for every main-hand lot it weighed (13.11), several
+  -- hundred in one frame. A suffix never changes a weapon's speed, so one read covers the item.
+  it("reads a weapon's speed once per item, at most SPEED_READS a build, the rest at REF_SPEED", function()
+    local R, lots = { AGI = 1, DPS = 7 }, {}
+    for i = 1, 50 do
+      local id = 2000 + i
+      items[id] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }
+      statsOf["item:" .. id], speedOf[id], lots[id] = DPS(i), 2.6, "10:0:0"
+    end
+    local d = rogue()
+    local r = U.Build(gear(lots), d, R)
+    assert.equal(U.C.SPEED_READS, #speedReads)
+    assert.equal(2050, speedReads[1]); assert.equal(2011, speedReads[40])   -- the strongest forty
+    assert.equal(10, r.speedPending)
+    assert.near(7 * 50 * U.DpsFactor("ROGUE", "MAINHAND", 2.6), r.slots[1].best.gain, 1e-9)
+    r = U.Build(gear(lots), d, R)                                 -- the next build reads the other ten
+    assert.equal(50, #speedReads)
+    assert.is_nil(r.speedPending)
+    U.Build(gear(lots), d, R)
+    assert.equal(50, #speedReads)                                 -- every speed kept: no read at all
+  end)
+
+  it("reads the strongest main-hand item's speed first, ties on the itemID, each version weighed", function()
+    local R = { AGI = 1, DPS = 7 }
+    for _, id in ipairs({ 2101, 2102, 2103, 2104, 2105 }) do
+      items[id] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }
+      speedOf[id] = 2.6
+    end
+    statsOf = { ["item:2101"] = DPS(5), ["item:2102"] = DPS(9), ["item:2103"] = DPS(9), ["item:2104"] = DPS(7),
+      ["item:2105::::::::::::1:12729"] = DPS(3), ["item:2105::::::::::::1:12917"] = DPS(8) }
+    local g = { v = 2, at = 5, items = { [2101] = "10:0:0", [2102] = "10:0:0", [2103] = "10:0:0", [2104] = "10:0:0",
+      [2105] = "10:0:0:12729 12:0:0:12917" } }
+    U.C.SPEED_READS = 2
+    local d = rogue()
+    local r = U.Build(g, d, R)
+    assert.same({ 2102, 2103 }, speedReads)
+    assert.equal(3, r.speedPending)
+    assert.equal(1, U.Build(g, d, R).speedPending)
+    assert.same({ 2102, 2103, 2105, 2104 }, speedReads)           -- 2105 by its stronger version, read once
+    assert.is_nil(U.Build(g, d, R).speedPending)
+    assert.same({ 2102, 2103, 2105, 2104, 2101 }, speedReads)
   end)
 
   -- HERO plan, Review Focus 2: the client's item cache answers part of the lots, and two builds over
@@ -978,9 +1027,10 @@ describe("ForeverUpgrades in the client", function()
     assert.equal(151, r.slots[1].best.itemID)
   end)
 
-  -- HERO probe P4 (13.11): the speed is on the tooltip's damage line, and the probe read the worn
-  -- weapons' tooltips by their full links.
-  it("reads a weapon's speed from its tooltip once per piece, the worn one by its full link", function()
+  -- HERO probe P4 (13.11): the speed is on the tooltip's damage line. A random suffix changes a
+  -- weapon's stats, never its speed, so one bare "item:<id>" read serves every version and the worn
+  -- piece; read per item string, two versions of one sword cost two reads.
+  it("reads a weapon's speed from its tooltip once per item, by its bare item string, the worn one's too", function()
     init(16001)
     _G.SPEED = "Speed"
     local function idOf(s) return tonumber(tostring(s):match("item:(%d+)")) end
@@ -988,9 +1038,10 @@ describe("ForeverUpgrades in the client", function()
     INFO[160] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7, stats = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 } }
     INFO[161] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7, stats = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 } }
     finally(function() INFO[150], INFO[160], INFO[161] = nil, nil, nil end)
-    db.foreverScan.gear.items = { [160] = "300:0:0", [161] = "300:0:0" }
+    db.foreverScan.gear = { v = 2, at = 5000, items = { [160] = "300:0:0:12729 310:0:0:12917",
+      [161] = "300:0:0:12800" } }
     _G.UnitClass = function() return "Rogue", "ROGUE", 4 end
-    local WORN = "|cnIQ2:|Hitem:150::::::::17:1488:::::::::|h[Worn Sword]|h|r"
+    local WORN = "|cnIQ2:|Hitem:150::::::::17:1488:::1:12718::::::|h[Worn Sword of the Monkey]|h|r"
     _G.GetInventoryItemLink = function(_, slot) return slot == 16 and WORN or nil end
     local speeds, asked = { [150] = "Speed 2.70", [160] = "Speed 1.80", [161] = "Speed 2.70" }, {}
     _G.C_TooltipInfo = { GetHyperlink = function(s)
@@ -1003,11 +1054,14 @@ describe("ForeverUpgrades in the client", function()
     assert.equal(1, #r.slots)
     assert.equal(161, r.slots[1].best.itemID)
     assert.equal(WORN, r.slots[1].worn)
-    assert.equal(1, asked[WORN])                                  -- the worn sword, by its link
-    assert.equal(1, asked["item:160"])
+    assert.equal(1, asked["item:150"])                            -- the worn sword, by its item
+    assert.is_nil(asked[WORN])
+    assert.equal(1, asked["item:160"])                            -- one read for both versions
+    assert.equal(1, asked["item:161"])
     GC.ForeverUpgrades.Current()
-    assert.equal(1, asked[WORN])                                  -- kept: not asked again
+    assert.equal(1, asked["item:150"])                            -- kept: not asked again
     assert.equal(1, asked["item:160"])
+    assert.equal(1, asked["item:161"])
   end)
 
   it("says there is no scan when the saved gear lots are not this fold's", function()

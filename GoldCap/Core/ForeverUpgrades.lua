@@ -37,6 +37,10 @@ local C = {
   FRONTIER_CHECKS = 8,     -- tooltip reads per slot for its cheaper choices, and again for its set choices
   SET_STATES = 400,        -- the best set's partial sets kept after each group (BestSet)
   REQUEST_PER_BUILD = 100, -- item-data requests per build
+  -- Weapon-speed tooltip reads per build (Build's speedOfItem). A rogue's first build read one for
+  -- every main-hand lot it weighed, several hundred C_TooltipInfo.GetHyperlink calls in one frame
+  -- (13.11); the rest wait for the next build, strongest first.
+  SPEED_READS = 40,
   -- The seconds between a class's weapon-swing abilities, for a class whose main hand is weighed by
   -- its speed (DpsFactor): a rogue's Sinister Strike costs 45 energy and energy comes back at 10 a
   -- second, so one lands about every 4.5 s.
@@ -221,6 +225,15 @@ function GC.ForeverUpgrades.Score(stats, weights, dpsFactor)
     end
   end
   return score, parts
+end
+
+-- Whether a piece's stats carry weapon DPS: the only share a weapon's speed scales (DpsFactor).
+local function hasDps(stats)
+  for _, key in ipairs(GC.ForeverUpgrades.TOKENS.DPS) do
+    local v = stats[key]
+    if type(v) == "number" and v ~= 0 then return true end
+  end
+  return false
 end
 
 function GC.ForeverUpgrades.Diff(parts, base)
@@ -484,6 +497,9 @@ end
 --                overGold true when the gold carried is below unit, twoHand for INVTYPE_2HWEAPON.
 --   set          BestSet's answer, its picks marked inSet; nil without a money read, and on the
 --                count-only path, which only counts slots.
+--   speedPending the main-hand items (the worn one included) still without a speed after this
+--                build's SPEED_READS, each weighed at REF_SPEED until a later build reads it;
+--                absent when there are none.
 --   stale        gear saved before suffix versions (v1): every version there reads as its base.
 function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   local out = { slots = {}, loading = 0 }
@@ -505,10 +521,27 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   -- ABILITY_EVERY, under weights that count DPS. Never on the count-only path. nil: REF_SPEED.
   local readSpeed = not skipUsable and C.ABILITY_EVERY[class] ~= nil and type(driver.speed) == "function"
     and type(weights.DPS) == "number" and weights.DPS ~= 0
-  local function speedIn(group, s)
-    if not (readSpeed and group == "MAINHAND") then return nil end
-    local v = driver.speed(s)
-    return type(v) == "number" and v or nil
+  -- Per item, never per version: a random suffix changes a weapon's stats and damage, not its
+  -- speed. driver.speed(itemID, false) is what the driver already knows, never a tooltip read;
+  -- (itemID, true) reads one when it knows none. read: this caller needs the speed, and may spend
+  -- one of the build's SPEED_READS on it, once per item; an item past them scores at REF_SPEED
+  -- this build and counts in speedPending.
+  local speeds, speedAsked, speedReads, speedWanted = {}, {}, 0, {}
+  local function speedOfItem(itemID, read)
+    if not (readSpeed and itemID) then return nil end
+    if speeds[itemID] == nil then
+      local v = driver.speed(itemID, false)
+      speeds[itemID] = type(v) == "number" and v > 0 and v or false
+    end
+    if read then
+      speedWanted[itemID] = true
+      if speeds[itemID] == false and not speedAsked[itemID] and speedReads < C.SPEED_READS then
+        speedAsked[itemID], speedReads = true, speedReads + 1
+        local v = driver.speed(itemID, true)
+        if type(v) == "number" and v > 0 then speeds[itemID] = v end
+      end
+    end
+    return speeds[itemID] or nil
   end
 
   -- What the character wears, per slot, scored in that slot's hand. false: worn, but its stats not
@@ -526,8 +559,11 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
           local id = itemIdOf(link)
           if id then loading[id] = true end
         else
+          -- The worn main hand's speed comes first among the build's reads: every main-hand
+          -- candidate is weighed against it.
           local group = GROUP_AT[slot]
-          local s, p = Score(stats, weights, DpsFactor(class, group, speedIn(group, link)))
+          local speed = group == "MAINHAND" and speedOfItem(itemIdOf(link), true) or nil
+          local s, p = Score(stats, weights, DpsFactor(class, group, speed))
           worn[slot] = { score = s, parts = p, link = link }
         end
       end
@@ -598,10 +634,10 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   local money = type(driver.money) == "function" and tonumber(driver.money()) or nil
 
   local byGroup = {}
-  local function consider(group, itemID, equipLoc, lot, str, link, stats, minLevel)
+  local function consider(group, itemID, equipLoc, lot, str, link, stats, minLevel, speed)
     local b = base(group, equipLoc)
     if not b then return end
-    local score, parts = Score(stats, weights, DpsFactor(class, group, speedIn(group, str)))
+    local score, parts = Score(stats, weights, DpsFactor(class, group, speed))
     local gain = score - b.score
     if score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then
       byGroup[group] = byGroup[group] or {}
@@ -612,6 +648,8 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
     end
   end
 
+  -- Main-hand lots wait until the build knows which speeds to read (below), when speeds count.
+  local mainLots = {}
   for itemID, encoded in pairs(gear.items) do
     local equipLoc, classID, subclassID = driver.instant(itemID)
     local first = GROUP_OF[equipLoc]
@@ -632,12 +670,41 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
               loading[itemID] = true
             else
               knownOf[str] = allowed == true
-              if first then consider(first, itemID, equipLoc, lot, str, link, stats, minLevel) end
+              if first == "MAINHAND" and readSpeed then
+                mainLots[#mainLots + 1] = { itemID, equipLoc, lot, str, link, stats, minLevel }
+              elseif first then
+                consider(first, itemID, equipLoc, lot, str, link, stats, minLevel)
+              end
               if second then consider(second, itemID, equipLoc, lot, str, link, stats, minLevel) end
             end
           end
         end
       end
+    end
+  end
+
+  -- The main hand's speeds, strongest item first: each item's strongest version, weighed at
+  -- REF_SPEED against what it replaces, ties on the itemID, so the picks that matter settle in
+  -- the first builds. A piece with no DPS has no use for its speed. Then every main-hand lot,
+  -- with the speed now known or none.
+  if #mainLots > 0 then
+    local gainOf, order = {}, {}
+    for _, e in ipairs(mainLots) do
+      local id, stats = e[1], e[6]
+      if hasDps(stats) and not speedOfItem(id) then
+        local b = base("MAINHAND", e[2])
+        local g = b and Score(stats, weights, DpsFactor(class, "MAINHAND", nil)) - b.score or -math.huge
+        if gainOf[id] == nil then order[#order + 1] = id end
+        if gainOf[id] == nil or g > gainOf[id] then gainOf[id] = g end
+      end
+    end
+    table.sort(order, function(a, b)
+      if gainOf[a] ~= gainOf[b] then return gainOf[a] > gainOf[b] end
+      return a < b
+    end)
+    for _, id in ipairs(order) do speedOfItem(id, true) end
+    for _, e in ipairs(mainLots) do
+      consider("MAINHAND", e[1], e[2], e[3], e[4], e[5], e[6], e[7], speedOfItem(e[1]))
     end
   end
 
@@ -779,6 +846,13 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   -- window) can tell a GET_ITEM_INFO_RECEIVED it was not waiting for from one that might resolve
   -- something, instead of rebuilding on every arrival regardless.
   out.loadingIds = loading
+  -- The main-hand items still without a speed, weighed at REF_SPEED this build: a later build
+  -- reads the next SPEED_READS of them.
+  local speedPending = 0
+  for id in pairs(speedWanted) do
+    if not speeds[id] then speedPending = speedPending + 1 end
+  end
+  if speedPending > 0 then out.speedPending = speedPending end
   return out
 end
 
@@ -871,7 +945,9 @@ end
 -- level, so a level-up asks again (a red "Requires Level" line is gone then). A skill trained
 -- mid-session shows on the next level or /reload. Only a yes or a no is kept: "cannot tell"
 -- (nothing loaded yet, still loading, no colours) is asked again next time.
--- keptSpeed: a weapon's speed per item string or link, only once the tooltip has said it.
+-- keptSpeed: a weapon's speed per itemID, only once the tooltip has said it. A random suffix
+-- changes a weapon's stats and damage, never its speed, so every version and the worn piece share
+-- one read (kept per item string until 13.11, two versions of one dagger cost two).
 local keptInfo, keptStats, keptUsable, keptSpeed = {}, {}, {}, {}
 
 local function playerLevel()
@@ -919,14 +995,16 @@ local function realDriver(getStats)
       if u ~= nil then keptUsable[key] = u end
       return u
     end,
-    -- A weapon's speed, for DpsFactor (TooltipSpeed): a candidate's by its item string, the worn
-    -- one's by its link. Kept once the tooltip said it; asked again while it says nothing.
-    speed = function(s)
-      if type(s) ~= "string" then return nil end
-      local kept = keptSpeed[s]
-      if kept then return kept end
-      local v = GC.ForeverUpgrades.TooltipSpeed(s)
-      if v then keptSpeed[s] = v end
+    -- A weapon's speed, for DpsFactor (TooltipSpeed), by its itemID: the bare "item:<id>" read,
+    -- the worn piece's too. read false: only what is kept, never a tooltip read (Build spends its
+    -- SPEED_READS on true). Kept once the tooltip said it; asked again while it says nothing.
+    speed = function(itemID, read)
+      itemID = tonumber(itemID)
+      if not itemID then return nil end
+      local kept = keptSpeed[itemID]
+      if kept or not read then return kept end
+      local v = GC.ForeverUpgrades.TooltipSpeed(("item:%d"):format(itemID))
+      if v then keptSpeed[itemID] = v end
       return v
     end,
     requestLoad = function(itemID) pcall(item.RequestLoadItemDataByID, itemID) end,
