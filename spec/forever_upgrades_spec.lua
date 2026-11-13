@@ -344,8 +344,8 @@ describe("ForeverUpgrades", function()
 
   describe("the best set for the gold carried", function()
     local function cand(group, s, unit, gain, twoHand)
-      return { group = group, itemString = s, unit = unit, gain = gain, twoHand = twoHand == true,
-        diffs = { ITEM_MOD_STRENGTH_SHORT = gain } }
+      return { group = group, itemID = tonumber(s:match("item:(%d+)")), itemString = s, unit = unit, gain = gain,
+        twoHand = twoHand == true, diffs = { ITEM_MOD_STRENGTH_SHORT = gain } }
     end
 
     it("spends the purse where it adds the most", function()
@@ -431,6 +431,30 @@ describe("ForeverUpgrades", function()
       assert.equal(50, r.set.cost)
     end)
 
+    it("fills both fingers with two rings, never one item on both", function()
+      local function ring(group, id, unit, gain)
+        local c = cand(group, "item:" .. id, unit, gain)
+        c.itemID = id
+        return c
+      end
+      local a1, a2 = ring("FINGER1", 820, 40, 9), ring("FINGER2", 820, 40, 7)
+      local b1, b2 = ring("FINGER1", 821, 30, 5), ring("FINGER2", 821, 30, 4)
+      local set = U.BestSet({ FINGER1 = { a1, b1 }, FINGER2 = { a2, b2 } }, 100)
+      assert.equal(a1, set.picks.FINGER1); assert.equal(b2, set.picks.FINGER2)   -- 9 + 4, not 9 + 7
+      assert.equal(70, set.cost)
+      -- Two versions of one ring are one item too: a BUY line buys one version of it.
+      local v2 = ring("FINGER2", 820, 35, 8)
+      v2.itemString = "item:820::::::::::::1:12718"
+      set = U.BestSet({ FINGER1 = { a1 }, FINGER2 = { v2 } }, 100)
+      assert.equal(a1, set.picks.FINGER1); assert.is_nil(set.picks.FINGER2)
+      -- From Build: the strongest ring on the weaker finger, the next on the other.
+      items[820], items[821] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 }, { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
+      statsOf = { ["item:820"] = STR(9), ["item:821"] = STR(6) }
+      local r = U.Build(gear({ [820] = "40:0:0", [821] = "30:0:0" }), drv({ money = function() return 100 end }), W)
+      assert.equal(820, r.set.picks.FINGER1.itemID)
+      assert.equal(821, r.set.picks.FINGER2.itemID)
+    end)
+
     it("offers a one-hander that a cheaper, stronger two-hander would hide, for its pair with the off hand", function()
       local w = { STR = 1 }
       items[1950] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
@@ -461,7 +485,8 @@ describe("ForeverUpgrades", function()
       local r = U.Build(gear(lots), d, W)
       assert.equal(1460, r.set.picks.CHEST.itemID)
       assert.same({}, r.slots[1].alts)
-      assert.equal(1 + U.C.FRONTIER_CHECKS, #asked)                -- the strongest, then eight of the ten
+      -- The strongest, eight of the ten for the set, and, the frontier finding none, the two left.
+      assert.equal(1 + U.C.FRONTIER_CHECKS + 2, #asked)
     end)
 
     it("counts the set's piece, shown first, as the last one shown for the 80% step", function()
@@ -505,43 +530,63 @@ describe("ForeverUpgrades", function()
     end)
   end)
 
-  -- The HERO tab's "Add" (Task 8 writes the caps with GC.Buy._SetLineCap): one BUY line per item,
-  -- pinned to the version picked, capped 5% over the lot's price.
-  describe("BUY lines for picks", function()
-    before_each(function() helper.loadModule("Core/AppRuns.lua", GC) end)
+  -- The HERO tab's shopping list (owner, 14.11): "+" puts a piece on the Upgrades list in BUY, "✓"
+  -- takes it off, and a line buys one version of its item at a time.
+  describe("the shopping list", function()
     local function pick(itemID, unit, version)
       return { itemID = itemID, unit = unit, version = version, itemString = "item:" .. itemID }
     end
+    local A, B = pick(15210, 2700, "12718"), pick(15210, 2400, "12721")
 
-    it("turns the set into BUY lines capped 5% over the price", function()
-      local lines, caps = U.BuyLines({ pick(15210, 2700, "12718"), pick(6125, 1929, "0") })
-      assert.same({ { i = 15210, q = 1, ver = "12718" }, { i = 6125, q = 1, ver = "0" } }, lines)
-      assert.same({ [15210] = 2835, [6125] = 2025 }, caps)
-      assert.same({ {}, {} }, { U.BuyLines({}) })
-      assert.same({ {}, {} }, { U.BuyLines(nil) })
-    end)
-
-    it("gives one line of two for an item picked for both hands", function()
-      local lines, caps = U.BuyLines({ pick(15210, 1200, "12721"), pick(15210, 1000, "12718") })
-      assert.same({ { i = 15210, q = 2, ver = "12718,12721" } }, lines)
-      assert.same({ [15210] = 1260 }, caps)                          -- the higher of 1260 and 1050
-      lines = U.BuyLines({ pick(15210, 1200, "12718"), pick(15210, 1000, "12718") })
+    it("adds a piece as one more than was bought, of its version", function()
+      local lines, joined = U.ListAdd({}, {}, A)
+      assert.same({ { i = 15210, q = 1, ver = "12718" } }, lines)
+      assert.is_false(joined)
+      assert.equal("listed", U.ListState(lines, {}, A))
+      assert.is_nil(U.ListState(lines, {}, B))                     -- another version is not on it
+      -- Two of one version: one line of two.
+      lines, joined = U.ListAdd(lines, {}, A)
       assert.same({ { i = 15210, q = 2, ver = "12718" } }, lines)
+      assert.is_true(joined)
+      -- The other version: it takes the line, never joins it, so BUY never buys the one let go.
+      lines = U.ListAdd(lines, {}, B)
+      assert.same({ { i = 15210, q = 1, ver = "12721" } }, lines)
+      assert.is_nil(U.ListState(lines, {}, A))
+      -- A lot from a scan saved before versions buys any.
+      assert.same({ { i = 200, q = 1 } }, (U.ListAdd({}, {}, pick(200, 90))))
     end)
 
-    it("pins no version for a lot from a scan saved before versions", function()
-      assert.same({ { i = 200, q = 1 } }, (U.BuyLines({ pick(200, 90) })))
-      assert.same({ { i = 200, q = 2 } }, (U.BuyLines({ pick(200, 90, "12718"), pick(200, 80) })))
-      assert.same({ { i = 200, q = 2 } }, (U.BuyLines({ pick(200, 90), pick(200, 80, "12718") })))
-      -- Build's own candidates carry the lot's version: a v1 lot's is nil.
-      items[200] = { loc = "INVTYPE_CLOAK", class = 4, sub = 1 }
-      statsOf["item:200"] = STR(4)
-      local best = U.Build(gear({ [200] = "90:0:0" }), drv(), W).slots[1].best
-      assert.is_nil(best.version)
-      assert.same({ { i = 200, q = 1 } }, (U.BuyLines({ best })))
-      statsOf["item:200::::::::::::1:12718"] = STR(4)
-      best = U.Build({ v = 2, at = 5, items = { [200] = "90:0:0:12718" } }, drv(), W).slots[1].best
-      assert.same({ { i = 200, q = 1, ver = "12718" } }, (U.BuyLines({ best })))
+    -- Review, 14.11: max(q) and a union of versions on the old line meant a piece bought once could
+    -- never be bought again.
+    it("buys a piece again once what the line asked for was bought", function()
+      local bought = { [15210] = 1 }
+      local lines = { { i = 15210, q = 1, ver = "12718" } }
+      assert.equal("bought", U.ListState(lines, bought, A))
+      lines = U.ListAdd(lines, bought, A)
+      assert.same({ { i = 15210, q = 2, ver = "12718" } }, lines)
+      assert.equal("listed", U.ListState(lines, bought, A))
+      lines = U.ListAdd({ { i = 15210, q = 1, ver = "12718" } }, bought, B)
+      assert.same({ { i = 15210, q = 2, ver = "12721" } }, lines)
+      -- A line the old union made: the version added is the only one it buys now.
+      lines = U.ListAdd({ { i = 15210, q = 2, ver = "12718,12721" } }, {}, B)
+      assert.same({ { i = 15210, q = 1, ver = "12721" } }, lines)
+    end)
+
+    it("takes one off, never below what was bought, and drops a line with nothing left", function()
+      local lines = { { i = 15210, q = 2, ver = "12718" }, { i = 6125, q = 1 } }
+      local out = U.ListRemove(lines, {}, A)
+      assert.same({ { i = 15210, q = 1, ver = "12718" }, { i = 6125, q = 1 } }, out)
+      out = U.ListRemove(out, {}, A)
+      assert.same({ { i = 6125, q = 1 } }, out)
+      assert.same({ { i = 15210, q = 1, ver = "12718" } }, U.ListRemove({ { i = 15210, q = 1, ver = "12718" } },
+        { [15210] = 1 }, A))                                         -- bought: it stays, bought
+      assert.same(lines, U.ListRemove(lines, {}, B))                -- not this version's line
+      assert.same({ { i = 15210, q = 2, ver = "12718" }, { i = 6125, q = 1 } }, lines)   -- left as it was
+    end)
+
+    it("caps a piece's line 5% over its lot's price", function()
+      assert.equal(2835, U.LineCap(A))
+      assert.equal(2025, U.LineCap(pick(6125, 1929)))
     end)
   end)
 
@@ -589,7 +634,20 @@ describe("ForeverUpgrades", function()
       statsOf[weak], statsOf[strong], statsOf[bag] = STR(2), STR(6), STR(4)
       assert.same({ say("Upgrade: +2 Strength over your Copper Band") }, U.TooltipVerdict(bag, quiet(), W))
       assert.is_nil(U.TooltipVerdict(strong, quiet(), W))
+      worn[11], worn[12] = weak, strong                          -- either finger
+      assert.same({ say("Upgrade: +2 Strength over your Copper Band") }, U.TooltipVerdict(bag, quiet(), W))
       assert.same({}, speedReads)
+    end)
+
+    -- Review, 14.11: the HERO tab never offers a piece more than LEVEL_AHEAD levels ahead.
+    it("says nothing of a piece more than LEVEL_AHEAD levels ahead", function()
+      items[104] = { loc = "INVTYPE_HEAD", class = 4, sub = 2, minLevel = 20 + U.C.LEVEL_AHEAD }
+      local cap = link(104, "Far Cap")
+      statsOf[cap] = STR(9)
+      local lines = U.TooltipVerdict(cap, quiet(), W)
+      assert.equal("Upgrade: +9 Strength, nothing worn there", lines[1].text)
+      items[104].minLevel = 21 + U.C.LEVEL_AHEAD
+      assert.is_nil(U.TooltipVerdict(cap, quiet(), W))
     end)
 
     it("weighs a one-hand weapon for either hand and says the larger gain, with that hand's piece", function()
@@ -628,12 +686,12 @@ describe("ForeverUpgrades", function()
     end)
 
     it("says when a piece is wearable in N levels", function()
-      items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 23 }
+      items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 22 }
       items[601] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 21 }
       items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 4, minLevel = 40 }     -- plate, which a warrior wears from 40
       local silk, linen, plate = link(600, "Silk Pants"), link(601, "Linen Pants"), link(602, "Plate Legguards")
       statsOf[silk], statsOf[linen], statsOf[plate] = STR(5), STR(4), STR(9)
-      assert.same({ say("Upgrade: +5 Strength, nothing worn there"), say("You can wear it in 3 levels", "dim") },
+      assert.same({ say("Upgrade: +5 Strength, nothing worn there"), say("You can wear it in 2 levels", "dim") },
         U.TooltipVerdict(silk, quiet(), W))
       assert.same({ say("Upgrade: +4 Strength, nothing worn there"), say("You can wear it next level", "dim") },
         U.TooltipVerdict(linen, quiet(), W))
@@ -816,39 +874,48 @@ describe("ForeverUpgrades", function()
       drv({ classFile = function() return "SHAMAN" end, canDualWield = function() return true end }), W).slots)
   end)
 
-  it("measures a ring against the weaker of the two worn", function()
+  it("weighs a ring against the ring on each finger, each finger its own slot", function()
     items[800] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
     items[801] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
     items[802] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
     worn[11], worn[12] = "item:801", "item:802"
     statsOf = { ["item:801"] = STR(3), ["item:802"] = STR(6), ["item:800"] = STR(4) }
     local r = U.Build(gear({ [800] = "7:0:0" }), drv(), W)
+    assert.equal(1, #r.slots)                                     -- it beats only the first finger's
+    assert.equal("FINGER1", r.slots[1].group)
     assert.equal(800, r.slots[1].best.itemID)
     assert.equal(1, r.slots[1].best.gain)
   end)
 
   -- The HERO tab draws a group's choices on the paper doll's own slot: the one it is weighed against.
-  it("names the worn slot each group is weighed against: the weaker ring, a tie to the first finger", function()
+  it("names the worn slot each group is weighed against, each finger its own", function()
     items[300] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
     items[800] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
     statsOf = { ["item:300"] = STR(5), ["item:800"] = STR(9), ["item:801"] = STR(6), ["item:802"] = STR(3) }
-    local function ringSlot()
-      local r = U.Build(gear({ [300] = "5:0:0", [800] = "7:0:0" }), drv(), W)
-      assert.equal("HEAD", r.slots[1].group)
-      assert.equal(1, r.slots[1].invSlot)
-      assert.equal("FINGER", r.slots[2].group)
-      return r.slots[2].invSlot, r.slots[2].worn
-    end
-    worn[11], worn[12] = "item:801", "item:802"           -- the second finger wears the weaker
-    assert.same({ 12, "item:802" }, { ringSlot() })
-    worn[11], worn[12] = "item:802", "item:801"
-    assert.same({ 11, "item:802" }, { ringSlot() })
-    worn[11], worn[12] = "item:802", "item:802"           -- a tie: the first finger
-    assert.equal(11, (ringSlot()))
-    worn[11], worn[12] = "item:802", nil                  -- an empty finger counts as nothing worn
-    assert.same({ 12 }, { ringSlot() })
-    worn[11], worn[12] = nil, nil
-    assert.equal(11, (ringSlot()))
+    worn[11], worn[12] = "item:801", "item:802"
+    local r = U.Build(gear({ [300] = "5:0:0", [800] = "7:0:0" }), drv(), W)
+    local got = {}
+    for i, sl in ipairs(r.slots) do got[i] = { sl.group, sl.invSlot, sl.worn, sl.best.gain } end
+    assert.same({ { "HEAD", 1, nil, 5 }, { "FINGER1", 11, "item:801", 3 }, { "FINGER2", 12, "item:802", 6 } }, got)
+    worn[11], worn[12] = nil, nil                         -- an empty finger counts as nothing worn
+    r = U.Build(gear({ [800] = "7:0:0" }), drv(), W)
+    assert.same({ 11, 12 }, { r.slots[1].invSlot, r.slots[2].invSlot })
+  end)
+
+  -- Owner, 14.11: a slot with thirty rings showed one, the strongest also the cheapest.
+  it("fills a slot's choices with the next strongest items when the strongest is also the cheapest", function()
+    for id = 810, 815 do items[id] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 } end
+    statsOf = { ["item:810"] = STR(9), ["item:811"] = STR(8), ["item:812"] = STR(7), ["item:813"] = STR(6),
+      ["item:814"] = STR(5), ["item:815"] = STR(4) }
+    statsOf["item:811::::::::::::1:12718"] = STR(8)
+    local r = U.Build({ v = 2, at = 5, items = { [810] = "10:0:0", [811] = "20:0:0;21:0:0:12718", [812] = "30:0:0",
+      [813] = "40:0:0", [814] = "50:0:0", [815] = "60:0:0" } }, drv(), W)
+    assert.equal(810, r.slots[1].best.itemID)
+    assert.same({ 811, 812, 813 }, idsOf(r.slots[1].alts))       -- one version of 811, any price
+    assert.equal(U.C.ALTS, #r.slots[1].alts)
+    -- A cheaper piece on the frontier: the frontier's choices only, as before.
+    r = U.Build(gear({ [810] = "50:0:0", [811] = "20:0:0", [812] = "30:0:0" }), drv(), W)
+    assert.same({ 811 }, idsOf(r.slots[1].alts))
   end)
 
   -- In game, 13.11: right after a reload five groups had no choices, and the panel said nothing beat
@@ -861,16 +928,17 @@ describe("ForeverUpgrades", function()
     statsOf = { ["item:101"] = STR(9), ["item:500"] = STR(9), ["item:800"] = STR(9), ["item:905"] = STR(1),
       ["item:801"] = STR(2) }
     -- The helm and the second ring worn have not answered; the legs worn neither, but nothing on the
-    -- auction house goes there, so the legs wait for nothing.
+    -- auction house goes there, so the legs wait for nothing. The first finger's ring answered.
+    local function groups(r) local g = {} for i, sl in ipairs(r.slots) do g[i] = sl.group end return g end
     local r = U.Build(gear({ [101] = "5:0:0", [500] = "5:0:0", [800] = "5:0:0" }), drv(), W)
-    assert.same({ HEAD = true, FINGER = true }, r.waiting)
-    assert.same({ "CHEST" }, (function() local g = {} for i, s in ipairs(r.slots) do g[i] = s.group end return g end)())
+    assert.same({ HEAD = true, FINGER2 = true }, r.waiting)
+    assert.same({ "CHEST", "FINGER1" }, groups(r))
     assert.is_true(r.loading >= 2)
     -- Answered: nothing waits, and the groups are weighed.
     statsOf["item:900"], statsOf["item:802"] = STR(1), STR(1)
     r = U.Build(gear({ [101] = "5:0:0", [500] = "5:0:0", [800] = "5:0:0" }), drv(), W)
     assert.is_nil(r.waiting)
-    assert.equal(3, #r.slots)
+    assert.same({ "HEAD", "CHEST", "FINGER1", "FINGER2" }, groups(r))
   end)
 
   it("shows a class it has no rules for only what the tooltip says it can use", function()

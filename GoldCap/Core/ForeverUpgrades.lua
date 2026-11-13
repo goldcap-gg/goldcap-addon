@@ -90,24 +90,32 @@ GC.ForeverUpgrades.GROUPS = {
   { key = "WAIST", slots = { 6 }, labelKey = "INVTYPE_WAIST" },
   { key = "LEGS", slots = { 7 }, labelKey = "INVTYPE_LEGS" },
   { key = "FEET", slots = { 8 }, labelKey = "INVTYPE_FEET" },
-  { key = "FINGER", slots = { 11, 12 }, labelKey = "INVTYPE_FINGER" },
+  -- Each finger its own group, weighed against the ring worn on it: the HERO tab shows each ring
+  -- slot's own choices, and the set fills both (never with one item, BestSet).
+  { key = "FINGER1", slots = { 11 }, labelKey = "INVTYPE_FINGER" },
+  { key = "FINGER2", slots = { 12 }, labelKey = "INVTYPE_FINGER" },
   { key = "MAINHAND", slots = { 16 }, labelKey = "INVTYPE_WEAPONMAINHAND" },
   { key = "OFFHAND", slots = { 17 }, labelKey = "INVTYPE_WEAPONOFFHAND" },
   { key = "RANGED", slots = { 18 }, labelKey = "INVTYPE_RANGED" },
 }
 
 -- equipLoc -> group. Trinkets, relics, shirts, tabards, bags and ammo are not compared: their
--- worth is mostly effects GetItemStats does not list. A one-hand weapon (INVTYPE_WEAPON) is also an
--- OFFHAND candidate (Build): the HERO plan's Finding 2, a rogue was never offered one for the off
--- hand.
+-- worth is mostly effects GetItemStats does not list. A piece that goes in either of two slots is a
+-- candidate for both (SECOND_OF): a one-hand weapon for the off hand too, the HERO plan's Finding 2
+-- (a rogue was never offered one for the off hand), and a ring for the second finger.
 local GROUP_OF = {
   INVTYPE_HEAD = "HEAD", INVTYPE_NECK = "NECK", INVTYPE_SHOULDER = "SHOULDER", INVTYPE_CLOAK = "BACK",
   INVTYPE_CHEST = "CHEST", INVTYPE_ROBE = "CHEST", INVTYPE_WRIST = "WRIST", INVTYPE_HAND = "HANDS",
-  INVTYPE_WAIST = "WAIST", INVTYPE_LEGS = "LEGS", INVTYPE_FEET = "FEET", INVTYPE_FINGER = "FINGER",
+  INVTYPE_WAIST = "WAIST", INVTYPE_LEGS = "LEGS", INVTYPE_FEET = "FEET", INVTYPE_FINGER = "FINGER1",
   INVTYPE_WEAPON = "MAINHAND", INVTYPE_WEAPONMAINHAND = "MAINHAND", INVTYPE_2HWEAPON = "MAINHAND",
   INVTYPE_WEAPONOFFHAND = "OFFHAND", INVTYPE_SHIELD = "OFFHAND", INVTYPE_HOLDABLE = "OFFHAND",
   INVTYPE_RANGED = "RANGED", INVTYPE_RANGEDRIGHT = "RANGED", INVTYPE_THROWN = "RANGED",
 }
+local SECOND_OF = { INVTYPE_WEAPON = "OFFHAND", INVTYPE_FINGER = "FINGER2" }
+-- The groups that fill two slots of one kind, each other's pair: the set never puts one item in
+-- both, and a piece only one stronger, cheaper piece beats stays among their set choices, since
+-- that one may be in the other slot.
+local PAIR_OF = { MAINHAND = "OFFHAND", OFFHAND = "MAINHAND", FINGER1 = "FINGER2", FINGER2 = "FINGER1" }
 -- A weapon in the off hand, not a shield or a held item: it needs dual-wield (I1 below).
 local OFFHAND_WEAPON = { INVTYPE_WEAPON = true, INVTYPE_WEAPONOFFHAND = true }
 
@@ -378,8 +386,8 @@ end
 
 -- The character's side of every comparison, for Build and TooltipVerdict alike, so an item's
 -- tooltip never says what the HERO tab does not: what it wears per slot, scored in that slot's
--- hand; the piece a candidate replaces (the weaker ring; both hands, for a two-hander while a
--- one-hander is worn); which kinds of piece a group takes; and how much more a piece must score.
+-- hand; the piece a candidate replaces (the ring on that finger; both hands, for a two-hander while
+-- a one-hander is worn); which kinds of piece a group takes; and how much more a piece must score.
 -- wornSpeed(itemID): the worn main hand's speed, or nil (REF_SPEED). loading: where the ids of
 -- worn pieces whose stats have not answered go.
 local function newBench(driver, weights, class, level, style, wornSpeed, loading)
@@ -435,19 +443,7 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return dualWield
   end
 
-  -- The finger a ring is weighed against: the weaker worn ring, a tie to 11 and an empty finger
-  -- scoring 0; nil while either worn ring's stats have not answered.
-  local function ringSlot()
-    local a, b = wornAt(11), wornAt(12)
-    if not (a and b) then return nil end
-    return a.score <= b.score and 11 or 12
-  end
-
   local function base(group, equipLoc)
-    if group == "FINGER" then
-      local slot = ringSlot()
-      return slot and wornAt(slot) or nil
-    end
     if group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not twoHandWorn then
       local m, o = wornAt(16), wornAt(17)
       if not (m and o) then return nil end
@@ -476,7 +472,7 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return nil
   end
 
-  bench.wornAt, bench.base, bench.wanted, bench.beats, bench.ringSlot = wornAt, base, wanted, beats, ringSlot
+  bench.wornAt, bench.base, bench.wanted, bench.beats = wornAt, base, wanted, beats
   bench.twoHandWorn = twoHandWorn
   return bench
 end
@@ -514,9 +510,10 @@ end
 
 -- The strongest set the gold carried pays for (HERO plan, 2026-11-13): at most one piece per group,
 -- the most gain whose prices add up to no more than money. options[group]: the group's choices, as
--- Build makes them (unit, gain, diffs, itemString, twoHand). The two hands are one group: nothing,
--- either hand alone, both (never one item string in both: one lot cannot fill two hands), or a
--- two-hander alone. A multiple-choice knapsack over Pareto states: after each group only the
+-- Build makes them (itemID, unit, gain, diffs, itemString, twoHand). The two hands are one step:
+-- nothing, either hand alone, both, or a two-hander alone; the two fingers too, either or both.
+-- Never one item in both slots of a pair: one lot cannot fill two, and a BUY line buys one version
+-- of an item at a time (GC.ForeverUpgrades.ListAdd), so two versions of it could not both be bought. A multiple-choice knapsack over Pareto states: after each group only the
 -- partial sets no cheaper one matches in gain are kept, SET_STATES of them at most (thinned).
 -- nil without a money read; otherwise { picks = { [group] = cand }, list (the picks in GROUPS
 -- order), cost, gain, left = money - cost, diffs (the picks' summed) }.
@@ -532,18 +529,18 @@ function GC.ForeverUpgrades.BestSet(options, money)
       for _, c in ipairs(cands) do cost, gain = cost + c.unit, gain + c.gain end
       if cost <= money then raw[#raw + 1] = { cost = cost, gain = gain, seq = #raw + 1, cands = cands } end
     end
-    if g.key == "MAINHAND" then
-      local offs = options.OFFHAND or {}
-      for _, m in ipairs(options.MAINHAND or {}) do
+    if g.key == "MAINHAND" or g.key == "FINGER1" then
+      local seconds = options[PAIR_OF[g.key]] or {}
+      for _, m in ipairs(options[g.key] or {}) do
         offer(m)
         if not m.twoHand then
-          for _, o in ipairs(offs) do
-            if o.itemString ~= m.itemString then offer(m, o) end
+          for _, o in ipairs(seconds) do
+            if o.itemID ~= m.itemID then offer(m, o) end
           end
         end
       end
-      for _, o in ipairs(offs) do offer(o) end
-    elseif g.key ~= "OFFHAND" then
+      for _, o in ipairs(seconds) do offer(o) end
+    elseif g.key ~= "OFFHAND" and g.key ~= "FINGER2" then
       for _, c in ipairs(options[g.key] or {}) do offer(c) end
     end
     -- A choice another one of the group beats for no more gold is never part of the best set.
@@ -602,7 +599,7 @@ end
 -- The answer: { slots, set, loading, loadingIds, stale?, waiting?, noWeights?, noScan? }
 --   slots[i]     in GROUPS order, only the groups with a pick: { group, labelKey, best, alts, worn,
 --                invSlot }, worn the link of the piece the slot is weighed against, or nil, and
---                invSlot that piece's inventory slot: the weaker worn ring's for FINGER (a tie to 11).
+--                invSlot that piece's inventory slot (11 and 12 for the two fingers).
 --   a candidate  { group, itemID, itemString, link, unit, gain, diffs, later, overGold, inSet,
 --                version, twoHand }: version the lot's bonus (nil for a lot saved without one),
 --                overGold true when the gold carried is below unit, twoHand for INVTYPE_2HWEAPON.
@@ -613,8 +610,8 @@ end
 --                absent when there are none.
 --   stale        gear saved before suffix versions (v1): every version there reads as its base.
 --   waiting      { [group] = true } for each group with a piece to weigh that a worn piece's
---                unanswered stats left unweighed (a ring: either worn ring); the group is not in
---                slots until a later build reads it. Its ids are among loadingIds. Absent when none.
+--                unanswered stats left unweighed; the group is not in slots until a later build
+--                reads it. Its ids are among loadingIds. Absent when none.
 function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   local out = { slots = {}, loading = 0 }
   if type(weights) ~= "table" or next(weights) == nil then out.noWeights = true; return out end
@@ -676,8 +673,8 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   -- (a driver with no money read) marks none.
   local money = type(driver.money) == "function" and tonumber(driver.money()) or nil
 
-  -- waiting: the groups a piece could not be weighed in because a worn piece there (either ring, or
-  -- the off hand under a two-hander's weighing) has not answered: base() has nothing to weigh it by.
+  -- waiting: the groups a piece could not be weighed in because a worn piece there (or the off hand
+  -- under a two-hander's weighing) has not answered: base() has nothing to weigh it by.
   local byGroup, waiting = {}, {}
   local function consider(group, itemID, equipLoc, lot, str, link, stats, minLevel, speed)
     local b = base(group, equipLoc)
@@ -701,7 +698,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   for itemID, encoded in pairs(gear.items) do
     local equipLoc, classID, subclassID = driver.instant(itemID)
     local first = GROUP_OF[equipLoc]
-    local second = equipLoc == "INVTYPE_WEAPON" and "OFFHAND" or nil
+    local second = SECOND_OF[equipLoc]
     if first and not wanted(first, equipLoc, classID, subclassID) then first = nil end
     if second and not wanted(second, equipLoc, classID, subclassID) then second = nil end
     if first or second then
@@ -775,8 +772,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
     return nil
   end
   local function wornLink(group)
-    local w
-    if group == "FINGER" then w = base("FINGER") else w = wornAt(SLOT_OF[group]) end
+    local w = wornAt(SLOT_OF[group])
     return w and w.link or nil
   end
 
@@ -798,9 +794,9 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
 
   -- The set's choices per group, walked strongest first like the other choices below: the
   -- affordable usable-now pieces on its price frontier, each at or under the gold carried and
-  -- cheaper than every stronger one kept. The hands keep one more: a piece only one stronger,
-  -- cheaper piece beats, since that one may be in the other hand (a sword in each hand needs the
-  -- second sword even when it is dearer). A two-hander walks a frontier of its own: it never pairs
+  -- cheaper than every stronger one kept. A pair's groups (PAIR_OF) keep one more: a piece only one
+  -- stronger, cheaper piece beats, since that one may be in the other slot (a sword in each hand
+  -- needs the second sword even when it is dearer, a ring on each finger the second ring). A two-hander walks a frontier of its own: it never pairs
   -- with an off hand, so a cheaper, stronger one does not make a one-hander and a shield a worse
   -- pair. FRONTIER_CHECKS reads per group, a budget of its own. Not on the count-only path.
   local setPick = {}
@@ -809,7 +805,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
     for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
       local p = picked[g.key]
       if p then
-        local hands = g.key == "MAINHAND" or g.key == "OFFHAND"
+        local hands = PAIR_OF[g.key] ~= nil
         local list, reads, low = {}, 0, { one = { math.huge, math.huge }, two = { math.huge, math.huge } }
         for _, c in ipairs(p.now) do
           local t = low[c.twoHand and "two" or "one"]
@@ -845,6 +841,9 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   --      frontier: nothing cheaper and as strong is usable. One the tooltip refuses moves nothing,
   --      and those behind it stay in reach; the set's piece, met again here, moves the step as if
   --      shown. Only a read costs one of FRONTIER_CHECKS, and a piece over the step is never read.
+  --   4. when that frontier finds nothing (the strongest is also the cheapest), the next strongest
+  --      usable-now items whatever they cost, one version of each and none already shown, so a
+  --      slot with thirty pieces never shows one. Their reads share the frontier's FRONTIER_CHECKS.
   for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
     local p = picked[g.key]
     if p then
@@ -863,7 +862,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
         end
         add(strongestUsable(stronger))
       end
-      local limit, reads = C.ALT_PRICE_STEP * best.unit, 0
+      local limit, reads, found = C.ALT_PRICE_STEP * best.unit, 0, false
       for _, c in ipairs(p.now) do
         if #alts >= C.ALTS then break end
         if c.unit <= limit then
@@ -873,12 +872,30 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
           end
           if usableCandidate(c) then
             add(c)
-            limit = C.ALT_PRICE_STEP * c.unit
+            limit, found = C.ALT_PRICE_STEP * c.unit, true
+          end
+        end
+      end
+      if not found then
+        local items = {}
+        for _, c in ipairs(alts) do items[c.itemID] = true end
+        items[best.itemID] = true
+        for _, c in ipairs(p.now) do
+          if #alts >= C.ALTS then break end
+          if not items[c.itemID] then
+            if not skipUsable and usableOf[c.itemString] == nil then
+              if reads >= C.FRONTIER_CHECKS then break end
+              reads = reads + 1
+            end
+            if usableCandidate(c) then
+              items[c.itemID] = true
+              add(c)
+            end
           end
         end
       end
       out.slots[#out.slots + 1] = { group = g.key, labelKey = g.labelKey, best = best, alts = alts,
-        worn = wornLink(g.key), invSlot = g.key == "FINGER" and (bench.ringSlot() or 11) or SLOT_OF[g.key] }
+        worn = wornLink(g.key), invSlot = SLOT_OF[g.key] }
     end
   end
 
@@ -1111,7 +1128,9 @@ end
 -- text }, or nil to say nothing.
 --   An upgrade: "Upgrade: <what changes> over your <worn piece>", good, and for a piece above the
 --   character's level how many levels until it can wear it, dim. A one-hand weapon is weighed for
---   either hand, and the larger gain is said, with that hand's piece.
+--   either hand and a ring for either finger, and the larger gain is said, with that slot's piece:
+--   for a ring, the weaker ring worn. A piece more than LEVEL_AHEAD levels ahead is no upgrade
+--   yet, as the HERO tab never offers it.
 --   Nothing the class weighs: "Not an upgrade for your <class>: nothing here you use", dim.
 --   Otherwise nil: a weaker piece, the piece worn, one ClassAllows refuses (the client's own red
 --   line says so), a slot the groups leave out (trinkets, bags), a link the client has not
@@ -1131,9 +1150,8 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
   local itemID = itemIdOf(link)
   if not itemID then return nil end
   local equipLoc, classID, subclassID = driver.instant(itemID)
-  local groups = { GROUP_OF[equipLoc] }
+  local groups = { GROUP_OF[equipLoc], SECOND_OF[equipLoc] }
   if not groups[1] then return nil end
-  if equipLoc == "INVTYPE_WEAPON" then groups[2] = "OFFHAND" end
   -- It runs on every item tooltip: the character's weights only once the item is gear.
   if client then
     local class, prefs = classFile(), GC.ForeverScan.Prefs()
@@ -1197,7 +1215,7 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
     return { { kind = "verdict", tone = "dim",
       text = GC.L["Not an upgrade for your %s: nothing here you use"]:format(name) } }
   end
-  if not best then return nil end
+  if not best or minLevel > level + C.LEVEL_AHEAD then return nil end
 
   local what = GC.ForeverUpgrades.DiffText(GC.ForeverUpgrades.Diff(best.parts, best.base.parts))
   if what == "" then
@@ -1245,32 +1263,90 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
   return lines
 end
 
--- Picks (Build's candidates: the set's list, or one row's piece) as BUY lines and their caps, for
--- the HERO tab's "Add". A line is { i, q = 1, ver } -- `ver` the version picked (the lot's bonus
--- key), so BUY never bids on another (Core/BuyLots.lua); a lot from a scan saved before versions
--- names none and buys any. Its cap is the lot's price and 5% (caps[itemID], copper), for the
--- player's own cap (GC.Buy._SetLineCap) to hold. One item picked for both hands is one line of two
--- (BUY keeps a line per item): both versions, or any when either is unknown (GC.AppRuns.JoinVer,
--- the rule every merge of two lines follows), and the higher cap.
-function GC.ForeverUpgrades.BuyLines(picks)
-  local lines, caps, byItem = {}, {}, {}
-  for _, c in ipairs(type(picks) == "table" and picks or {}) do
-    if type(c) == "table" and type(c.itemID) == "number" and type(c.unit) == "number" then
-      local cap = math.floor(c.unit * 105 / 100)
-      local line = byItem[c.itemID]
-      if line then
-        line.q = line.q + 1
-        line.ver = GC.AppRuns.JoinVer(line.ver, c.version)
-        if cap > caps[c.itemID] then caps[c.itemID] = cap end
-      else
-        line = { i = c.itemID, q = 1, ver = c.version }
-        byItem[c.itemID] = line
-        lines[#lines + 1] = line
-        caps[c.itemID] = cap
-      end
-    end
+-- The HERO tab's shopping list: the player's Upgrades list in BUY (prefs.heroList), read and
+-- changed here as plain data, so its rules live in one place. `lines` are the list's own ({ i, q,
+-- ver, ... }), `bought` what this character bought on it ({ [itemID] = n }), `c` a candidate of
+-- Build's. A line buys one version of its item at a time, `ver` the candidate's (nil, a lot from a
+-- scan saved before versions, buys any): BUY never bids on another (Core/BuyLots.lua), and a line
+-- with a version counts only what it bought, never what the bags hold (Core/BuyRun.lua). Each
+-- answer is a new list; the lines handed in are left as they are.
+
+local function lineOf(lines, itemID)
+  for i, line in ipairs(lines or {}) do
+    if line.i == itemID then return line, i end
   end
-  return lines, caps
+  return nil, nil
+end
+
+local function boughtOf(bought, itemID)
+  local n = type(bought) == "table" and tonumber(bought[itemID]) or nil
+  return n and n > 0 and math.floor(n) or 0
+end
+
+-- Whether a line's versions take candidate version `version`: any, the same, or one of a list
+-- (two lines of one item joined in BUY buy the versions of both: Core/AppRuns.lua's joinVer).
+local function holds(ver, version)
+  if ver == nil or ver == version then return true end
+  if type(ver) ~= "string" or type(version) ~= "string" then return false end
+  return ("," .. ver .. ","):find("," .. version .. ",", 1, true) ~= nil
+end
+
+local function copied(lines)
+  local out = {}
+  for i, line in ipairs(lines or {}) do
+    local copy = {}
+    for k, v in pairs(line) do copy[k] = v end
+    out[i] = copy
+  end
+  return out
+end
+
+--- "listed" while the list still buys `c` (its item's line has need left, q over what was bought,
+--- and takes c's version); "bought" once that line has none left and bought some; else nil.
+function GC.ForeverUpgrades.ListState(lines, bought, c)
+  local line = type(c) == "table" and lineOf(lines, c.itemID) or nil
+  if not (line and holds(line.ver, c.version)) then return nil end
+  local got = boughtOf(bought, c.itemID)
+  if (tonumber(line.q) or 0) > got then return "listed" end
+  return got > 0 and "bought" or nil
+end
+
+--- One more `c` on the list: a new line of one past what was bought; on a line with nothing left to
+--- buy, one more of c's version alone; on one still buying c's version, one more of it; on one
+--- buying another version, one of c's instead (one item, one version at a time). Answers the new
+--- lines, and whether c joined pieces of its own version already wanted.
+function GC.ForeverUpgrades.ListAdd(lines, bought, c)
+  local out = copied(lines)
+  local line = lineOf(out, c.itemID)
+  local got = boughtOf(bought, c.itemID)
+  if not line then
+    out[#out + 1] = { i = c.itemID, q = got + 1, ver = c.version }
+    return out, false
+  end
+  if (tonumber(line.q) or 0) > got and line.ver == c.version then
+    line.q = line.q + 1
+    return out, true
+  end
+  line.q, line.ver = got + 1, c.version
+  return out, false
+end
+
+--- One `c` fewer: its line asks for one less, never less than was bought; a line left with nothing
+--- bought and nothing to buy goes. A line that does not take c's version stays as it is.
+function GC.ForeverUpgrades.ListRemove(lines, bought, c)
+  local out = copied(lines)
+  local line, at = lineOf(out, c.itemID)
+  if not (line and holds(line.ver, c.version)) then return out end
+  local got = boughtOf(bought, c.itemID)
+  line.q = math.max(got, (tonumber(line.q) or 0) - 1)
+  if line.q == 0 then table.remove(out, at) end
+  return out
+end
+
+--- The cap BUY holds a piece's line to: its lot's price and 5% (copper), the player's own line cap
+--- BUY ranks first (GC.Buy._SetLineCap).
+function GC.ForeverUpgrades.LineCap(c)
+  return math.floor((tonumber(c.unit) or 0) * 105 / 100)
 end
 
 -- After every saved scan (Core/ForeverScan.lua's _QueueUpgradesUpdate): one line, only when there
