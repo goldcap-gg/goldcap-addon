@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.28.1 (unreleased)
+## 0.28.1 (2026-11-13)
 
 - WoW: Forever: scanning the auction house no longer makes the game stutter every second or so,
   in a full scan or with Auto on, and the Deals board no longer stalls the game every few seconds
