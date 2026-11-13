@@ -827,6 +827,30 @@ describe("ForeverUpgrades", function()
     assert.equal(1, r.slots[1].best.gain)
   end)
 
+  -- The HERO tab draws a group's choices on the paper doll's own slot: the one it is weighed against.
+  it("names the worn slot each group is weighed against: the weaker ring, a tie to the first finger", function()
+    items[300] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
+    items[800] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
+    statsOf = { ["item:300"] = STR(5), ["item:800"] = STR(9), ["item:801"] = STR(6), ["item:802"] = STR(3) }
+    local function ringSlot()
+      local r = U.Build(gear({ [300] = "5:0:0", [800] = "7:0:0" }), drv(), W)
+      assert.equal("HEAD", r.slots[1].group)
+      assert.equal(1, r.slots[1].invSlot)
+      assert.equal("FINGER", r.slots[2].group)
+      return r.slots[2].invSlot, r.slots[2].worn
+    end
+    worn[11], worn[12] = "item:801", "item:802"           -- the second finger wears the weaker
+    assert.same({ 12, "item:802" }, { ringSlot() })
+    worn[11], worn[12] = "item:802", "item:801"
+    assert.same({ 11, "item:802" }, { ringSlot() })
+    worn[11], worn[12] = "item:802", "item:802"           -- a tie: the first finger
+    assert.equal(11, (ringSlot()))
+    worn[11], worn[12] = "item:802", nil                  -- an empty finger counts as nothing worn
+    assert.same({ 12 }, { ringSlot() })
+    worn[11], worn[12] = nil, nil
+    assert.equal(11, (ringSlot()))
+  end)
+
   it("shows a class it has no rules for only what the tooltip says it can use", function()
     items[1000] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
     statsOf["item:1000"] = STR(3)

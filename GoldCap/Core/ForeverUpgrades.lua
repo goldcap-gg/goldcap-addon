@@ -435,11 +435,18 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return dualWield
   end
 
+  -- The finger a ring is weighed against: the weaker worn ring, a tie to 11 and an empty finger
+  -- scoring 0; nil while either worn ring's stats have not answered.
+  local function ringSlot()
+    local a, b = wornAt(11), wornAt(12)
+    if not (a and b) then return nil end
+    return a.score <= b.score and 11 or 12
+  end
+
   local function base(group, equipLoc)
     if group == "FINGER" then
-      local a, b = wornAt(11), wornAt(12)
-      if not (a and b) then return nil end
-      return a.score <= b.score and a or b
+      local slot = ringSlot()
+      return slot and wornAt(slot) or nil
     end
     if group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not twoHandWorn then
       local m, o = wornAt(16), wornAt(17)
@@ -469,7 +476,7 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return nil
   end
 
-  bench.wornAt, bench.base, bench.wanted, bench.beats = wornAt, base, wanted, beats
+  bench.wornAt, bench.base, bench.wanted, bench.beats, bench.ringSlot = wornAt, base, wanted, beats, ringSlot
   bench.twoHandWorn = twoHandWorn
   return bench
 end
@@ -593,8 +600,9 @@ end
 -- opts.style: StyleFor's answer. "backstab" keeps the main hand to daggers; nil filters nothing.
 --
 -- The answer: { slots, set, loading, loadingIds, stale?, noWeights?, noScan? }
---   slots[i]     in GROUPS order, only the groups with a pick: { group, labelKey, best, alts, worn },
---                worn the link of the piece the slot is weighed against, or nil.
+--   slots[i]     in GROUPS order, only the groups with a pick: { group, labelKey, best, alts, worn,
+--                invSlot }, worn the link of the piece the slot is weighed against, or nil, and
+--                invSlot that piece's inventory slot: the weaker worn ring's for FINGER (a tie to 11).
 --   a candidate  { group, itemID, itemString, link, unit, gain, diffs, later, overGold, inSet,
 --                version, twoHand }: version the lot's bonus (nil for a lot saved without one),
 --                overGold true when the gold carried is below unit, twoHand for INVTYPE_2HWEAPON.
@@ -862,7 +870,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
         end
       end
       out.slots[#out.slots + 1] = { group = g.key, labelKey = g.labelKey, best = best, alts = alts,
-        worn = wornLink(g.key) }
+        worn = wornLink(g.key), invSlot = g.key == "FINGER" and (bench.ringSlot() or 11) or SLOT_OF[g.key] }
     end
   end
 
