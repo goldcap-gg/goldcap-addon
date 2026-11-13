@@ -951,7 +951,7 @@ describe("ForeverUpgrades", function()
   end
 
   it("reads weapon speed from the tooltip", function()
-    withGlobals({ SPEED = "Speed" }, function()
+    withGlobals({ SPEED = "Speed", RETRIEVING_ITEM_INFO = "Retrieving item information" }, function()
       assert.equal(1.5, U.TooltipSpeed("item:3184", tip(hookDagger())))
       -- Jagged Knives (P4): the thrown weapon's damage line.
       assert.equal(1.8, U.TooltipSpeed("item:285282", tip({
@@ -961,6 +961,11 @@ describe("ForeverUpgrades", function()
       comma[4].rightText = "Speed 1,50"
       assert.equal(1.5, U.TooltipSpeed("item:3184", tip(comma)))
       assert.is_nil(U.TooltipSpeed("item:1121", tip(feetOfTheLynx())))   -- no speed line
+      -- ...from a tooltip that had loaded: the driver keeps the reference speed instead of reading
+      -- the same tooltip again on every build.
+      assert.is_true(select(2, U.TooltipSpeed("item:1121", tip(feetOfTheLynx()))))
+      assert.is_false(select(2, U.TooltipSpeed("item:3184", tip({
+        { leftText = "Retrieving item information", leftColor = LEVEL_RED } }))))
       assert.is_nil(U.TooltipSpeed("item:3184", {}))                       -- no client call
       assert.is_nil(U.TooltipSpeed("item:3184", { GetHyperlink = function() error("not loaded") end }))
     end)

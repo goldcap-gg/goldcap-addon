@@ -303,7 +303,10 @@ end
 -- seconds (HERO probe P4, 13.11: "Speed 1.50" on worn Hook Daggers, "Speed 1.80" on Jagged
 -- Knives). A comma reads as the decimal point, as some languages write it. nil for a piece with no
 -- such line, a tooltip not answered, or a client without the string. Works on a full link too (the
--- probe read the worn weapons' tooltips by their links).
+-- probe read the worn weapons' tooltips by their links). The second value says the tooltip itself
+-- had loaded (a name on its first line, not the client's "retrieving" text): a nil speed from a
+-- loaded tooltip will not change on a second read, and the driver keeps it as the reference speed
+-- rather than reading the same tooltip again on every build.
 function GC.ForeverUpgrades.TooltipSpeed(itemString, api)
   local word = _G.SPEED
   if type(word) ~= "string" or word == "" then return nil end
@@ -315,10 +318,12 @@ function GC.ForeverUpgrades.TooltipSpeed(itemString, api)
     local n = type(text) == "string" and text:match(pattern) or nil
     if n then
       local v = tonumber((n:gsub(",", ".")))
-      if v and v > 0 then return v end
+      if v and v > 0 then return v, true end
     end
   end
-  return nil
+  local first = type(lines[1]) == "table" and lines[1].leftText or nil
+  local loading = _G.RETRIEVING_ITEM_INFO
+  return nil, type(first) == "string" and first ~= "" and first ~= loading
 end
 
 -- The client's tooltip for the piece, as data: false on any red line, true when it drew coloured
@@ -1030,7 +1035,8 @@ local function realDriver(getStats)
       if not itemID then return nil end
       local kept = keptSpeed[itemID]
       if kept or not read then return kept end
-      local v = GC.ForeverUpgrades.TooltipSpeed(("item:%d"):format(itemID))
+      local v, loaded = GC.ForeverUpgrades.TooltipSpeed(("item:%d"):format(itemID))
+      if not v and loaded then v = C.REF_SPEED end
       if v then keptSpeed[itemID] = v end
       return v
     end,
