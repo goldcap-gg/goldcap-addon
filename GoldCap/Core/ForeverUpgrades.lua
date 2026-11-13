@@ -491,6 +491,14 @@ local function classFile()
   return ok and type(file) == "string" and file or nil
 end
 
+-- What the client said about each item string, for the session: a piece's level requirement, link
+-- and stats do not change, and the client's item cache does not hold every lot a scan lists. Asked
+-- about all of them on every repaint (~1170 on the owner's realm, 2026-11-13, recorded), it held
+-- about half, dropped the other half to load the rest, and the two halves swapped places on each
+-- repaint: the window's rows came and went every half second, a rebuild of ~60 ms each time. Kept,
+-- a piece is asked about until it answers once. Build only reads the stats it is handed.
+local keptInfo, keptStats = {}, {}
+
 -- The client, for Build. Every read guarded: a missing API reads as "not answered", never an error.
 local function realDriver(getStats)
   local item = _G.C_Item or {}
@@ -510,13 +518,21 @@ local function realDriver(getStats)
       return nil
     end,
     info = function(itemString)
+      local kept = keptInfo[itemString]
+      if kept then return kept[1], kept[2] end
       local ok, name, link, _, _, minLevel = pcall(item.GetItemInfo, itemString)
-      if ok and name then return tonumber(minLevel) or 0, link end
-      return nil
+      if not (ok and name) then return nil end
+      kept = { tonumber(minLevel) or 0, link }
+      keptInfo[itemString] = kept
+      return kept[1], kept[2]
     end,
     stats = function(s)
+      local kept = keptStats[s]
+      if kept then return kept end
       local ok, t = pcall(getStats, s)
-      return ok and type(t) == "table" and t or nil
+      if not (ok and type(t) == "table") then return nil end
+      keptStats[s] = t
+      return t
     end,
     usable = function(s) return GC.ForeverUpgrades.TooltipUsable(s) end,
     requestLoad = function(itemID) pcall(item.RequestLoadItemDataByID, itemID) end,

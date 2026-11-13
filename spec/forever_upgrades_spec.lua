@@ -356,6 +356,35 @@ describe("ForeverUpgrades in the client", function()
     assert.is_true(GC.ForeverUpgrades.Current().noStats)
   end)
 
+  -- The owner's window, 2026-11-13 (recorded): ~1170 lots asked about on every repaint, a client
+  -- cache that held about half of them, and the two halves swapping places on each repaint -- the
+  -- rows came and went every half second. Here the client holds one piece: the last one asked for.
+  it("keeps what the client said about a piece, so one its cache drops later stays on the window", function()
+    init(16001)
+    INFO[102] = { loc = "INVTYPE_HAND", class = 4, sub = 2, stats = { ITEM_MOD_STRENGTH_SHORT = 6 } }
+    finally(function() INFO[102] = nil end)
+    db.foreverScan.gear.items[102] = "300:0:0"
+    local function idOf(s) return tonumber(tostring(s):match("item:(%d+)")) end
+    local held, asked = {}, {}
+    local info, stats = _G.C_Item.GetItemInfo, _G.C_Item.GetItemStats
+    _G.C_Item.GetItemInfo = function(s)
+      if held[idOf(s)] then return info(s) end
+      asked[#asked + 1] = idOf(s)
+    end
+    _G.C_Item.GetItemStats = function(s)
+      if held[idOf(s)] then return stats(s) end
+      asked[#asked + 1] = idOf(s)
+    end
+    local counts = {}
+    for i = 1, 4 do
+      counts[i] = #GC.ForeverUpgrades.Current().rows
+      held = {}
+      if #asked > 0 then held[asked[#asked]] = true end
+      asked = {}
+    end
+    assert.same({ 0, 1, 2, 2 }, counts)
+  end)
+
   it("says there is no scan when the saved gear lots are not this fold's", function()
     init(16001)
     db.foreverScan.gear.at = 4000
