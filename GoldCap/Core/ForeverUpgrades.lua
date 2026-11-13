@@ -485,10 +485,8 @@ end
 --   set          BestSet's answer, its picks marked inSet; nil without a money read, and on the
 --                count-only path, which only counts slots.
 --   stale        gear saved before suffix versions (v1): every version there reads as its base.
--- Until the HERO tab replaces UI/ForeverUpgradesFrame.lua, rows (each slot's best, with its
--- labelKey) and dearer = 0 keep that window drawing as before.
 function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
-  local out = { slots = {}, rows = {}, dearer = 0, loading = 0 }
+  local out = { slots = {}, loading = 0 }
   if type(weights) ~= "table" or next(weights) == nil then out.noWeights = true; return out end
   if type(gear) ~= "table" or type(gear.items) ~= "table" then out.noScan = true; return out end
   if type(gear.v) == "number" and gear.v < 2 then out.stale = true end
@@ -766,9 +764,6 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
       end
       out.slots[#out.slots + 1] = { group = g.key, labelKey = g.labelKey, best = best, alts = alts,
         worn = wornLink(g.key) }
-      local row = { labelKey = g.labelKey }
-      for k, v in pairs(best) do row[k] = v end
-      out.rows[#out.rows + 1] = row
     end
   end
 
@@ -957,9 +952,9 @@ end
 function GC.ForeverUpgrades.Current(skipUsable)
   if not enabled() then return nil end
   local gear, fold = GC.ForeverScan.Gear()
-  if not gear then return { slots = {}, rows = {}, loading = 0, noScan = true } end
+  if not gear then return { slots = {}, loading = 0, noScan = true } end
   local getStats = statsCall()
-  if not getStats then return { slots = {}, rows = {}, loading = 0, noStats = true } end
+  if not getStats then return { slots = {}, loading = 0, noStats = true } end
   local class, prefs = classFile(), GC.ForeverScan.Prefs()
   local weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
   local driver = realDriver(getStats)
@@ -1049,5 +1044,5 @@ function GC.ForeverUpgrades.SlashWeights(rest)
   else
     GC.Print(GC.L["Stat weights: %s"]:format(GC.ForeverUpgrades.WeightsText(weights)))
   end
-  if GC.ForeverUpgradesUI and GC.ForeverUpgradesUI.RefreshIfShown then GC.ForeverUpgradesUI.RefreshIfShown() end
+  if GC.Hero and GC.Hero.RefreshIfShown then GC.Hero.RefreshIfShown(true) end
 end

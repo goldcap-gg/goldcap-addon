@@ -375,6 +375,8 @@ describe("HERO tab", function()
     local p = panel("weights")
     assert.is_true(shown(p))
     assert.equal("What counts for a Rogue", textOf(p.title))
+    assert.equal("classicon-rogue", W.state(p.icon).atlas)
+    assert.equal("classicon-rogue", W.state(H._view.strip.classIcon).atlas)
     -- One box per stat the class's defaults name, and DPS; the class's main stat and DPS first.
     assert.same({ "AGI", "DPS", "STR", "STA", "ARMOR", "AP" }, (statsShown(p)))
     assert.equal("1", W.state(p.boxes.AGI.box).text)

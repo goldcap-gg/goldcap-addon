@@ -670,16 +670,20 @@ local function createStrip(container)
   return s
 end
 
--- The class's own icon in its colour's frame (GetClassAtlas, the atlas Forever's character creation
--- draws), hidden where the client has no such atlas.
+-- The class's own icon (GetClassAtlas, the atlas Forever's character creation draws), or nil where
+-- the client has no such atlas.
+local function classAtlas(file)
+  if not file then return nil end
+  local get = _G.GetClassAtlas
+  local atlas = type(get) == "function" and get(file:lower()) or ("classicon-" .. file:lower())
+  local tex = _G.C_Texture
+  if tex and tex.GetAtlasInfo and not tex.GetAtlasInfo(atlas) then return nil end
+  return atlas
+end
+
+-- The class's icon at the head of the strip, in its colour's frame; hidden without an atlas.
 local function paintClassIcon(s, file, colour)
-  local atlas
-  if file then
-    local get = _G.GetClassAtlas
-    atlas = type(get) == "function" and get(file:lower()) or ("classicon-" .. file:lower())
-    local tex = _G.C_Texture
-    if tex and tex.GetAtlasInfo and not tex.GetAtlasInfo(atlas) then atlas = nil end
-  end
+  local atlas = classAtlas(file)
   if atlas then
     s.classIcon:SetAtlas(atlas)
     s.classEdge:SetColorTexture(colour[1], colour[2], colour[3], 1)
@@ -1253,10 +1257,9 @@ panelPaint.weights = function(p, width)
   local className, class = classOf()
   local rc = class and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[class] or nil
   local colour = rc and { rc.r, rc.g, rc.b } or Theme.color.goldHi
-  local get = _G.GetClassAtlas
+  -- The class's own icon, as the strip draws it; the strength icon where the client has no such atlas.
   local bodyW = paintHead(p, width, {
-    atlas = class and (type(get) == "function" and get(class:lower()) or ("classicon-" .. class:lower())) or nil,
-    file = ICON.carry, edge = colour, titleColor = colour,
+    atlas = classAtlas(class), file = STAT_ICON.STR, edge = colour, titleColor = colour,
     title = GC.L["What counts for a %s"]:format(className or ""),
     sub = GC.L["The list changes as you type"] })
   local U = GC.ForeverUpgrades

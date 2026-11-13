@@ -54,9 +54,9 @@ describe("ForeverUpgrades", function()
     worn[1] = "item:900"
     statsOf = { ["item:900"] = STR(5), ["item:101"] = STR(4), ["item:102"] = STR(8), ["item:103"] = STR(7) }
     local r = U.Build(gear({ [101] = "100:0:0", [102] = "300:0:0", [103] = "200:0:0" }), drv(), W)
-    assert.equal(1, #r.rows)
-    local row = r.rows[1]
-    assert.equal("HEAD", row.group); assert.equal("INVTYPE_HEAD", row.labelKey)
+    assert.equal(1, #r.slots)
+    local row = r.slots[1].best
+    assert.equal("HEAD", row.group); assert.equal("INVTYPE_HEAD", r.slots[1].labelKey)
     assert.equal(102, row.itemID); assert.equal(300, row.unit); assert.equal(3, row.gain)
     assert.equal("[item:102]", row.link)
     assert.same({ ITEM_MOD_STRENGTH_SHORT = 3 }, row.diffs)
@@ -78,8 +78,8 @@ describe("ForeverUpgrades", function()
       ["item:143"] = { RESISTANCE0_NAME = 20, ITEM_MOD_STRENGTH_SHORT = 2 },     -- +0.2
     }
     local r = U.Build(gear({ [141] = "600:0:0", [142] = "900:0:0", [143] = "500:0:0" }), drv(), R)
-    assert.equal(1, #r.rows)
-    assert.equal(142, r.rows[1].itemID)
+    assert.equal(1, #r.slots)
+    assert.equal(142, r.slots[1].best.itemID)
   end)
 
   -- HERO plan (2026-11-13): the strongest piece leads, and a cheaper one nearly as good sits beside
@@ -137,7 +137,7 @@ describe("ForeverUpgrades", function()
     statsOf = { ["item:121"] = STR(9), ["item:122"] = STR(4) }
     usableOf = { ["item:121"] = false }
     local r = U.Build(gear({ [121] = "50:0:0", [122] = "80:0:0" }), drv(), W)
-    assert.equal(122, r.rows[1].itemID)
+    assert.equal(122, r.slots[1].best.itemID)
   end)
 
   -- HERO plan, Finding 4 (owner's scan, 2026-11-13): at 0 gold the window showed one line saying
@@ -157,7 +157,6 @@ describe("ForeverUpgrades", function()
     r = U.Build(g, drv({ money = function() return 0 end }), W)
     assert.equal(2, #r.slots)
     assert.is_true(r.slots[1].best.overGold); assert.is_true(r.slots[2].best.overGold)
-    assert.equal(0, r.dearer)                               -- the old window's count of hidden slots: none now
     r = U.Build(g, drv(), W)                                -- no money read: nothing is over it
     assert.is_false(r.slots[1].best.overGold)
     usableOf = { ["item:133"] = false }                     -- the waist piece is red on the tooltip
@@ -509,16 +508,16 @@ describe("ForeverUpgrades", function()
     statsOf = { ["item:200:0:0:0:0:0:-12:3"] = { ITEM_MOD_INTELLECT_SHORT = 6 },   -- of the Owl: nothing for W
                 ["item:200:0:0:0:0:0:-9:3"] = STR(4) }                              -- of the Bear
     local r = U.Build(gear({ [200] = "50:-12:3 90:-9:3" }), drv(), W)
-    assert.equal(1, #r.rows)
-    assert.equal(90, r.rows[1].unit)
-    assert.equal("item:200:0:0:0:0:0:-9:3", r.rows[1].itemString)
+    assert.equal(1, #r.slots)
+    assert.equal(90, r.slots[1].best.unit)
+    assert.equal("item:200:0:0:0:0:0:-9:3", r.slots[1].best.itemString)
   end)
 
   it("never scores a piece the client has not answered for, and asks for it once", function()
     items[300] = { loc = "INVTYPE_FEET", class = 4, sub = 1, loading = true }   -- no level yet
     items[301] = { loc = "INVTYPE_FEET", class = 4, sub = 1 }                   -- no stats yet
     local r = U.Build(gear({ [300] = "10:0:0", [301] = "20:0:0" }), drv(), W)
-    assert.equal(0, #r.rows)
+    assert.equal(0, #r.slots)
     assert.equal(2, r.loading)
     table.sort(requested)
     assert.same({ 300, 301 }, requested)
@@ -533,12 +532,12 @@ describe("ForeverUpgrades", function()
     statsOf = { ["item:400"] = STR(20), ["item:401"] = STR(10), ["item:402"] = STR(9) }
     usableOf = { ["item:401"] = false }                               -- the skill is not trained: red
     local r = U.Build(gear({ [400] = "10:0:0", [401] = "20:0:0", [402] = "30:0:0" }), drv(), W)
-    assert.equal(1, #r.rows)
-    assert.equal("MAINHAND", r.rows[1].group)
-    assert.equal(402, r.rows[1].itemID)
+    assert.equal(1, #r.slots)
+    assert.equal("MAINHAND", r.slots[1].best.group)
+    assert.equal(402, r.slots[1].best.itemID)
     items[500] = { loc = "INVTYPE_LEGS", class = 4, sub = 2 }           -- leather
     statsOf["item:500"] = STR(3)
-    assert.equal(0, #U.Build(gear({ [500] = "5:0:0" }), drv({ classFile = function() return "MAGE" end }), W).rows)
+    assert.equal(0, #U.Build(gear({ [500] = "5:0:0" }), drv({ classFile = function() return "MAGE" end }), W).slots)
   end)
 
   it("offers a piece one or two levels ahead only when nothing usable now qualifies", function()
@@ -546,13 +545,13 @@ describe("ForeverUpgrades", function()
     items[601] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 23 }   -- three ahead: never
     statsOf = { ["item:600"] = STR(5), ["item:601"] = STR(9) }
     local r = U.Build(gear({ [600] = "10:0:0", [601] = "5:0:0" }), drv(), W)
-    assert.equal(600, r.rows[1].itemID)
-    assert.equal(22, r.rows[1].later)
+    assert.equal(600, r.slots[1].best.itemID)
+    assert.equal(22, r.slots[1].best.later)
     items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 18 }
     statsOf["item:602"] = STR(2)
     r = U.Build(gear({ [600] = "10:0:0", [602] = "999:0:0" }), drv(), W)
-    assert.equal(602, r.rows[1].itemID)                    -- usable now wins, even dearer
-    assert.is_nil(r.rows[1].later)
+    assert.equal(602, r.slots[1].best.itemID)                    -- usable now wins, even dearer
+    assert.is_nil(r.slots[1].best.later)
   end)
 
   -- Final review M4: a level-ahead pick used to trust only the class table, so a class the table
@@ -561,12 +560,12 @@ describe("ForeverUpgrades", function()
     items[1200] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 22 }   -- TINKER: not in ARMOR
     statsOf["item:1200"] = STR(5)
     local tinker = drv({ classFile = function() return "TINKER" end })
-    assert.equal(0, #U.Build(gear({ [1200] = "10:0:0" }), tinker, W).rows)
+    assert.equal(0, #U.Build(gear({ [1200] = "10:0:0" }), tinker, W).slots)
     usableOf["item:1200"] = true
     local r = U.Build(gear({ [1200] = "10:0:0" }), tinker, W)
-    assert.equal(1, #r.rows)
-    assert.equal(1200, r.rows[1].itemID)
-    assert.equal(22, r.rows[1].later)
+    assert.equal(1, #r.slots)
+    assert.equal(1200, r.slots[1].best.itemID)
+    assert.equal(22, r.slots[1].best.later)
   end)
 
   it("compares a two-hander with main and off hand together, and skips the off hand under a two-hander", function()
@@ -578,15 +577,15 @@ describe("ForeverUpgrades", function()
     items[701] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
     statsOf["item:700"], statsOf["item:701"] = STR(9), STR(12)
     local r = U.Build(gear({ [700] = "10:0:0", [701] = "80:0:0" }), drv(), W)
-    assert.equal(1, #r.rows)
-    assert.equal(701, r.rows[1].itemID)
-    assert.equal(2, r.rows[1].gain)
+    assert.equal(1, #r.slots)
+    assert.equal(701, r.slots[1].best.itemID)
+    assert.equal(2, r.slots[1].best.gain)
     items[920] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
     worn[16], worn[17] = "item:920", nil
     statsOf["item:920"] = STR(12)
     items[702] = { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
     statsOf["item:702"] = { ITEM_MOD_STAMINA_SHORT = 20 }
-    assert.equal(0, #U.Build(gear({ [702] = "1:0:0" }), drv(), W).rows)
+    assert.equal(0, #U.Build(gear({ [702] = "1:0:0" }), drv(), W).slots)
   end)
 
   -- Final review I1: a class that can equip a dagger (per the WEAPON table) is not necessarily
@@ -596,15 +595,15 @@ describe("ForeverUpgrades", function()
     items[1100] = { loc = "INVTYPE_WEAPONOFFHAND", class = 2, sub = 15 }   -- dagger
     statsOf["item:1100"] = STR(5)
     -- The default driver: a level-20 warrior -- dual-wields from level 20.
-    assert.equal(1, #U.Build(gear({ [1100] = "10:0:0" }), drv(), W).rows)
+    assert.equal(1, #U.Build(gear({ [1100] = "10:0:0" }), drv(), W).slots)
     -- A level-19 warrior cannot yet.
-    assert.equal(0, #U.Build(gear({ [1100] = "10:0:0" }), drv({ level = function() return 19 end }), W).rows)
+    assert.equal(0, #U.Build(gear({ [1100] = "10:0:0" }), drv({ level = function() return 19 end }), W).slots)
     -- A rogue always can, at any level.
     assert.equal(1, #U.Build(gear({ [1100] = "10:0:0" }),
-      drv({ classFile = function() return "ROGUE" end, level = function() return 1 end }), W).rows)
+      drv({ classFile = function() return "ROGUE" end, level = function() return 1 end }), W).slots)
     -- A mage can equip a dagger (ClassAllows says yes) but can never dual-wield one.
     assert.equal(0, #U.Build(gear({ [1100] = "10:0:0" }),
-      drv({ classFile = function() return "MAGE" end, level = function() return 60 end }), W).rows)
+      drv({ classFile = function() return "MAGE" end, level = function() return 60 end }), W).slots)
   end)
 
   it("trusts the client's own CanDualWield over the Classic fallback when it answers", function()
@@ -612,10 +611,10 @@ describe("ForeverUpgrades", function()
     statsOf["item:1101"] = STR(5)
     -- A rogue would fall back to true, but the client says no.
     assert.equal(0, #U.Build(gear({ [1101] = "10:0:0" }),
-      drv({ classFile = function() return "ROGUE" end, canDualWield = function() return false end }), W).rows)
+      drv({ classFile = function() return "ROGUE" end, canDualWield = function() return false end }), W).slots)
     -- A class the Classic fallback table does not list, but the client says yes.
     assert.equal(1, #U.Build(gear({ [1101] = "10:0:0" }),
-      drv({ classFile = function() return "SHAMAN" end, canDualWield = function() return true end }), W).rows)
+      drv({ classFile = function() return "SHAMAN" end, canDualWield = function() return true end }), W).slots)
   end)
 
   it("measures a ring against the weaker of the two worn", function()
@@ -625,17 +624,17 @@ describe("ForeverUpgrades", function()
     worn[11], worn[12] = "item:801", "item:802"
     statsOf = { ["item:801"] = STR(3), ["item:802"] = STR(6), ["item:800"] = STR(4) }
     local r = U.Build(gear({ [800] = "7:0:0" }), drv(), W)
-    assert.equal(800, r.rows[1].itemID)
-    assert.equal(1, r.rows[1].gain)
+    assert.equal(800, r.slots[1].best.itemID)
+    assert.equal(1, r.slots[1].best.gain)
   end)
 
   it("shows a class it has no rules for only what the tooltip says it can use", function()
     items[1000] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
     statsOf["item:1000"] = STR(3)
     local tinker = drv({ classFile = function() return "TINKER" end })
-    assert.equal(0, #U.Build(gear({ [1000] = "1:0:0" }), tinker, W).rows)
+    assert.equal(0, #U.Build(gear({ [1000] = "1:0:0" }), tinker, W).slots)
     usableOf["item:1000"] = true
-    assert.equal(1, #U.Build(gear({ [1000] = "1:0:0" }), tinker, W).rows)
+    assert.equal(1, #U.Build(gear({ [1000] = "1:0:0" }), tinker, W).slots)
   end)
 
   it("says what it lacks instead of guessing", function()
@@ -857,7 +856,7 @@ describe("ForeverUpgrades in the client", function()
     GC.ForeverUpgrades.PrintCount()
     assert.same({ "Upgrades for your gear on the auction house: 1. Type /gc upgrades to see them." }, printed)
     local r = GC.ForeverUpgrades.Current()
-    assert.equal("|Hitem:101|h[Cap]|h", r.rows[1].link)
+    assert.equal("|Hitem:101|h[Cap]|h", r.slots[1].best.link)
     assert.equal("|Hitem:101|h[Cap]|h", r.slots[1].best.link)
     assert.equal(5000, r.at)
     assert.is_true(r.stale)                                   -- a v1 save: no suffix versions in it
@@ -911,7 +910,7 @@ describe("ForeverUpgrades in the client", function()
     end
     local counts = {}
     for i = 1, 4 do
-      counts[i] = #GC.ForeverUpgrades.Current().rows
+      counts[i] = #GC.ForeverUpgrades.Current().slots
       held = {}
       if #asked > 0 then held[asked[#asked]] = true end
       asked = {}

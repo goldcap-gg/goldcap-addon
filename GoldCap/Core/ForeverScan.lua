@@ -696,7 +696,7 @@ end
 -- C_TooltipInfo.GetHyperlink calls) twice over whenever the upgrades window happened to be open.
 -- One Build now, off this frame with C_Timer.After(0, ...) -- the idiom Core/Init.lua's OnTick and
 -- UI/AuctionHouseTab.lua's tab-add already use -- feeds both the chat count and, only while the
--- window is actually open, its own render. Closed, there is nothing to render, so Build's own
+-- HERO tab (UI/HeroFrame.lua) is on screen, its render. Off screen, there is nothing to render, so Build's own
 -- tooltip pass is skipped too (its skipUsable argument): usability then comes only from the class
 -- armour/weapon tables and CanDualWield (Core/ForeverUpgrades.lua's ClassAllows/canDualWield), the
 -- same fallback a level-ahead pick already trusts.
@@ -706,7 +706,7 @@ function GC.ForeverScan._QueueUpgradesUpdate()
   local timer = _G.C_Timer
   if type(timer) ~= "table" or type(timer.After) ~= "function" then return end
   timer.After(0, function()
-    local UI = GC.ForeverUpgradesUI
+    local UI = GC.Hero
     local shown = UI ~= nil and UI.IsShown ~= nil and UI.IsShown() == true
     local r = U.Current(not shown)
     U.PrintCount(r, GC.ForeverScan._said)

@@ -210,42 +210,42 @@ describe("WoW: Forever scan wiring", function()
       assert.equal(0, #timers)
     end)
 
-    it("defers a single Build off this frame, skipping the tooltip pass while the window is closed", function()
+    it("defers a single Build off this frame, skipping the tooltip pass while the HERO tab is not up", function()
       load(16001)
       local buildCalls, skipSeen = 0, nil
       GC.ForeverUpgrades = {
-        Current = function(skipUsable) buildCalls = buildCalls + 1; skipSeen = skipUsable; return { rows = {} } end,
+        Current = function(skipUsable) buildCalls = buildCalls + 1; skipSeen = skipUsable; return { slots = {} } end,
         PrintCount = function() end,
       }
       local rendered = 0
-      GC.ForeverUpgradesUI = { IsShown = function() return false end, Render = function() rendered = rendered + 1 end }
+      GC.Hero = { IsShown = function() return false end, Render = function() rendered = rendered + 1 end }
       GC.ForeverScan._QueueUpgradesUpdate()
       assert.equal(1, #timers)
       assert.equal(0, timers[1].s)
       assert.equal(0, buildCalls)              -- nothing runs before the timer fires
       timers[1].fn()
       assert.equal(1, buildCalls)
-      assert.is_true(skipSeen)                 -- the tooltip pass is skipped: window is closed
+      assert.is_true(skipSeen)                 -- the tooltip pass is skipped: the tab is not up
       assert.equal(0, rendered)                -- and there is nothing to render
     end)
 
-    it("builds once and hands that same result to both the chat count and the open window's render", function()
+    it("builds once and hands that same result to both the chat count and the HERO tab's render", function()
       load(16001)
       local buildCalls, skipSeen, sharedR = 0, nil, nil
       GC.ForeverUpgrades = {
         Current = function(skipUsable)
           buildCalls, skipSeen = buildCalls + 1, skipUsable
-          sharedR = { rows = {} }
+          sharedR = { slots = {} }
           return sharedR
         end,
       }
       local printedR, renderedR
       GC.ForeverUpgrades.PrintCount = function(r) printedR = r end
-      GC.ForeverUpgradesUI = { IsShown = function() return true end, Render = function(r) renderedR = r end }
+      GC.Hero = { IsShown = function() return true end, Render = function(r) renderedR = r end }
       GC.ForeverScan._QueueUpgradesUpdate()
       timers[1].fn()
       assert.equal(1, buildCalls)               -- one Build, not one per consumer
-      assert.is_false(skipSeen)                  -- the window is open: the tooltip pass still runs
+      assert.is_false(skipSeen)                  -- the tab is up: the tooltip pass still runs
       assert.equal(sharedR, printedR)
       assert.equal(sharedR, renderedR)
     end)

@@ -367,8 +367,8 @@ if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   -- Plan 3e, Road to 40 (Core/ForeverRoad.lua): its pace clock reads level progress.
   pcall(function() frame:RegisterEvent("PLAYER_XP_UPDATE") end)
   pcall(function() frame:RegisterEvent("PLAYER_LEVEL_UP") end)
-  -- The upgrades window (UI/ForeverUpgradesFrame.lua) weighs the AH against what the character
-  -- wears: a piece put on or taken off repaints it while it is up.
+  -- The HERO tab (UI/HeroFrame.lua) weighs the AH against what the character wears: a piece put
+  -- on or taken off repaints it while it is up.
   pcall(function() frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED") end)
   -- Plan 3e, the loot recorder (Core/ForeverLoot.lua): both loot events (one window counts once),
   -- LOOT_CLOSED to end that session (final review I3), and the player's own spells, which say a
@@ -1095,11 +1095,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper and GC.Sniper.OnPlayerMoney then GC.Sniper.OnPlayerMoney() end
     -- WoW: Forever's Road to 40 (a no-op anywhere else).
     if GC.ForeverRoad then GC.ForeverRoad.OnMoney() end
-    -- The upgrades window offers only what the gold carried pays for (nothing while it is not up).
-    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnChange() end
+    -- WoW: Forever's HERO tab weighs the upgrades against the gold carried (nothing while it is not up).
+    if GC.Hero then GC.Hero.OnChange() end
   elseif event == "PLAYER_EQUIPMENT_CHANGED" then
     -- Registered in Forever only (the gate above).
-    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnChange() end
+    if GC.Hero then GC.Hero.OnChange() end
   elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
     -- Registered in Forever only (the gate above). PLAYER_LEVEL_UP fires a moment before the
     -- client settles the new level and XP (final review M3) -- read them next frame instead of a
@@ -1194,9 +1194,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
     -- BUY shows an item it has no name for yet by its id, and repaints once the name is in.
     if GC.Buy and GC.Buy.OnItemInfo then GC.Buy.OnItemInfo(itemID, success) end
-    -- The upgrades window repaints once the items it counted as loading arrive (Forever only: the
-    -- window never exists elsewhere). itemID lets it ignore an answer it was not waiting for (M1).
-    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnItemInfo(itemID) end
+    -- The HERO tab repaints once the items it counted as loading arrive (Forever only: the tab
+    -- never exists elsewhere). itemID lets it ignore an answer it was not waiting for (M1).
+    if GC.Hero then GC.Hero.OnItemInfo(itemID) end
   elseif event == "UNIT_SPELLCAST_SENT" then
     local _, _, _, spellID = ...
     if GC.CraftCapture then
@@ -1281,8 +1281,8 @@ if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   GC.slashHandlers.mount = function(rest) GC.ForeverRoad.Slash(rest) end
   -- Plan 3e: the upgrade finder's stat weights.
   GC.slashHandlers.weights = function(rest) GC.ForeverUpgrades.SlashWeights(rest) end
-  -- Plan 3e: the AH Upgrade Finder's window.
-  GC.slashHandlers.upgrades = function() GC.ForeverUpgradesUI.Toggle() end
+  -- The GoldCap window on its HERO tab (UI/HeroFrame.lua), away from the auction house too.
+  GC.slashHandlers.upgrades = function() GC.Hero.Open() end
   -- Plan 3e: the loot recorder, on or off.
   GC.slashHandlers.loot = function(rest) GC.ForeverLoot.Slash(rest) end
 end

@@ -273,4 +273,6 @@ function GC.ForeverRoad.Slash(rest)
   end
   for _, line in ipairs(GC.ForeverRoad.Lines(GC.ForeverRoad.Snapshot())) do GC.Print(line) end
   if GC.Sold and GC.Sold.RefreshIfShown then GC.Sold.RefreshIfShown() end
+  -- And the HERO tab's mount tile and panel (UI/HeroFrame.lua), where one is up.
+  if GC.Hero and GC.Hero.RefreshIfShown then GC.Hero.RefreshIfShown(true) end
 end
