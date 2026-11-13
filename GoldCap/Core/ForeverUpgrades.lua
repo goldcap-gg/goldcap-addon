@@ -971,6 +971,34 @@ function GC.ForeverUpgrades.Current(skipUsable)
   return r
 end
 
+-- Picks (Build's candidates: the set's list, or one row's piece) as BUY lines and their caps, for
+-- the HERO tab's "Add". A line is { i, q = 1, ver } -- `ver` the version picked (the lot's bonus
+-- key), so BUY never bids on another (Core/BuyLots.lua); a lot from a scan saved before versions
+-- names none and buys any. Its cap is the lot's price and 5% (caps[itemID], copper), for the
+-- player's own cap (GC.Buy._SetLineCap) to hold. One item picked for both hands is one line of two
+-- (BUY keeps a line per item): both versions, or any when either is unknown (GC.AppRuns.JoinVer,
+-- the rule every merge of two lines follows), and the higher cap.
+function GC.ForeverUpgrades.BuyLines(picks)
+  local lines, caps, byItem = {}, {}, {}
+  for _, c in ipairs(type(picks) == "table" and picks or {}) do
+    if type(c) == "table" and type(c.itemID) == "number" and type(c.unit) == "number" then
+      local cap = math.floor(c.unit * 105 / 100)
+      local line = byItem[c.itemID]
+      if line then
+        line.q = line.q + 1
+        line.ver = GC.AppRuns.JoinVer(line.ver, c.version)
+        if cap > caps[c.itemID] then caps[c.itemID] = cap end
+      else
+        line = { i = c.itemID, q = 1, ver = c.version }
+        byItem[c.itemID] = line
+        lines[#lines + 1] = line
+        caps[c.itemID] = cap
+      end
+    end
+  end
+  return lines, caps
+end
+
 -- After every saved scan (Core/ForeverScan.lua's _QueueUpgradesUpdate): one line, only when there
 -- is something. r: the scan's own already-built result, when the caller has one -- the deferred
 -- post-scan update builds once and hands the same result to this and to the window's own render,

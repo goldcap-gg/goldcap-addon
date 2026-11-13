@@ -457,6 +457,46 @@ describe("ForeverUpgrades", function()
     end)
   end)
 
+  -- The HERO tab's "Add" (Task 8 writes the caps with GC.Buy._SetLineCap): one BUY line per item,
+  -- pinned to the version picked, capped 5% over the lot's price.
+  describe("BUY lines for picks", function()
+    before_each(function() helper.loadModule("Core/AppRuns.lua", GC) end)
+    local function pick(itemID, unit, version)
+      return { itemID = itemID, unit = unit, version = version, itemString = "item:" .. itemID }
+    end
+
+    it("turns the set into BUY lines capped 5% over the price", function()
+      local lines, caps = U.BuyLines({ pick(15210, 2700, "12718"), pick(6125, 1929, "0") })
+      assert.same({ { i = 15210, q = 1, ver = "12718" }, { i = 6125, q = 1, ver = "0" } }, lines)
+      assert.same({ [15210] = 2835, [6125] = 2025 }, caps)
+      assert.same({ {}, {} }, { U.BuyLines({}) })
+      assert.same({ {}, {} }, { U.BuyLines(nil) })
+    end)
+
+    it("gives one line of two for an item picked for both hands", function()
+      local lines, caps = U.BuyLines({ pick(15210, 1200, "12721"), pick(15210, 1000, "12718") })
+      assert.same({ { i = 15210, q = 2, ver = "12718,12721" } }, lines)
+      assert.same({ [15210] = 1260 }, caps)                          -- the higher of 1260 and 1050
+      lines = U.BuyLines({ pick(15210, 1200, "12718"), pick(15210, 1000, "12718") })
+      assert.same({ { i = 15210, q = 2, ver = "12718" } }, lines)
+    end)
+
+    it("pins no version for a lot from a scan saved before versions", function()
+      assert.same({ { i = 200, q = 1 } }, (U.BuyLines({ pick(200, 90) })))
+      assert.same({ { i = 200, q = 2 } }, (U.BuyLines({ pick(200, 90, "12718"), pick(200, 80) })))
+      assert.same({ { i = 200, q = 2 } }, (U.BuyLines({ pick(200, 90), pick(200, 80, "12718") })))
+      -- Build's own candidates carry the lot's version: a v1 lot's is nil.
+      items[200] = { loc = "INVTYPE_CLOAK", class = 4, sub = 1 }
+      statsOf["item:200"] = STR(4)
+      local best = U.Build(gear({ [200] = "90:0:0" }), drv(), W).slots[1].best
+      assert.is_nil(best.version)
+      assert.same({ { i = 200, q = 1 } }, (U.BuyLines({ best })))
+      statsOf["item:200::::::::::::1:12718"] = STR(4)
+      best = U.Build({ v = 2, at = 5, items = { [200] = "90:0:0:12718" } }, drv(), W).slots[1].best
+      assert.same({ { i = 200, q = 1, ver = "12718" } }, (U.BuyLines({ best })))
+    end)
+  end)
+
   it("says a scan saved before suffix versions is stale", function()
     items[101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
     statsOf["item:101"] = STR(3)

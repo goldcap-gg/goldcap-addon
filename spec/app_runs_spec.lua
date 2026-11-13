@@ -689,6 +689,34 @@ describe("AppRuns", function()
       assert.equal(0, #run.lines)
     end)
 
+    -- The HERO plan (13.11): a line may name the versions of the item it buys (bonus keys); a line
+    -- with none buys any, as every line always has. Lines are still one per item.
+    it("keeps a line's versions and joins them when one item is merged twice", function()
+      local run = GC.AppRuns.NewList(nil, { { i = 15210, q = 1, ver = "12721" }, { i = 15210, q = 1, ver = "12718" },
+        { i = 15211, q = 1, ver = "12729" }, { i = 15211, q = 1 } })
+      assert.equal(2, #run.lines)
+      assert.same({ 15210, 2, "12718,12721" }, { run.lines[1].i, run.lines[1].q, run.lines[1].ver })
+      assert.same({ 15211, 2 }, { run.lines[2].i, run.lines[2].q })
+      assert.is_nil(run.lines[2].ver)                               -- one of them buys any version
+      -- Added to, the same rule: a pinned addition widens the pin, one with none drops it.
+      GC.AppRuns.AddLines(run.code, { { i = 15210, q = 1, ver = "12718" }, { i = 2589, q = 5 } })
+      assert.same({ 3, "12718,12721" }, { run.lines[1].q, run.lines[1].ver })
+      assert.is_nil(run.lines[3].ver)
+      GC.AppRuns.AddLines(run.code, { { i = 15210, q = 1, ver = "0" } })
+      assert.equal("0,12718,12721", run.lines[1].ver)
+      GC.AppRuns.AddLines(run.code, { { i = 15210, q = 1 } })
+      assert.is_nil(run.lines[1].ver)
+      -- What is not a version is none; a union too long keeps the first line's and what fits.
+      local long = {}
+      for n = 1, 9 do long[n] = tostring(12700 + n) end             -- 53 characters: room for one more
+      local other = GC.AppRuns.NewList(nil, { { i = 1, q = 1, ver = "12718;drop" }, { i = 2, q = 1, ver = 7 },
+        { i = 3, q = 1, ver = table.concat(long, ",") }, { i = 3, q = 1, ver = "12800,12801" } })
+      assert.is_nil(other.lines[1].ver)
+      assert.is_nil(other.lines[2].ver)
+      assert.equal(table.concat(long, ",") .. ",12800", other.lines[3].ver)
+      assert.is_true(#other.lines[3].ver <= 64)
+    end)
+
     it("adds nothing to a goldcap.gg list", function()
       GC.db.runs.a = { code = "a", origin = "app", updatedAt = 1, lines = { { i = 1, q = 1 } } }
       assert.is_nil(GC.AppRuns.AddLine("a", 2, 1))
@@ -738,6 +766,20 @@ describe("AppRuns", function()
         assert.is_true(changed)
         assert.equal(run, GC.AppRuns.Get(run.code))
         assert.same({}, run.lines)
+      end)
+
+      it("counts a changed version as a change", function()
+        local run = GC.AppRuns.NewList(nil, { { i = 15210, q = 1, ver = "12718" } })
+        run.updatedAt = 5
+        local _, changed = GC.AppRuns.SetLines(run.code, { { i = 15210, q = 1, ver = "12718" } })
+        assert.is_false(changed)
+        assert.equal(5, run.updatedAt)
+        _, changed = GC.AppRuns.SetLines(run.code, { { i = 15210, q = 1, ver = "12718,12721" } })
+        assert.is_true(changed)
+        assert.equal("12718,12721", run.lines[1].ver)
+        _, changed = GC.AppRuns.SetLines(run.code, { { i = 15210, q = 1 } })
+        assert.is_true(changed)
+        assert.is_nil(run.lines[1].ver)
       end)
 
       it("never rewrites a pasted list or a goldcap.gg one", function()

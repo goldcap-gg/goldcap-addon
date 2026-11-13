@@ -70,6 +70,56 @@ local function copyCraft(raw)
   return { r = num(raw.r), n = craftedQty, c = num(raw.c) or 0, i = reagents }
 end
 
+-- The versions of an item a line buys (`ver`, HERO plan 13.11): bonus keys
+-- (Core/ForeverGear.lua's BonusKey: "12718", "0", "6654.12729"), comma-separated, sorted, at most
+-- VER_MAX characters. Absent means any version, as every line before it; the HERO tab pins the
+-- versions it picked, so "Add" never buys "... of the Owl" for a "... of the Monkey". Junk reads as
+-- absent: there is no version in it to keep.
+local VER_MAX = 64
+local function verKeys(ver)
+  if type(ver) ~= "string" or ver == "" or #ver > VER_MAX then return nil end
+  local keys, seen = {}, {}
+  for key in ver:gmatch("[^,]+") do
+    if not key:match("^%d[%d%.]*$") then return nil end
+    if not seen[key] then
+      seen[key] = true
+      keys[#keys + 1] = key
+    end
+  end
+  if #keys == 0 then return nil end
+  table.sort(keys)
+  return keys
+end
+
+local function copyVer(ver)
+  local keys = verKeys(ver)
+  return keys and table.concat(keys, ",") or nil
+end
+
+-- Two lines of one item made one: the versions of both, or any version when either buys any. A
+-- union too long for VER_MAX keeps the first line's versions and as many of the second's as fit:
+-- a version left out is one not bought, never one bought by mistake.
+local function joinVer(a, b)
+  local keys, more = verKeys(a), verKeys(b)
+  if not (keys and more) then return nil end
+  local seen = {}
+  for _, key in ipairs(keys) do seen[key] = true end
+  local length = #table.concat(keys, ",")
+  for _, key in ipairs(more) do
+    if not seen[key] and length + 1 + #key <= VER_MAX then
+      seen[key] = true
+      keys[#keys + 1] = key
+      length = length + 1 + #key
+    end
+  end
+  table.sort(keys)
+  return table.concat(keys, ",")
+end
+
+-- For a caller that joins two lines of one item itself (the HERO tab's "Add", which keeps the
+-- larger quantity rather than the sum): the same rule mergeLines and AddLines follow.
+GC.AppRuns.JoinVer = joinVer
+
 local function copyLine(raw)
   if type(raw) ~= "table" then return nil end
   local i, q = num(raw.i), num(raw.q)
@@ -92,6 +142,8 @@ local function copyLine(raw)
     -- BUY 2.0: `mk` says the route this list was saved from crafts the item itself, at least as
     -- many as the list needs -- a line to craft, never to buy. Only `true` is the flag.
     mk = raw.mk == true or nil,
+    -- The versions of the item the line buys (joinVer above); absent, any.
+    ver = copyVer(raw.ver),
   }
 end
 
@@ -110,6 +162,7 @@ local function mergeLines(rawLines)
       local seen = byItem[line.i]
       if seen then
         seen.q = seen.q + line.q
+        seen.ver = joinVer(seen.ver, line.ver)
         -- The higher floor of the two: a merge must never lower the level the player asked for.
         if line.minIlvl and (not seen.minIlvl or line.minIlvl > seen.minIlvl) then
           seen.minIlvl = line.minIlvl
@@ -666,8 +719,9 @@ function GC.AppRuns.Move(code, delta)
   return true
 end
 
---- Adds lines ({ i, q }) to one of the player's own lists: an item it already has grows by the
---- quantity, a new one goes at the end. Returns the run and how many items were given, or nil.
+--- Adds lines ({ i, q, ver? }) to one of the player's own lists: an item it already has grows by the
+--- quantity, and buys the versions of both (joinVer), a new one goes at the end. Returns the run
+--- and how many items were given, or nil.
 function GC.AppRuns.AddLines(code, lines)
   local run = GC.AppRuns.Get(code)
   if not GC.AppRuns.IsLocal(run) then return nil end
@@ -678,6 +732,7 @@ function GC.AppRuns.AddLines(code, lines)
     local have = byItem[line.i]
     if have then
       have.q = have.q + line.q
+      have.ver = joinVer(have.ver, line.ver)
     else
       run.lines[#run.lines + 1] = line
       byItem[line.i] = line
@@ -731,7 +786,7 @@ local function lowerBought(db, code, itemID, by)
   end
 end
 
---- Replaces the lines of a list made in the game with `lines` ({ i, q, v?, vu? }, one per item):
+--- Replaces the lines of a list made in the game with `lines` ({ i, q, v?, vu?, ver? }, one per item):
 --- the craft queue's list (UI/CraftQueueView.lua), which follows the queue. Code, name, caps and
 --- place stay. Where a line now asks for fewer, or went, what each character bought for it goes
 --- down by as much: BUY buys a line's need less the larger of what it sees held and what it bought
@@ -749,7 +804,9 @@ function GC.AppRuns.SetLines(code, lines)
   for _, line in ipairs(fresh) do
     local was = old[line.i]
     asked[line.i] = line.q
-    if not (was and was.q == line.q and was.v == line.v and was.vu == line.vu) then changed = true end
+    if not (was and was.q == line.q and was.v == line.v and was.vu == line.vu and was.ver == line.ver) then
+      changed = true
+    end
   end
   if not changed then return run, false end
   run.lines, run.updatedAt = fresh, time()

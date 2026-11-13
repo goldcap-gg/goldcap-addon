@@ -2131,6 +2131,82 @@ describe("BUY purchase", function()
         assert.is_nil(GC.Buy._attempt.byName)
       end)
 
+      -- The HERO tab's line names the version it picked (bonus key 12718, "of the Eagle"): the
+      -- cheaper Owl is never bid on, whether its variant is known by its sample link right after the
+      -- browse (HERO probe P3) or only by its own key's rows. Links in P1's shape, for this
+      -- fixture's item 201.
+      describe("a line that names its versions", function()
+        local EAGLE_LINK = "|cnIQ2:|Hitem:201::::::::17:1488:::1:12718::::::|h[Dark Leather Boots of the Eagle]|h|r"
+        local OWL_LINK = "|cnIQ2:|Hitem:201::::::::17:1488::1:1:12720:1:28:5244:::::|h[Dark Leather Boots of the Owl]|h|r"
+        before_each(function()
+          helper.loadModule("Core/ForeverGear.lua", GC)
+          LOTS[1].itemLink, LOTS[2].itemLink = EAGLE_LINK, OWL_LINK  -- 21 the Eagle at 700, 22 the Owl at 500
+          gearRun({ i = 201, q = 1, cc = 1170, ver = "12718" })
+          named = { entry = { itemID = 201, variants = {
+            { itemLevel = 20, itemSuffix = 14300, battlePetSpeciesID = 0, floor = 700 },
+            { itemLevel = 20, itemSuffix = 14301, battlePetSpeciesID = 0, floor = 500 },
+          } } }
+        end)
+        after_each(function()
+          _G.C_AuctionHouse.GetItemKeySampleLink = nil
+          GC.Buy._keyVersions = {}
+        end)
+
+        it("arms the cheaper variant not known yet, reads it as another version, and bids on its own", function()
+          pick(rowWithText("Dark Leather Boots"))
+          GC.Buy.OnItemResults(AT20)
+          GC.Buy.Tick()
+          assert.same(BEAR, sent[#sent].key)                        -- not known yet: armed, never bid on
+          GC.Buy.OnItemResults(BEAR)
+          assert.same(EAGLE, sent[#sent].key)                       -- the Owl's rows: the next variant
+          GC.Buy.OnItemResults(EAGLE)
+          assert.equal("quoted", GC.Buy._attempt.stage)
+          assert.equal(21, GC.Buy._attempt.lot.auctionID)
+          press()
+          assert.same({ { auctionID = 21, amount = 700 } }, placed)
+          -- The session keeps what the Owl's key held, for the next read of it.
+          assert.equal("12720", GC.Buy._KnownVersion(201, { itemLevel = 20, itemSuffix = 14301, species = 0 }))
+        end)
+
+        it("never arms a variant its sample link names as another version", function()
+          _G.C_AuctionHouse.GetItemKeySampleLink = function(key)
+            if key.itemSuffix == 14300 then return EAGLE_LINK end
+            if key.itemSuffix == 14301 then return OWL_LINK end
+          end
+          pick(rowWithText("Dark Leather Boots"))
+          GC.Buy.OnItemResults(AT20)
+          GC.Buy.Tick()
+          assert.same(EAGLE, sent[#sent].key)
+          for _, out in ipairs(sent) do assert.are_not.same(BEAR, out.key) end
+          GC.Buy.OnItemResults(EAGLE)
+          press()
+          assert.same({ { auctionID = 21, amount = 700 } }, placed)
+        end)
+
+        -- P3: after a key's own search its sample link was sometimes nil (Carving Knife), and the
+        -- browse is reused for a minute. What the sample link said is kept for the next read.
+        it("keeps what a sample link said for the next read, when the link is gone", function()
+          _G.C_AuctionHouse.GetItemKeySampleLink = function(key)
+            if key.itemSuffix == 14300 then return EAGLE_LINK end
+            if key.itemSuffix == 14301 then return OWL_LINK end
+          end
+          pick(rowWithText("Dark Leather Boots"))
+          GC.Buy.OnItemResults(AT20)
+          GC.Buy.Tick()
+          GC.Buy.OnItemResults(EAGLE)
+          assert.equal(21, GC.Buy._attempt.lot.auctionID)
+          _G.C_AuctionHouse.GetItemKeySampleLink = function() return nil end
+          GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+          local before = #sent
+          pick(rowWithText("Dark Leather Boots"))
+          GC.Buy.OnItemResults(AT20)
+          GC.Buy.Tick()
+          assert.is_true(#sent > before)
+          for i = before + 1, #sent do assert.are_not.same(BEAR, sent[i].key) end
+          assert.same(EAGLE, sent[#sent].key)
+        end)
+      end)
+
       it("asks nothing by name for a key that answered lots", function()
         LOTS[#LOTS + 1] = { auctionID = 23, buyoutAmount = 600, quantity = 1, containsOwnerItem = false, itemKey = AT20 }
         pick(rowWithText("Dark Leather Boots"))

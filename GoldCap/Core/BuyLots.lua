@@ -12,7 +12,10 @@ GC.BuyLots.MAX_GROUPS = 3
 -- (level, suffix, pet species): a gear line is bid on under its lot's exact key (UI/BuyFrame.lua). The player's own lot is never one (it cannot
 -- be bought, and offering it would sell the player their own auction), nor is a row with no buyout
 -- (a bid-only auction).
+-- `ver` is each row's version, the bonus key of its own link (Core/ForeverGear.lua's BonusKey):
+-- what a line that names its versions judges the row by. nil without a link.
 function GC.BuyLots.FromRows(rows)
+  local bonusKey = GC.ForeverGear and GC.ForeverGear.BonusKey or nil
   local lots = {}
   for _, r in ipairs(rows or {}) do
     if type(r) == "table" and r.auctionID and type(r.buyoutAmount) == "number" and r.buyoutAmount > 0
@@ -21,7 +24,8 @@ function GC.BuyLots.FromRows(rows)
       lots[#lots + 1] = { auctionID = r.auctionID, buyout = r.buyoutAmount,
         count = math.max(1, tonumber(r.quantity) or 1),
         itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0,
-        species = key.battlePetSpeciesID or 0, link = r.itemLink }
+        species = key.battlePetSpeciesID or 0, link = r.itemLink,
+        ver = bonusKey and bonusKey(r.itemLink) or nil }
     end
   end
   table.sort(lots, function(a, b)
@@ -67,16 +71,25 @@ function GC.BuyLots.Replace(all, fresh, key)
   return lots
 end
 
-local function eligible(lot, minIlvl)
-  return not minIlvl or (lot.itemLevel or 0) >= minIlvl
+-- A lot the line may take: at or above its item level, and of a version it buys. `version` is the
+-- line's set of bonus keys (Core/BuyRun.lua), nil for a line that takes any version. With one, a
+-- lot whose version is known must be one of them; a lot whose version is not known is taken only
+-- as a browse variant not read yet (auctionID 0), which may be armed -- its own key's search then
+-- reads each row's version -- but is never bid on. A real row with no link is never taken.
+local function eligible(lot, minIlvl, version)
+  if minIlvl and (lot.itemLevel or 0) < minIlvl then return false end
+  if version == nil then return true end
+  if lot.ver ~= nil then return version[lot.ver] == true end
+  return lot.auctionID == 0
 end
 
--- The dock's price lines: lots grouped by price, cheapest first, at most `max` groups.
-function GC.BuyLots.Groups(lots, cap, minIlvl, max)
+-- The dock's price lines: lots grouped by price, cheapest first, at most `max` groups. `version`,
+-- here and below: the line's versions (eligible), nil for any.
+function GC.BuyLots.Groups(lots, cap, minIlvl, max, version)
   max = max or GC.BuyLots.MAX_GROUPS
   local groups, byPrice = {}, {}
   for _, lot in ipairs(lots or {}) do
-    if eligible(lot, minIlvl) then
+    if eligible(lot, minIlvl, version) then
       local group = byPrice[lot.buyout]
       if not group then
         if #groups >= max then break end
@@ -93,11 +106,11 @@ end
 -- The one lot the dock's next press buys: the cheapest at or under the cap, at or above the line's
 -- item level, that the wallet can pay. Without a cap nothing is offered at all: a bid has no quote
 -- step to catch a mistake, so the cap is the only guard there is.
-function GC.BuyLots.Next(lots, cap, minIlvl, money)
+function GC.BuyLots.Next(lots, cap, minIlvl, money, version)
   if not cap then return nil, "nocap" end
   local sawAny, sawUnder = false, false
   for _, lot in ipairs(lots or {}) do
-    if eligible(lot, minIlvl) then
+    if eligible(lot, minIlvl, version) then
       sawAny = true
       if lot.buyout > cap then break end
       sawUnder = true
@@ -111,10 +124,10 @@ end
 
 -- The same lots as the price ladder every other BUY line has, so the tooltip, the row status and the
 -- cap raise read a lot line exactly as they read a commodity.
-function GC.BuyLots.AsLevels(lots, minIlvl)
+function GC.BuyLots.AsLevels(lots, minIlvl, version)
   local levels = {}
   for _, lot in ipairs(lots or {}) do
-    if eligible(lot, minIlvl) then levels[#levels + 1] = { unit = lot.buyout, qty = lot.count } end
+    if eligible(lot, minIlvl, version) then levels[#levels + 1] = { unit = lot.buyout, qty = lot.count } end
   end
   return levels
 end

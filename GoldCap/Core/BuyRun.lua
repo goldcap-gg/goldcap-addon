@@ -35,6 +35,18 @@ local function craftOf(raw)
            reagents = reagents }
 end
 
+-- The versions a line buys (Core/AppRuns.lua's `ver`, bonus keys joined by ","), as a set the
+-- lot judges in Core/BuyLots.lua read; nil buys any version, as every line always has.
+local function versionSet(ver)
+  if type(ver) ~= "string" or ver == "" then return nil end
+  local set, any = {}, false
+  for key in ver:gmatch("[^,]+") do
+    set[key] = true
+    any = true
+  end
+  return any and set or nil
+end
+
 -- The ceiling one unit of this line may cost, and whose it is: the player's own price for the
 -- line first (typed or raised in the BUY tab), then the site's absolute one (an alert target),
 -- then the run's percent of the reference price, which is what every line without either has
@@ -112,6 +124,8 @@ function GC.BuyRun.New(run, driver)
         -- One exact item key: a result opened from the BUY search (UI/BuySearch.lua) is one browse
         -- row, one variant, and its lots are read under that key alone (UI/BuyFrame.lua).
         exactKey = type(src.key) == "table" and src.key or nil,
+        -- The versions of the item the line buys (HERO plan): a lot of any other is never bid on.
+        version = versionSet(src.ver),
         -- A vendor line is a trip to an NPC at a fixed price. The recipe the site attached
         -- describes what the item is; it is not an offer to make one, and splitting it would
         -- replace a copper purchase from a vendor with reagents bought at the auction house.

@@ -22,3 +22,30 @@ end
 function GC.Buy._ReadByName()
   return GC.Sniper ~= nil and GC.Sniper._SendNaming ~= nil
 end
+
+-- A browse variant's version, for a line that names its versions (GC.Buy._StepByName): the bonus
+-- key of the key's sample link. The HERO probe (P3, 13.11) read GetItemKeySampleLink for every one
+-- of 53 variants right after the browse, each a key made with MakeItemKey from the variant's level
+-- and suffix, and its bonus ID agreed with the rows the key's own search returned; after that
+-- search it was sometimes nil (Carving Knife). Then the session's own record of the key's rows
+-- answers (GC.Buy._KnownVersion: every searched key held one version, 9 of 9), which keeps each
+-- sample answer too: the browse is reused for a minute, and a read after a search would otherwise
+-- arm every cheaper variant again to learn it is another version. The key's suffix is no fixed
+-- offset from the bonus ID (14308 is 12728, 14315 is 12920), so neither is worked out.
+function GC.Buy._VersionOfKey(itemID, lot)
+  local ah = C_AuctionHouse
+  local bonusKey = GC.ForeverGear and GC.ForeverGear.BonusKey
+  if bonusKey and type(ah) == "table" and type(ah.GetItemKeySampleLink) == "function"
+      and type(ah.MakeItemKey) == "function" then
+    local ok, key = pcall(ah.MakeItemKey, itemID, lot.itemLevel or 0, lot.itemSuffix or 0, lot.species or 0)
+    if ok and type(key) == "table" then
+      local read, link = pcall(ah.GetItemKeySampleLink, key)
+      local ver = read and bonusKey(link) or nil
+      if ver then
+        GC.Buy._keyVersions[GC.Buy._VersionKey(itemID, lot)] = ver
+        return ver
+      end
+    end
+  end
+  return GC.Buy._KnownVersion(itemID, lot)
+end
