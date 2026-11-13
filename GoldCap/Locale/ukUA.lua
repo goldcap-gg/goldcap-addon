@@ -2023,4 +2023,21 @@ GC.Locales.ukUA = {
   ["%s at the trainer. Type your own after a discount."] = "%s у вчителя. Зі знижкою введіть свою ціну.",
   ["Share in chat"] = "Поділитися в чаті",
   ["Upgrades"] = "Покращення",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "Ваги характеристик",
+  ["Click a slot to see what you can buy for it."] =
+    "Натисніть на слот, щоб побачити, що для нього можна купити.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "Те, що тут надягнуто, ще зчитується. Заповниться само собою.",
+  ["You wear %s"] = "Надягнуто: %s",
+  ["Nothing worn here"] = "Тут нічого не надягнуто",
+  ["Keep %s"] = "Залишити %s",
+  ["Buy nothing here"] = "Нічого тут не купувати",
+  ["%d ticked: %s"] = "Позначено: %d · %s",
+  ["Picked by GoldCap for the gold you carry"] = "Дібрано GoldCap під золото при собі",
+  ["Still reading what you wear: the picks may change"] = "Надягнуте ще зчитується: добірка може змінитися",
+  ["Your own picks"] = "Ваша добірка",
+  ["Nothing ticked"] = "Нічого не позначено",
+  ["Ticked cost"] = "Сума позначеного",
+  ["Short by %s"] = "Бракує %s",
 }

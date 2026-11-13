@@ -205,7 +205,7 @@ GC.Locales.frFR = {
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Objets de vos sacs qui valent plus à l'hôtel des ventes que chez un marchand : %d (%s de plus).",
   ["Items still loading: %d. Open this again in a moment."] =
-    "Objets encore en chargement : %d. Rouvrez ceci dans un instant.",
+    "Objets encore en chargement : %d. Rouvre ceci dans un instant.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Le comptage du butin est désactivé. Tapez /gc loot clear pour supprimer ce qui a été enregistré.",
   ["Loot counting is on."] = "Le comptage du butin est activé.",
@@ -214,11 +214,11 @@ GC.Locales.frFR = {
   ["Mount cost cleared."] = "Coût de la monture effacé.",
   ["Mount cost set to %s."] = "Coût de la monture fixé à %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
-    "Aucun scan contenant de l'équipement pour l'instant. Ouvrez l'hôtel des ventes et laissez GoldCap le scanner.",
+    "Aucun scan contenant de l'équipement pour l'instant. Ouvre l'hôtel des ventes et laisse GoldCap le scanner.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
-    "Pas encore de pondérations pour votre classe. Définissez-les ainsi : /gc weights STR 1 STA 0.5",
+    "Pas encore de pondérations pour ta classe. Définis-les ainsi : /gc weights STR 1 STA 0.5",
   ["Nothing on the auction house beats what you wear at your level."] =
-    "Rien à l'hôtel des ventes ne dépasse ce que vous portez à votre niveau.",
+    "Rien à l'hôtel des ventes ne dépasse ce que tu portes à ton niveau.",
   ["Nothing on this list matches."] = "Rien ne correspond dans cette liste.",
   ["Over cap"] = "Au-dessus du plafond",
   ["PRICE EACH"] = "PRIX À L'UNITÉ",
@@ -355,9 +355,9 @@ GC.Locales.frFR = {
   ["To buy"] = "À acheter",
   ["To craft"] = "À fabriquer",
   ["Total: %s"] = "Total : %s",
-  ["Unknown stat %s. Use one of: %s"] = "Caractéristique inconnue %s. Utilisez l'une de : %s",
+  ["Unknown stat %s. Use one of: %s"] = "Caractéristique inconnue %s. Utilise l'une de : %s",
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
-    "Améliorations pour votre équipement à l'hôtel des ventes : %d. Tapez /gc upgrades pour les voir.",
+    "Améliorations pour ton équipement à l'hôtel des ventes : %d. Tape /gc upgrades pour les voir.",
   ["Use the default cap"] = "Plafond par défaut",
   ["At 5% or more, a lead under the vendor price may spend up to half your wallet and a lead under the market price up to a quarter, or up to this share if it is larger."] =
     "À partir de 5 %, une piste sous le prix du marchand peut utiliser jusqu'à la moitié de ta bourse, et une piste sous le prix du marché jusqu'au quart, ou jusqu'à cette part si elle est plus grande.",
@@ -514,11 +514,11 @@ GC.Locales.frFR = {
   ["Sell it to a vendor"] = "Vends-le à un marchand",
   -- Tooltip (WoW: Forever): whether a piece is an upgrade for the character looking. The first %s
   -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
-  ["Upgrade: %s over your %s"] = "Amélioration : %s par rapport à votre %s",
+  ["Upgrade: %s over your %s"] = "Amélioration : %s par rapport à %s",
   ["Upgrade: %s, nothing worn there"] = "Amélioration : %s, rien d'équipé à cet emplacement",
-  ["You can wear it in %d levels"] = "Vous pourrez le porter dans %d niveaux",
-  ["You can wear it next level"] = "Vous pourrez le porter au prochain niveau",
-  ["Not an upgrade for your %s: nothing here you use"] = "Pas une amélioration pour votre classe (%s) : rien ici ne vous sert",
+  ["You can wear it in %d levels"] = "Tu pourras le porter dans %d niveaux",
+  ["You can wear it next level"] = "Tu pourras le porter au prochain niveau",
+  ["Not an upgrade for your %s: nothing here you use"] = "Pas une amélioration pour ta classe (%s) : rien ici ne te sert",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "L'onglet Vente poste un palier au-dessus de l'offre la moins chère quand le carnet montre qu'elle se vend tout aussi vite.",
   ["Sell-through"] = "Taux d'écoulement",
@@ -1930,30 +1930,48 @@ GC.Locales.frFR = {
     "Main droite : environ 14 de puissance d'attaque. Main gauche la moitié, arme à feu ou arc un septième",
   ["%s · level %d"] = "%s · niveau %d",
   ["Scan %s ago"] = "Scan d'il y a %s",
-  ["Scan again to read each version's own stats."] = "Relancez un scan pour lire les caractéristiques propres à chaque version.",
+  ["Scan again to read each version's own stats."] = "Relance un scan pour lire les caractéristiques propres à chaque version.",
   ["Mount at 40"] = "Monture au niveau 40",
   ["Add %d to BUY"] = "Ajouter %d à BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
-    "Rien à l'hôtel des ventes n'est encore à la portée de l'or que vous avez.",
+    "Rien à l'hôtel des ventes n'est encore à la portée de l'or que tu as.",
   ["Left after"] = "Reste après",
   ["What counts for a %s"] = "%s : ce qui compte",
-  ["The list changes as you type"] = "La liste change pendant que vous tapez",
+  ["The list changes as you type"] = "La liste change pendant que tu tapes",
   ["Sword, mace, fist"] = "Épée, masse, arme de pugilat",
   ["Dagger"] = "Dague",
   ["From the weapon in your main hand. Backstab needs a dagger."] =
     "D'après l'arme en main droite. Attaque sournoise exige une dague.",
   ["Reset to %s"] = "Réinitialiser (%s)",
-  ["Gold for your mount"] = "De l'or pour votre monture",
+  ["Gold for your mount"] = "De l'or pour ta monture",
   ["Riding at level 40"] = "La monte dès le niveau 40",
-  ["Gold you carry"] = "Or sur vous",
+  ["Gold you carry"] = "Or sur toi",
   ["Your bags"] = "Vos sacs",
   ["Each stack at the better of a vendor and the AH"] = "Chaque pile au meilleur prix entre marchand et HV",
   ["%d items fetch more on the AH"] = "Objets qui valent plus à l'HV : %d",
   ["%s more than a vendor pays"] = "%s de plus que ce que paie un marchand",
-  ["The upgrade in your set leaves %s toward it."] = "Avec l'amélioration de votre sélection, il reste %s pour la monture.",
-  ["The %d upgrades in your set leave %s toward it."] = "Avec les %d améliorations de votre sélection, il reste %s pour la monture.",
+  ["The upgrade in your set leaves %s toward it."] = "Avec l'amélioration de ta sélection, il reste %s pour la monture.",
+  ["The %d upgrades in your set leave %s toward it."] = "Avec les %d améliorations de ta sélection, il reste %s pour la monture.",
   ["Riding cost"] = "Coût de la monture",
-  ["%s at the trainer. Type your own after a discount."] = "%s chez le maître. Saisissez le vôtre après une remise.",
+  ["%s at the trainer. Type your own after a discount."] = "%s chez le maître. Saisis le tien après une remise.",
   ["Share in chat"] = "Partager dans le chat",
   ["Upgrades"] = "Améliorations",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "Pondérations",
+  ["Click a slot to see what you can buy for it."] =
+    "Clique sur un emplacement pour voir les achats possibles.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "Ce que tu portes ici est encore en lecture. Cela se remplira tout seul.",
+  ["You wear %s"] = "Tu portes %s",
+  ["Nothing worn here"] = "Rien d'équipé ici",
+  ["Keep %s"] = "Garder %s",
+  ["Buy nothing here"] = "Ne rien acheter ici",
+  ["%d ticked: %s"] = "Cochés : %d · %s",
+  ["Picked by GoldCap for the gold you carry"] = "Choisi par GoldCap pour l'or que tu as sur toi",
+  ["Still reading what you wear: the picks may change"] =
+    "Ce que tu portes est encore en lecture : la sélection peut changer",
+  ["Your own picks"] = "Ta propre sélection",
+  ["Nothing ticked"] = "Rien de coché",
+  ["Ticked cost"] = "Total coché",
+  ["Short by %s"] = "Il te manque %s",
 }

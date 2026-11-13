@@ -2019,4 +2019,22 @@ GC.Locales.ruRU = {
   ["%s at the trainer. Type your own after a discount."] = "%s у учителя. Со скидкой введите свою цену.",
   ["Share in chat"] = "Поделиться в чате",
   ["Upgrades"] = "Улучшения",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "Веса характеристик",
+  ["Click a slot to see what you can buy for it."] =
+    "Нажмите на слот, чтобы увидеть, что для него можно купить.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "То, что здесь надето, ещё считывается. Заполнится само.",
+  ["You wear %s"] = "Надето: %s",
+  ["Nothing worn here"] = "Здесь ничего не надето",
+  ["Keep %s"] = "Оставить %s",
+  ["Buy nothing here"] = "Ничего здесь не покупать",
+  ["%d ticked: %s"] = "Отмечено: %d · %s",
+  ["Picked by GoldCap for the gold you carry"] = "Подобрано GoldCap под золото при себе",
+  ["Still reading what you wear: the picks may change"] =
+    "Надетое ещё считывается: подборка может измениться",
+  ["Your own picks"] = "Ваша подборка",
+  ["Nothing ticked"] = "Ничего не отмечено",
+  ["Ticked cost"] = "Сумма отмеченного",
+  ["Short by %s"] = "Не хватает %s",
 }

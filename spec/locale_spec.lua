@@ -602,6 +602,21 @@ describe("locale layer", function()
       "%s at the trainer. Type your own after a discount.",
       "Share in chat",
       "Upgrades",
+      -- The tab as the character sheet: the doll, the slot panel and the bar.
+      "Stat weights",
+      "Click a slot to see what you can buy for it.",
+      "Still reading what you wear here. This fills in by itself.",
+      "You wear %s",
+      "Nothing worn here",
+      "Keep %s",
+      "Buy nothing here",
+      "%d ticked: %s",
+      "Picked by GoldCap for the gold you carry",
+      "Still reading what you wear: the picks may change",
+      "Your own picks",
+      "Nothing ticked",
+      "Ticked cost",
+      "Short by %s",
     }
     for _, code in ipairs(helper.localeCodes()) do
       local loc = helper.loadModule("Locale/Core.lua")
@@ -616,6 +631,34 @@ describe("locale layer", function()
         assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
       end
     end
+  end)
+
+  -- The HERO tab speaks to a French player as tu, as the Sell tab does: its first strings said vous
+  -- ("Vous pourrez le porter", "votre classe") while the doll's said tu.
+  it("speaks tu in every French string the HERO tab shows", function()
+    local fr = helper.loadModule("Locale/Core.lua")
+    helper.loadModule("Locale/frFR.lua", fr)
+    local translations = fr.Locales.frFR
+    local keys = {}
+    for _, path in ipairs({ "GoldCap/UI/HeroFrame.lua", "GoldCap/Core/ForeverUpgrades.lua" }) do
+      local file = assert(io.open(path, "r"))
+      local source = file:read("*a")
+      file:close()
+      for key in source:gmatch('GC%.L%["(.-)"%]') do keys[key] = true end
+    end
+    local checked = 0
+    for key in pairs(keys) do
+      local text = translations[key]
+      if text then
+        checked = checked + 1
+        -- "chez" is a preposition, not a vous imperative.
+        local plain = text:gsub("%f[%w]chez%f[%W]", "")
+        for _, word in ipairs({ "%f[%w]vous%f[%W]", "%f[%w]votre%f[%W]", "%f[%w]vos%f[%W]", "%f[%w]%a+ez%f[%W]" }) do
+          assert.is_nil(plain:find(word), ("frFR %q: %q"):format(key, text))
+        end
+      end
+    end
+    assert.is_true(checked > 40)
   end)
 
   -- The buy drawer's hints name the button by what that button reads in the player's language:

@@ -1950,4 +1950,21 @@ GC.Locales.itIT = {
   ["%s at the trainer. Type your own after a discount."] = "%s dall'addestratore. Scrivi il tuo dopo uno sconto.",
   ["Share in chat"] = "Condividi in chat",
   ["Upgrades"] = "Miglioramenti",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "Pesi delle statistiche",
+  ["Click a slot to see what you can buy for it."] = "Clicca su uno slot per vedere cosa puoi comprare.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "Ciò che indossi qui è ancora in lettura. Si completa da solo.",
+  ["You wear %s"] = "Indossi %s",
+  ["Nothing worn here"] = "Qui non indossi nulla",
+  ["Keep %s"] = "Tieni %s",
+  ["Buy nothing here"] = "Non comprare nulla qui",
+  ["%d ticked: %s"] = "Spuntati: %d · %s",
+  ["Picked by GoldCap for the gold you carry"] = "Scelti da GoldCap per l'oro che hai con te",
+  ["Still reading what you wear: the picks may change"] =
+    "Ciò che indossi è ancora in lettura: la selezione può cambiare",
+  ["Your own picks"] = "La tua selezione",
+  ["Nothing ticked"] = "Niente spuntato",
+  ["Ticked cost"] = "Totale spuntato",
+  ["Short by %s"] = "Ti mancano %s",
 }

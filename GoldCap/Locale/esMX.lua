@@ -1955,4 +1955,22 @@ GC.Locales.esMX = {
   ["%s at the trainer. Type your own after a discount."] = "%s con el instructor. Escribe el tuyo si te hacen descuento.",
   ["Share in chat"] = "Compartir en el chat",
   ["Upgrades"] = "Mejoras",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "Pesos de estadísticas",
+  ["Click a slot to see what you can buy for it."] =
+    "Haz clic en una ranura para ver qué puedes comprar para ella.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "Aún se está leyendo lo que llevas aquí. Se completará solo.",
+  ["You wear %s"] = "Llevas %s",
+  ["Nothing worn here"] = "No llevas nada aquí",
+  ["Keep %s"] = "Conservar %s",
+  ["Buy nothing here"] = "No comprar nada aquí",
+  ["%d ticked: %s"] = "Marcados: %d · %s",
+  ["Picked by GoldCap for the gold you carry"] = "Elegido por GoldCap para el oro que llevas",
+  ["Still reading what you wear: the picks may change"] =
+    "Aún se está leyendo lo que llevas: la selección puede cambiar",
+  ["Your own picks"] = "Tu propia selección",
+  ["Nothing ticked"] = "Nada marcado",
+  ["Ticked cost"] = "Total marcado",
+  ["Short by %s"] = "Te faltan %s",
 }
