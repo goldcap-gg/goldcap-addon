@@ -5,13 +5,17 @@
 - WoW: Forever: a new HERO tab in the GoldCap window replaces the /gc upgrades window. It looks
   like your character sheet: your own slots around your character, and a slot with something
   better on the auction house has a gold frame. Click one to see its choices: the strongest piece
-  you can wear now, cheaper ones nearly as good, and a stronger one you can wear in a level or two.
-  A price you cannot pay yet is red, and a piece you cannot wear yet has a red icon with its level
-  in the corner, as in your bags.
-- WoW: Forever: tick what you want to buy, one piece per slot. GoldCap ticks the strongest mix the
-  gold you carry pays for to start with, and you can change any of it. The bar at the bottom counts
-  only what is ticked and says what you have left, or how much you are short. "Add to BUY" puts
-  the ticked pieces on an Upgrades list in BUY, each capped 5% over its price.
+  you can wear now, cheaper ones nearly as good (or the next strongest, when the strongest is also
+  the cheapest), and a stronger one you can wear in a level or two. A price you cannot pay yet is
+  red, and a piece you cannot wear yet has a red icon with its level in the corner, as in your bags.
+- WoW: Forever: the "+" beside a piece puts it on your Upgrades list in BUY, one piece per slot,
+  capped 5% over its price, and its check takes it off again. The slot turns green with the price.
+  GoldCap's own picks, the strongest mix the gold you carry pays for, have a gold star, and one
+  button puts them all on the list. The bar at the bottom says how many pieces are on the list, what
+  they add and cost, and what you have left or how much you are short; "Open BUY" takes you to the
+  list. A piece you have bought from it says Bought.
+- WoW: Forever: each ring slot has its own choices, weighed against the ring on that finger, and
+  GoldCap never picks the same ring for both.
 - WoW: Forever: BUY now buys the exact version the HERO tab picked: "of the Monkey" stays "of the
   Monkey", even when another version of the item is cheaper.
 - WoW: Forever: each version of an item with a random suffix is now weighed by its own stats. All
@@ -35,7 +39,7 @@
 - WoW: Forever: stat weights, the bags' worth on the auction house and the road to your riding
   mount are now in the HERO tab too. /gc weights, /gc bags and /gc mount still work.
 - WoW: Forever: an item's tooltip now says whether it is an upgrade for the character looking, and
-  by how much, or when you can wear it.
+  by how much, or, for one you can wear in a level or two, when.
 
 ## 0.28.1 (2026-11-13)
 
