@@ -5,13 +5,13 @@ local W = require("spec.support.wow_frames")
 -- 2026-11-13). The real Theme and kit, the real BUY lists (Core/AppRuns.lua), the real weights and
 -- the words of Core/ForeverUpgrades.lua and the real /gc mount lines (Core/ForeverRoad.lua); what the
 -- tab is handed is a seam: GC.ForeverUpgrades.Current answers `result`, GC.ForeverRoad.Snapshot
--- `road`, GetInventoryItemLink `wornLinks`. The window around it (GC.Sniper) and the BUY tab (GC.Buy)
--- are doubles that remember what they were asked. The widgets are spec/support/wow_frames.lua's,
+-- `road`, GetInventoryItemLink `wornLinks`, GC.Buy.BoughtOn `boughtOn[code]`. The window around it
+-- (GC.Sniper) and the BUY tab (GC.Buy) are doubles that remember what they were asked. The widgets are spec/support/wow_frames.lua's,
 -- read through W.state.
 describe("HERO tab", function()
   local GC, H, restore, saved, timers, delays, prefs, result, road, builds, views, toggled, windowShown
   local selected, tipLink, tipShown, tipOwner, modified, clicked, chat, host, snapshots, wornLinks
-  local units, noModel, modelAnswer
+  local units, noModel, modelAnswer, boughtOn
   local KEYS = { "UIParent", "C_Item", "C_Timer", "GameTooltip", "HandleModifiedItemClick", "UnitClass", "UnitLevel",
     "GetMoney", "RAID_CLASS_COLORS", "GetClassAtlas", "C_Texture", "C_PaperDollInfo", "GetInventorySlotInfo",
     "GetCoinTextureString", "ChatFrame_OpenChat", "InCombatLockdown", "ITEM_MOD_STRENGTH_SHORT",
@@ -81,6 +81,7 @@ describe("HERO tab", function()
     }
   end
 
+  local function run() return prefs.heroList and GC.AppRuns.Get(prefs.heroList) or nil end
   local function doll() return H._view.doll end
   local function slotAt(inv) return H._view.doll.slots[inv] end
   local function sp() return H._view.panel end
@@ -96,7 +97,27 @@ describe("HERO tab", function()
     for _, r in ipairs(H._view.panel.rows) do if shown(r) then out[#out + 1] = r:GetHeight() end end
     return out
   end
-  local function ticked(row) return shown(row.boxFill) end
+  -- An option the list holds for its slot: its box filled, the check in it; else the "+".
+  local function ticked(row)
+    local glyph = W.state(row.boxGlyph).texCoord
+    assert.same({ GC.Theme.IconCoords(shown(row.boxFill) and "check" or "plus") }, glyph)
+    return shown(row.boxFill)
+  end
+  local function idsOf(list)
+    local out = {}
+    for _, line in ipairs(list and list.lines or {}) do out[#out + 1] = line.i end
+    return out
+  end
+  -- The list's lines as the tab writes them: item, quantity, version.
+  local function linesOf()
+    local out = {}
+    for _, line in ipairs(run() and run().lines or {}) do out[#out + 1] = { i = line.i, q = line.q, ver = line.ver } end
+    return out
+  end
+  local function qOf(itemID)
+    for _, line in ipairs(run() and run().lines or {}) do if line.i == itemID then return line.q end end
+    return nil
+  end
   local function bar() return H._view.bar end
   local function top() return H._view.top end
   -- The weights panel's stats, top to bottom, as shown.
@@ -108,7 +129,6 @@ describe("HERO tab", function()
     return out, hidden
   end
   local function panel(key) return H._view.panels and H._view.panels[key] end
-  local function run() return GC.AppRuns.Get(prefs.heroList) end
 
   before_each(function()
     saved = {}
@@ -126,7 +146,7 @@ describe("HERO tab", function()
       function m.SetUnit(_, unit) units[#units + 1] = unit; return modelAnswer end
       return m
     end
-    timers, delays, builds, views, toggled, windowShown, snapshots = {}, {}, 0, {}, false, true, 0
+    timers, delays, builds, views, toggled, windowShown, snapshots, boughtOn = {}, {}, 0, {}, false, true, 0, {}
     selected, tipLink, tipShown, tipOwner, modified, clicked, chat = nil, nil, false, nil, false, nil, nil
     wornLinks = { [5] = "|Hitem:85::::|h[Old Tunic]|h" }
     _G.C_Timer = { After = function(s, fn) delays[#delays + 1] = s; timers[#timers + 1] = fn end }
@@ -176,6 +196,7 @@ describe("HERO tab", function()
         GC.db.runLineCaps[code][itemID] = copper
       end,
       SelectRun = function(code) selected = code end,
+      BoughtOn = function(code) return boughtOn[code] or {} end,
     }
     GC.Sniper = {
       ShowView = function(v) views[#views + 1] = v end,
@@ -213,7 +234,7 @@ describe("HERO tab", function()
     assert.is_false(H.IsShown())
   end)
 
-  it("draws every paper-doll slot in the client's order, ticked pieces green with their price", function()
+  it("draws every paper-doll slot in the client's order, the pieces on the list green with their price", function()
     H.Show()
     local d = doll()
     assert.same(DOLL_ORDER, d.order)
@@ -238,8 +259,16 @@ describe("HERO tab", function()
     assert.equal(my, oy)
     assert.equal(my, gy)
     local green, gold = GC.Theme.color.green, GC.Theme.color.gold
-    -- The chest: the set's tunic ticked, its icon, a green frame, the check and its price.
-    local chest = slotAt(5)
+    -- Nothing on the list yet: a slot with choices shows what is worn there, framed thin and gold.
+    local chest, main = slotAt(5), slotAt(16)
+    assert.equal(100000 + 85, W.state(chest.icon.icon).file)          -- the tunic worn
+    assert.same(rgb(gold), colourOf(chest.frameRing))
+    assert.is_false(shown(chest.badge))
+    assert.is_false(shown(chest.price))
+    assert.equal("slot:MainHandSlot", W.state(main.icon.icon).file)
+    assert.same(rgb(gold), colourOf(main.frameRing))
+    -- The tunic on the list: its icon, a green frame, the check and its price.
+    press(opt(1))
     assert.equal(100000 + TUNIC, W.state(chest.icon.icon).file)
     assert.same(rgb(green), colourOf(chest.frameRing))
     assert.is_true(shown(chest.badge))
@@ -251,12 +280,13 @@ describe("HERO tab", function()
     assert.is_true(badge[4] >= 0 and badge[5] <= 0)
     assert.same({ "BOTTOMRIGHT", chest, "BOTTOMRIGHT" }, { price[1], price[2], price[3] })
     assert.is_true(price[4] <= 0 and price[5] >= 0)
-    -- The main hand: the set's sword ticked. No level badges on the doll: the panel marks the club.
-    local main = slotAt(16)
+    -- The sword in the main hand. No level badges on the doll: the panel marks the club.
+    press(main)
+    press(opt(1))
     assert.equal(100000 + WATCH, W.state(main.icon.icon).file)
     assert.equal("75s", textOf(main.price))
     assert.is_nil(main.level)
-    -- Green means ticked only: no icon on the doll wears its quality's edge.
+    -- Green means on the list only: no icon on the doll wears its quality's edge.
     local q = GC.Theme.QualityColor(TUNIC)
     assert.are_not.same({ q.r, q.g, q.b }, colourOf(chest.icon.edge))
     -- Nothing to buy for the head: nothing worn there, the client's empty-slot art, no frame of note.
@@ -270,17 +300,9 @@ describe("HERO tab", function()
       assert.is_false(shown(slotAt(inv).badge), inv)
     end
     assert.equal("Click a slot to see what you can buy for it.", textOf(d.hint))
-    -- Nothing ticked in a slot with choices: what is worn there, framed thin and gold.
-    result.set = { picks = {}, list = {}, cost = 0, left = 5973, diffs = {} }
-    H.RefreshIfShown(true)
-    assert.equal(100000 + 85, W.state(chest.icon.icon).file)          -- the tunic worn
-    assert.equal("slot:MainHandSlot", W.state(main.icon.icon).file)
-    assert.same(rgb(gold), colourOf(main.frameRing))
-    assert.is_false(shown(main.badge))
-    assert.is_false(shown(main.price))
   end)
 
-  it("selects the first slot with choices and lists its options: the set's pick first, keep last", function()
+  it("selects the first slot with choices and lists them, GoldCap's pick first and starred", function()
     H.Show()
     assert.equal(5, H._state.sel)                                       -- the chest comes before the main hand
     assert.is_true(shown(slotAt(5).glow))
@@ -289,16 +311,14 @@ describe("HERO tab", function()
     assert.equal("CHEST", textOf(p.title))
     assert.equal("You wear Old Tunic", textOf(p.sub))
     assert.is_nil(p.hint)                                               -- the head, then the list
-    assert.same({ "Dark Leather Tunic", "Keep Old Tunic" }, optsShown())
-    assert.is_nil(opt(1).tags)                                          -- no chips: the tick says it
-    assert.is_true(ticked(opt(1)))
-    -- Keep: the box, what is worn and its name, no price; as tall as the piece above it.
-    assert.is_false(shown(opt(2).price))
-    assert.equal(100000 + 85, W.state(opt(2).icon.icon).file)
-    local hs = heightsShown()
-    assert.equal(hs[1], hs[2])
-    assert.is_false(ticked(opt(2)))
-    -- The main hand: the set's pick, the strongest, the others by what they add; nothing worn to keep.
+    assert.same({ "Dark Leather Tunic" }, optsShown())                  -- no row to keep what is worn
+    assert.is_nil(opt(1).tags)                                          -- no chips
+    assert.is_false(ticked(opt(1)))
+    assert.is_true(shown(opt(1).star))
+    local gold = GC.Theme.color.gold
+    assert.same({ gold[1], gold[2], gold[3], 1 }, W.state(opt(1).star).vertex)
+    assert.same({ GC.Theme.IconCoords("star") }, W.state(opt(1).star).texCoord)
+    -- The main hand: the set's pick, the strongest, the others by what they add.
     -- Its list starts at the top, wherever the chest's was scrolled to.
     W.state(H._view.scroll).scroll = 40
     press(slotAt(16))
@@ -308,8 +328,9 @@ describe("HERO tab", function()
     assert.is_false(shown(slotAt(5).glow))
     assert.equal("MAIN HAND", textOf(p.title))
     assert.equal("Nothing worn here", textOf(p.sub))
-    assert.same({ "Night Watch Shortsword", "Skeletal Club", "Rusty Hatchet", "Bruiser Club", "Buy nothing here" },
-      optsShown())
+    assert.same({ "Night Watch Shortsword", "Skeletal Club", "Rusty Hatchet", "Bruiser Club" }, optsShown())
+    assert.same({ true, false, false, false },
+      { shown(opt(1).star), shown(opt(2).star), shown(opt(3).star), shown(opt(4).star) })
     assert.equal("+4 Stamina, +4.4 Damage Per Second", textOf(opt(1).gain))
     assert.equal("7499c", textOf(opt(1).price))
     assert.equal("3990c", textOf(opt(2).price))
@@ -322,23 +343,25 @@ describe("HERO tab", function()
     assert.same({ 1, 1, 1, 1 }, W.state(club.count).color)
     local corner = W.state(club.count).points[1]
     assert.same({ "BOTTOMRIGHT", club.edge, "BOTTOMRIGHT" }, { corner[1], corner[2], corner[3] })
-    for _, i in ipairs({ 1, 3, 4, 5 }) do
+    for _, i in ipairs({ 1, 3, 4 }) do
       assert.same({ 1, 1, 1, 1 }, W.state(opt(i).icon.icon).vertex, i)
       assert.equal("", textOf(opt(i).icon.count), i)
     end
     -- Its gains run the whole width, as wide as a piece's with nothing to wait for.
     assert.equal(opt(1).gain:GetWidth(), opt(2).gain:GetWidth())
     assert.is_true(opt(2).gain:GetWidth() > opt(2).name:GetWidth())
-    assert.is_false(shown(opt(5).price))
-    -- Every row of one list as tall as the others, keep too.
-    hs = heightsShown()
+    -- Every row of one list as tall as the others.
+    local hs = heightsShown()
     for i = 2, #hs do assert.equal(hs[1], hs[i], i) end
-    assert.equal("slot:MainHandSlot", W.state(opt(5).icon.icon).file)
-    assert.same({ true, false, false, false, false },
-      { ticked(opt(1)), ticked(opt(2)), ticked(opt(3)), ticked(opt(4)), ticked(opt(5)) })
+    assert.same({ false, false, false, false }, { ticked(opt(1)), ticked(opt(2)), ticked(opt(3)), ticked(opt(4)) })
     -- Its name in its quality's colour; what a piece gives up red.
     local q = GC.Theme.QualityColor(WATCH)
     assert.same({ q.r, q.g, q.b, 1 }, W.state(opt(1).name).color)
+    -- The club usable now: its row untinted again, with no number.
+    result.slots[2].best.later = nil
+    H.RefreshIfShown(true)
+    assert.same({ 1, 1, 1, 1 }, W.state(opt(2).icon.icon).vertex)
+    assert.equal("", textOf(opt(2).icon.count))
     press(slotAt(5))
     local red, green = GC.Theme.color.red, GC.Theme.color.green
     assert.equal(GC.Util.Colored(green, "+6 Agility") .. ", " .. GC.Util.Colored(red, "-4 Stamina"),
@@ -350,10 +373,6 @@ describe("HERO tab", function()
     H.RefreshIfShown(true)
     assert.equal("1589c", textOf(opt(1).price))
     assert.same({ 1, 0.125, 0.125, 1 }, W.state(opt(1).price).color)
-    -- Keep reuses the club's row: its icon untinted again, with no number.
-    assert.equal("Keep Old Tunic", textOf(opt(2).name))
-    assert.same({ 1, 1, 1, 1 }, W.state(opt(2).icon.icon).vertex)
-    assert.equal("", textOf(opt(2).icon.count))
     -- A rebuild keeps the slot the player looks at; a fresh open picks the first with choices again.
     press(slotAt(16))
     H.RefreshIfShown(true)
@@ -363,124 +382,201 @@ describe("HERO tab", function()
     assert.equal(5, H._state.sel)
   end)
 
-  it("ticking one option unticks the rest of its slot, keep unticks all", function()
+  it("puts a piece on the Upgrades list with its +, takes it off with its check, one piece a slot", function()
     H.Show()
     press(slotAt(16))
+    assert.is_nil(run())                                                -- no list until a piece goes on one
+    local walks = snapshots
     press(opt(3))                                                       -- the hatchet
-    assert.same({ false, false, true, false, false },
-      { ticked(opt(1)), ticked(opt(2)), ticked(opt(3)), ticked(opt(4)), ticked(opt(5)) })
-    assert.equal("item:" .. HATCHET, H._state.touched.MAINHAND)
+    assert.equal(walks, snapshots)                                      -- a click repaints; the bags are not walked again
+    local list = run()
+    assert.equal("Upgrades", list.name)
+    assert.equal("game", list.origin)
+    assert.same({ HATCHET }, idsOf(list))
+    assert.equal(1, qOf(HATCHET))
+    assert.equal(math.floor(2900 * 105 / 100), GC.db.runLineCaps[list.code][HATCHET])
+    assert.same({ false, false, true, false }, { ticked(opt(1)), ticked(opt(2)), ticked(opt(3)), ticked(opt(4)) })
     assert.equal(100000 + HATCHET, W.state(slotAt(16).icon.icon).file)
     assert.equal("29s", textOf(slotAt(16).price))
-    local walks = snapshots
-    press(opt(5))                                                       -- buy nothing here
-    assert.equal(walks, snapshots)                                      -- a tick repaints; the bags are not walked again
-    assert.same({ false, false, false, false, true },
-      { ticked(opt(1)), ticked(opt(2)), ticked(opt(3)), ticked(opt(4)), ticked(opt(5)) })
-    assert.is_false(H._state.touched.MAINHAND)
+    assert.same({}, views)                                              -- the tab stays: BUY opens from the bar
+    -- Another piece for the same hand takes the hatchet's place on the list.
+    press(opt(1))                                                       -- the sword
+    assert.same({ WATCH }, idsOf(run()))
+    assert.same({ true, false, false, false }, { ticked(opt(1)), ticked(opt(2)), ticked(opt(3)), ticked(opt(4)) })
+    -- Its check takes it off: nothing for the main hand on the list, nothing on the doll.
+    press(opt(1))
+    assert.same({}, idsOf(run()))
+    assert.is_false(ticked(opt(1)))
     assert.equal("slot:MainHandSlot", W.state(slotAt(16).icon.icon).file)
     assert.is_false(shown(slotAt(16).badge))
     assert.same(rgb(GC.Theme.color.gold), colourOf(slotAt(16).frameRing))
-    -- The chest was never touched: still the set's.
-    assert.is_nil(H._state.touched.CHEST)
+    -- The chest was never touched.
+    assert.is_false(shown(slotAt(5).badge))
+    -- The list is BUY's own: a line put there in BUY shows on the doll, and one taken off goes.
+    GC.AppRuns.SetLines(run().code, { { i = TUNIC, q = 1 } })
+    H.RefreshIfShown(true)
     assert.is_true(shown(slotAt(5).badge))
+    GC.AppRuns.SetLines(run().code, {})
+    H.RefreshIfShown(true)
+    assert.is_false(shown(slotAt(5).badge))
   end)
 
-  it("the bar counts only ticked pieces, and says short by when they cost more than the gold carried", function()
+  it("keeps the list as it is through a new scan, whatever GoldCap picks now", function()
     H.Show()
-    local b = bar()
-    assert.equal("2 ticked: +6 Agility, +4.4 Damage Per Second", textOf(b.title))
-    assert.equal("Picked by GoldCap for the gold you carry", textOf(b.sub))
-    assert.equal("TICKED COST", textOf(b.costHead))
-    assert.equal("9088c", textOf(b.cost))
-    assert.equal("Short by 3115c", textOf(b.left))
-    local red = GC.Theme.color.red
-    assert.same({ red[1], red[2], red[3], 1 }, W.state(b.left).color)
-    assert.is_nil(b.icons)                                              -- the doll shows what is ticked
-    assert.equal("Add 2 to BUY", textOf(b.add.text))
-    assert.is_true(b.add:IsEnabled())
-    -- Keep the main hand's nothing: one piece left, the player's own.
-    press(slotAt(16))
-    press(opt(5))
-    assert.equal("1 ticked: +6 Agility, -4 Stamina", textOf(b.title))
-    assert.equal("Your own picks", textOf(b.sub))
-    assert.equal("1589c", textOf(b.cost))
-    assert.equal("LEFT AFTER", textOf(b.leftHead))
-    assert.is_true(shown(b.leftHead))
-    assert.equal(tostring(5973 - 1589) .. "c", textOf(b.left))
-    assert.are_not.same({ red[1], red[2], red[3], 1 }, W.state(b.left).color)
-    assert.equal("Add 1 to BUY", textOf(b.add.text))
-    -- Nothing ticked at all: the button cannot be pressed.
-    press(slotAt(5))
-    press(opt(2))
-    assert.equal("Nothing ticked", textOf(b.title))
-    assert.equal("0c", textOf(b.cost))
-    assert.equal("Add 0 to BUY", textOf(b.add.text))
-    assert.is_false(b.add:IsEnabled())
-  end)
-
-  it("a slot the player changed keeps its tick through a rebuild, untouched slots follow the set", function()
-    H.Show()
-    press(slotAt(16))
-    press(opt(4))                                                       -- the bruiser, by hand
-    -- A new scan: new candidates, and the set now takes a vest for the chest.
+    press(opt(1))                                                       -- the tunic
+    -- A new scan: the set takes a vest for the chest now.
     result = aResult()
     local vest = piece("CHEST", VEST, "Cracked Leather Vest", 900, { ITEM_MOD_AGILITY_SHORT = 3 }, { inSet = true })
     result.slots[1].best.inSet = false
     result.slots[1].alts = { vest }
     result.set.picks.CHEST, result.set.list[1] = vest, vest
     H.RefreshIfShown(true)
-    assert.equal(100000 + BRUISER, W.state(slotAt(16).icon.icon).file)
-    assert.equal(100000 + VEST, W.state(slotAt(5).icon.icon).file)
-    -- The bruiser gone from the main hand's choices: the set's pick again, the touch forgotten.
-    result = aResult()
-    table.remove(result.slots[2].alts, 2)
-    H.RefreshIfShown(true)
-    assert.is_nil(H._state.touched.MAINHAND)
-    assert.equal(100000 + WATCH, W.state(slotAt(16).icon.icon).file)
-    -- A slot gone from the build forgets its tick too, and follows the set when it is back.
-    press(slotAt(16))
-    press(opt(3))                                                       -- the hatchet
-    result = aResult()
-    table.remove(result.slots, 2)
-    H.RefreshIfShown(true)
-    assert.is_nil(H._state.touched.MAINHAND)
-    result = aResult()
-    H.RefreshIfShown(true)
-    assert.equal(100000 + WATCH, W.state(slotAt(16).icon.icon).file)
-    -- A kept slot stays kept through a rebuild that offers it something new.
-    press(slotAt(5))
-    press(opt(2))                                                       -- keep the old tunic
-    result = aResult()
-    H.RefreshIfShown(true)
-    assert.is_false(H._state.touched.CHEST)
-    assert.equal(100000 + 85, W.state(slotAt(5).icon.icon).file)
-    assert.is_false(shown(slotAt(5).badge))
+    assert.equal(100000 + TUNIC, W.state(slotAt(5).icon.icon).file)
+    assert.same({ "Cracked Leather Vest", "Dark Leather Tunic" }, optsShown())
+    assert.same({ true, false }, { shown(opt(1).star), shown(opt(2).star) })
+    assert.same({ false, true }, { ticked(opt(1)), ticked(opt(2)) })
+    assert.same({ { i = TUNIC, q = 1 } }, linesOf())
   end)
 
-  it("Add N to BUY sends exactly the ticked pieces", function()
+  it("says Bought on a piece bought on the list, and its + buys one more", function()
+    H.Show()
+    press(opt(1))                                                       -- the tunic
+    local code = run().code
+    boughtOn[code] = { [TUNIC] = 1 }
+    H.RefreshIfShown(true)
+    assert.equal("Bought", textOf(opt(1).price))
+    assert.same(rgb(GC.Theme.color.fgMuted), rgb(W.state(opt(1).price).color))
+    assert.is_false(ticked(opt(1)))
+    assert.equal(100000 + 85, W.state(slotAt(5).icon.icon).file)       -- the doll: what is worn
+    assert.equal("In your list: 0", textOf(bar().title))
+    press(opt(1))
+    assert.equal(2, qOf(TUNIC))
+    assert.is_true(ticked(opt(1)))
+    assert.equal("1589c", textOf(opt(1).price))
+    assert.equal("In your list: 1", textOf(bar().title))
+    -- Off again: down to what was bought, the line kept for it.
+    press(opt(1))
+    assert.equal(1, qOf(TUNIC))
+    assert.equal("Bought", textOf(opt(1).price))
+  end)
+
+  it("buys one version of an item at a time", function()
+    local watch = result.slots[2].alts[1]
+    watch.version = "612"
     H.Show()
     press(slotAt(16))
-    press(opt(4))                                                       -- the bruiser instead of the set's sword
-    press(bar().add)
+    press(opt(1))
+    assert.same({ { i = WATCH, q = 1, ver = "612" } }, linesOf())
+    -- A new scan: the sword's lot now of another version, the one on the list gone.
+    result = aResult()
+    local other = result.slots[2].alts[1]
+    other.version, other.unit = "607", 7000
+    result.set.picks.MAINHAND = other
+    H.RefreshIfShown(true)
+    assert.is_false(ticked(opt(1)))                                     -- the list buys 612 only
+    press(opt(1))
+    assert.same({ { i = WATCH, q = 1, ver = "607" } }, linesOf())     -- 607 instead, one of it
+    assert.equal(math.floor(7000 * 105 / 100), GC.db.runLineCaps[prefs.heroList][WATCH])
+    assert.is_true(ticked(opt(1)))
+    -- The same version again on the list, a cap the player raised in BUY kept.
+    GC.db.runLineCaps[prefs.heroList][WATCH] = 9000
+    press(opt(1))
+    press(opt(1))
+    assert.equal(1, qOf(WATCH))
+    assert.equal(math.floor(7000 * 105 / 100), GC.db.runLineCaps[prefs.heroList][WATCH])
+  end)
+
+  it("the bar counts what the list holds, and says short by when it costs more than the gold carried", function()
+    H.Show()
+    local b = bar()
+    assert.equal("In your list: 0", textOf(b.title))
+    assert.is_false(shown(b.sub))
+    assert.equal("LIST COST", textOf(b.costHead))
+    assert.equal("0c", textOf(b.cost))
+    assert.equal("LEFT AFTER", textOf(b.leftHead))
+    assert.equal("5973c", textOf(b.left))
+    assert.equal("Buy GoldCap's picks (2)", textOf(b.picks.text))
+    assert.is_true(b.picks:IsEnabled())
+    assert.equal("Open BUY", textOf(b.open.text))
+    assert.is_false(b.open:IsEnabled())                                 -- nothing on the list to open
+    assert.is_nil(b.icons)                                              -- the doll shows what is on it
+    press(opt(1))                                                       -- the tunic
+    assert.equal("In your list: 1", textOf(b.title))
+    assert.equal("+6 Agility, -4 Stamina", textOf(b.sub))
+    assert.equal("1589c", textOf(b.cost))
+    assert.equal(tostring(5973 - 1589) .. "c", textOf(b.left))
+    assert.is_true(b.open:IsEnabled())
+    press(slotAt(16))
+    press(opt(1))                                                       -- the sword
+    assert.equal("In your list: 2", textOf(b.title))
+    assert.equal("+6 Agility, +4.4 Damage Per Second", textOf(b.sub))
+    assert.equal("9088c", textOf(b.cost))
+    assert.equal("Short by 3115c", textOf(b.left))
+    assert.is_false(shown(b.leftHead))
+    local red = GC.Theme.color.red
+    assert.same({ red[1], red[2], red[3], 1 }, W.state(b.left).color)
+    -- Open BUY: BUY, on the list.
+    press(b.open)
+    assert.equal(run().code, selected)
+    assert.equal("buy", views[#views])
+    -- A piece the build no longer offers stays on the list and in the count, at its line's cap.
+    result = aResult()
+    table.remove(result.slots[2].alts, 1)                               -- the sword's lot gone
+    result.set.picks.MAINHAND, result.set.list[2] = nil, nil
+    H.RefreshIfShown(true)
+    assert.equal("slot:MainHandSlot", W.state(slotAt(16).icon.icon).file)
+    assert.equal("In your list: 2", textOf(b.title))
+    assert.equal("+6 Agility, -4 Stamina", textOf(b.sub))
+    assert.equal(tostring(1589 + math.floor(7499 * 105 / 100)) .. "c", textOf(b.cost))
+  end)
+
+  it("Buy GoldCap's picks puts the whole set on the list, each piece in its slot, and opens BUY", function()
+    H.Show()
+    press(slotAt(16))
+    press(opt(4))                                                       -- the bruiser, the player's own
+    press(bar().picks)
     local list = run()
-    assert.equal("Upgrades", list.name)
-    assert.equal("game", list.origin)
-    local ids = {}
-    for _, line in ipairs(list.lines) do ids[#ids + 1] = line.i end
-    assert.same({ TUNIC, BRUISER }, ids)
-    assert.equal(1, list.lines[1].q)
-    assert.equal(math.floor(2700 * 105 / 100), GC.db.runLineCaps[list.code][BRUISER])
+    -- The bruiser made way for the set's sword; the tunic went on beside it.
+    local ids = idsOf(list)
+    table.sort(ids)
+    assert.same({ TUNIC, WATCH }, ids)
+    assert.same({ 1, 1 }, { qOf(TUNIC), qOf(WATCH) })
     assert.equal(math.floor(1589 * 105 / 100), GC.db.runLineCaps[list.code][TUNIC])
-    assert.is_nil(GC.db.runLineCaps[list.code][WATCH])
+    assert.equal(math.floor(7499 * 105 / 100), GC.db.runLineCaps[list.code][WATCH])
     assert.equal(list.code, selected)
     assert.equal("buy", views[#views])
     assert.equal(prefs.heroList, list.code)
+    assert.equal("In your list: 2", textOf(bar().title))
+    -- Again: the set is on the list already, nothing more goes on.
+    press(bar().picks)
+    assert.same({ 1, 1 }, { qOf(TUNIC), qOf(WATCH) })
   end)
 
-  -- One lot cannot fill two hands, and a two-hander takes both (BestSet's own rules): a free tick
+  it("makes a new Upgrades list when the remembered one is gone", function()
+    prefs.heroList = "game-7"                                    -- deleted in BUY since
+    H.Show()
+    press(opt(1))
+    assert.are_not.equal("game-7", prefs.heroList)
+    assert.equal("Upgrades", run().name)
+    assert.same({ TUNIC }, idsOf(run()))
+    -- One the site made has the same code shape but is not the player's to rewrite: a new one again.
+    GC.db.runs.SITE1234 = { code = "SITE1234", origin = "site", lines = { { i = TUNIC, q = 1 } } }
+    prefs.heroList = "SITE1234"
+    H.RefreshIfShown(true)
+    assert.is_false(ticked(opt(1)))                                     -- not the tab's list
+    press(opt(1))
+    assert.are_not.equal("SITE1234", prefs.heroList)
+    assert.same({ { i = TUNIC, q = 1 } }, GC.db.runs.SITE1234.lines)
+    -- An archived Upgrades list comes back out of the archive as it is used.
+    GC.db.runsArchived = { [prefs.heroList] = true }
+    press(slotAt(16))
+    press(opt(1))
+    assert.is_nil(GC.db.runsArchived[prefs.heroList])
+  end)
+
+  -- One lot cannot fill two hands, and a two-hander takes both (BestSet's own rules): the list
   -- keeps them as the set does.
-  it("keeps one piece to one hand and a two-hander to both, whichever hand is ticked", function()
+  it("keeps one piece to one hand and a two-hander to both, whichever hand it goes in", function()
     local AXE, SWORD, SHIELD = 1400, 1300, 1500
     local function hands()
       local axe = piece("MAINHAND", AXE, "Woodsman Axe", 5000, { ITEM_MOD_STRENGTH_SHORT = 9 }, { twoHand = true, gain = 9 })
@@ -500,50 +596,41 @@ describe("HERO tab", function()
     local function icon(inv) return W.state(slotAt(inv).icon.icon).file end
     result = hands()
     H.Show()
-    assert.same({ 100000 + SWORD, 100000 + SHIELD }, { icon(16), icon(17) })
-    -- The sword in the off hand: the main hand lets it go and keeps what is worn there.
-    press(slotAt(17))
-    press(opt(2))                                                       -- options: buckler (set), sword, keep
-    assert.equal("Short Sword", textOf(opt(2).name))
-    assert.same({ "slot:MainHandSlot", 100000 + SWORD }, { icon(16), icon(17) })
-    assert.is_false(H._state.touched.MAINHAND)
-    -- The axe in the main hand: the off hand empties.
+    assert.same({ "slot:MainHandSlot", "slot:SecondaryHandSlot" }, { icon(16), icon(17) })
+    -- A sword in each hand: two of it on one line.
     press(slotAt(16))
-    press(opt(2))                                                       -- options: sword (set), axe, keep
+    press(opt(1))                                                       -- options: sword (set), axe
+    press(slotAt(17))
+    press(opt(2))                                                       -- options: buckler (set), sword
+    assert.equal("Short Sword", textOf(opt(2).name))
+    assert.same({ 100000 + SWORD, 100000 + SWORD }, { icon(16), icon(17) })
+    assert.same({ { i = SWORD, q = 2 } }, linesOf())
+    -- The axe in the main hand: both swords go.
+    press(slotAt(16))
+    press(opt(2))
     assert.equal("Woodsman Axe", textOf(opt(2).name))
     assert.same({ 100000 + AXE, "slot:SecondaryHandSlot" }, { icon(16), icon(17) })
-    assert.is_false(H._state.touched.OFFHAND)
+    assert.same({ { i = AXE, q = 1 } }, linesOf())
     -- The buckler under the axe: the axe goes.
     press(slotAt(17))
     press(opt(1))
     assert.same({ "slot:MainHandSlot", 100000 + SHIELD }, { icon(16), icon(17) })
-    assert.is_false(H._state.touched.MAINHAND)
-    -- A rebuild that moves the set's sword into the hand the player filled with it: the hand that
-    -- follows the set lets it go, the player's stays.
-    H._state.touched = { OFFHAND = "item:" .. SWORD }
-    H.RefreshIfShown(true)
-    assert.same({ "slot:MainHandSlot", 100000 + SWORD }, { icon(16), icon(17) })
-    assert.equal("1 ticked: +2 Strength", textOf(bar().title))
-    -- And one that makes the set's main hand a two-hander under a shield the player ticked.
-    H._state.touched = { OFFHAND = "item:" .. SHIELD }
-    result = hands()
-    result.set.picks.MAINHAND = result.slots[1].best
-    H.RefreshIfShown(true)
-    assert.same({ "slot:MainHandSlot", 100000 + SHIELD }, { icon(16), icon(17) })
+    assert.same({ { i = SHIELD, q = 1 } }, linesOf())
+    assert.equal("In your list: 1", textOf(bar().title))
   end)
 
-  -- What the tab is handed is ForeverUpgrades.Build's own answer: a ring for a warrior whose second
-  -- finger wears the weaker ring.
-  it("a ring upgrade shows on the weaker worn ring", function()
+  -- What the tab is handed is ForeverUpgrades.Build's own answer: a warrior with two rings, each
+  -- finger weighed against its own, and a ring on the auction house better than both.
+  it("gives each finger its own choices, and a ring on the list twice is on both", function()
     _G.UnitClass = function() return "Warrior", "WARRIOR", 1 end
     local function link(id) return "|cff1eff00|Hitem:" .. id .. "::::|h[Band " .. id .. "]|h|r" end
     wornLinks = { [11] = link(801), [12] = link(802) }
-    local strength = { [801] = 6, [802] = 3, [800] = 9 }
+    local strength = { [801] = 6, [802] = 3, [800] = 9, [803] = 5 }
     local driver = {
       level = function() return 20 end,
       classFile = function() return "WARRIOR" end,
       equipped = function(slot) return wornLinks[slot] end,
-      instant = function(id) if id == 800 or id == 801 or id == 802 then return "INVTYPE_FINGER", 4, 0 end end,
+      instant = function(id) if strength[id] then return "INVTYPE_FINGER", 4, 0 end end,
       info = function(str) return 1, link(tonumber(str:match("item:(%d+)"))) end,
       stats = function(str) return { ITEM_MOD_STRENGTH_SHORT = strength[tonumber(str:match("item:(%d+)"))] } end,
       usable = function() return true end,
@@ -551,17 +638,52 @@ describe("HERO tab", function()
       requestLoad = function() end,
       money = function() return 5000 end,
     }
-    result = GC.ForeverUpgrades.Build({ v = 2, at = NOW - 60, items = { [800] = "70:0:0" } }, driver, { STR = 1 })
-    assert.equal(12, result.slots[1].invSlot)
+    result = GC.ForeverUpgrades.Build({ v = 2, at = NOW - 60, items = { [800] = "70:0:0", [803] = "40:0:0" } },
+      driver, { STR = 1 })
     H.Show()
-    assert.equal(12, H._state.sel)
-    assert.equal(100000 + 800, W.state(slotAt(12).icon.icon).file)
-    assert.is_true(shown(slotAt(12).badge))
-    assert.equal(100000 + 801, W.state(slotAt(11).icon.icon).file)   -- the stronger ring stays as it is
-    assert.is_false(shown(slotAt(11).badge))
+    local gold, green = rgb(GC.Theme.color.gold), rgb(GC.Theme.color.green)
+    assert.same({ gold, gold }, { colourOf(slotAt(11).frameRing), colourOf(slotAt(12).frameRing) })
+    -- The first finger: only the band that beats the ring it wears.
+    assert.equal(11, H._state.sel)
     assert.equal("FINGER", textOf(sp().title))
+    assert.equal("You wear Band 801", textOf(sp().sub))
+    assert.same({ "Band 800" }, optsShown())
+    assert.is_false(shown(opt(1).star))                                 -- GoldCap puts it on the other finger
+    press(opt(1))
+    assert.equal(100000 + 800, W.state(slotAt(11).icon.icon).file)
+    assert.same(green, colourOf(slotAt(11).frameRing))
+    assert.equal(100000 + 802, W.state(slotAt(12).icon.icon).file)     -- the other finger as it is
+    -- The second: the weaker ring's own choices, the band on the list for the first finger not here.
+    press(slotAt(12))
     assert.equal("You wear Band 802", textOf(sp().sub))
-    assert.same({ "Band 800", "Keep Band 802" }, optsShown())
+    assert.same({ "Band 800", "Band 803" }, optsShown())
+    assert.is_true(shown(opt(1).star))
+    assert.is_false(ticked(opt(1)))
+    press(opt(1))
+    assert.same({ { i = 800, q = 2 } }, linesOf())
+    assert.same({ green, green }, { colourOf(slotAt(11).frameRing), colourOf(slotAt(12).frameRing) })
+    -- Off the first finger: the one left stays on the second.
+    press(slotAt(11))
+    press(opt(1))
+    assert.same({ { i = 800, q = 1 } }, linesOf())
+    assert.equal(100000 + 801, W.state(slotAt(11).icon.icon).file)
+    assert.equal(100000 + 800, W.state(slotAt(12).icon.icon).file)
+    -- Another band on the second finger: the first band comes off the list.
+    press(slotAt(12))
+    press(opt(2))
+    assert.same({ { i = 803, q = 1 } }, linesOf())
+    -- GoldCap's picks: the band on the second finger, where the set puts it. After a reload, which
+    -- forgets where the player put what, it is still there, and the picks are on the list already.
+    press(bar().picks)
+    assert.same({ { i = 800, q = 1 } }, linesOf())
+    H._state.placed = {}
+    H.Hide()
+    H.Show()
+    assert.equal(100000 + 801, W.state(slotAt(11).icon.icon).file)
+    assert.equal(100000 + 800, W.state(slotAt(12).icon.icon).file)
+    assert.equal("+6 Strength", textOf(bar().sub))
+    press(bar().picks)
+    assert.same({ { i = 800, q = 1 } }, linesOf())
   end)
 
   it("dresses the character in a PlayerModel on every Show", function()
@@ -596,8 +718,8 @@ describe("HERO tab", function()
     assert.is_nil(d.model)
     assert.is_true(shown(d.portrait))
     assert.equal("classicon-rogue", W.state(d.portrait).atlas)
-    assert.equal(100000 + TUNIC, W.state(slotAt(5).icon.icon).file)
-    assert.equal("2 ticked: +6 Agility, +4.4 Damage Per Second", textOf(bar().title))
+    assert.equal(100000 + 85, W.state(slotAt(5).icon.icon).file)
+    assert.equal("In your list: 0", textOf(bar().title))
   end)
 
   -- The doll's empty slots are the client's own art for every slot the doll draws.
@@ -618,6 +740,7 @@ describe("HERO tab", function()
     result.slots[2].best.link = "|Hitem:2130::::|h[A very long name of a club that takes far more than one line]|h"
     H.Show()
     press(slotAt(16))
+    press(opt(2))                                                       -- the club on the list: the bar's gains show
     local row = opt(2)
     for _, fs in ipairs({ row.name, row.gain, sp().title, sp().sub, bar().title, bar().sub, doll().hint,
         top().name }) do
@@ -631,8 +754,9 @@ describe("HERO tab", function()
     -- The price is as wide as its words.
     assert.is_true(row.price:GetWidth() >= row.price:GetUnboundedStringWidth())
     -- A button is as wide as its words.
-    local add = bar().add
-    assert.is_true(add:GetWidth() >= add.text:GetUnboundedStringWidth())
+    for _, button in ipairs({ bar().picks, bar().open }) do
+      assert.is_true(button:GetWidth() >= button.text:GetUnboundedStringWidth())
+    end
     local weights = top().weights
     assert.is_true(weights:GetWidth() >= weights.text:GetUnboundedStringWidth())
   end)
@@ -649,53 +773,19 @@ describe("HERO tab", function()
     modified = true
     press(row)
     assert.equal(result.slots[2].alts[2].link, clicked)
-    assert.is_false(ticked(row))                                       -- a shift-click links it, ticks nothing
+    assert.is_false(ticked(row))                                       -- a shift-click links it, lists nothing
+    assert.is_nil(run())
     modified = false
-    -- A doll slot shows what it shows: the ticked piece, else what is worn.
+    -- A doll slot shows what it shows: the piece on the list, else what is worn.
+    press(opt(1))
     local main = slotAt(16)
     assert.is_true(W.state(main).mouse)
     W.state(main).scripts.OnEnter(main)
     assert.equal(result.slots[2].alts[1].link, tipLink)
     W.state(slotAt(5)).scripts.OnLeave(slotAt(5))
     assert.is_false(tipShown)
-    press(slotAt(5))
-    press(opt(2))                                                       -- keep the old tunic
     W.state(slotAt(5)).scripts.OnEnter(slotAt(5))
     assert.equal(wornLinks[5], tipLink)
-  end)
-
-  it("adding the same pick twice leaves one line of one", function()
-    local watch = result.slots[2].alts[1]
-    watch.version = "612"
-    H.AddToBuy({ watch })
-    local other = piece("MAINHAND", WATCH, "Night Watch Shortsword of the Monkey", 7000, {}, { version = "607" })
-    H.AddToBuy({ other })
-    assert.equal(1, #run().lines)
-    assert.equal(1, run().lines[1].q)
-    assert.equal("607,612", run().lines[1].ver)                 -- either version will do now
-    -- The cap stays at the higher of the two, the player's own raise kept.
-    assert.equal(math.floor(7499 * 105 / 100), GC.db.runLineCaps[prefs.heroList][WATCH])
-    -- A piece with no version on either side buys any.
-    H.AddToBuy({ piece("MAINHAND", WATCH, "Night Watch Shortsword", 7499, {}) })
-    assert.is_nil(run().lines[1].ver)
-    assert.equal(1, run().lines[1].q)
-  end)
-
-  it("makes a new Upgrades list when the remembered one is gone", function()
-    prefs.heroList = "game-7"                                    -- deleted in BUY since
-    H.AddToBuy({ result.slots[1].best })
-    assert.are_not.equal("game-7", prefs.heroList)
-    assert.equal("Upgrades", run().name)
-    -- One the site made has the same code shape but is not the player's to rewrite: a new one again.
-    GC.db.runs.SITE1234 = { code = "SITE1234", origin = "site", lines = {} }
-    prefs.heroList = "SITE1234"
-    H.AddToBuy({ result.slots[1].best })
-    assert.are_not.equal("SITE1234", prefs.heroList)
-    assert.same({}, GC.db.runs.SITE1234.lines)
-    -- An archived Upgrades list comes back out of the archive as it is used.
-    GC.db.runsArchived = { [prefs.heroList] = true }
-    H.AddToBuy({ result.slots[2].best })
-    assert.is_nil(GC.db.runsArchived[prefs.heroList])
   end)
 
   it("saves a weight typed in the panel and refuses one that is not a number", function()
@@ -777,18 +867,20 @@ describe("HERO tab", function()
     local b, t = bar(), top()
     assert.equal("Nothing on the auction house fits the gold you carry yet.", textOf(b.title))
     assert.is_false(shown(b.sub))
-    assert.is_false(b.add:IsEnabled())
+    assert.equal("Buy GoldCap's picks (0)", textOf(b.picks.text))
+    assert.is_false(b.picks:IsEnabled())
+    assert.is_false(b.open:IsEnabled())
     assert.equal("5973c", textOf(b.left))
     assert.equal("Scan again to read each version's own stats.", textOf(t.note))
     assert.equal("Rogue · level 17", textOf(t.name))
     assert.equal("Scan 4m ago", textOf(t.sub))
     -- Every slot still shows its choices, the strongest marked over the gold when it is.
-    assert.same({ "Dark Leather Tunic", "Keep Old Tunic" }, optsShown())
-    -- The set back: what it adds and what it costs.
+    assert.same({ "Dark Leather Tunic" }, optsShown())
+    -- The set back: its picks one press away.
     result = aResult()
     H.RefreshIfShown(true)
-    assert.equal("2 ticked: +6 Agility, +4.4 Damage Per Second", textOf(b.title))
-    assert.equal("9088c", textOf(b.cost))
+    assert.equal("In your list: 0", textOf(b.title))
+    assert.is_true(b.picks:IsEnabled())
     assert.is_false(shown(t.note))
   end)
 
@@ -823,7 +915,7 @@ describe("HERO tab", function()
   -- In game, 13.11: five groups without choices right after a reload, the worn pieces' stats not
   -- read yet, and the panel saying nothing beat them.
   it("says a slot still waits for what is worn there, and that the picks may change", function()
-    result.waiting, result.loading = { HEAD = true, FINGER = true }, 2
+    result.waiting, result.loading = { HEAD = true, FINGER2 = true }, 2
     H.Show()
     assert.equal("Still reading what you wear: the picks may change", textOf(bar().sub))
     press(slotAt(1))
@@ -833,10 +925,16 @@ describe("HERO tab", function()
     assert.equal("Still reading what you wear here. This fills in by itself.", textOf(sp().message))
     press(slotAt(2))                                                    -- the neck waits for nothing
     assert.equal("Nothing on the auction house beats what you wear at your level.", textOf(sp().message))
-    -- Read: the picks are GoldCap's again.
+    press(slotAt(11))                                                   -- the other finger waits for nothing
+    assert.equal("Nothing on the auction house beats what you wear at your level.", textOf(sp().message))
+    -- With a piece on the list, what it adds, then the wait.
+    press(slotAt(5))
+    press(opt(1))
+    assert.equal("+6 Agility, -4 Stamina\nStill reading what you wear: the picks may change", textOf(bar().sub))
+    -- Read: the line goes.
     result = aResult()
     H.RefreshIfShown(true)
-    assert.equal("Picked by GoldCap for the gold you carry", textOf(bar().sub))
+    assert.equal("+6 Agility, -4 Stamina", textOf(bar().sub))
   end)
 
   it("gives the doll the room at the default window: a one-band bar and large slots", function()
@@ -846,16 +944,24 @@ describe("HERO tab", function()
     W.state(H._view.container).width, W.state(H._view.container).height = 600, 552
     H.Show()
     assert.is_true(bar().frame:GetHeight() <= 64, bar().frame:GetHeight())
+    -- With the set on the list: the count, what it adds, short by, the two buttons, still one band.
+    press(bar().picks)
+    assert.equal("In your list: 2", textOf(bar().title))
+    assert.is_true(shown(bar().sub))
+    assert.is_true(bar().frame:GetHeight() <= 64, bar().frame:GetHeight())
+    local mid = W.state(bar().open).points[1][5]
+    assert.equal(mid, W.state(bar().picks).points[1][5])           -- beside the words, not under them
+    assert.is_true(-mid < bar().frame:GetHeight() / 2 + 1)
     assert.is_true(slotAt(1):GetWidth() >= 40, slotAt(1):GetWidth())
     assert.is_true(sp().frame:GetWidth() >= 330, sp().frame:GetWidth())
     assert.equal(W.LINE_H * 11 / 12, doll().hint:GetStringHeight())    -- one line
-    -- A choice is two lines, its name and price over its gains, and so is keep: a piece that waits
-    -- for a level too, with three stats, the line the level line used to take its gains from.
+    -- A choice is two lines, its name and price over its gains: a piece that waits for a level too,
+    -- with three stats, the line the level line used to take its gains from.
     result.slots[2].best.diffs = { ITEM_MOD_AGILITY_SHORT = 6, ITEM_MOD_STRENGTH_SHORT = 4, ITEM_MOD_STAMINA_SHORT = 3 }
     H.RefreshIfShown(true)
     press(slotAt(16))
     local hs = heightsShown()
-    assert.equal(5, #hs)
+    assert.equal(4, #hs)
     for i = 1, #hs do
       assert.equal(hs[1], hs[i], i)
       assert.is_true(hs[i] <= 46, hs[i])
@@ -877,7 +983,10 @@ describe("HERO tab", function()
     assert.equal("3112c more than a vendor pays", textOf(p.lines.gain.small))
     press(p.sell)
     assert.equal("sell", views[#views])
-    assert.equal("Play a little longer for an estimate of your pace. The 2 upgrades in your set leave 1505c toward it.",
+    assert.equal("Play a little longer for an estimate of your pace.", textOf(p.pace.text))
+    -- The pieces on the list, and what they leave toward it.
+    press(bar().picks)
+    assert.equal("Play a little longer for an estimate of your pace. The 2 upgrades on your list leave 1505c toward it.",
       textOf(p.pace.text))
     -- The trainer's price stands while the box is empty; one typed is taken as the box lets go.
     assert.equal("100g at the trainer. Type your own after a discount.",
@@ -987,9 +1096,17 @@ describe("HERO tab", function()
 
   -- In game, 13.11: right after a reload six items were loading and the tab waited for an event
   -- that never came until the player searched the auction house.
+  -- In game, 13.11: right after a reload six items were loading and the tab waited for an event
+  -- that never came until the player searched the auction house.
   it("rebuilds itself once a second while items load, at most SELF_MAX times a show, and stops at none or on hide", function()
     local C = GC.Hero.C
-    result = { slots = {}, loading = 2, loadingIds = { [42] = true } }
+    -- One item more answers each second: the count always shrinks.
+    local loading = 40
+    GC.ForeverUpgrades.Current = function()
+      builds = builds + 1
+      loading = loading - 1
+      return { slots = {}, loading = loading, loadingIds = { [42] = true } }
+    end
     builds = 0
     H.Show()
     assert.equal(1, due(C.SELF_S))
@@ -1005,19 +1122,73 @@ describe("HERO tab", function()
     assert.equal(2 + 2, builds)
     assert.equal(1, due(C.SELF_S))
     -- Loaded: the chain stops.
-    result = { slots = {}, loading = 0 }
+    GC.ForeverUpgrades.Current = function() builds = builds + 1; return { slots = {}, loading = 0 } end
     builds = 0
     runTimers()
     assert.equal(1, builds)
     assert.equal(0, due(C.SELF_S))
     -- Hidden: a tick already on its way rebuilds nothing.
-    result = { slots = {}, loading = 1 }
+    GC.ForeverUpgrades.Current = function() builds = builds + 1; return { slots = {}, loading = 1 } end
     H.Show()
     builds = 0
     H.Hide()
     runTimers()
     assert.equal(0, builds)
     assert.equal(0, due(C.SELF_S))
+  end)
+
+  -- An item the client never answers for keeps the count where it is: three rebuilds of its own
+  -- that loaded nothing, and the tab stops asking until it is opened again.
+  it("stops rebuilding itself after SELF_FLAT rebuilds in a row that loaded nothing", function()
+    local C = GC.Hero.C
+    local counts = { 5, 4, 4, 4, 4, 4, 4 }
+    GC.ForeverUpgrades.Current = function()
+      builds = builds + 1
+      return { slots = {}, loading = counts[math.min(builds, #counts)] }
+    end
+    builds = 0
+    H.Show()                                        -- 5
+    runTimers()                                     -- 4: fewer
+    for _ = 1, C.SELF_FLAT do runTimers() end       -- 4, 4, 4: flat
+    assert.equal(2 + C.SELF_FLAT, builds)
+    assert.equal(0, due(C.SELF_S))
+    runTimers()
+    assert.equal(2 + C.SELF_FLAT, builds)
+    -- One that loaded something in between starts the count again.
+    counts, builds = { 6, 6, 5, 5, 5, 5 }, 0
+    H.Show()                                        -- 6
+    runTimers()                                     -- 6: one flat
+    runTimers()                                     -- 5: fewer, the count again from none
+    for _ = 1, C.SELF_FLAT do runTimers() end
+    assert.equal(3 + C.SELF_FLAT, builds)
+    assert.equal(0, due(C.SELF_S))
+  end)
+
+  it("keeps the movement keys the player's while a side panel is up, in a fight too", function()
+    H.Show()
+    H.TogglePanel("weights")
+    local p = panel("weights")
+    assert.is_true(W.state(p).keyboard)
+    assert.is_true(p:GetPropagateKeyboardInput())                  -- on before any key comes
+    local scripts = W.state(p).scripts
+    scripts.OnKeyDown(p, "W")
+    assert.is_true(p:GetPropagateKeyboardInput())
+    -- Escape shuts the panel and is the panel's own; its release hands the keys back.
+    scripts.OnKeyDown(p, "ESCAPE")
+    assert.is_false(p:GetPropagateKeyboardInput())
+    assert.is_nil(H._state.panel)
+    scripts.OnKeyUp(p, "ESCAPE")
+    assert.is_true(p:GetPropagateKeyboardInput())
+    -- A fight began between the press and the release: the release waits for the fight's end, and
+    -- the panel shown again hands the keys back as it shows.
+    H.TogglePanel("weights")
+    scripts.OnKeyDown(p, "ESCAPE")
+    _G.InCombatLockdown = function() return true end
+    scripts.OnKeyUp(p, "ESCAPE")
+    assert.is_false(p:GetPropagateKeyboardInput())
+    _G.InCombatLockdown = function() return false end
+    W.state(p).hooks.OnShow(p)
+    assert.is_true(p:GetPropagateKeyboardInput())
   end)
 
   it("repaints while weapon speeds are still being read, only while that count shrinks", function()

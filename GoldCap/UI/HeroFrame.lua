@@ -1,13 +1,14 @@
 local _, GC = ...
 
--- WoW: Forever's HERO tab, read like the character sheet (the HERO plan's Task 8b and the board the
--- owner approved, "6. v2", 2026-11-13): the player's own paper doll, each slot showing the piece
--- ticked to buy there or what is worn; a panel listing the selected slot's choices from
--- Core/ForeverUpgrades.lua with a tick each; and a bar that counts only the ticked pieces. The ticks
--- start as the best set the gold carried pays for, and a slot the player ticked keeps the player's
--- tick through rebuilds. The stat weights and the gold toward a mount open over the slot panel. Only
--- GoldCap_Camelot.toc loads this file, and it adds its own rail entry as it loads, so retail's rail
--- keeps its four tabs.
+-- WoW: Forever's HERO tab, read like the character sheet (the HERO plan's Task 8b, the board the
+-- owner approved, "6. v2", 2026-11-13, and the shopping list of 14.11): the player's own paper doll,
+-- each slot showing the piece on the player's list there or what is worn; a panel listing the
+-- selected slot's choices from Core/ForeverUpgrades.lua, each with a "+" that puts it on the list
+-- (its check takes it off), GoldCap's own pick starred; and a bar that counts what the list holds,
+-- with one button for GoldCap's whole set and one that opens the list in BUY. The list is the
+-- player's Upgrades list in BUY (prefs.heroList), never a copy: what it holds is what the tab shows.
+-- The stat weights and the gold toward a mount open over the slot panel. Only GoldCap_Camelot.toc
+-- loads this file, and it adds its own rail entry as it loads, so retail's rail keeps its four tabs.
 --
 -- A tab of the GoldCap window as Sold is (UI/SoldFrame.lua): Attach builds its container over the
 -- same region, Show and Hide follow the rail, RefreshIfShown repaints it while it is on screen, and
@@ -16,9 +17,8 @@ local _, GC = ...
 -- and their row, the panel or the bar grows; buttons and tags are as wide as their words, measured
 -- at each paint. The tab scores nothing itself: it reads Build's slots and set.
 --
--- It never bids and makes no auction-house call: "Add N to BUY" writes a BUY list (Hero.AddToBuy)
--- and opens the BUY tab, whose own press buys. It reads only saved data and the character, so it
--- works away from the auction house.
+-- It never bids and makes no auction-house call: "+" writes a line of a BUY list, and BUY's own
+-- press buys. It reads only saved data and the character, so it works away from the auction house.
 GC.Hero = GC.Hero or {}
 local Hero = GC.Hero
 
@@ -34,16 +34,17 @@ local HD = {
   -- and the next, and its check and price inside its own square. SLOT_MAX is the most DOLL_W holds
   -- with the three hands between the two columns: (DOLL_W - 2 DOLL_PAD - 2 MODEL_GAP - 2 HAND_GAP) / 5.
   DOLL_W = 260, DOLL_PAD = 8, SLOT_GAP = 6, SLOT_MIN = 20, SLOT_MAX = 42, HAND_GAP = 6, MODEL_GAP = 9,
-  RING = 2, GLOW = 3, BADGE = 14, BADGE_GLYPH = 10, PORTRAIT = 64,
+  RING = 2, GLOW = 3, BADGE = 14, BADGE_GLYPH = 10, PORTRAIT = 64, STAR = 12,
   PAD = 12, HEAD_ICON = 34, LIST_GUTTER = 22, -- the slot panel
   OPT_PAD_X = 8, OPT_PAD_Y = 6, OPT_GAP = 4, BOX = 16, BOX_GLYPH = 12, OPT_ICON = 28, TEXT_MIN = 110,
-  BAR_PAD = 8, BAR_TEXT_MIN = 150, BAR_BTN_H = 32, BAR_BTN_W = 120,
+  BAR_PAD = 8, BAR_TEXT_MIN = 120, BAR_BTN_H = 32, BAR_BTN_W = 96,
   BTN_H = 26, -- plaque's 12px caps stay under half the height
   PANEL_W = 336, PANEL_PAD = 12, PANEL_HEAD_H = 58, PANEL_FOOT_H = 48, PANEL_GUTTER = 22, BOX_W = 62,
   COST_W = 92, PANEL_ICON = 26, LINE_ICON = 22,
   HEIGHT = 480, -- the tab's height until the client has laid the container out
   STALE_LIMIT = 6, REPAINT_S = 0.5, SPEED_S = 0.2, TYPE_S = 0.4,
   SELF_S = 1, SELF_MAX = 15, -- the tab's own rebuild while items load: once a second, so many a Show
+  SELF_FLAT = 3,             -- ...and no more after this many in a row that loaded nothing
 }
 Hero.C = HD
 
@@ -53,15 +54,18 @@ local view = {}
 Hero._view = view
 -- The result painted (r), when (now), the panel open ("weights", "mount" or nil), the road to a
 -- mount read this paint, the doll slot selected (sel, an inventory slot; selByHand once the player
--- clicked one), and the ticks: touched[group] is the player's own (an item string, or false for
--- "keep"), kept for the session; ticked[group] the piece each group has ticked this paint,
--- tickedList those in the result's slot order, options[group] each slot's choices as listed.
-local state = { touched = {} }
+-- clicked one), and the list read this paint: lines (the Upgrades list's own) and bought (what this
+-- character bought on it), options[group] each slot's choices as listed, inList[group] the piece the
+-- list holds for that slot, listed those in the result's slot order. placed[item string] is the
+-- slot the player last put a piece in, this session's: a ring on the list shows on that finger.
+local state = { placed = {}, lines = {}, bought = {} }
 Hero._state = state
 -- The repaint rules, moved over from the old window unchanged (Hero.OnItemInfo and below), and the
 -- tab's own rebuild while items load (selfRefresh): gen is bumped by every Show and Hide, so a tick
--- of an older chain does nothing; selfCount counts this Show's ticks; selfDue, one on its way.
-local repaint = { stale = 0, gen = 0, selfCount = 0 }
+-- of an older chain does nothing; selfCount counts this Show's ticks, selfFlat those in a row that
+-- loaded nothing, selfFrom the count the last build had as a tick starts its own rebuild; selfDue,
+-- one on its way.
+local repaint = { stale = 0, gen = 0, selfCount = 0, selfFlat = 0 }
 Hero._repaint = repaint
 
 local Theme, KP
@@ -288,7 +292,7 @@ end
 
 local paint -- forward: the whole tab from the last result (below)
 
--- Ticks ----------------------------------------------------------------------------------
+-- The list -----------------------------------------------------------------------------------
 
 -- The slot's candidate the set picked (r.set.picks, by item string), or nil.
 local function setPickOf(r, s)
@@ -325,62 +329,179 @@ local function optionsOf(s, pick)
   return out
 end
 
--- Which piece each group has ticked, from the player's own ticks and the set: a group the player
--- touched keeps its tick while that item string is still among its choices, and follows the set
--- again once it is not; "keep" stays kept; a group nobody touched follows the set. The hands keep
--- BestSet's rules: one lot fills one hand, a two-hander both. Ticking keeps them (Hero tick below);
--- a clash can only come from a rebuild moving the set's pick against a hand the player ticked, and
--- then the hand that follows the set lets its piece go.
+-- The player's Upgrades list (prefs.heroList) while it is still one of their own made in the game,
+-- or nil: one deleted in BUY, or a code a site's list holds, is not the tab's to write.
+local function heroRun()
+  local p = prefs()
+  local run = p and p.heroList and GC.AppRuns and GC.AppRuns.Get(p.heroList) or nil
+  return type(run) == "table" and run.origin == "game" and run or nil
+end
+
+-- ...or a new one, remembered there.
+local function ensureRun()
+  local run = heroRun()
+  if run or not (GC.AppRuns and GC.AppRuns.NewList) then return run end
+  run = GC.AppRuns.NewList(GC.L["Upgrades"], {})
+  local p = prefs()
+  if run and p then p.heroList = run.code end
+  return run
+end
+
+-- What this character bought on list `code` (UI/BuyFrame.lua's GC.Buy.BoughtOn), { [itemID] = n }.
+local function boughtOn(code)
+  local B = GC.Buy
+  return code and B and B.BoughtOn and B.BoughtOn(code) or {}
+end
+
+-- The list and what was bought on it, read once a paint.
+local function readList()
+  local run = heroRun()
+  state.lines = run and run.lines or {}
+  state.bought = boughtOn(run and run.code)
+end
+
+-- What the list still buys, whatever slot it is for: how many pieces, what those the doll shows add
+-- (diffs, none zero), and what they all cost, a piece the doll shows at its lot's price and any
+-- other at the most BUY pays for it (its line cap, GC.db.runLineCaps).
+local function listTotals()
+  local n, cost, diffs, open = 0, 0, {}, {}
+  for _, line in ipairs(state.lines) do
+    local left = math.max(0, (tonumber(line.q) or 0) - (tonumber(state.bought[line.i]) or 0))
+    open[line.i] = (open[line.i] or 0) + left
+    n = n + left
+  end
+  for _, c in ipairs(state.listed or {}) do
+    cost = cost + (tonumber(c.unit) or 0)
+    open[c.itemID] = (open[c.itemID] or 0) - 1
+    for k, v in pairs(c.diffs or {}) do diffs[k] = (diffs[k] or 0) + v end
+  end
+  local run = heroRun()
+  local caps = run and GC.db and type(GC.db.runLineCaps) == "table" and GC.db.runLineCaps[run.code] or nil
+  for itemID, left in pairs(open) do
+    if left > 0 then cost = cost + left * (type(caps) == "table" and tonumber(caps[itemID]) or 0) end
+  end
+  for k, v in pairs(diffs) do
+    if v == 0 then diffs[k] = nil end
+  end
+  return n, cost, diffs
+end
+
+-- Each slot's choices, and the piece the list holds for each slot. Per item, the units the list
+-- still buys go first to the slot the player put the piece in this session (state.placed), then to
+-- the slot GoldCap's set puts it in, then to the first slot listing it, one a slot: a ring on the
+-- list once is on one finger, twice on both, and after a reload where the set has it.
 local function resolve(r)
-  local touched, ticked, options = state.touched, {}, {}
+  local U = GC.ForeverUpgrades
+  local options, picks, inList, open = {}, {}, {}, {}
+  for _, line in ipairs(state.lines) do
+    open[line.i] = math.max(0, (tonumber(line.q) or 0) - (tonumber(state.bought[line.i]) or 0))
+  end
   for _, s in ipairs(r.slots or {}) do
-    local pick = setPickOf(r, s)
-    local list = optionsOf(s, pick)
-    options[s.group] = list
-    local want = touched[s.group]
-    if type(want) == "string" then
-      for _, c in ipairs(list) do
-        if c.itemString == want then ticked[s.group] = c end
-      end
-      if not ticked[s.group] then
-        touched[s.group] = nil
-        want = nil
+    picks[s.group] = setPickOf(r, s)
+    options[s.group] = optionsOf(s, picks[s.group])
+  end
+  local function fits(pass, s, c)
+    if pass == 1 then return state.placed[c.itemString] == s.invSlot end
+    return pass == 3 or c == picks[s.group]
+  end
+  for pass = 1, 3 do
+    for _, s in ipairs(r.slots or {}) do
+      if not inList[s.group] then
+        for _, c in ipairs(options[s.group]) do
+          if (open[c.itemID] or 0) > 0 and fits(pass, s, c)
+              and U.ListState(state.lines, state.bought, c) == "listed" then
+            inList[s.group], open[c.itemID] = c, open[c.itemID] - 1
+            break
+          end
+        end
       end
     end
-    if want == nil then ticked[s.group] = pick end
   end
-  -- A slot gone from the build has none of its choices left: a piece ticked there is forgotten
-  -- with it, so its slot follows the set when it comes back; a "keep" stays kept.
-  for group, want in pairs(touched) do
-    if type(want) == "string" and options[group] == nil then touched[group] = nil end
-  end
-  local m, o = ticked.MAINHAND, ticked.OFFHAND
-  if m and o and (m.itemString == o.itemString or m.twoHand) then
-    if touched.MAINHAND == nil then ticked.MAINHAND = nil else ticked.OFFHAND = nil end
-  end
-  local list = {}
+  local listed = {}
   for _, s in ipairs(r.slots or {}) do
-    if ticked[s.group] then list[#list + 1] = ticked[s.group] end
+    if inList[s.group] then listed[#listed + 1] = inList[s.group] end
   end
-  state.ticked, state.options, state.tickedList = ticked, options, list
+  state.options, state.inList, state.listed = options, inList, listed
 end
 
--- The player ticks `c` for `group`, or "keep" (nil): the rest of the slot unticks. In the hands, a
--- piece ticked in one unticks the same item string in the other, a two-hander unticks the off hand,
--- and an off-hand piece unticks a two-hander; the hand let go keeps what it wears.
-local function tick(group, c)
-  local touched, ticked = state.touched, state.ticked or {}
-  touched[group] = c and c.itemString or false
-  if c and (group == "MAINHAND" or group == "OFFHAND") then
-    local other = group == "MAINHAND" and "OFFHAND" or "MAINHAND"
-    local o = ticked[other]
-    local main = group == "MAINHAND" and c or o
-    if o and (o.itemString == c.itemString or (main and main.twoHand)) then touched[other] = false end
+-- Slot `group` lets its piece `c` go: a unit of it the list still holds for another slot stays there.
+local function letGo(group, c)
+  state.inList[group], state.placed[c.itemString] = nil, nil
+  for g, other in pairs(state.inList) do
+    if other.itemString == c.itemString then
+      for _, o in ipairs(state.r and state.r.slots or {}) do
+        if o.group == g then state.placed[c.itemString] = o.invSlot end
+      end
+    end
+  end
+end
+
+-- `c` on the list for slot `s` (GC.ForeverUpgrades.ListAdd), one piece a slot: what the slot had
+-- there comes off first; a two-hander takes the off hand's piece off too, and an off-hand piece a
+-- two-hander. The line keeps what was bought on it (GC.AppRuns.SetLines' keepBought) and is capped
+-- at the lot's price and 5%, or at the cap a piece of its version already wanted had when higher.
+local function addPiece(s, c)
+  local U, run = GC.ForeverUpgrades, ensureRun()
+  if not run then return end
+  local lines, bought = run.lines, boughtOn(run.code)
+  local function drop(group)
+    local was = state.inList[group]
+    if was and was ~= c then
+      lines = U.ListRemove(lines, bought, was)
+      letGo(group, was)
+    end
+  end
+  drop(s.group)
+  local main = state.inList.MAINHAND
+  if (s.group == "MAINHAND" and c.twoHand) or (s.group == "OFFHAND" and main and main.twoHand) then
+    drop(s.group == "MAINHAND" and "OFFHAND" or "MAINHAND")
+  end
+  local joined
+  lines, joined = U.ListAdd(lines, bought, c)
+  if not GC.AppRuns.SetLines(run.code, lines, true) then return end
+  local B = GC.Buy
+  if B and B._SetLineCap then
+    local own = GC.db and type(GC.db.runLineCaps) == "table" and GC.db.runLineCaps[run.code] or nil
+    local had = joined and type(own) == "table" and tonumber(own[c.itemID]) or nil
+    B._SetLineCap(run.code, c.itemID, math.max(U.LineCap(c), had or 0))
+  end
+  GC.AppRuns.SetArchived(run.code, false)
+  state.placed[c.itemString] = s.invSlot
+end
+
+-- `c` off the list for slot `s` (GC.ForeverUpgrades.ListRemove): its line asks for one fewer, never
+-- below what was bought.
+local function removePiece(s, c)
+  local run = heroRun()
+  if not run then return end
+  GC.AppRuns.SetLines(run.code, GC.ForeverUpgrades.ListRemove(run.lines, boughtOn(run.code), c), true)
+  letGo(s.group, c)
+end
+
+-- BUY, on the list.
+local function openBuy()
+  local run = heroRun()
+  if not run then return end
+  if GC.Buy and GC.Buy.SelectRun then GC.Buy.SelectRun(run.code) end
+  if GC.Sniper and GC.Sniper.ShowView then GC.Sniper.ShowView("buy") end
+end
+
+-- GoldCap's whole set on the list, each piece in its own slot in place of what the slot had, then
+-- BUY on the list.
+local function addSet()
+  local r = state.r
+  for _, c in ipairs(r and r.set and r.set.list or {}) do
+    for _, s in ipairs(r.slots or {}) do
+      if s.group == c.group and state.inList[s.group] ~= c then
+        addPiece(s, c)
+        readList()
+        resolve(r)
+      end
+    end
   end
   paint()
+  openBuy()
 end
-
-local function anyTouched() return next(state.touched) ~= nil end
 
 -- The group a doll slot's choices come from (GC.ForeverUpgrades.GROUPS' slots), or nil for one
 -- that has none: the shirt, the tabard, the trinkets.
@@ -558,8 +679,8 @@ end
 
 -- The doll ---------------------------------------------------------------------------------
 
--- A slot of the doll: the piece ticked there or what is worn, in a frame that says which (green:
--- ticked to buy; thin gold: choices, nothing ticked), a check and the price over a ticked piece,
+-- A slot of the doll: the piece on the list there or what is worn, in a frame that says which
+-- (green: on the list; thin gold: choices, none on the list), a check and the price over a listed piece,
 -- both inside the slot's own square, and a gold glow while it is the slot the panel lists. Hover is
 -- the engine's HIGHLIGHT layer (docs: "Buttons and hover"); the glow is state.
 local function newSlot(parent, e)
@@ -650,10 +771,11 @@ local function dress()
 end
 
 -- One slot as this paint sees it: what it shows, its frame, its marks. Its icon wears no quality
--- edge (KP.PaintIcon without the item's id draws the untinted one): on the doll, green means ticked.
+-- edge (KP.PaintIcon without the item's id draws the untinted one): on the doll, green means the
+-- piece is on the list, gold that the slot has choices.
 local function paintSlot(b)
   local s = view.at[b.invSlot]
-  local c = s and state.ticked[s.group] or nil
+  local c = s and state.inList[s.group] or nil
   local worn = view.worn[b.invSlot]
   b.tipLink = c and (c.link or c.itemString) or worn
   if c then
@@ -751,10 +873,12 @@ local function markLevel(icon, later)
   icon.count:Show()
 end
 
--- One option of the slot panel, two lines as the auction house lists a lot: a checkbox and the
--- piece's icon (marked when it waits for a level, markLevel), then its name with its price at the
--- right, and under them what it adds, across the whole width. The whole row is the click that ticks
--- it; hover is the engine's HIGHLIGHT layer, a ticked row is green as state.
+-- One option of the slot panel, two lines as the auction house lists a lot: its box ("+", or a
+-- check on green while the list holds it for this slot) and the piece's icon (a gold star on
+-- GoldCap's own pick, marked when it waits for a level, markLevel), then its name with its price at
+-- the right, and under them what it adds, across the whole width. The whole row is the click that
+-- puts it on the list or takes it off; hover is the engine's HIGHLIGHT layer, a listed row is green
+-- as state.
 local function newOption(parent)
   local b = CreateFrame("Button", nil, parent)
   b:RegisterForClicks("LeftButtonUp")
@@ -781,8 +905,11 @@ local function newOption(parent)
   b.boxGlyph = b:CreateTexture(nil, "OVERLAY")
   b.boxGlyph:SetSize(HD.BOX_GLYPH, HD.BOX_GLYPH)
   b.boxGlyph:SetPoint("CENTER", b.box, "CENTER", 0, 0)
-  Theme.SetIcon(b.boxGlyph, "check", GC.Kit.Tokens.color.onGold)
   b.icon = KP.NewIcon(b, HD.OPT_ICON, true)
+  b.star = b:CreateTexture(nil, "OVERLAY", nil, 4)
+  b.star:SetSize(HD.STAR, HD.STAR)
+  b.star:SetPoint("CENTER", b.icon.edge, "TOPLEFT", 2, -2)
+  Theme.SetIcon(b.star, "star", Theme.color.gold)
   b.name = Theme.Label(b, 13)
   b.name:SetJustifyH("LEFT")
   b.gain = Theme.Label(b, 11)
@@ -791,42 +918,50 @@ local function newOption(parent)
   b.price:SetJustifyH("RIGHT")
   b:SetScript("OnEnter", pieceTip)
   b:SetScript("OnLeave", hideTip)
-  -- A modified click is the client's (shift links the piece, ctrl tries it on); a plain one ticks it.
+  -- A modified click is the client's (shift links the piece, ctrl tries it on); a plain one puts it
+  -- on the list for this slot, or takes it off when the list holds it here.
   b:SetScript("OnClick", function(self)
     local handle = _G.HandleModifiedItemClick
-    if self.cand and type(handle) == "function" and handle(self.cand.link or self.cand.itemString) then return end
-    tick(self.group, self.cand)
+    if not self.cand then return end
+    if type(handle) == "function" and handle(self.cand.link or self.cand.itemString) then return end
+    if state.inList[self.slot.group] == self.cand then
+      removePiece(self.slot, self.cand)
+    else
+      addPiece(self.slot, self.cand)
+    end
+    paint()
   end)
   return b
 end
 
--- An option for `c`, or the row that buys nothing (c nil): `worn` its link, `art` the empty slot.
--- A price over the gold carried is red, as the AH paints a buyout you cannot pay.
-local function paintOption(b, group, c, on, worn, art)
-  b.group, b.cand = group, c
-  b.tipLink = c and (c.link or c.itemString) or worn
-  if c then
-    KP.PaintIcon(b.icon, c.itemID, itemIcon(c.itemID), c.later)
-    markLevel(b.icon, c.later)
-    put(b.name, nameOf(c))
-    setColor(b.name, qualityOf(c.itemID))
-    local gains = gainText(c.diffs)
-    if gains ~= "" then put(b.gain, gains) else b.gain:Hide() end
+-- An option for `c` in slot `s`: `on` while the list holds it for this slot, `star` on GoldCap's
+-- pick. A price over the gold carried is red, as the AH paints a buyout you cannot pay; a piece
+-- bought on the list says so in the price's place.
+local function paintOption(b, s, c, on, star)
+  b.slot, b.cand = s, c
+  b.tipLink = c.link or c.itemString
+  KP.PaintIcon(b.icon, c.itemID, itemIcon(c.itemID), c.later)
+  markLevel(b.icon, c.later)
+  b.star:SetShown(star)
+  put(b.name, nameOf(c))
+  setColor(b.name, qualityOf(c.itemID))
+  local gains = gainText(c.diffs)
+  if gains ~= "" then put(b.gain, gains) else b.gain:Hide() end
+  if not on and GC.ForeverUpgrades.ListState(state.lines, state.bought, c) == "bought" then
+    put(b.price, GC.L["Bought"])
+    setColor(b.price, Theme.color.fgMuted)
+  else
     put(b.price, coins(c.unit))
     setColor(b.price, c.overGold and gameRed() or Theme.color.fg)
+  end
+  if on then
+    Theme.SetIcon(b.boxGlyph, "check", GC.Kit.Tokens.color.onGold)
   else
-    local id = itemIdOf(worn)
-    KP.PaintIcon(b.icon, id, (id and itemIcon(id)) or art)
-    markLevel(b.icon, nil)
-    put(b.name, worn and GC.L["Keep %s"]:format(nameOf({ link = worn, itemID = id })) or GC.L["Buy nothing here"])
-    setColor(b.name, Theme.color.fgMuted)
-    b.gain:Hide()
-    b.price:Hide()
+    Theme.SetIcon(b.boxGlyph, "plus", Theme.color.fg)
   end
   b.onWash:SetShown(on)
   b.onRing:SetShown(on)
   b.boxFill:SetShown(on)
-  b.boxGlyph:SetShown(on)
   b:Show()
 end
 
@@ -927,8 +1062,7 @@ local function emptyWhy(r, s, inv)
 end
 
 -- The slot panel at `x`, `midTop` down, `w` wide and `midH` tall: the selected slot's head (what is
--- worn there) and its options, the set's pick first and "keep" last, every row of the list as tall
--- as its tallest.
+-- worn there) and its options, the set's pick first, every row of the list as tall as its tallest.
 local function layoutPanel(r, x, midTop, w, midH)
   local p, f = view.panel, view.panel.frame
   f:ClearAllPoints()
@@ -983,13 +1117,12 @@ local function layoutPanel(r, x, midTop, w, midH)
   local listW = math.max(1, w - HD.PAD - HD.LIST_GUTTER)
   content:SetWidth(listW)
   local options = state.options[s.group] or {}
-  local ticked = state.ticked[s.group]
-  local n = #options + 1
+  local listed, pick = state.inList[s.group], setPickOf(r, s)
+  local n = #options
   for i = #rows + 1, n do rows[i] = newOption(content) end
   for i, c in ipairs(options) do
-    paintOption(rows[i], s.group, c, c == ticked)
+    paintOption(rows[i], s, c, c == listed, c == pick)
   end
-  paintOption(rows[n], s.group, nil, ticked == nil, worn, slotArt(b.art))
   local shape = listShape(listW, rows, n)
   local rowH = 0
   for i = 1, n do rowH = math.max(rowH, layoutOption(rows[i], shape)) end
@@ -1003,7 +1136,7 @@ local function layoutPanel(r, x, midTop, w, midH)
     ly = ly + rowH + HD.OPT_GAP
   end
   for i = n + 1, #rows do
-    rows[i].cand, rows[i].tipLink = nil, nil
+    rows[i].slot, rows[i].cand, rows[i].tipLink = nil, nil, nil
     rows[i]:Hide()
   end
   content:SetHeight(math.max(1, ly))
@@ -1011,10 +1144,10 @@ end
 
 -- The bar ------------------------------------------------------------------------------------
 
--- What the ticked pieces come to, at the tab's foot, in one band: how many and what they add, who
--- ticked them (or that what is worn is still being read), what they cost and what that leaves of
--- the gold carried, and the one button that puts exactly them on a BUY list. The doll shows the
--- pieces themselves.
+-- What the list holds, at the tab's foot, in one band: how many pieces it still buys and what they
+-- add (and that what is worn is still being read), what they cost and what that leaves of the gold
+-- carried; a button that puts GoldCap's whole set on the list, and one that opens the list in BUY.
+-- The doll shows the pieces themselves.
 local function createBar(container)
   local gold, ph = Theme.color.gold, Theme.color.panelHi or Theme.color.panel
   local b = { frame = Theme.Card(container, { ph[1], ph[2], ph[3], 1 }, { gold[1], gold[2], gold[3], 0.35 }) }
@@ -1031,12 +1164,12 @@ local function createBar(container)
     b[key] = Theme.Num(f, key == "cost" and 15 or 13, true)
     b[key]:SetJustifyH("RIGHT")
   end
-  b.add = Theme.Button(f, "primary", "plaque")
-  b.add:SetHeight(HD.BAR_BTN_H)
-  b.add:SetScript("OnClick", function()
-    local list = state.tickedList
-    if list and #list > 0 then Hero.AddToBuy(list) end
-  end)
+  b.picks = Theme.Button(f, "ghost", "plaque")
+  b.picks:SetHeight(HD.BAR_BTN_H)
+  b.picks:SetScript("OnClick", function() addSet() end)
+  b.open = Theme.Button(f, "primary", "plaque")
+  b.open:SetHeight(HD.BAR_BTN_H)
+  b.open:SetScript("OnClick", function() openBuy() end)
   return b
 end
 
@@ -1057,42 +1190,30 @@ local function figureH(head, value)
   return (head:IsShown() and heightOf(head) + 2 or 0) + heightOf(value)
 end
 
--- The bar at `width`: the words at the left, the figures and the button at the right, on one band
--- while the words keep BAR_TEXT_MIN beside them, else the figures and the button on a line under
--- the words. Its height follows the words. Answers it.
+-- The bar at `width`: the words at the left, then the figures, then the two buttons, at the right
+-- of the words' line while the words keep BAR_TEXT_MIN beside them; what does not fit there goes on
+-- a line of its own under them, the figures and the buttons together while they fit side by side.
+-- Its height follows the words. Answers it.
 local function layoutBar(r, width)
   local b, f = view.bar, view.bar.frame
-  local list = state.tickedList or {}
-  local n = #list
-  local cost, diffs = 0, {}
-  for _, c in ipairs(list) do
-    cost = cost + (tonumber(c.unit) or 0)
-    for k, v in pairs(c.diffs or {}) do diffs[k] = (diffs[k] or 0) + v end
-  end
-  for k, v in pairs(diffs) do
-    if v == 0 then diffs[k] = nil end
-  end
-  local carry = carried()
-  local waiting = r.waiting and next(r.waiting) ~= nil
-  if n > 0 then
-    put(b.title, GC.L["%d ticked: %s"]:format(n, gainText(diffs)))
+  local n, cost, diffs = listTotals()
+  local picks = r.set and r.set.list or {}
+  if n == 0 and #picks == 0 then
+    put(b.title, GC.L["Nothing on the auction house fits the gold you carry yet."])
   else
-    local none = r.set and not anyTouched()
-    put(b.title, none and GC.L["Nothing on the auction house fits the gold you carry yet."] or GC.L["Nothing ticked"])
+    put(b.title, GC.L["In your list: %d"]:format(n))
   end
-  if waiting then
-    put(b.sub, GC.L["Still reading what you wear: the picks may change"])
-  elseif n == 0 then
-    b.sub:Hide()
-  elseif anyTouched() then
-    put(b.sub, GC.L["Your own picks"])
-  else
-    put(b.sub, GC.L["Picked by GoldCap for the gold you carry"])
+  local sub = {}
+  local gains = n > 0 and gainText(diffs) or ""
+  if gains ~= "" then sub[#sub + 1] = gains end
+  if r.waiting and next(r.waiting) ~= nil then
+    sub[#sub + 1] = GC.L["Still reading what you wear: the picks may change"]
   end
-  put(b.costHead, GC.Util.Upper(GC.L["Ticked cost"]))
+  if #sub > 0 then put(b.sub, table.concat(sub, "\n")) else b.sub:Hide() end
+  put(b.costHead, GC.Util.Upper(GC.L["List cost"]))
   put(b.cost, coins(cost))
   setColor(b.cost, Theme.color.fg)
-  local left = carry - cost
+  local left = carried() - cost
   if left >= 0 then
     put(b.leftHead, GC.Util.Upper(GC.L["Left after"]))
     put(b.left, coins(left))
@@ -1102,33 +1223,67 @@ local function layoutBar(r, width)
     put(b.left, GC.L["Short by %s"]:format(coins(-left)))
     setColor(b.left, Theme.color.red)
   end
-  label(b.add, GC.L["Add %d to BUY"]:format(n), HD.BAR_BTN_W)
-  if n > 0 then b.add:Enable() else b.add:Disable() end
+  label(b.picks, GC.L["Buy GoldCap's picks (%d)"]:format(#picks), HD.BAR_BTN_W)
+  if #picks > 0 then b.picks:Enable() else b.picks:Disable() end
+  label(b.open, GC.L["Open BUY"], HD.BAR_BTN_W)
+  if n > 0 then b.open:Enable() else b.open:Disable() end
 
-  local pad, addW = HD.BAR_PAD, b.add:GetWidth() or HD.BAR_BTN_W
+  local pad, gap, inner = HD.BAR_PAD, HD.GAP, width - 2 * HD.BAR_PAD
+  local picksW, openW = b.picks:GetWidth() or HD.BAR_BTN_W, b.open:GetWidth() or HD.BAR_BTN_W
   local costW = math.max(hug(b.cost), hug(b.costHead))
   local leftW = math.max(hug(b.left), b.leftHead:IsShown() and hug(b.leftHead) or 0)
-  local figuresW = costW + HD.GAP + leftW + HD.GAP + addW
-  local textW = width - 2 * pad - figuresW - HD.GAP
-  local oneLine = textW >= HD.BAR_TEXT_MIN
-  if not oneLine then textW = width - 2 * pad end
+  local fig = { w = costW + gap + leftW,
+    h = math.max(figureH(b.costHead, b.cost), figureH(b.leftHead, b.left)) }
+  local btn = { w = picksW + gap + openW, h = HD.BAR_BTN_H }
+  -- The words' line holds what fits beside them; each line under it, the rest.
+  local beside, under
+  if inner - fig.w - btn.w - 2 * gap >= HD.BAR_TEXT_MIN then
+    beside, under = { fig, btn }, {}
+  elseif inner - fig.w - gap >= HD.BAR_TEXT_MIN then
+    beside, under = { fig }, { { btn } }
+  elseif fig.w + gap + btn.w <= inner then
+    beside, under = {}, { { fig, btn } }
+  else
+    beside, under = {}, { { fig }, { btn } }
+  end
+  local textW = inner
+  for _, piece in ipairs(beside) do textW = textW - piece.w - gap end
   local titleH = wrapTo(b.title, textW)
   local subH = b.sub:IsShown() and wrapTo(b.sub, textW) or 0
   local textH = titleH + (subH > 0 and 2 + subH or 0)
-  local figH = math.max(figureH(b.costHead, b.cost), figureH(b.leftHead, b.left), HD.BAR_BTN_H)
-  local tier1 = math.max(textH, oneLine and figH or 0)
-  local h = oneLine and tier1 + 2 * pad or pad + tier1 + HD.GAP + figH + pad
+  -- Lays one line's pieces out from the right edge, centred on `mid` down the bar.
+  local function place(pieces, mid)
+    local right = width - pad
+    for i = #pieces, 1, -1 do
+      local piece = pieces[i]
+      if piece == btn then
+        b.open:ClearAllPoints()
+        b.open:SetPoint("RIGHT", f, "TOPLEFT", right, -mid)
+        b.picks:ClearAllPoints()
+        b.picks:SetPoint("RIGHT", f, "TOPLEFT", right - openW - gap, -mid)
+      else
+        placeFigure(b.leftHead, b.left, f, right, math.floor(mid - figureH(b.leftHead, b.left) / 2))
+        placeFigure(b.costHead, b.cost, f, right - leftW - gap,
+          math.floor(mid - figureH(b.costHead, b.cost) / 2))
+      end
+      right = right - piece.w - gap
+    end
+  end
+  local lineH = textH
+  for _, piece in ipairs(beside) do lineH = math.max(lineH, piece.h) end
   b.title:ClearAllPoints()
-  b.title:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -(pad + math.floor((tier1 - textH) / 2)))
+  b.title:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -(pad + math.floor((lineH - textH) / 2)))
   b.sub:ClearAllPoints()
   b.sub:SetPoint("TOPLEFT", b.title, "BOTTOMLEFT", 0, -2)
-  local figMid = oneLine and pad + tier1 / 2 or pad + tier1 + HD.GAP + figH / 2
-  b.add:ClearAllPoints()
-  b.add:SetPoint("RIGHT", f, "TOPRIGHT", -pad, -figMid)
-  local right = width - pad - addW - HD.GAP
-  placeFigure(b.leftHead, b.left, f, right, math.floor(figMid - figureH(b.leftHead, b.left) / 2))
-  right = right - leftW - HD.GAP
-  placeFigure(b.costHead, b.cost, f, right, math.floor(figMid - figureH(b.costHead, b.cost) / 2))
+  place(beside, pad + lineH / 2)
+  local y = pad + lineH
+  for _, pieces in ipairs(under) do
+    local h = 0
+    for _, piece in ipairs(pieces) do h = math.max(h, piece.h) end
+    place(pieces, y + gap + h / 2)
+    y = y + gap + h
+  end
+  local h = y + pad
   f:ClearAllPoints()
   f:SetPoint("BOTTOMLEFT", view.container, "BOTTOMLEFT", 0, 0)
   f:SetSize(width, h)
@@ -1187,12 +1342,19 @@ local function newPanel()
   p.close:SetPoint("TOPRIGHT", -HD.PANEL_PAD - 2, -18)
   p.close:SetLabel("X")
   p.close:SetScript("OnClick", function() Hero.TogglePanel(nil) end)
+  -- Every key reaches the panel and goes straight on but Escape, which shuts it. Propagation is
+  -- combat-protected and OnKeyDown stands down in combat, so it is on before any key comes (as the
+  -- panel is made and each time it shows) and put back on each key's release, as BUY's own list
+  -- does (UI/BuyFrame.lua): the panel never keeps the movement keys through a fight.
   if p.EnableKeyboard then p:EnableKeyboard(true) end
   local function passKeys(on)
     if p.SetPropagateKeyboardInput and not (InCombatLockdown and InCombatLockdown()) then
       p:SetPropagateKeyboardInput(on)
     end
   end
+  passKeys(true)
+  p:HookScript("OnShow", function() passKeys(true) end)
+  p:SetScript("OnKeyUp", function() passKeys(true) end)
   p:SetScript("OnKeyDown", function(_, key)
     if InCombatLockdown and InCombatLockdown() then return end
     if key ~= "ESCAPE" or (p.slider and p.slider:Leaving()) then passKeys(true) return end
@@ -1647,17 +1809,15 @@ panelPaint.mount = function(p, width)
     lines.gain.frame:Hide()
   end
   -- The pace: the forecast sentence of /gc mount (GC.ForeverRoad.Lines' second), and what the
-  -- pieces ticked to buy leave toward it.
+  -- pieces on the list leave toward it.
   local words = {}
   local roadLines = s.cost and GC.ForeverRoad.Lines(s) or {}
   if roadLines[2] then words[#words + 1] = roadLines[2] end
-  local list = state.tickedList or {}
-  local n, spent = #list, 0
-  for _, c in ipairs(list) do spent = spent + (tonumber(c.unit) or 0) end
+  local n, spent = listTotals()
   if n == 1 then
-    words[#words + 1] = GC.L["The upgrade in your set leaves %s toward it."]:format(coins(have - spent))
+    words[#words + 1] = GC.L["The upgrade on your list leaves %s toward it."]:format(coins(have - spent))
   elseif n > 1 then
-    words[#words + 1] = GC.L["The %d upgrades in your set leave %s toward it."]:format(n, coins(have - spent))
+    words[#words + 1] = GC.L["The %d upgrades on your list leave %s toward it."]:format(n, coins(have - spent))
   end
   if #words > 0 then
     y = y + 9
@@ -1749,6 +1909,7 @@ paint = function()
     if s.invSlot then at[s.invSlot] = s end
   end
   view.at = at
+  readList()
   resolve(r)
   pickSelection()
   local topH = layoutTop(r, width)
@@ -1779,59 +1940,6 @@ local function build()
   view.panel = createPanel(container)
   view.bar = createBar(container)
   view.doll = createDoll(container)
-end
-
--- BUY ---------------------------------------------------------------------------------------
-
---- Puts `picks` (candidates: the pieces ticked to buy) on the player's Upgrades list and
---- opens it in BUY. The list is the one prefs.heroList names, while it is still one of the player's
---- own made in the game; else a new one, remembered there. Its other lines stay as they are; a line
---- for an item already on it keeps the larger quantity and buys the versions of both, or any when
---- either side buys any (GC.AppRuns.JoinVer): adding a pick twice is still one line of one.
---- Lines go in through GC.AppRuns.SetLines, already merged here, never AddLines, which sums. Each
---- item's cap is the lot's price and 5% (GC.ForeverUpgrades.BuyLines), the player's own line cap
---- BUY ranks first; on an item already listed, the higher of that and the cap it had. Returns the
---- list, or nil.
-function Hero.AddToBuy(picks)
-  local lines, caps = GC.ForeverUpgrades.BuyLines(picks)
-  if #lines == 0 then return nil end
-  local p = prefs()
-  local run = p and p.heroList and GC.AppRuns.Get(p.heroList) or nil
-  if not (type(run) == "table" and run.origin == "game") then
-    run = GC.AppRuns.NewList(GC.L["Upgrades"], {})
-    if not run then return nil end
-    if p then p.heroList = run.code end
-  end
-  local merged, byItem, listed = {}, {}, {}
-  for _, line in ipairs(run.lines or {}) do
-    -- A copy: SetLines tells a change from what the run holds, so the run's own lines stay as they are.
-    local copy = {}
-    for k, v in pairs(line) do copy[k] = v end
-    merged[#merged + 1] = copy
-    byItem[copy.i] = copy
-  end
-  for _, line in ipairs(lines) do
-    local have = byItem[line.i]
-    if have then
-      have.q = math.max(tonumber(have.q) or 0, line.q)
-      have.ver = GC.AppRuns.JoinVer(have.ver, line.ver)
-      listed[line.i] = true
-    else
-      local copy = { i = line.i, q = line.q, ver = line.ver }
-      merged[#merged + 1] = copy
-      byItem[line.i] = copy
-    end
-  end
-  if not GC.AppRuns.SetLines(run.code, merged) then return nil end
-  local own = GC.db and type(GC.db.runLineCaps) == "table" and GC.db.runLineCaps[run.code] or nil
-  for itemID, copper in pairs(caps) do
-    local had = listed[itemID] and type(own) == "table" and tonumber(own[itemID]) or nil
-    if GC.Buy and GC.Buy._SetLineCap then GC.Buy._SetLineCap(run.code, itemID, math.max(copper, had or 0)) end
-  end
-  GC.AppRuns.SetArchived(run.code, false)
-  if GC.Buy and GC.Buy.SelectRun then GC.Buy.SelectRun(run.code) end
-  if GC.Sniper and GC.Sniper.ShowView then GC.Sniper.ShowView("buy") end
-  return run
 end
 
 -- The tab contract --------------------------------------------------------------------------
@@ -1880,11 +1988,18 @@ local function chaseSpeed(r)
 end
 
 -- While the shown tab's last build still counts items loading, it builds itself again SELF_S on,
--- whatever events arrive or do not, at most SELF_MAX times a Show, and stops at none loading or on
--- Hide. One chain at a time: a repaint for any other reason finds the tick on its way and adds none.
+-- whatever events arrive or do not, at most SELF_MAX times a Show, and stops at none loading, on
+-- Hide, or after SELF_FLAT of its own rebuilds in a row that did not shrink the count: an item the
+-- client never answers for cannot keep the tab rebuilding. One chain at a time: a repaint for any
+-- other reason finds the tick on its way and adds none.
 local function selfRefresh(r)
-  if (tonumber(r.loading) or 0) <= 0 or repaint.selfDue or not shown() then return end
-  if repaint.selfCount >= HD.SELF_MAX then return end
+  local loading = tonumber(r.loading) or 0
+  if repaint.selfFrom ~= nil then
+    repaint.selfFlat = loading >= repaint.selfFrom and repaint.selfFlat + 1 or 0
+    repaint.selfFrom = nil
+  end
+  if loading <= 0 or repaint.selfDue or not shown() then return end
+  if repaint.selfCount >= HD.SELF_MAX or repaint.selfFlat >= HD.SELF_FLAT then return end
   local timer = _G.C_Timer
   if type(timer) ~= "table" or type(timer.After) ~= "function" then return end
   local gen = repaint.gen
@@ -1893,7 +2008,7 @@ local function selfRefresh(r)
     if gen ~= repaint.gen then return end
     repaint.selfDue = false
     if not shown() then return end
-    repaint.selfCount = repaint.selfCount + 1
+    repaint.selfCount, repaint.selfFrom = repaint.selfCount + 1, loading
     Hero.RefreshIfShown(true)
   end)
 end
@@ -1917,6 +2032,7 @@ function Hero.Show()
   -- A fresh open always gets a fresh chance, whatever a previous visit's storm cap reached.
   repaint.stale, repaint.last, repaint.speedLast = 0, nil, nil
   repaint.gen, repaint.selfCount, repaint.selfDue = repaint.gen + 1, 0, false
+  repaint.selfFlat, repaint.selfFrom = 0, nil
   -- And lists the first slot with choices again, and dresses the character as it stands now.
   state.selByHand, view.dressed = nil, nil
   view.restamp = true -- see put(): every string is drawn again after the hide
