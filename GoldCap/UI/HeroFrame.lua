@@ -737,12 +737,12 @@ end
 -- A piece's icon as the game draws one you cannot use yet: the art tinted red, as Forever's own
 -- paper doll tints an equipped piece it cannot use (Blizzard_UIPanels_Game/Camelot/
 -- PaperDollFrame.lua, SetItemButtonTextureVertexColor 0.9, 0, 0), with the level it waits for in
--- the corner a stack's count takes, in the client's red. The same in every skin. Anything else
--- untinted, with no number: a row's icon is reused from piece to piece.
+-- the corner a stack's count takes, white as a count is, so it reads over the red art. The same in
+-- every skin. Anything else untinted, with no number: a row's icon is reused from piece to piece.
 local function markLevel(icon, later)
   if later then
     icon.icon:SetVertexColor(0.9, 0, 0, 1) -- untinted
-    setColor(icon.count, gameRed())
+    icon.count:SetTextColor(1, 1, 1, 1) -- untinted
   else
     icon.icon:SetVertexColor(1, 1, 1, 1) -- untinted
   end

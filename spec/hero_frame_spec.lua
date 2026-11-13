@@ -314,12 +314,12 @@ describe("HERO tab", function()
     assert.equal("7499c", textOf(opt(1).price))
     assert.equal("3990c", textOf(opt(2).price))
     -- The club waits for level 19, marked as the game marks a piece you cannot use yet: its art
-    -- tinted red, the level in a stack count's corner in the client's red. The others untinted.
+    -- tinted red, the level in a stack count's corner, white as a count is. The others untinted.
     local club = opt(2).icon
     assert.same({ 0.9, 0, 0, 1 }, W.state(club.icon).vertex)
     assert.equal("19", textOf(club.count))
     assert.equal(result.slots[2].best.later, tonumber(textOf(club.count)))
-    assert.same({ 1, 0.125, 0.125, 1 }, W.state(club.count).color)
+    assert.same({ 1, 1, 1, 1 }, W.state(club.count).color)
     local corner = W.state(club.count).points[1]
     assert.same({ "BOTTOMRIGHT", club.edge, "BOTTOMRIGHT" }, { corner[1], corner[2], corner[3] })
     for _, i in ipairs({ 1, 3, 4, 5 }) do
