@@ -1205,6 +1205,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_LOGOUT" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
     if GC.ForeverRoad then GC.ForeverRoad.OnLogout() end
+    -- A Forever scan still saving, a slice a frame, is finished before the save is written.
+    if GC.ForeverScan and GC.ForeverScan.OnLogout then GC.ForeverScan.OnLogout() end
     -- What a merchant visit still open sold is booked before the save is written.
     if GC.VendorSales then GC.VendorSales.OnClosed(time()) end
   end

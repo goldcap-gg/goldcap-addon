@@ -142,6 +142,85 @@ describe("ForeverScan", function()
     assert.is_nil(store.fold)
   end)
 
+  -- The save of a big scan, in the game, a slice a frame: in one go it was a 76 ms frame for the
+  -- owner's 5800 items. A driver with a clock gets the slices; one without saves at once, as the
+  -- tests above it rely on.
+  describe("saving a big scan", function()
+    local ms
+    local function clocked()
+      return driver({ clock = function() ms = ms + 1 return ms end })
+    end
+    local function distinct(n)
+      local out = {}
+      for i = 1, n do out[i] = { 10000 + i, 1, 100 + (i % 7), true } end
+      return out
+    end
+    local function dones()
+      local n = 0
+      for _, x in ipairs(notes) do if x[1] == "done" then n = n + 1 end end
+      return n
+    end
+    -- Opens, reads 2000 items, ends the browse pass: the scan is saving.
+    local function untilSaving()
+      d.browseAnswer = "started"
+      local s = GC.ForeverScan.New(clocked())
+      s:OnAuctionHouseShow()
+      rows = distinct(2000)
+      s:OnReplicateUpdate()
+      runRead(s)
+      assert.equal("browsing", s:State())
+      s:OnBrowsePassDone({})
+      return s
+    end
+
+    before_each(function() ms = 0 end)
+
+    it("freezes a slice a frame and says done once, with all of it saved", function()
+      local s = untilSaving()
+      assert.equal("saving", s:State())
+      assert.is_true(s:IsBusy())
+      assert.is_nil(store.fold)
+      assert.equal(0, dones())
+      runAll()
+      assert.equal("idle", s:State())
+      assert.equal(2000, store.fold.itemCount)
+      local n = 0
+      for _ in pairs(store.fold.items) do n = n + 1 end
+      assert.equal(2000, n)
+      assert.equal(1, dones())
+    end)
+
+    it("keeps a whole scan whole when the auction house closes while it saves", function()
+      local s = untilSaving()
+      s:OnAuctionHouseClosed()
+      assert.equal("saving", s:State())
+      runAll()
+      assert.equal(2000, store.fold.itemCount)
+      assert.is_nil(store.fold.partial)
+      assert.equal(1, dones())
+    end)
+
+    it("reads a later stage of the dump that came while it saved, once the save is done", function()
+      local s = untilSaving()
+      rows = distinct(2600)
+      s:OnReplicateUpdate()
+      assert.equal("saving", s:State())
+      runAll()
+      assert.equal("idle", s:State())
+      assert.equal(2600, store.fold.rows)
+      assert.equal(2600, store.fold.itemCount)
+    end)
+
+    it("finishes a save under way at logout, before the game writes the save", function()
+      local s = untilSaving()
+      s:OnLogout()
+      assert.equal("idle", s:State())
+      assert.equal(2000, store.fold.itemCount)
+      runAll()
+      assert.equal(1, dones())
+    end)
+  end)
+
   -- A dump read to the end is the whole auction house, however the browse pass after it ended.
   it("keeps a whole dump, not partial, when the auction house closes during the browse pass", function()
     d.browseAnswer = "started"

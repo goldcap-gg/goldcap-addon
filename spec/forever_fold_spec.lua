@@ -188,6 +188,22 @@ describe("ForeverFold", function()
     assert.is_false(F.Decode(plain[2]).gear)
   end)
 
+  it("freezes a slice at a time to exactly what it freezes in one go", function()
+    local acc = F.New()
+    for id = 1, 30 do F.AddRow(acc, 100 + id, 2, 50 * id, true) end
+    local whole, wholeN = F.Freeze(acc)
+    local calls, job, out, n = 0, nil, nil, nil
+    repeat
+      local entries = 0
+      out, n = F.Freeze(acc, nil, function() entries = entries + 1 return entries >= 7 end, job)
+      if not out then job = n end
+      calls = calls + 1
+    until out or calls > 10
+    assert.same(whole, out)
+    assert.equal(wholeN, n)
+    assert.equal(5, calls)
+  end)
+
   -- SavedVariables writes `[id] = "…",` on a line of its own, indented; 12 bytes covers the
   -- punctuation and indentation. The spec's target is ~300-600 KB.
   it("keeps a 6,000-item fold under 600 KB", function()
