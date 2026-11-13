@@ -285,6 +285,12 @@ describe("WoW: Forever scan wiring", function()
       assert.truthy(init:find("GC.ForeverScan.Init(GC.db)", 1, true))
     end)
 
+    it("finishes a scan still saving at logout, before the game writes the save", function()
+      local from = assert(init:find('event == "PLAYER_LOGOUT" then', 1, true))
+      local branch = init:sub(from, assert(init:find("\n  end\nend)", from, true)))
+      assert.truthy(branch:find("GC.ForeverScan.OnLogout()", 1, true))
+    end)
+
     -- Review, 2026-11-06: the Deals board's unsure items are asked again where the client can ask.
     it("tells the Deals board the auction house opened, after the scan hears it", function()
       local scan = init:find("GC.ForeverScan.OnAuctionHouseShow()", 1, true)

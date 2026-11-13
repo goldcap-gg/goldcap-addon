@@ -129,13 +129,25 @@ function GC.BookPass.New(driver, opts)
     kind = nil
   end
 
-  local function handleResults()
+  -- `added` is a page event's own rows (AUCTION_HOUSE_BROWSE_RESULTS_ADDED's addedBrowseResults),
+  -- the rows the client appended to the list, as Blizzard's own browse list reads them. Without
+  -- them the tail is cut from the whole list so far, which the client builds anew on every call:
+  -- on a wide pass thousands of rows, many megabytes and tens of milliseconds a page, of which
+  -- all but the last page were already folded. The rows are only read here, never written:
+  -- Blizzard's list holds the same tables.
+  local function handleResults(added)
     if not paging then return end
     pagesThisPass = pagesThisPass + 1
-    local results = driver.getBrowseResults()
-    local tail = {}
-    for i = rawWatermark + 1, #results do tail[#tail + 1] = results[i] end
-    rawWatermark = #results
+    local tail
+    if type(added) == "table" then
+      tail = added
+      rawWatermark = rawWatermark + #added
+    else
+      local results = driver.getBrowseResults()
+      tail = {}
+      for i = rawWatermark + 1, #results do tail[#tail + 1] = results[i] end
+      rawWatermark = #results
+    end
     for i = 1, #tail do foldRow(tail[i]) end
     driver.onRows(tail, rawWatermark)
     if driver.hasFullBrowseResults() then
@@ -166,7 +178,7 @@ function GC.BookPass.New(driver, opts)
   end
 
   function obj:OnResultsUpdated() handleResults() end
-  function obj:OnResultsAdded() handleResults() end
+  function obj:OnResultsAdded(added) handleResults(added) end
 
   -- Sends whichever of "the pass hasn't started yet" or "a page is due" is pending, at most
   -- one per call. Returns true only if it actually sent something -- the arbiter's own

@@ -74,7 +74,7 @@ end
 
 function GC.ForeverScan.New(driver)
   local obj = {}
-  local state = "idle" -- idle | waiting | reading | browsing
+  local state = "idle" -- idle | waiting | reading | browsing | saving
   local token = 0
   local ahOpen = false
   local acc, total, readIndex
@@ -152,16 +152,8 @@ function GC.ForeverScan.New(driver)
     end
   end
 
-  local function commit()
-    local a = acc
-    reset()
-    if a then dropCutDump(a) end
-    if not a or next(a.items) == nil then
-      note("saved nothing")
-      driver.notify("done", nil)
-      return
-    end
-    local items, count = GC.ForeverFold.Freeze(a, driver.isGear)
+  -- Writes what the scan `a` saw, frozen to `items` (`count` of them), to the save.
+  local function save(a, items, count)
     local p = driver.passport() or {}
     local source = a.replicated and (a.browsed and "replicate+browse" or "replicate") or "browse"
     -- A dump read to the end is the whole auction house: commodities and all (the owner's save of
@@ -239,6 +231,56 @@ function GC.ForeverScan.New(driver)
     driver.notify("done", { rows = a.replicated and a.rows or nil, items = count,
       partial = a.partial == true, replicated = a.replicated == true, pending = a.pending,
       skipped = a.skipped, givenUp = a.givenUp })
+  end
+
+  -- The save under way ("saving"): the scan it writes, how far the freeze got, and whether a dump
+  -- came in the meantime (OnReplicateUpdate).
+  local saving
+
+  -- Freezes the scan a slice a frame, within the read's own budget, and saves it once all of it
+  -- is frozen. In one go it was one frame of 76 ms in the game for the owner's 5800 items, on top
+  -- of the board's refresh that "done" sets off: the scan's end was its one long stall. `unbounded`
+  -- finishes it now (a logout). A driver without a clock freezes it all at once, as before.
+  local function saveStep(unbounded)
+    local sv = saving
+    if not sv or state ~= "saving" then return end
+    local clock = driver.clock
+    local started = not unbounded and clock and clock() or nil
+    local over
+    if started then
+      local entries = 0
+      over = function()
+        entries = entries + 1
+        return entries % C.READ_CLOCK_EVERY == 0 and clock() - started >= C.READ_BUDGET_MS
+      end
+    end
+    local items, count = GC.ForeverFold.Freeze(sv.a, driver.isGear, over, sv.job)
+    if not items then
+      sv.job = count
+      driver.after(0, function() if saving == sv then saveStep() end end)
+      return
+    end
+    saving = nil
+    reset()
+    save(sv.a, items, count)
+    -- A dump stage that came while this saved is read as it would have been had the save taken
+    -- no time: as a dump this scanner has not read, if it is one.
+    if sv.dumpCame then obj:OnReplicateUpdate() end
+  end
+
+  local function commit()
+    local a = acc
+    if a then dropCutDump(a) end
+    if not a or next(a.items) == nil then
+      reset()
+      note("saved nothing")
+      driver.notify("done", nil)
+      return
+    end
+    state = "saving"
+    token = token + 1
+    saving = { a = a }
+    saveStep()
   end
 
   local function toBrowse(kind)
@@ -404,6 +446,7 @@ function GC.ForeverScan.New(driver)
   function obj:OnReplicateUpdate()
     note("dump event", state, driver.numRows() or 0)
     if state == "waiting" then beginRead(); return end
+    if state == "saving" then saving.dumpCame = true; return end
     -- A later stage of the dump this scan is reading or browsing after: the client hands a dump
     -- over in stages, each with its own event (2048 rows, then the rest). It is read from the
     -- start, in place of the stage the scan has; the browse pass that stage started goes on, and
@@ -459,12 +502,16 @@ function GC.ForeverScan.New(driver)
   function obj:OnAuctionHouseClosed()
     ahOpen = false
     note("closed", state)
-    if state == "idle" then return end
+    -- A scan that is saving saw all it was going to: closing changes nothing it writes.
+    if state == "idle" or state == "saving" then return end
     if state == "waiting" then reset(); return end
     acc.partial = true
     if state == "reading" then acc.cut = true end
     commit()
   end
+
+  -- The game writes the save only after the logout's handlers: a save under way is finished now.
+  function obj:OnLogout() saveStep(true) end
 
   function obj:IsBusy() return state ~= "idle" end
   function obj:State() return state end
@@ -754,13 +801,32 @@ end
 
 -- The player's own scan as a GC.Data.GetItemValue answer (Core/Data.lua, its last source), or
 -- nil. Reads only: it runs wherever GetItemValue does, the Sell tab's compose included.
+--
+-- What it read from an entry is kept, with the entry's text: GetItemValue asks about an item
+-- several times a row on every page of a scan pass and once more for every row at its end, and
+-- decoding the text each time was most of that work (5800 items: 15 ms in LuaJIT, about six times
+-- that in the game, at the end of every pass). The same text reads the same whichever scan wrote
+-- it, so a new scan needs nothing reset: its entries are new text, and are read again.
+local readEntries = {}
+
 function GC.ForeverScan.ValueFor(itemID)
   local fold = GC.ForeverScan.Fold()
   if not fold then return nil end
-  local e = GC.ForeverFold.Decode(fold.items[itemID])
-  if not e then return nil end
-  return { mv = e.value, min = e.min, currentQty = e.qty, listings = e.lots, ts = fold.at,
-    source = "scan", kind = "own_scan", gear = e.gear or nil, browse = e.browse or nil }
+  local encoded = fold.items[itemID]
+  if encoded == nil then return nil end
+  local kept = readEntries[itemID]
+  if not kept or kept.text ~= encoded then
+    local e = GC.ForeverFold.Decode(encoded)
+    kept = { text = encoded, ok = e ~= nil }
+    if e then
+      kept.value, kept.min, kept.qty, kept.lots, kept.gear, kept.browse =
+        e.value, e.min, e.qty, e.lots, e.gear or nil, e.browse or nil
+    end
+    readEntries[itemID] = kept
+  end
+  if not kept.ok then return nil end
+  return { mv = kept.value, min = kept.min, currentQty = kept.qty, listings = kept.lots, ts = fold.at,
+    source = "scan", kind = "own_scan", gear = kept.gear, browse = kept.browse }
 end
 
 -- The gear lots of the saved fold (Core/ForeverGear.lua) and that fold, only while the lots are the
@@ -919,6 +985,7 @@ function GC.ForeverScan.OnBrowsePassDone(book) local s = scanner(); if s then s:
 function GC.ForeverScan.OnBrowsePassAbandoned(book) local s = scanner(); if s then s:OnBrowsePassAbandoned(book); repaint() end end
 function GC.ForeverScan.OnAuctionHouseShow() local s = scanner(); local r = s and s:OnAuctionHouseShow() or nil; repaint(); return r end
 function GC.ForeverScan.OnAuctionHouseClosed() local s = scanner(); if s then s:OnAuctionHouseClosed(); repaint() end end
+function GC.ForeverScan.OnLogout() local s = scanner(); if s then s:OnLogout() end end
 -- The scan machine's state and when it began, nil while it is idle. Not IsBusy: the hold on a
 -- partial read's chat block is not a scan the board should count seconds for.
 function GC.ForeverScan.Running()
