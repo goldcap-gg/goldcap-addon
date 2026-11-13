@@ -294,6 +294,156 @@ describe("ForeverUpgrades", function()
     assert.same({}, r.slots[1].alts)
   end)
 
+  describe("the best set for the gold carried", function()
+    local function cand(group, s, unit, gain, twoHand)
+      return { group = group, itemString = s, unit = unit, gain = gain, twoHand = twoHand == true,
+        diffs = { ITEM_MOD_STRENGTH_SHORT = gain } }
+    end
+
+    it("spends the purse where it adds the most", function()
+      local h1, h2 = cand("HEAD", "item:1", 70, 9), cand("HEAD", "item:2", 30, 5)
+      local c1, c2 = cand("CHEST", "item:3", 60, 8), cand("CHEST", "item:4", 25, 4)
+      local f1 = cand("FEET", "item:5", 40, 5)
+      -- The strongest head first leaves 30 for a 4-point chest (13); the cheaper head pays for all
+      -- three: 30 + 25 + 40 = 95 for 5 + 4 + 5.
+      local set = U.BestSet({ HEAD = { h1, h2 }, CHEST = { c1, c2 }, FEET = { f1 } }, 100)
+      assert.equal(h2, set.picks.HEAD); assert.equal(c2, set.picks.CHEST); assert.equal(f1, set.picks.FEET)
+      assert.equal(3, #set.list)
+      assert.equal(h2, set.list[1]); assert.equal(c2, set.list[2]); assert.equal(f1, set.list[3])   -- GROUPS order
+      assert.equal(95, set.cost); assert.equal(14, set.gain); assert.equal(5, set.left)
+      assert.same({ ITEM_MOD_STRENGTH_SHORT = 14 }, set.diffs)
+    end)
+
+    it("buys nothing when nothing fits", function()
+      assert.same({ picks = {}, list = {}, cost = 0, gain = 0, left = 0, diffs = {} },
+        U.BestSet({ HEAD = { cand("HEAD", "item:1", 70, 9) } }, 0))
+      assert.same({}, U.BestSet({ HEAD = { cand("HEAD", "item:1", 70, 9) } }, 69).picks)
+      -- HERO plan, Review Focus 1: at 0 gold every slot still shows its strongest piece, and the set is empty.
+      items[131] = { loc = "INVTYPE_HAND", class = 4, sub = 2 }
+      statsOf["item:131"] = STR(10)
+      local r = U.Build(gear({ [131] = "3000:0:0" }), drv({ money = function() return 0 end }), W)
+      assert.equal(1, #r.slots)
+      assert.is_true(r.slots[1].best.overGold)
+      assert.is_false(r.slots[1].best.inSet)
+      assert.same({}, r.set.picks)
+      assert.equal(0, r.set.cost); assert.equal(0, r.set.left)
+    end)
+
+    it("gives nothing without a money read", function()
+      assert.is_nil(U.BestSet({ HEAD = { cand("HEAD", "item:1", 70, 9) } }, nil))
+      items[131] = { loc = "INVTYPE_HAND", class = 4, sub = 2 }
+      statsOf["item:131"] = STR(10)
+      local r = U.Build(gear({ [131] = "30:0:0" }), drv(), W)
+      assert.is_nil(r.set)
+      assert.is_false(r.slots[1].best.inSet)
+    end)
+
+    it("weighs a two-hander against both hands", function()
+      local two = cand("MAINHAND", "item:10", 80, 15, true)
+      local one, off = cand("MAINHAND", "item:11", 40, 8), cand("OFFHAND", "item:12", 40, 5)
+      local set = U.BestSet({ MAINHAND = { two, one }, OFFHAND = { off } }, 100)
+      assert.equal(two, set.picks.MAINHAND); assert.is_nil(set.picks.OFFHAND)   -- 15 beats 8 + 5
+      off = cand("OFFHAND", "item:12", 40, 8)
+      set = U.BestSet({ MAINHAND = { two, one }, OFFHAND = { off } }, 100)
+      assert.equal(one, set.picks.MAINHAND); assert.equal(off, set.picks.OFFHAND)   -- 8 + 8 beats 15
+      -- Never a two-hander with an off hand, however much gold: 15 + 8 for 120 is not a choice.
+      set = U.BestSet({ MAINHAND = { two, one }, OFFHAND = { off } }, 200)
+      assert.equal(one, set.picks.MAINHAND); assert.equal(off, set.picks.OFFHAND)
+      assert.equal(80, set.cost)
+    end)
+
+    -- HERO plan, Review Focus 3: one lot cannot fill two hands.
+    it("never puts one lot in both hands", function()
+      local w = { STR = 1, DPS = 7 }
+      items[1900] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
+      items[1901] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
+      statsOf["item:1900"], statsOf["item:1901"] = DPS(10), DPS(8)
+      -- Main hand: 70 and 56. Off hand: 35 and 28. The stronger sword is the best choice for both.
+      local d = drv({ money = function() return 1000 end })
+      local r = U.Build(gear({ [1900] = "50:0:0", [1901] = "30:0:0" }), d, w)
+      assert.equal(1900, r.set.picks.MAINHAND.itemID)
+      assert.equal(1901, r.set.picks.OFFHAND.itemID)
+      assert.equal(80, r.set.cost); assert.equal(98, r.set.gain)
+      assert.equal("MAINHAND", r.slots[1].group)
+      assert.is_true(r.slots[1].best.inSet)
+      assert.equal("OFFHAND", r.slots[2].group)
+      assert.is_false(r.slots[2].best.inSet)                       -- the stronger sword, in the other hand
+      assert.equal(1901, r.slots[2].alts[1].itemID)                -- the set's off hand comes first
+      assert.is_true(r.slots[2].alts[1].inSet)
+      -- The weaker sword dearer than the stronger one: still the off hand's piece, though no
+      -- price frontier of the off hand alone holds it.
+      r = U.Build(gear({ [1900] = "50:0:0", [1901] = "60:0:0" }), d, w)
+      assert.equal(1900, r.set.picks.MAINHAND.itemID)
+      assert.equal(1901, r.set.picks.OFFHAND.itemID)
+      assert.equal(110, r.set.cost)
+      -- One sword only: one hand.
+      r = U.Build(gear({ [1900] = "50:0:0" }), d, w)
+      assert.equal(1900, r.set.picks.MAINHAND.itemID)
+      assert.is_nil(r.set.picks.OFFHAND)
+      assert.equal(50, r.set.cost)
+    end)
+
+    it("offers a one-hander that a cheaper, stronger two-hander would hide, for its pair with the off hand", function()
+      local w = { STR = 1 }
+      items[1950] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
+      items[1951] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }
+      items[1952] = { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
+      statsOf = { ["item:1950"] = STR(10), ["item:1951"] = STR(9), ["item:1952"] = STR(5) }
+      local r = U.Build(gear({ [1950] = "40:0:0", [1951] = "50:0:0", [1952] = "30:0:0" }),
+        drv({ money = function() return 100 end }), w)
+      assert.equal(1951, r.set.picks.MAINHAND.itemID)               -- 9 + 5 for 80 beats 10 for 40
+      assert.equal(1952, r.set.picks.OFFHAND.itemID)
+    end)
+
+    it("reads at most FRONTIER_CHECKS tooltips for a slot's set choices", function()
+      local lots, asked = { [1460] = "100:0:0" }, {}
+      items[1460] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+      statsOf["item:1460"] = STR(20)
+      -- Ten a little cheaper, each red on the tooltip: all over the 80% step, so only the set's walk
+      -- reads them.
+      for i = 1, 10 do
+        local id = 1460 + i
+        items[id] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+        statsOf["item:" .. id] = STR(19 - i)
+        lots[id] = (91 - i) .. ":0:0"
+        usableOf["item:" .. id] = false
+      end
+      local d = drv({ money = function() return 500 end,
+        usable = function(s) asked[#asked + 1] = s; return usableOf[s] end })
+      local r = U.Build(gear(lots), d, W)
+      assert.equal(1460, r.set.picks.CHEST.itemID)
+      assert.same({}, r.slots[1].alts)
+      assert.equal(1 + U.C.FRONTIER_CHECKS, #asked)                -- the strongest, then eight of the ten
+    end)
+
+    it("counts the set's piece, shown first, as the last one shown for the 80% step", function()
+      for _, id in ipairs({ 1970, 1971, 1972 }) do items[id] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 } end
+      statsOf = { ["item:1970"] = STR(10), ["item:1971"] = STR(8), ["item:1972"] = STR(7) }
+      local r = U.Build(gear({ [1970] = "100:0:0", [1971] = "60:0:0", [1972] = "55:0:0" }),
+        drv({ money = function() return 70 end }), W)
+      assert.equal(1970, r.slots[1].best.itemID)                     -- over the gold
+      assert.equal(1971, r.set.picks.CHEST.itemID)
+      assert.same({ 1971 }, idsOf(r.slots[1].alts))                -- 55 is over 48, 80% of the set's 60
+    end)
+
+    it("builds no set on the count-only path, which only counts slots", function()
+      items[131] = { loc = "INVTYPE_HAND", class = 4, sub = 2 }
+      statsOf["item:131"] = STR(10)
+      local r = U.Build(gear({ [131] = "30:0:0" }), drv({ money = function() return 1000 end }), W, true)
+      assert.equal(1, #r.slots)
+      assert.is_nil(r.set)
+    end)
+
+    it("keeps the cheapest SET_STATES states when the front grows past them", function()
+      local h, c = cand("HEAD", "item:1", 10, 5), cand("CHEST", "item:2", 20, 6)
+      assert.equal(11, U.BestSet({ HEAD = { h }, CHEST = { c } }, 100).gain)
+      U.C.SET_STATES = 2                                           -- (0, 0) and the head alone survive
+      local set = U.BestSet({ HEAD = { h }, CHEST = { c } }, 100)
+      assert.equal(h, set.picks.HEAD); assert.is_nil(set.picks.CHEST)
+      assert.equal(5, set.gain)
+    end)
+  end)
+
   it("says a scan saved before suffix versions is stale", function()
     items[101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
     statsOf["item:101"] = STR(3)

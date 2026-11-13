@@ -4,11 +4,12 @@ local _, GC = ...
 -- equipment slot, the piece in the player's last full scan (Core/ForeverGear.lua's lots) that this
 -- character can use now and that beats what it wears by the most, whatever it costs (one over the
 -- gold carried is marked overGold, not hidden); one a level or two ahead when nothing usable now
--- does. Beside it, up to ALTS others: a stronger piece a level or two ahead, and cheaper ones on the
--- price frontier. It used to be the cheapest piece that beat the worn one at all, which on the
--- owner's save (2026-11-06) offered "+1 armour" for 1s in every slot while greens with agility sat
--- a silver or two dearer; then the strongest the gold carried paid for, which at 0 gold showed one
--- line saying everything costs more and never the piece itself (owner's scan, 2026-11-13).
+-- does. Beside it, up to ALTS others: the piece the best set for the gold carried puts there
+-- (BestSet), a stronger piece a level or two ahead, and cheaper ones on the price frontier. It used
+-- to be the cheapest piece that beat the worn one at all, which on the owner's save (2026-11-06)
+-- offered "+1 armour" for 1s in every slot while greens with agility sat a silver or two dearer;
+-- then the strongest the gold carried paid for, which at 0 gold showed one line saying everything
+-- costs more and never the piece itself (owner's scan, 2026-11-13).
 --
 -- A score is the piece's own stats -- the client's GetItemStats, never a guess -- times the
 -- class's stat weights, which the player sees in the window and changes with /gc weights. A piece
@@ -33,7 +34,8 @@ local C = {
   -- Each cheaper choice costs at most this share of the one shown before it (the first, of the
   -- strongest): 100, 90, 80 would be three lines saying the same thing.
   ALT_PRICE_STEP = 0.8,
-  FRONTIER_CHECKS = 8,     -- tooltip reads per slot for its cheaper choices
+  FRONTIER_CHECKS = 8,     -- tooltip reads per slot for its cheaper choices, and again for its set choices
+  SET_STATES = 400,        -- the best set's partial sets kept after each group (BestSet)
   REQUEST_PER_BUILD = 100, -- item-data requests per build
   -- The seconds between a class's weapon-swing abilities, for a class whose main hand is weighed by
   -- its speed (DpsFactor): a rogue's Sinister Strike costs 45 energy and energy comes back at 10 a
@@ -286,6 +288,100 @@ local function merged(a, b)
   return out
 end
 
+local function byCost(a, b)
+  if a.cost ~= b.cost then return a.cost < b.cost end
+  if a.gain ~= b.gain then return a.gain > b.gain end
+  return a.seq < b.seq
+end
+
+-- The entries no cheaper one matches in gain, cheapest first; on a tie in both, the one made first.
+local function paretoFront(list)
+  table.sort(list, byCost)
+  local out = {}
+  for _, e in ipairs(list) do
+    if #out == 0 or e.gain > out[#out].gain then out[#out + 1] = e end
+  end
+  return out
+end
+
+-- The strongest set the gold carried pays for (HERO plan, 2026-11-13): at most one piece per group,
+-- the most gain whose prices add up to no more than money. options[group]: the group's choices, as
+-- Build makes them (unit, gain, diffs, itemString, twoHand). The two hands are one group: nothing,
+-- either hand alone, both (never one item string in both: one lot cannot fill two hands), or a
+-- two-hander alone. A multiple-choice knapsack over Pareto states: after each group only the
+-- partial sets no cheaper one matches in gain are kept, the cheapest SET_STATES of them.
+-- nil without a money read; otherwise { picks = { [group] = cand }, list (the picks in GROUPS
+-- order), cost, gain, left = money - cost, diffs (the picks' summed) }.
+function GC.ForeverUpgrades.BestSet(options, money)
+  money = tonumber(money)
+  if money == nil then return nil end
+  if type(options) ~= "table" then options = {} end
+  local steps = {}
+  for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
+    local raw = {}
+    local function offer(...)
+      local cands, cost, gain = { ... }, 0, 0
+      for _, c in ipairs(cands) do cost, gain = cost + c.unit, gain + c.gain end
+      if cost <= money then raw[#raw + 1] = { cost = cost, gain = gain, seq = #raw + 1, cands = cands } end
+    end
+    if g.key == "MAINHAND" then
+      local offs = options.OFFHAND or {}
+      for _, m in ipairs(options.MAINHAND or {}) do
+        offer(m)
+        if not m.twoHand then
+          for _, o in ipairs(offs) do
+            if o.itemString ~= m.itemString then offer(m, o) end
+          end
+        end
+      end
+      for _, o in ipairs(offs) do offer(o) end
+    elseif g.key ~= "OFFHAND" then
+      for _, c in ipairs(options[g.key] or {}) do offer(c) end
+    end
+    -- A choice another one of the group beats for no more gold is never part of the best set.
+    if #raw > 0 then steps[#steps + 1] = paretoFront(raw) end
+  end
+
+  local seq = 0
+  local states = { { cost = 0, gain = 0, seq = 0 } }
+  for _, choices in ipairs(steps) do
+    local grown = {}
+    for _, st in ipairs(states) do
+      grown[#grown + 1] = st
+      for _, ch in ipairs(choices) do
+        local cost = st.cost + ch.cost
+        if cost <= money then
+          seq = seq + 1
+          grown[#grown + 1] = { cost = cost, gain = st.gain + ch.gain, seq = seq, up = st, take = ch.cands }
+        end
+      end
+    end
+    states = paretoFront(grown)
+    for i = #states, C.SET_STATES + 1, -1 do states[i] = nil end
+  end
+
+  -- The front's gain only grows with its cost: its last state is the strongest, and the cheapest
+  -- of the strongest.
+  local top = states[#states]
+  local picks, st = {}, top
+  while st.up do
+    for _, c in ipairs(st.take) do picks[c.group] = c end
+    st = st.up
+  end
+  local list, diffs = {}, {}
+  for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
+    local c = picks[g.key]
+    if c then
+      list[#list + 1] = c
+      for k, v in pairs(c.diffs or {}) do diffs[k] = (diffs[k] or 0) + v end
+    end
+  end
+  for k, v in pairs(diffs) do
+    if v == 0 then diffs[k] = nil end
+  end
+  return { picks = picks, list = list, cost = top.cost, gain = top.gain, left = money - top.cost, diffs = diffs }
+end
+
 -- skipUsable (final review 2026-09-27): the count-only path (the upgrades window is closed, so
 -- nothing will render its rows) skips driver.usable's tooltip read entirely -- up to ~140
 -- C_TooltipInfo.GetHyperlink calls, the priciest primitive here -- and picks straight off
@@ -296,12 +392,14 @@ end
 --
 -- opts.style: StyleFor's answer. "backstab" keeps the main hand to daggers; nil filters nothing.
 --
--- The answer: { slots, loading, loadingIds, stale?, noWeights?, noScan? }
+-- The answer: { slots, set, loading, loadingIds, stale?, noWeights?, noScan? }
 --   slots[i]     in GROUPS order, only the groups with a pick: { group, labelKey, best, alts, worn },
 --                worn the link of the piece the slot is weighed against, or nil.
 --   a candidate  { group, itemID, itemString, link, unit, gain, diffs, later, overGold, inSet,
 --                version, twoHand }: version the lot's bonus (nil for a lot saved without one),
 --                overGold true when the gold carried is below unit, twoHand for INVTYPE_2HWEAPON.
+--   set          BestSet's answer, its picks marked inSet; nil without a money read, and on the
+--                count-only path, which only counts slots.
 --   stale        gear saved before suffix versions (v1): every version there reads as its base.
 -- Until the HERO tab replaces UI/ForeverUpgradesFrame.lua, rows (each slot's best, with its
 -- labelKey) and dearer = 0 keep that window drawing as before.
@@ -501,8 +599,44 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
     if best then picked[g.key] = { now = now, later = later, best = best } end
   end
 
-  -- The piece the set puts in each group, for the first of its other choices.
+  -- The set's choices per group, walked strongest first like the other choices below: the
+  -- affordable usable-now pieces on its price frontier, each at or under the gold carried and
+  -- cheaper than every stronger one kept. The hands keep one more: a piece only one stronger,
+  -- cheaper piece beats, since that one may be in the other hand (a sword in each hand needs the
+  -- second sword even when it is dearer). A two-hander walks a frontier of its own: it never pairs
+  -- with an off hand, so a cheaper, stronger one does not make a one-hander and a shield a worse
+  -- pair. FRONTIER_CHECKS reads per group, a budget of its own. Not on the count-only path.
   local setPick = {}
+  if money ~= nil and not skipUsable then
+    local options = {}
+    for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
+      local p = picked[g.key]
+      if p then
+        local hands = g.key == "MAINHAND" or g.key == "OFFHAND"
+        local list, reads, low = {}, 0, { one = { math.huge, math.huge }, two = { math.huge, math.huge } }
+        for _, c in ipairs(p.now) do
+          local t = low[c.twoHand and "two" or "one"]
+          local room = (hands and not c.twoHand) and t[2] or t[1]
+          if c.unit <= money and c.unit < room then
+            if usableOf[c.itemString] == nil then
+              if reads >= C.FRONTIER_CHECKS then break end
+              reads = reads + 1
+            end
+            if usableCandidate(c) then
+              list[#list + 1] = c
+              if c.unit < t[1] then t[1], t[2] = c.unit, t[1] else t[2] = c.unit end
+            end
+          end
+        end
+        options[g.key] = list
+      end
+    end
+    out.set = GC.ForeverUpgrades.BestSet(options, money)
+    for key, c in pairs(out.set.picks) do
+      c.inSet = true
+      setPick[key] = c
+    end
+  end
 
   -- The other choices beside each strongest piece, in this order, at most ALTS, never the strongest
   -- itself and never one item string twice:
