@@ -192,7 +192,8 @@ describe("ForeverFold", function()
     local acc = F.New()
     for id = 1, 30 do F.AddRow(acc, 100 + id, 2, 50 * id, true) end
     local whole, wholeN = F.Freeze(acc)
-    local calls, job, out, n = 0, nil, nil, nil
+    local calls, job = 0, nil
+    local out, n
     repeat
       local entries = 0
       out, n = F.Freeze(acc, nil, function() entries = entries + 1 return entries >= 7 end, job)
