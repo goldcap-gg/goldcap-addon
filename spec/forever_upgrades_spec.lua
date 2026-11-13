@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 
 describe("ForeverUpgrades", function()
-  local GC, U, items, statsOf, usableOf, worn, requested
+  local GC, U, items, statsOf, usableOf, speedOf, worn, requested
   local W = { STR = 1, STA = 0.5 }
 
   local function drv(over)
@@ -19,6 +19,7 @@ describe("ForeverUpgrades", function()
       end,
       stats = function(s) return statsOf[s] end,
       usable = function(s) return usableOf[s] end,
+      speed = function(s) return speedOf[s] end,
       requestLoad = function(id) requested[#requested + 1] = id end,
     }
     for k, v in pairs(over or {}) do d[k] = v end
@@ -27,12 +28,23 @@ describe("ForeverUpgrades", function()
 
   local function gear(t) return { v = 1, at = 5, items = t } end
   local function STR(n) return { ITEM_MOD_STRENGTH_SHORT = n } end
+  local function DPS(n) return { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = n } end
+  local function idsOf(list)
+    local out = {}
+    for i, c in ipairs(list) do out[i] = c.itemID end
+    return out
+  end
+  local function rogue(over)
+    local d = drv(over)
+    d.classFile = function() return "ROGUE" end
+    return d
+  end
 
   before_each(function()
     GC = helper.loadModule("Core/ForeverGear.lua")
     helper.loadModule("Core/ForeverUpgrades.lua", GC)
     U = GC.ForeverUpgrades
-    items, statsOf, usableOf, worn, requested = {}, {}, {}, {}, {}
+    items, statsOf, usableOf, speedOf, worn, requested = {}, {}, {}, {}, {}, {}
   end)
 
   -- Owner, 2026-11-06: the cheapest piece that beat the worn one offered "+1 armour" for 1s in every
@@ -70,15 +82,54 @@ describe("ForeverUpgrades", function()
     assert.equal(142, r.rows[1].itemID)
   end)
 
-  it("takes a cheaper piece instead when it gives at least NEAR_BEST of the best one's gain", function()
+  -- HERO plan (2026-11-13): the strongest piece leads, and a cheaper one nearly as good sits beside
+  -- it instead of taking its place (NEAR_BEST used to swap them, so the strongest was never seen).
+  it("shows the strongest piece first and cheaper ones nearly as good beside it", function()
     for _, id in ipairs({ 111, 112, 113 }) do items[id] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 } end
     statsOf = { ["item:111"] = STR(20), ["item:112"] = STR(18), ["item:113"] = STR(19) }
-    -- 18 is 90% of 20: the cheapest of the near ones (112 at 120), not 113 at 400.
     local r = U.Build(gear({ [111] = "5000:0:0", [112] = "120:0:0", [113] = "400:0:0" }), drv(), W)
-    assert.equal(112, r.rows[1].itemID)
-    statsOf["item:112"] = STR(17)                           -- 85%: no longer near, 113 (95%) is
-    r = U.Build(gear({ [111] = "5000:0:0", [112] = "120:0:0", [113] = "400:0:0" }), drv(), W)
-    assert.equal(113, r.rows[1].itemID)
+    assert.equal(1, #r.slots)
+    assert.equal(111, r.slots[1].best.itemID)
+    assert.same({ 113, 112 }, idsOf(r.slots[1].alts))       -- strongest first: 400 is under 80% of 5000, 120 of 400
+  end)
+
+  it("lists cheaper pieces on the price frontier, each at most 80% of the last one's price", function()
+    local lots = {}
+    for id, pg in pairs({ [1401] = { 100, 10 }, [1402] = { 90, 9.5 }, [1403] = { 60, 8 }, [1404] = { 50, 4 },
+        [1405] = { 20, 3 } }) do
+      items[id] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+      statsOf["item:" .. id] = STR(pg[2])
+      lots[id] = pg[1] .. ":0:0"
+    end
+    -- By gain: 90 is over 80 (80% of 100), 60 is taken, 50 is over 48 (80% of 60), 20 is taken.
+    local r = U.Build(gear(lots), drv(), W)
+    assert.equal(1401, r.slots[1].best.itemID)
+    assert.same({ 1403, 1405 }, idsOf(r.slots[1].alts))
+    -- A frontier piece the tooltip refuses is not shown, and does not hide the ones it was ahead of.
+    usableOf["item:1403"] = false
+    r = U.Build(gear(lots), drv(), W)
+    assert.same({ 1404, 1405 }, idsOf(r.slots[1].alts))
+  end)
+
+  it("reads at most FRONTIER_CHECKS tooltips for the cheaper pieces of a slot, none for one over the step", function()
+    local lots, asked = { [1450] = "1000:0:0" }, {}
+    items[1450] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+    statsOf["item:1450"] = STR(20)
+    items[1451] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }      -- 900: over 80% of 1000, never read
+    statsOf["item:1451"], lots[1451] = STR(19), "900:0:0"
+    for i = 1, 10 do                                               -- ten cheaper ones, each red on the tooltip
+      local id = 1460 + i
+      items[id] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+      statsOf["item:" .. id] = STR(19 - i)
+      lots[id] = (800 - i) .. ":0:0"
+      usableOf["item:" .. id] = false
+    end
+    local d = drv({ usable = function(s) asked[#asked + 1] = s; return usableOf[s] end })
+    local r = U.Build(gear(lots), d, W)
+    assert.equal(1450, r.slots[1].best.itemID)
+    assert.same({}, r.slots[1].alts)
+    assert.equal(1 + U.C.FRONTIER_CHECKS, #asked)                  -- the strongest, then eight of the ten
+    for _, s in ipairs(asked) do assert.are_not.equal("item:1451", s) end
   end)
 
   it("passes over the strongest piece when the tooltip says it cannot be used", function()
@@ -89,24 +140,165 @@ describe("ForeverUpgrades", function()
     assert.equal(122, r.rows[1].itemID)
   end)
 
-  it("offers only what the gold carried pays for, and counts the slots it priced out", function()
+  -- HERO plan, Finding 4 (owner's scan, 2026-11-13): at 0 gold the window showed one line saying
+  -- everything costs more, so the strongest piece on the auction house was never seen.
+  it("shows the strongest piece even when it costs more than the gold carried, marked", function()
     for _, id in ipairs({ 131, 132 }) do items[id] = { loc = "INVTYPE_HAND", class = 4, sub = 2 } end
     items[133] = { loc = "INVTYPE_WAIST", class = 4, sub = 2 }
     statsOf = { ["item:131"] = STR(10), ["item:132"] = STR(3), ["item:133"] = STR(6) }
     local g = gear({ [131] = "3000:0:0", [132] = "200:0:0", [133] = "900:0:0" })
     local r = U.Build(g, drv({ money = function() return 1000 end }), W)
-    assert.equal(2, #r.rows)
-    assert.equal(132, r.rows[1].itemID)                     -- hands: 131 costs more than 1000c
-    assert.equal(133, r.rows[2].itemID)                     -- waist: 900c fits
-    assert.equal(0, r.dearer)
-    r = U.Build(g, drv({ money = function() return 100 end }), W)
-    assert.equal(0, #r.rows)
-    assert.equal(2, r.dearer)                               -- hands and waist: upgrades, all too dear
-    r = U.Build(g, drv(), W)                                -- no money read: every price
-    assert.equal(131, r.rows[1].itemID)
+    assert.equal(2, #r.slots)
+    local hands, waist = r.slots[1], r.slots[2]
+    assert.equal("HANDS", hands.group)
+    assert.equal(131, hands.best.itemID); assert.is_true(hands.best.overGold)   -- 3000c, more than 1000c
+    assert.equal(132, hands.alts[1].itemID); assert.is_false(hands.alts[1].overGold)
+    assert.equal(133, waist.best.itemID); assert.is_false(waist.best.overGold)  -- 900c fits
+    r = U.Build(g, drv({ money = function() return 0 end }), W)
+    assert.equal(2, #r.slots)
+    assert.is_true(r.slots[1].best.overGold); assert.is_true(r.slots[2].best.overGold)
+    assert.equal(0, r.dearer)                               -- the old window's count of hidden slots: none now
+    r = U.Build(g, drv(), W)                                -- no money read: nothing is over it
+    assert.is_false(r.slots[1].best.overGold)
     usableOf = { ["item:133"] = false }                     -- the waist piece is red on the tooltip
-    r = U.Build(g, drv({ money = function() return 100 end }), W)
-    assert.equal(1, r.dearer)                               -- only hands count
+    r = U.Build(g, drv({ money = function() return 0 end }), W)
+    assert.equal(1, #r.slots)
+  end)
+
+  it("offers a one-hand weapon for the off hand to a class that dual-wields", function()
+    items[1300] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }    -- a one-handed sword
+    statsOf["item:1300"] = DPS(10)
+    local g, w = gear({ [1300] = "40:0:0" }), { STR = 1, DPS = 7 }
+    local r = U.Build(g, drv(), w)                                 -- a level-20 warrior dual-wields
+    assert.equal(2, #r.slots)
+    assert.equal("MAINHAND", r.slots[1].group)
+    assert.equal(70, r.slots[1].best.gain)
+    assert.equal("OFFHAND", r.slots[2].group); assert.equal("INVTYPE_WEAPONOFFHAND", r.slots[2].labelKey)
+    assert.same({ group = "OFFHAND", itemID = 1300, itemString = "item:1300", link = "[item:1300]", unit = 40,
+      gain = 35, diffs = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 }, overGold = false, inSet = false,
+      twoHand = false }, r.slots[2].best)                          -- the off hand swings for half
+    assert.are_not.equal(r.slots[1].best, r.slots[2].best)         -- one candidate per hand
+    local mage = U.Build(g, drv({ classFile = function() return "MAGE" end }), w)
+    assert.equal(1, #mage.slots)
+    assert.equal("MAINHAND", mage.slots[1].group)
+  end)
+
+  it("keeps only daggers for the main hand of a Backstab rogue", function()
+    local R = { AGI = 1 }
+    items[1500] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }    -- sword
+    items[1501] = { loc = "INVTYPE_WEAPON", class = 2, sub = 15 }   -- dagger
+    statsOf["item:1500"], statsOf["item:1501"] = { ITEM_MOD_AGILITY_SHORT = 9 }, { ITEM_MOD_AGILITY_SHORT = 5 }
+    local g = gear({ [1500] = "50:0:0", [1501] = "40:0:0" })
+    local r = U.Build(g, rogue(), R, false, { style = "backstab" })
+    assert.equal("MAINHAND", r.slots[1].group)
+    assert.equal(1501, r.slots[1].best.itemID)
+    assert.same({}, r.slots[1].alts)                              -- the sword is not offered for it
+    assert.equal("OFFHAND", r.slots[2].group)
+    assert.equal(1500, r.slots[2].best.itemID)                     -- the off hand takes any
+    assert.equal(1500, U.Build(g, rogue(), R, false, { style = "sinister" }).slots[1].best.itemID)
+    assert.equal(1500, U.Build(g, rogue(), R).slots[1].best.itemID)   -- no style: no filter
+  end)
+
+  it("picks a slower sword over a faster one with the same DPS for Sinister Strike", function()
+    local R = { AGI = 1, DPS = 7 }
+    items[1600] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }
+    items[1601] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }
+    statsOf["item:1600"], statsOf["item:1601"] = DPS(10), DPS(10)
+    speedOf = { ["item:1600"] = 1.8, ["item:1601"] = 2.7 }
+    local g = gear({ [1600] = "50:0:0", [1601] = "50:0:0" })
+    local r = U.Build(g, rogue(), R, false, { style = "sinister" })
+    assert.equal(1601, r.slots[1].best.itemID)
+    assert.near(70 * U.DpsFactor("ROGUE", "MAINHAND", 2.7), r.slots[1].best.gain, 1e-9)
+    -- A warrior has no ability timer: the same gain, and the tie goes to the lower item string.
+    assert.equal(1600, U.Build(g, drv(), { STR = 1, DPS = 7 }).slots[1].best.itemID)
+    -- The worn sword is weighed by its own speed too: 9 DPS at 2.7 beats 10 at 1.8.
+    worn[16] = "item:1690"
+    statsOf["item:1690"], speedOf["item:1690"] = DPS(9), 2.7
+    r = U.Build(g, rogue(), R, false, { style = "sinister" })
+    assert.equal(1, #r.slots)
+    assert.equal(1601, r.slots[1].best.itemID)
+    assert.same({}, r.slots[1].alts)
+    assert.equal("item:1690", r.slots[1].worn)
+  end)
+
+  it("reads a weapon's speed only for a rogue's main hand, once its stats answered, never on the count path", function()
+    local R = { AGI = 1, DPS = 7 }
+    items[1700] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }           -- either hand
+    items[1701] = { loc = "INVTYPE_RANGEDRIGHT", class = 2, sub = 3 }      -- a gun
+    items[1702] = { loc = "INVTYPE_HAND", class = 4, sub = 2 }
+    items[1703] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }   -- its stats not answered yet
+    worn[16] = "item:1790"
+    statsOf = { ["item:1700"] = DPS(10), ["item:1701"] = DPS(10), ["item:1702"] = { ITEM_MOD_AGILITY_SHORT = 3 },
+      ["item:1790"] = DPS(5) }
+    local asked = {}
+    local function speed(s) asked[#asked + 1] = s; return 2.6 end
+    local g = gear({ [1700] = "10:0:0", [1701] = "10:0:0", [1702] = "10:0:0", [1703] = "10:0:0" })
+    U.Build(g, rogue({ speed = speed }), R)
+    table.sort(asked)
+    assert.same({ "item:1700", "item:1790" }, asked)               -- the main-hand candidate and the worn one
+    asked = {}
+    local r = U.Build(g, rogue({ speed = speed, usable = function() error("a tooltip read on the count path") end }),
+      R, true)
+    assert.same({}, asked)
+    assert.equal(4, #r.slots)                                     -- main hand, off hand, gloves, ranged
+    U.Build(g, drv({ speed = speed }), { STR = 1, DPS = 7 })      -- a warrior
+    assert.same({}, asked)
+    U.Build(g, rogue({ speed = speed }), { AGI = 1 })              -- weights that do not count DPS
+    assert.same({}, asked)
+  end)
+
+  -- HERO plan, Review Focus 2: the client's item cache answers part of the lots, and two builds over
+  -- the same answers must show the same thing (the 0.28.1 rows came and went every half second).
+  it("gives the same slots twice over the same answers", function()
+    items[1800] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+    items[1801] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+    items[1802] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
+    items[1803] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
+    items[1804] = { loc = "INVTYPE_FEET", class = 4, sub = 2, loading = true }
+    for _, id in ipairs({ 1805, 1806, 1807 }) do items[id] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 } end
+    statsOf = { ["item:1800:0:0:0:0:0:-5:3"] = STR(8), ["item:1800:0:0:0:0:0:-6:3"] = STR(8), ["item:1801"] = STR(8),
+      ["item:1802"] = STR(6), ["item:1803"] = STR(6), ["item:1805"] = STR(9), ["item:1806"] = STR(4),
+      ["item:1807"] = STR(4) }
+    local entries = { { 1800, "100:-5:3 100:-6:3" }, { 1801, "100:0:0" }, { 1802, "60:0:0" }, { 1803, "60:0:0" },
+      { 1804, "5:0:0" }, { 1805, "500:0:0" }, { 1806, "90:0:0" }, { 1807, "90:0:0" } }
+    local function gearOf(list)
+      local t = {}
+      for _, e in ipairs(list) do t[e[1]] = e[2] end
+      return gear(t)
+    end
+    local d = drv({ money = function() return 150 end })
+    local a = U.Build(gearOf(entries), d, W)
+    assert.same(a, U.Build(gearOf(entries), d, W))
+    local reversed = {}
+    for i = #entries, 1, -1 do reversed[#reversed + 1] = entries[i] end
+    assert.same(a, U.Build(gearOf(reversed), d, W))
+    -- Ties go to the lower price, then the lower item string.
+    assert.equal("item:1805", a.slots[1].best.itemString)
+    assert.equal(1, #a.slots[1].alts)
+    assert.equal("item:1806", a.slots[1].alts[1].itemString)
+    assert.equal("item:1800:0:0:0:0:0:-5:3", a.slots[2].best.itemString)
+    assert.equal(1, a.loading)
+  end)
+
+  it("offers a stronger piece a level or two ahead beside the strongest one usable now", function()
+    items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 22 }
+    items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 18 }
+    items[603] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 21 }   -- ahead, but weaker than 602
+    statsOf = { ["item:600"] = STR(5), ["item:602"] = STR(2), ["item:603"] = { ITEM_MOD_STRENGTH_SHORT = 1.5 } }
+    local r = U.Build(gear({ [600] = "10:0:0", [602] = "999:0:0", [603] = "1:0:0" }), drv(), W)
+    assert.equal(602, r.slots[1].best.itemID)
+    assert.same({ 600 }, idsOf(r.slots[1].alts))
+    assert.equal(22, r.slots[1].alts[1].later)
+    r = U.Build(gear({ [600] = "10:0:0", [603] = "1:0:0" }), drv(), W)   -- nothing usable now: the ahead one leads
+    assert.equal(600, r.slots[1].best.itemID)
+    assert.same({}, r.slots[1].alts)
+  end)
+
+  it("says a scan saved before suffix versions is stale", function()
+    items[101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
+    statsOf["item:101"] = STR(3)
+    assert.is_true(U.Build({ v = 1, at = 5, items = { [101] = "10:0:0" } }, drv(), W).stale)
+    assert.is_nil(U.Build({ v = 2, at = 5, items = { [101] = "10:0:0" } }, drv(), W).stale)
   end)
 
   it("scores each version of a random-suffix item by its own stats", function()
@@ -334,7 +526,7 @@ describe("ForeverUpgrades in the client", function()
   local GC, db, printed, saved
   local INFO = { [101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2, stats = { ITEM_MOD_STRENGTH_SHORT = 8 } } }
   local KEYS = { "C_Item", "UnitLevel", "UnitClass", "GetInventoryItemLink", "C_TooltipInfo", "GetItemStats",
-    "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_STAMINA_SHORT" }
+    "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_STAMINA_SHORT", "GetMoney" }
 
   local function init(interface)
     GC.ForeverScan.Init(db, { passport = function() return { interface = interface, region = 90, realm = "Forever" } end })
@@ -356,7 +548,7 @@ describe("ForeverUpgrades in the client", function()
     _G.UnitLevel = function() return 20 end
     _G.UnitClass = function() return "Warrior", "WARRIOR", 1 end
     _G.GetInventoryItemLink = function() return nil end
-    _G.C_TooltipInfo, _G.GetItemStats = nil, nil
+    _G.C_TooltipInfo, _G.GetItemStats, _G.GetMoney = nil, nil, nil
     _G.ITEM_MOD_STRENGTH_SHORT, _G.ITEM_MOD_STAMINA_SHORT = "Strength", "Stamina"
     GC = helper.loadModule("Core/Util.lua")
     for _, f in ipairs({ "Core/Game.lua", "Core/ForeverFold.lua", "Core/ForeverGear.lua", "Core/ForeverScan.lua",
@@ -371,13 +563,21 @@ describe("ForeverUpgrades in the client", function()
 
   after_each(function() for _, k in ipairs(KEYS) do _G[k] = saved[k] end end)
 
-  it("counts the upgrades after a scan through the client's own reads", function()
+  it("counts slots after a scan, through the client's own reads", function()
     init(16001)
     GC.ForeverUpgrades.PrintCount()
     assert.same({ "Upgrades for your gear on the auction house: 1. Type /gc upgrades to see them." }, printed)
     local r = GC.ForeverUpgrades.Current()
     assert.equal("|Hitem:101|h[Cap]|h", r.rows[1].link)
+    assert.equal("|Hitem:101|h[Cap]|h", r.slots[1].best.link)
     assert.equal(5000, r.at)
+    assert.is_true(r.stale)                                   -- a v1 save: no suffix versions in it
+    -- A slot whose strongest piece costs more than the gold carried still counts (HERO plan, Finding 4).
+    _G.GetMoney = function() return 0 end
+    GC.ForeverUpgrades.PrintCount()
+    assert.equal(2, #printed)
+    assert.equal(printed[1], printed[2])
+    assert.is_true(GC.ForeverUpgrades.Current().slots[1].best.overGold)
   end)
 
   it("with a session record: the same count is not said twice, a changed one is", function()
@@ -386,7 +586,7 @@ describe("ForeverUpgrades in the client", function()
     GC.ForeverUpgrades.PrintCount(nil, said)
     GC.ForeverUpgrades.PrintCount(nil, said)
     assert.equal(1, #printed)
-    GC.ForeverUpgrades.PrintCount({ rows = { {}, {} } }, said)
+    GC.ForeverUpgrades.PrintCount({ slots = { {}, {} } }, said)
     assert.equal(2, #printed)
     GC.ForeverUpgrades.PrintCount()
     assert.equal(3, #printed) -- a direct call always says it
@@ -428,6 +628,48 @@ describe("ForeverUpgrades in the client", function()
       asked = {}
     end
     assert.same({ 0, 1, 2, 2 }, counts)
+  end)
+
+  -- The tooltip read is the priciest call here, and its answer only changes with the character's
+  -- level (or a skill trained, which a level-up or a /reload then picks up): kept per piece and level.
+  it("asks the tooltip about a piece once per level, and again when it could not tell", function()
+    init(16001)
+    local level, reads, colour = 20, 0, { r = 1, g = 1, b = 1 }
+    _G.UnitLevel = function() return level end
+    _G.C_TooltipInfo = { GetHyperlink = function()
+      reads = reads + 1
+      return { lines = { { leftText = "Cap", leftColor = colour } } }
+    end }
+    assert.equal(1, #GC.ForeverUpgrades.Current().slots)
+    GC.ForeverUpgrades.Current()
+    assert.equal(1, reads)
+    level = 21
+    GC.ForeverUpgrades.Current()
+    assert.equal(2, reads)
+    level, colour = 22, nil                                    -- no colours: the tooltip cannot tell
+    GC.ForeverUpgrades.Current()
+    GC.ForeverUpgrades.Current()
+    assert.equal(4, reads)
+  end)
+
+  it("shows a rogue with a dagger in hand only daggers for the main hand, unless it chose otherwise", function()
+    init(16001)
+    INFO[150] = { loc = "INVTYPE_WEAPON", class = 2, sub = 15, stats = { ITEM_MOD_AGILITY_SHORT = 1 } }
+    INFO[151] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7, stats = { ITEM_MOD_AGILITY_SHORT = 9 } }
+    INFO[152] = { loc = "INVTYPE_WEAPON", class = 2, sub = 15, stats = { ITEM_MOD_AGILITY_SHORT = 5 } }
+    finally(function() INFO[150], INFO[151], INFO[152] = nil, nil, nil end)
+    db.foreverScan.gear.items = { [151] = "300:0:0", [152] = "200:0:0" }
+    _G.UnitClass = function() return "Rogue", "ROGUE", 4 end
+    _G.GetInventoryItemLink = function(_, slot) return slot == 16 and "item:150" or nil end
+    local r = GC.ForeverUpgrades.Current()
+    assert.equal("backstab", r.style)
+    assert.equal("MAINHAND", r.slots[1].group)
+    assert.equal(152, r.slots[1].best.itemID)
+    assert.equal(151, r.slots[2].best.itemID)                  -- the off hand takes the sword
+    GC.ForeverScan.Prefs().heroStyle = "sinister"
+    r = GC.ForeverUpgrades.Current()
+    assert.equal("sinister", r.style)
+    assert.equal(151, r.slots[1].best.itemID)
   end)
 
   it("says there is no scan when the saved gear lots are not this fold's", function()

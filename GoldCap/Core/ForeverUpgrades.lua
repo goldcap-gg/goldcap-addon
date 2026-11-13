@@ -1,11 +1,14 @@
 local _, GC = ...
 
--- WoW: Forever's AH Upgrade Finder (plan 3e, growth spec D8): for each equipment slot, the piece in
--- the player's last full scan (Core/ForeverGear.lua's lots) that this character can use, now or one
--- or two levels on, that beats what it wears by the most, among those it can pay for with the gold
--- it carries; a cheaper one instead when it gives nearly as much (NEAR_BEST). It used to be the
--- cheapest piece that beat the worn one at all, which on the owner's save (2026-11-06) offered "+1
--- armour" for 1s in every slot while greens with agility sat a silver or two dearer.
+-- WoW: Forever's AH Upgrade Finder (plan 3e, growth spec D8; the HERO tab, 2026-11-13): for each
+-- equipment slot, the piece in the player's last full scan (Core/ForeverGear.lua's lots) that this
+-- character can use now and that beats what it wears by the most, whatever it costs (one over the
+-- gold carried is marked overGold, not hidden); one a level or two ahead when nothing usable now
+-- does. Beside it, up to ALTS others: a stronger piece a level or two ahead, and cheaper ones on the
+-- price frontier. It used to be the cheapest piece that beat the worn one at all, which on the
+-- owner's save (2026-11-06) offered "+1 armour" for 1s in every slot while greens with agility sat
+-- a silver or two dearer; then the strongest the gold carried paid for, which at 0 gold showed one
+-- line saying everything costs more and never the piece itself (owner's scan, 2026-11-13).
 --
 -- A score is the piece's own stats -- the client's GetItemStats, never a guess -- times the
 -- class's stat weights, which the player sees in the window and changes with /gc weights. A piece
@@ -25,8 +28,12 @@ local C = {
   -- among STR/AGI/STA/INT/SPI): +1 agility for a rogue, +2 strength, +100 armour. A white piece
   -- worn has almost no score, so 5% of it let "+3 armour" for 6s through (owner's save, 2026-11-06).
   MIN_GAIN_POINTS = 1,
-  NEAR_BEST = 0.9,         -- a cheaper piece with at least 90% of the best one's gain is taken instead
   TOOLTIP_CHECKS = 5,      -- tooltip reads per slot and per pass, strongest first
+  ALTS = 3,                -- other choices shown beside a slot's strongest piece
+  -- Each cheaper choice costs at most this share of the one shown before it (the first, of the
+  -- strongest): 100, 90, 80 would be three lines saying the same thing.
+  ALT_PRICE_STEP = 0.8,
+  FRONTIER_CHECKS = 8,     -- tooltip reads per slot for its cheaper choices
   REQUEST_PER_BUILD = 100, -- item-data requests per build
   -- The seconds between a class's weapon-swing abilities, for a class whose main hand is weighed by
   -- its speed (DpsFactor): a rogue's Sinister Strike costs 45 energy and energy comes back at 10 a
@@ -84,7 +91,9 @@ GC.ForeverUpgrades.GROUPS = {
 }
 
 -- equipLoc -> group. Trinkets, relics, shirts, tabards, bags and ammo are not compared: their
--- worth is mostly effects GetItemStats does not list.
+-- worth is mostly effects GetItemStats does not list. A one-hand weapon (INVTYPE_WEAPON) is also an
+-- OFFHAND candidate (Build): the HERO plan's Finding 2, a rogue was never offered one for the off
+-- hand.
 local GROUP_OF = {
   INVTYPE_HEAD = "HEAD", INVTYPE_NECK = "NECK", INVTYPE_SHOULDER = "SHOULDER", INVTYPE_CLOAK = "BACK",
   INVTYPE_CHEST = "CHEST", INVTYPE_ROBE = "CHEST", INVTYPE_WRIST = "WRIST", INVTYPE_HAND = "HANDS",
@@ -93,6 +102,8 @@ local GROUP_OF = {
   INVTYPE_WEAPONOFFHAND = "OFFHAND", INVTYPE_SHIELD = "OFFHAND", INVTYPE_HOLDABLE = "OFFHAND",
   INVTYPE_RANGED = "RANGED", INVTYPE_RANGEDRIGHT = "RANGED", INVTYPE_THROWN = "RANGED",
 }
+-- A weapon in the off hand, not a shield or a held item: it needs dual-wield (I1 below).
+local OFFHAND_WEAPON = { INVTYPE_WEAPON = true, INVTYPE_WEAPONOFFHAND = true }
 
 local function set(list)
   local out = {}
@@ -258,8 +269,11 @@ function GC.ForeverUpgrades.TooltipUsable(itemString, api)
   return sawColour or nil
 end
 
-local SLOT_OF = {}
-for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do SLOT_OF[g.key] = g.slots[1] end
+local SLOT_OF, GROUP_AT = {}, {}
+for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
+  SLOT_OF[g.key] = g.slots[1]
+  for _, slot in ipairs(g.slots) do GROUP_AT[slot] = g.key end
+end
 
 local function itemIdOf(link)
   return type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
@@ -277,14 +291,29 @@ end
 -- C_TooltipInfo.GetHyperlink calls, the priciest primitive here -- and picks straight off
 -- known, the same class armour/weapon table and CanDualWield check every candidate already passed
 -- to reach byGroup. The window's own render always passes false (the default): a picked row must
--- still clear the tooltip's red-line check, exactly as before.
-function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
-  local out = { rows = {}, loading = 0 }
+-- still clear the tooltip's red-line check, exactly as before. Nor does it read a weapon's speed,
+-- a tooltip read too: every weapon there counts at REF_SPEED.
+--
+-- opts.style: StyleFor's answer. "backstab" keeps the main hand to daggers; nil filters nothing.
+--
+-- The answer: { slots, loading, loadingIds, stale?, noWeights?, noScan? }
+--   slots[i]     in GROUPS order, only the groups with a pick: { group, labelKey, best, alts, worn },
+--                worn the link of the piece the slot is weighed against, or nil.
+--   a candidate  { group, itemID, itemString, link, unit, gain, diffs, later, overGold, inSet,
+--                version, twoHand }: version the lot's bonus (nil for a lot saved without one),
+--                overGold true when the gold carried is below unit, twoHand for INVTYPE_2HWEAPON.
+--   stale        gear saved before suffix versions (v1): every version there reads as its base.
+-- Until the HERO tab replaces UI/ForeverUpgradesFrame.lua, rows (each slot's best, with its
+-- labelKey) and dearer = 0 keep that window drawing as before.
+function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
+  local out = { slots = {}, rows = {}, dearer = 0, loading = 0 }
   if type(weights) ~= "table" or next(weights) == nil then out.noWeights = true; return out end
   if type(gear) ~= "table" or type(gear.items) ~= "table" then out.noScan = true; return out end
+  if type(gear.v) == "number" and gear.v < 2 then out.stale = true end
+  local style = type(opts) == "table" and opts.style or nil
   local level = tonumber(driver.level()) or 1
   local class = driver.classFile()
-  local Score, loading = GC.ForeverUpgrades.Score, {}
+  local Score, DpsFactor, loading = GC.ForeverUpgrades.Score, GC.ForeverUpgrades.DpsFactor, {}
   local topPrimary = 0
   for _, token in ipairs({ "STR", "AGI", "STA", "INT", "SPI" }) do
     local w = weights[token]
@@ -292,8 +321,18 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
   end
   local minGain = C.MIN_GAIN_POINTS * topPrimary
 
-  -- What the character wears, per slot. false: worn, but its stats not answered yet -- the group is
-  -- skipped rather than compared against a guess.
+  -- A weapon's speed, only where it changes the score: the main hand of a class with an
+  -- ABILITY_EVERY, under weights that count DPS. Never on the count-only path. nil: REF_SPEED.
+  local readSpeed = not skipUsable and C.ABILITY_EVERY[class] ~= nil and type(driver.speed) == "function"
+    and type(weights.DPS) == "number" and weights.DPS ~= 0
+  local function speedIn(group, s)
+    if not (readSpeed and group == "MAINHAND") then return nil end
+    local v = driver.speed(s)
+    return type(v) == "number" and v or nil
+  end
+
+  -- What the character wears, per slot, scored in that slot's hand. false: worn, but its stats not
+  -- answered yet -- the group is skipped rather than compared against a guess.
   local worn = {}
   local function wornAt(slot)
     if worn[slot] == nil then
@@ -307,8 +346,9 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
           local id = itemIdOf(link)
           if id then loading[id] = true end
         else
-          local s, p = Score(stats, weights)
-          worn[slot] = { score = s, parts = p }
+          local group = GROUP_AT[slot]
+          local s, p = Score(stats, weights, DpsFactor(class, group, speedIn(group, link)))
+          worn[slot] = { score = s, parts = p, link = link }
         end
       end
     end
@@ -316,8 +356,6 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
   end
   local twoHandWorn = driver.instant(itemIdOf(driver.equipped(16)) or 0) == "INVTYPE_2HWEAPON"
 
-  -- I1: an off-hand WEAPON (not a shield or held item) needs dual-wield, which is not a red
-  -- tooltip line -- ClassAllows alone would offer a mage an off-hand dagger it cannot equip.
   local dualWield
   local function canDualWield()
     if dualWield == nil then
@@ -344,33 +382,63 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
     if group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not twoHandWorn then
       local m, o = wornAt(16), wornAt(17)
       if not (m and o) then return nil end
-      return { score = m.score + o.score, parts = merged(m.parts, o.parts) }
+      return { score = m.score + o.score, parts = merged(m.parts, o.parts), link = m.link }
     end
     return wornAt(SLOT_OF[group]) or nil
   end
 
-  -- true only on a class-table/dual-wield "yes" (skipUsable) or a tooltip check that agrees (or
-  -- cannot tell, deferring to that same known flag) -- unchanged from before this file grew the
-  -- skipUsable path.
-  local function usableCandidate(c)
-    if skipUsable then return c.known == true end
-    if c.usable == nil then
-      local u = driver.usable(c.itemString)
-      c.usable = u == true or (u == nil and c.known == true)
+  -- Whether a kind of piece goes in the group at all, before any lot of it is read.
+  local function wanted(group, equipLoc, classID, subclassID)
+    if group == "OFFHAND" then
+      -- Under a two-hander there is no off hand to fill. I1 (final review): an off-hand WEAPON (not
+      -- a shield or a held item) needs dual-wield, which is not a red tooltip line -- ClassAllows
+      -- alone would offer a mage an off-hand dagger it cannot equip.
+      return not twoHandWorn and not (OFFHAND_WEAPON[equipLoc] and not canDualWield())
     end
-    return c.usable
+    if group == "MAINHAND" and style == "backstab" then return classID == 2 and subclassID == 15 end
+    return true
   end
 
-  -- The gold the character carries: a piece dearer than that is not offered. nil (a driver with no
-  -- money read) offers every price.
+  -- Usable, per item string and build: one sword is the same piece in either hand. known: the class
+  -- armour/weapon table said yes. usable: true only on that "yes" (skipUsable) or a tooltip check
+  -- that agrees (or cannot tell, deferring to known) -- unchanged from before the skipUsable path.
+  local knownOf, usableOf = {}, {}
+  local function usableCandidate(c)
+    local s = c.itemString
+    if skipUsable then return knownOf[s] == true end
+    if usableOf[s] == nil then
+      local u = driver.usable(s)
+      usableOf[s] = u == true or (u == nil and knownOf[s] == true)
+    end
+    return usableOf[s]
+  end
+
+  -- The gold the character carries: a piece dearer than that is still shown, marked overGold. nil
+  -- (a driver with no money read) marks none.
   local money = type(driver.money) == "function" and tonumber(driver.money()) or nil
 
-  local byGroup, dearer = {}, {}
+  local byGroup = {}
+  local function consider(group, itemID, equipLoc, lot, str, link, stats, minLevel)
+    local b = base(group, equipLoc)
+    if not b then return end
+    local score, parts = Score(stats, weights, DpsFactor(class, group, speedIn(group, str)))
+    local gain = score - b.score
+    if score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then
+      byGroup[group] = byGroup[group] or {}
+      table.insert(byGroup[group], { group = group, itemID = itemID, itemString = str, link = link or str,
+        unit = lot.unit, gain = gain, diffs = GC.ForeverUpgrades.Diff(parts, b.parts),
+        later = minLevel > level and minLevel or nil, overGold = money ~= nil and money < lot.unit,
+        inSet = false, version = lot.bonus, twoHand = equipLoc == "INVTYPE_2HWEAPON" })
+    end
+  end
+
   for itemID, encoded in pairs(gear.items) do
     local equipLoc, classID, subclassID = driver.instant(itemID)
-    local group = GROUP_OF[equipLoc]
-    if group and not (group == "OFFHAND" and twoHandWorn)
-        and not (equipLoc == "INVTYPE_WEAPONOFFHAND" and not canDualWield()) then
+    local first = GROUP_OF[equipLoc]
+    local second = equipLoc == "INVTYPE_WEAPON" and "OFFHAND" or nil
+    if first and not wanted(first, equipLoc, classID, subclassID) then first = nil end
+    if second and not wanted(second, equipLoc, classID, subclassID) then second = nil end
+    if first or second then
       for _, lot in ipairs(GC.ForeverGear.Decode(encoded)) do
         local str = GC.ForeverGear.ItemString(itemID, lot)
         local minLevel, link = driver.info(str)
@@ -383,16 +451,9 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
             if stats == nil then
               loading[itemID] = true
             else
-              local score, parts = Score(stats, weights)
-              local b = base(group, equipLoc)
-              local gain = b and score - b.score or 0
-              if b and score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then
-                local into = (money and lot.unit > money) and dearer or byGroup
-                into[group] = into[group] or {}
-                table.insert(into[group], { group = group, itemID = itemID, itemString = str,
-                  link = link or str, unit = lot.unit, gain = gain, diffs = GC.ForeverUpgrades.Diff(parts, b.parts),
-                  later = minLevel > level and minLevel or nil, known = allowed == true })
-              end
+              knownOf[str] = allowed == true
+              if first then consider(first, itemID, equipLoc, lot, str, link, stats, minLevel) end
+              if second then consider(second, itemID, equipLoc, lot, str, link, stats, minLevel) end
             end
           end
         end
@@ -400,21 +461,16 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
     end
   end
 
-  -- One pass (usable now, or later): the strongest candidate the player can use -- strongest first,
-  -- up to TOOLTIP_CHECKS tooltip reads -- then the cheapest usable one with NEAR_BEST of its gain.
-  -- skipUsable: no tooltip call to cap, so every candidate may be looked at.
+  -- Every order here ends on the item string, so two builds over the same answers show the same
+  -- (the 0.28.1 rows came and went while the client's cache answered part of the lots).
   local function byGain(a, b)
     if a.gain ~= b.gain then return a.gain > b.gain end
     if a.unit ~= b.unit then return a.unit < b.unit end
     return a.itemString < b.itemString
   end
-  local function byPrice(a, b)
-    if a.unit ~= b.unit then return a.unit < b.unit end
-    if a.gain ~= b.gain then return a.gain > b.gain end
-    return a.itemString < b.itemString
-  end
+  -- The strongest usable piece of a list sorted byGain: up to TOOLTIP_CHECKS looked at, strongest
+  -- first. skipUsable: no tooltip call to cap, so every candidate may be looked at.
   local function strongestUsable(list)
-    table.sort(list, byGain)
     local checks = 0
     for _, c in ipairs(list) do
       if not skipUsable and checks >= C.TOOLTIP_CHECKS then break end
@@ -423,42 +479,78 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
     end
     return nil
   end
-  local function pickFrom(list)
-    local best = strongestUsable(list)
-    if not best then return nil end
-    local near = {}
-    for _, c in ipairs(list) do
-      if c.unit < best.unit and c.gain >= C.NEAR_BEST * best.gain then near[#near + 1] = c end
-    end
-    table.sort(near, byPrice)
-    local checks = 0
-    for _, c in ipairs(near) do
-      if c.usable == nil and not skipUsable then
-        if checks >= C.TOOLTIP_CHECKS then break end
-        checks = checks + 1
-      end
-      if usableCandidate(c) then return c end
-    end
-    return best
+  local function wornLink(group)
+    local w
+    if group == "FINGER" then w = base("FINGER") else w = wornAt(SLOT_OF[group]) end
+    return w and w.link or nil
   end
 
-  out.dearer = 0
+  -- Each group's strongest piece: usable now, over the gold carried or not.
+  local picked = {}
   for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
     local now, later = {}, {}
     for _, c in ipairs(byGroup[g.key] or {}) do
       if c.later then later[#later + 1] = c else now[#now + 1] = c end
     end
+    table.sort(now, byGain)
+    table.sort(later, byGain)
     -- M4 (final review): a level-ahead piece gets the same tooltip check a usable-now one does, not
     -- the class table alone -- a profession-required piece the table says nothing against (an
     -- engineering item, say) could otherwise be offered "at level N" on class rules alone.
-    local pick = pickFrom(now) or pickFrom(later)
-    if pick then
-      pick.labelKey, pick.known, pick.usable = g.labelKey, nil, nil
-      out.rows[#out.rows + 1] = pick
-    elseif dearer[g.key] and strongestUsable(dearer[g.key]) then
-      -- A slot whose every upgrade this character can use costs more than the gold carried: the
-      -- window says so. The same usability check a shown piece gets.
-      out.dearer = out.dearer + 1
+    local best = strongestUsable(now) or strongestUsable(later)
+    if best then picked[g.key] = { now = now, later = later, best = best } end
+  end
+
+  -- The piece the set puts in each group, for the first of its other choices.
+  local setPick = {}
+
+  -- The other choices beside each strongest piece, in this order, at most ALTS, never the strongest
+  -- itself and never one item string twice:
+  --   1. the set's piece for the group, when it is not the strongest;
+  --   2. the strongest usable piece a level or two ahead that beats it, when it is usable now;
+  --   3. cheaper usable-now pieces, strongest first, each at most ALT_PRICE_STEP of the price of the
+  --      one shown before it (the first, of the strongest's). Walking strongest first, a piece the
+  --      step lets through is cheaper than every stronger one shown, so each is on the price
+  --      frontier: nothing cheaper and as strong is usable. One the tooltip refuses moves nothing,
+  --      and those behind it stay in reach; the set's piece, met again here, moves the step as if
+  --      shown. Only a read costs one of FRONTIER_CHECKS, and a piece over the step is never read.
+  for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
+    local p = picked[g.key]
+    if p then
+      local best, alts, listed = p.best, {}, { [p.best.itemString] = true }
+      local function add(c)
+        if c and #alts < C.ALTS and not listed[c.itemString] then
+          listed[c.itemString] = true
+          alts[#alts + 1] = c
+        end
+      end
+      add(setPick[g.key])
+      if not best.later then
+        local stronger = {}
+        for _, c in ipairs(p.later) do
+          if c.gain > best.gain then stronger[#stronger + 1] = c end
+        end
+        add(strongestUsable(stronger))
+      end
+      local limit, reads = C.ALT_PRICE_STEP * best.unit, 0
+      for _, c in ipairs(p.now) do
+        if #alts >= C.ALTS then break end
+        if c.unit <= limit then
+          if not skipUsable and usableOf[c.itemString] == nil then
+            if reads >= C.FRONTIER_CHECKS then break end
+            reads = reads + 1
+          end
+          if usableCandidate(c) then
+            add(c)
+            limit = C.ALT_PRICE_STEP * c.unit
+          end
+        end
+      end
+      out.slots[#out.slots + 1] = { group = g.key, labelKey = g.labelKey, best = best, alts = alts,
+        worn = wornLink(g.key) }
+      local row = { labelKey = g.labelKey }
+      for k, v in pairs(best) do row[k] = v end
+      out.rows[#out.rows + 1] = row
     end
   end
 
@@ -544,16 +636,23 @@ end
 -- about half, dropped the other half to load the rest, and the two halves swapped places on each
 -- repaint: the window's rows came and went every half second, a rebuild of ~60 ms each time. Kept,
 -- a piece is asked about until it answers once. Build only reads the stats it is handed.
-local keptInfo, keptStats = {}, {}
+--
+-- keptUsable: the tooltip's verdict on a piece, the priciest read here, per piece and character
+-- level, so a level-up asks again (a red "Requires Level" line is gone then). A skill trained
+-- mid-session shows on the next level or /reload. Only a yes or a no is kept: "cannot tell"
+-- (nothing loaded yet, no colours) is asked again next time.
+local keptInfo, keptStats, keptUsable = {}, {}, {}
+
+local function playerLevel()
+  local ok, l = pcall(_G.UnitLevel, "player")
+  return ok and tonumber(l) or 1
+end
 
 -- The client, for Build. Every read guarded: a missing API reads as "not answered", never an error.
 local function realDriver(getStats)
   local item = _G.C_Item or {}
   return {
-    level = function()
-      local ok, l = pcall(_G.UnitLevel, "player")
-      return ok and tonumber(l) or 1
-    end,
+    level = playerLevel,
     classFile = classFile,
     equipped = function(slot)
       local ok, link = pcall(_G.GetInventoryItemLink, "player", slot)
@@ -581,7 +680,17 @@ local function realDriver(getStats)
       keptStats[s] = t
       return t
     end,
-    usable = function(s) return GC.ForeverUpgrades.TooltipUsable(s) end,
+    usable = function(s)
+      local key = s .. "@" .. playerLevel()
+      local kept = keptUsable[key]
+      if kept ~= nil then return kept end
+      local u = GC.ForeverUpgrades.TooltipUsable(s)
+      if u ~= nil then keptUsable[key] = u end
+      return u
+    end,
+    -- A weapon's speed, for DpsFactor: not read yet. The shape of the tooltip's speed line is the
+    -- HERO probe's question P4; until it is answered every weapon counts at REF_SPEED, as before.
+    speed = function() return nil end,
     requestLoad = function(itemID) pcall(item.RequestLoadItemDataByID, itemID) end,
     money = function()
       local ok, m = pcall(_G.GetMoney)
@@ -599,15 +708,23 @@ end
 
 -- skipUsable, threaded straight through to Build: nil/false (every existing caller -- the window's
 -- own Show/RefreshIfShown, /gc weights, a direct call) keeps the tooltip check exactly as before.
+--
+-- r.style: the rogue's style Build was given (StyleFor), from the main hand it wears unless the
+-- player chose one; nil for every other class.
 function GC.ForeverUpgrades.Current(skipUsable)
   if not enabled() then return nil end
   local gear, fold = GC.ForeverScan.Gear()
-  if not gear then return { rows = {}, loading = 0, noScan = true } end
+  if not gear then return { slots = {}, rows = {}, loading = 0, noScan = true } end
   local getStats = statsCall()
-  if not getStats then return { rows = {}, loading = 0, noStats = true } end
-  local weights = GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), classFile())
-  local r = GC.ForeverUpgrades.Build(gear, realDriver(getStats), weights, skipUsable)
-  r.at, r.weights = fold.at, weights
+  if not getStats then return { slots = {}, rows = {}, loading = 0, noStats = true } end
+  local class, prefs = classFile(), GC.ForeverScan.Prefs()
+  local weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
+  local driver = realDriver(getStats)
+  local mainID = itemIdOf(driver.equipped(16))
+  local mainSub = mainID and select(3, driver.instant(mainID)) or nil
+  local style = GC.ForeverUpgrades.StyleFor(prefs, class, mainSub)
+  local r = GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, { style = style })
+  r.at, r.weights, r.style = fold.at, weights, style
   return r
 end
 
@@ -618,14 +735,16 @@ end
 -- still gets a correct count from its own Current().
 --
 -- `said` (the scan's session record) keeps the line from repeating while the count is unchanged.
+-- The count is of slots: one whose strongest piece costs more than the gold carried counts too.
 function GC.ForeverUpgrades.PrintCount(r, said)
   r = r or GC.ForeverUpgrades.Current()
-  if r and #r.rows > 0 then
+  local n = r and type(r.slots) == "table" and #r.slots or 0
+  if n > 0 then
     if said then
-      if said.upgrades == #r.rows then return end
-      said.upgrades = #r.rows
+      if said.upgrades == n then return end
+      said.upgrades = n
     end
-    GC.Print(GC.L["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."]:format(#r.rows))
+    GC.Print(GC.L["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."]:format(n))
   end
 end
 
