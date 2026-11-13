@@ -99,6 +99,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["Core/ForeverDeposits.lua"] = "Core/MailReturns.lua",
     -- What SELL shows of the pace: the duration buttons, the lines, the 24 h mark.
     ["UI/SellPace_Camelot.lua"] = "UI/SoldFrame.lua",
+    -- The HERO tab, with its rail entry: after BUY, the tab whose lists it writes.
+    ["UI/HeroFrame.lua"] = "UI/BuyFrame_Camelot.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()
@@ -151,5 +153,16 @@ describe("the rail's tabs", function()
     local keys = {}
     for i, item in ipairs(GC.Theme.RAIL_ORDER) do keys[i] = item.key end
     assert.same({ "deals", "sell", "sold", "buy" }, keys)
+  end)
+
+  it("gain HERO at the foot on WoW: Forever, from the tab's own file", function()
+    local GC = helper.loadModule("UI/Theme.lua", {})
+    helper.loadModule("UI/HeroFrame.lua", GC)
+    local keys = {}
+    for i, item in ipairs(GC.Theme.RAIL_ORDER) do keys[i] = item.key end
+    assert.same({ "deals", "sell", "sold", "buy", "hero" }, keys)
+    assert.same({ key = "hero", icon = "hero", label = "HERO" }, GC.Theme.RAIL_ORDER[5])
+    assert.is_not_nil(GC.Kit.Icons.index.hero)
+    assert.equal("Interface\\Icons\\INV_Sword_04", GC.Theme.CLASSIC.icons.hero)
   end)
 end)

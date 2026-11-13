@@ -157,6 +157,7 @@ UI/ForeverUpgradesFrame.lua
 UI/BuyCapEditor.lua
 UI/BuyFrame.lua
 UI/BuyFrame_Camelot.lua
+UI/HeroFrame.lua
 UI/BuyLists.lua
 UI/BuyAddBox.lua
 UI/BuySearch.lua
