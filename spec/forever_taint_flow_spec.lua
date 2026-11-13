@@ -546,6 +546,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       })
       model.entry(GC.Sniper.OnForeverFold) -- the scan's own repaint: no vendor price yet, no row
       vendor = 13 -- the client has loaded it since, and a rebuild is due
+      model.entry(GC.ForeverDeals.OnItemInfo, LINEN) -- GET_ITEM_INFO_RECEIVED says so: its own execution
       _G.time = function() return 100010 end
       return GC
     end

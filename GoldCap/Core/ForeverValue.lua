@@ -14,41 +14,73 @@ local KEEP = 0.95
 -- five seconds on: the items with a quality went 138 to 184 and back, the Deals board's rows 2 to
 -- 8 and back, and 2,740 of 4,710 items had none whenever they were asked. A vendor price and a
 -- quality are the item's own and never change, so the first answer is kept with the account
--- (GoldCapDB.foreverItemInfo, [itemID] = sellPrice * 8 + quality) and stands in whenever the
--- client has none to give.
-local function itemInfo(itemID)
+-- (GoldCapDB.foreverItemInfo, [itemID] = sellPrice * 8 + quality).
+--
+-- ...and read first. Asking again cost more than the answer is worth: the board asked the client
+-- about every item of the scan, 5,800, at every build, every five seconds after a scan, and the
+-- client loaded again every item it had dropped since, ~3,800 GET_ITEM_INFO_RECEIVED a build, with
+-- two or three frames of 130-200 ms after each one, the camera stuttering (owner's client,
+-- 2026-11-13, diag/deals-stutter-probe). The client is asked only about an item with no kept
+-- answer, and not at all when the caller says `ask == false` (the board's build, which asks a
+-- bounded number itself).
+--
+-- Kept per game version (GoldCapDB.foreverItemInfoVersion, GetBuildInfo's first answer): a patch
+-- may reprice an item at a vendor. Answers kept before the version was stamped are this version's.
+local versionChecked = false
+local function keptAnswers()
+  local db = GC.db
+  if type(db) ~= "table" then return nil end
+  if not versionChecked then
+    versionChecked = true
+    local version = type(_G.GetBuildInfo) == "function" and (_G.GetBuildInfo()) or nil
+    if type(version) == "string" then
+      if db.foreverItemInfoVersion ~= nil and db.foreverItemInfoVersion ~= version then db.foreverItemInfo = nil end
+      db.foreverItemInfoVersion = version
+    end
+  end
+  return type(db.foreverItemInfo) == "table" and db.foreverItemInfo or nil
+end
+
+local function itemInfo(itemID, ask)
   if type(itemID) ~= "number" then return nil end
+  local answers = keptAnswers()
+  local kept = answers and answers[itemID]
+  if type(kept) == "number" then return kept % 8, math.floor(kept / 8) end
+  if ask == false then return nil end
   local item = _G.C_Item
   if type(item) == "table" and type(item.GetItemInfo) == "function" then
-    local ok, quality, sellPrice = pcall(function()
-      local _, _, q, _, _, _, _, _, _, _, price = item.GetItemInfo(itemID)
-      return q, price
-    end)
+    local ok, _, _, quality, _, _, _, _, _, _, _, sellPrice = pcall(item.GetItemInfo, itemID)
     if ok and type(quality) == "number" and quality >= 0 and quality < 8 then
       sellPrice = type(sellPrice) == "number" and sellPrice > 0 and math.floor(sellPrice) or 0
       if GC.db then
-        GC.db.foreverItemInfo = GC.db.foreverItemInfo or {}
+        GC.db.foreverItemInfo = answers or {}
         GC.db.foreverItemInfo[itemID] = sellPrice * 8 + quality
       end
       return quality, sellPrice
     end
     if ok and type(sellPrice) == "number" and sellPrice > 0 then return nil, sellPrice end
   end
-  local kept = GC.db and type(GC.db.foreverItemInfo) == "table" and GC.db.foreverItemInfo[itemID] or nil
-  if type(kept) ~= "number" then return nil end
-  return kept % 8, math.floor(kept / 8)
+  return nil
 end
 
-function GC.ForeverValue.VendorUnit(itemID)
-  local _, sellPrice = itemInfo(itemID)
+-- Whether an answer about the item is kept: its vendor price (none at all included) and quality
+-- are known without asking the client.
+function GC.ForeverValue.Known(itemID)
+  local answers = keptAnswers()
+  return answers ~= nil and type(answers[itemID]) == "number"
+end
+
+-- `ask` (optional): false reads only a kept answer and never asks the client.
+function GC.ForeverValue.VendorUnit(itemID, ask)
+  local _, sellPrice = itemInfo(itemID, ask)
   if type(sellPrice) == "number" and sellPrice > 0 then return sellPrice end
   return nil
 end
 
 -- The item's quality (0 poor, 1 common, ...) from the same C_Item.GetItemInfo answer VendorUnit
 -- reads, so an item with a vendor price has a quality too. nil while the client has not loaded it.
-function GC.ForeverValue.Quality(itemID)
-  return (itemInfo(itemID))
+function GC.ForeverValue.Quality(itemID, ask)
+  return (itemInfo(itemID, ask))
 end
 
 -- One unit's deposit for a commodity, as the client quotes it from the item alone

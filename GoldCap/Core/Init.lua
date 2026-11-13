@@ -894,6 +894,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnThrottleReady then GC.Sell.OnThrottleReady() end
   elseif event == "ITEM_KEY_ITEM_INFO_RECEIVED" then
     local itemID = ...
+    -- WoW: Forever's board waits for an item key a build left unsure (Core/ForeverDeals.lua).
+    if GC.ForeverDeals and GC.ForeverDeals.OnItemInfo then GC.ForeverDeals.OnItemInfo(itemID) end
     if GC.Sniper.scanner then
       GC.Sniper.scanner:OnKeyInfo(itemID)
     end
@@ -1187,6 +1189,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
+    -- ...and for an item whose vendor price, quality or deposit a build could not read.
+    if GC.ForeverDeals and GC.ForeverDeals.OnItemInfo then GC.ForeverDeals.OnItemInfo(itemID) end
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
     -- BUY shows an item it has no name for yet by its id, and repaints once the name is in.
     if GC.Buy and GC.Buy.OnItemInfo then GC.Buy.OnItemInfo(itemID, success) end

@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.28.1 (unreleased)
+
+- WoW: Forever: the game no longer stutters for about a minute after a scan of the auction house.
+  The Deals board worked out every item of the scan again every five seconds, and the game
+  reloaded thousands of items each time; it now does so only when the game hands over something a
+  row was waiting for, and asks the game about each item once.
+
 ## 0.28.0 (2026-11-11)
 
 - Worth crafting can now list recipes you have not learned yet, with what a craft would cost and
