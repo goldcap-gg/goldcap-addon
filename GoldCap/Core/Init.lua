@@ -894,6 +894,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnThrottleReady then GC.Sell.OnThrottleReady() end
   elseif event == "ITEM_KEY_ITEM_INFO_RECEIVED" then
     local itemID = ...
+    -- WoW: Forever's board waits for an item key a build left unsure (Core/ForeverDeals.lua).
+    if GC.ForeverDeals and GC.ForeverDeals.OnItemInfo then GC.ForeverDeals.OnItemInfo(itemID) end
     if GC.Sniper.scanner then
       GC.Sniper.scanner:OnKeyInfo(itemID)
     end
@@ -997,7 +999,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_ADDED" then
     if GC.Sniper.OnBrowseResultsAdded then
-      GC.Sniper.OnBrowseResultsAdded()
+      GC.Sniper.OnBrowseResultsAdded(...)
     end
   elseif event == "REPLICATE_ITEM_LIST_UPDATE" then
     if GC.ForeverScan then GC.ForeverScan.OnReplicateUpdate() end
@@ -1187,6 +1189,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
+    -- ...and for an item whose vendor price, quality or deposit a build could not read.
+    if GC.ForeverDeals and GC.ForeverDeals.OnItemInfo then GC.ForeverDeals.OnItemInfo(itemID) end
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
     -- BUY shows an item it has no name for yet by its id, and repaints once the name is in.
     if GC.Buy and GC.Buy.OnItemInfo then GC.Buy.OnItemInfo(itemID, success) end
@@ -1205,6 +1209,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_LOGOUT" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
     if GC.ForeverRoad then GC.ForeverRoad.OnLogout() end
+    -- A Forever scan still saving, a slice a frame, is finished before the save is written.
+    if GC.ForeverScan and GC.ForeverScan.OnLogout then GC.ForeverScan.OnLogout() end
     -- What a merchant visit still open sold is booked before the save is written.
     if GC.VendorSales then GC.VendorSales.OnClosed(time()) end
   end

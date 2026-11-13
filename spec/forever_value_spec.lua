@@ -160,6 +160,42 @@ describe("ForeverValue", function()
     assert.equal(310, GC.ForeverValue.CommodityDeposit(2589, 10))
   end)
 
+  -- Owner's client, 2026-11-13: asking again for a kept answer made the client load the item again.
+  it("reads a kept answer without asking the client, and asks nothing when told not to", function()
+    GC.db = { foreverItemInfo = { [2589] = 13 * 8 + 1 } }
+    local asked = 0
+    _G.C_Item = { GetItemInfo = function() asked = asked + 1; return nil end }
+    assert.equal(13, GC.ForeverValue.VendorUnit(2589))
+    assert.equal(1, GC.ForeverValue.Quality(2589))
+    assert.is_true(GC.ForeverValue.Known(2589))
+    assert.equal(0, asked)
+    assert.is_nil(GC.ForeverValue.VendorUnit(2590, false))
+    assert.is_nil(GC.ForeverValue.Quality(2590, false))
+    assert.is_false(GC.ForeverValue.Known(2590))
+    assert.equal(0, asked)
+    assert.is_nil(GC.ForeverValue.VendorUnit(2590))
+    assert.equal(1, asked)
+  end)
+
+  it("starts over on a new game version, and takes answers kept before versions were stamped as this one's", function()
+    local version = "1.60.1"
+    _G.GetBuildInfo = function() return version, "70938", "Nov 13 2026", 16001 end
+    local db = { foreverItemInfo = { [2589] = 13 * 8 + 1 } }
+    local function load()
+      local G = helper.loadModule("Core/Util.lua")
+      helper.loadModule("Core/Flips.lua", G)
+      helper.loadModule("Core/ForeverValue.lua", G)
+      G.db = db
+      return G
+    end
+    assert.equal(13, load().ForeverValue.VendorUnit(2589, false))
+    assert.equal("1.60.1", db.foreverItemInfoVersion)
+    version = "1.61.0"
+    assert.is_nil(load().ForeverValue.VendorUnit(2589, false))
+    assert.equal("1.61.0", db.foreverItemInfoVersion)
+    _G.GetBuildInfo = nil
+  end)
+
   it("keeps a quality for an item no vendor buys", function()
     GC.db = {}
     local answers = true

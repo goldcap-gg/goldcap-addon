@@ -483,6 +483,101 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
     assert.truthy(find(lines, function(l) return l.left == "Listed" end))
   end)
 
+  -- Owner, 2026-11-12: the tooltip led with "AH value 72c" for an item the auction house had at 60c
+  -- and goldcap.gg at 59c, then said "On the AH now" under it. The cheapest lot leads now, under the
+  -- word the site's item page uses; the AH value follows only when it asks noticeably more.
+  describe("the cheapest lot first", function()
+    local FOREVER = { vendorUnit = 10, depositUnit = 1 }
+    local ITEM = { mv = 72, min = 60, currentQty = 400, ts = 1000, source = "scan", kind = "own_scan" }
+
+    local function count(lines, pred)
+      local n = 0
+      for _, ln in ipairs(lines) do if pred(ln) then n = n + 1 end end
+      return n
+    end
+
+    it("leads with what the auction house showed, and the AH value under it", function()
+      local lines = GC.Tooltip.BuildLines(ITEM, 1000, { forever = FOREVER, live = { floor = 60, qty = 400, age = 180 } })
+      assert.equal("live", lines[1].kind)
+      assert.equal("Cheapest", lines[1].left)
+      assert.equal(60, lines[1].copper)
+      assert.equal("400 listed · 3 min ago", lines[1].detail)
+      assert.equal("AH value", lines[2].label)
+      assert.equal(72, lines[2].copper)
+      assert.equal(1, count(lines, function(l) return l.kind == "live" end))
+      assert.equal(0, count(lines, function(l) return l.left == "On the AH now" end))
+    end)
+
+    it("leads with the scan's cheapest while the auction house is closed, dated by the Source line", function()
+      local lines = GC.Tooltip.BuildLines(ITEM, 1000 + 720, { forever = FOREVER })
+      assert.equal("money", lines[1].kind)
+      assert.equal("Cheapest", lines[1].label)
+      assert.equal(60, lines[1].copper)
+      assert.equal("AH value", lines[2].label)
+      assert.truthy(find(lines, function(l) return l.left == "Listed" and l.right == "400" end))
+      assert.truthy(find(lines, function(l) return l.left == "Source" and l.right == "your scan, 12m ago" end))
+    end)
+
+    it("leaves the AH value out when it is within 5% of the cheapest, either way", function()
+      for _, mv in ipairs({ 62, 58 }) do
+        local close = { mv = mv, min = 60, ts = 1000, source = "scan", kind = "own_scan" }
+        local lines = GC.Tooltip.BuildLines(close, 1000, { forever = FOREVER })
+        assert.equal(60, lines[1].copper)
+        assert.equal(0, count(lines, function(l) return l.label == "AH value" end), mv)
+        assert.truthy(find(lines, function(l) return l.left == "Source" end))
+      end
+      local apart = { mv = 63, min = 60, ts = 1000, source = "scan", kind = "own_scan" }
+      local lines = GC.Tooltip.BuildLines(apart, 1000, { forever = FOREVER })
+      assert.equal(63, lines[2].copper)
+    end)
+
+    -- An earlier scan's AH value under a lot the auction house shows dearer now: the verdict still
+    -- weighs the AH value, so a "Sell it to a vendor" under "Cheapest 80c" says what it rests on.
+    it("shows an older AH value the cheapest lot has since climbed past, which the verdict rests on", function()
+      local lines = GC.Tooltip.BuildLines(ITEM, 1000, { forever = { vendorUnit = 70, depositUnit = 1 },
+        live = { floor = 80, qty = 12, age = 60 } })
+      assert.equal(80, lines[1].copper)
+      assert.equal("AH value", lines[2].label)
+      assert.equal(72, lines[2].copper)
+      assert.equal("Sell it to a vendor", find(lines, function(l) return l.kind == "verdict" end).text)
+    end)
+
+    it("still weighs the AH value for the verdict when it is left out", function()
+      local close = { mv = 62, min = 60, ts = 1000, source = "scan", kind = "own_scan" }
+      local lines = GC.Tooltip.BuildLines(close, 1000, { forever = { vendorUnit = 57, depositUnit = 0 } })
+      -- After the 5% cut the AH value's 62 pays 58, over the vendor's 57; the cheapest 60 would pay
+      -- 57, no more than the vendor. The verdict is the AH value's.
+      assert.equal("Sell it on the AH", find(lines, function(l) return l.kind == "verdict" end).text)
+      assert.equal(62, (GC.Tooltip.Headline(close)))
+    end)
+
+    it("says Cheapest for a live lot nothing else prices", function()
+      local lines = GC.Tooltip.BuildLines(nil, 1000, { forever = FOREVER, live = { floor = 15, qty = 2, age = 0 } })
+      assert.equal(1, #lines)
+      assert.equal("Cheapest", lines[1].left)
+    end)
+
+    it("keeps the AH value first for a scan that names no cheapest lot", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 72, ts = 1000, source = "scan", kind = "crowd", scanners = 2 }, 1000,
+        { forever = FOREVER })
+      assert.equal("AH value", lines[1].label)
+    end)
+
+    it("keeps gear on its cheapest version's one line", function()
+      local gear = { mv = 5000, min = 4000, ts = 1000, source = "scan", kind = "own_scan", gear = true }
+      local lines = GC.Tooltip.BuildLines(gear, 1000, { forever = {} })
+      assert.equal("AH, cheapest version", lines[1].label)
+      assert.equal(0, count(lines, function(l) return l.label == "Cheapest" end))
+    end)
+
+    it("changes nothing on retail: the GoldCap value first, the live line under it", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 123400, min = 100000, sold = 52, ts = 1000 }, 1000,
+        { live = { floor = 120000, qty = 880, age = 60 } })
+      assert.equal("GoldCap value", lines[1].label)
+      assert.equal("On the AH now", find(lines, function(l) return l.kind == "live" end).left)
+    end)
+  end)
+
   it("labels gear by its cheapest version", function()
     local gear = { mv = 5000, ts = 1000, source = "scan", kind = "own_scan", gear = true }
     assert.equal("AH, cheapest version", GC.Tooltip.BuildLines(gear, 1000, { forever = {} })[1].label)

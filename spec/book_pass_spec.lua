@@ -182,6 +182,27 @@ describe("BookPass", function()
     assert.equal(3, rowsEmitted[2].tail[1].itemKey.itemID)
   end)
 
+  -- AUCTION_HOUSE_BROWSE_RESULTS_ADDED carries the page's own rows (addedBrowseResults), the ones
+  -- Blizzard's own list appends. GetBrowseResults() is the whole list so far: on a wide pass,
+  -- thousands of rows built anew on every page, read only to throw all but the last page away.
+  it("takes a page's rows from the event, without reading the whole list again", function()
+    local reads = 0
+    local driver = fakeDriver()
+    driver.getBrowseResults = function() reads = reads + 1 return browseResults end
+    local bp = GC.BookPass.New(driver)
+    bp:Start("classes")
+    browseResults = { row(1, 10, 1), row(2, 20, 1) }
+    bp:OnResultsUpdated()
+    assert.equal(1, reads)
+    hasFullResults = true
+    bp:OnResultsAdded({ row(3, 30, 1) })
+    assert.equal(1, reads)
+    assert.equal(1, #rowsEmitted[2].tail)
+    assert.equal(3, rowsEmitted[2].tail[1].itemKey.itemID)
+    assert.equal(3, rowsEmitted[2].total)
+    assert.equal(3, passesDone[1].items)
+  end)
+
   it("requests the next page only once OnThrottleReady is called, and only when one is due", function()
     local bp = newPass()
     bp:Start("classes")

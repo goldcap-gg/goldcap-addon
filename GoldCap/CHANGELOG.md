@@ -1,5 +1,22 @@
 # GoldCap
 
+## 0.28.1 (2026-11-13)
+
+- WoW: Forever: scanning the auction house no longer makes the game stutter every second or so,
+  in a full scan or with Auto on, and the Deals board no longer stalls the game every few seconds
+  after a scan.
+- WoW: Forever: the gear upgrades window (/gc upgrades) no longer jumps. Its rows came and went
+  every half second while the items in it loaded.
+- WoW: Forever: an item's tooltip now starts with the cheapest lot on the auction house, the figure
+  goldcap.gg shows first on the item's page. The AH value, what the cheapest tenth of the listed
+  units ask, comes under it only when the two differ noticeably: only a few lots are that cheap, or
+  the price has moved since the scan. It used to come first, and a tooltip could read 72c for an
+  item listed at 60c.
+- WoW: Forever: Worth crafting now counts a craft at what the item has sold for over the last day,
+  not over the week. On an item whose price rose this week it read far under what the item sells
+  for now, and a craft that pays could show a loss: Draught of Water Breathing was counted at 2s 40c
+  while its cheapest lot asked 8s 36c.
+
 ## 0.28.0 (2026-11-11)
 
 - Worth crafting can now list recipes you have not learned yet, with what a craft would cost and

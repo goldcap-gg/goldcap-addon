@@ -964,6 +964,7 @@ GC.Locales.ruRU = {
   ["it was set aside when other prices were loaded this session. /reload to use it again"] =
     "они были отложены, когда в этой сессии загрузили другие цены. /reload, чтобы снова их использовать",
   ["On the AH now"] = "На аукционе сейчас",
+  ["Cheapest"] = "Дешевле всего",
   ["%s listed · %d min ago"] = "выставлено %s · %d мин назад",
   ["%s listed · just now"] = "выставлено %s · только что",
   ["it could not be read (%s)"] = "их не удалось прочитать (%s)",

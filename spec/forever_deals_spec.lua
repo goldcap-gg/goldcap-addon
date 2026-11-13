@@ -601,6 +601,8 @@ describe("ForeverDeals", function()
       D.Rows(clock + 1)
       assert.equal(1, #requests)           -- cached: no second request, no rebuild
       vendor[2589] = 13
+      assert.is_false(D.Due(clock + 5))    -- loaded, but nothing said so yet
+      D.OnItemInfo(2589)                   -- GET_ITEM_INFO_RECEIVED
       assert.is_true(D.Due(clock + 5))
       -- A render does not rebuild for a vendor price (it may run in the auction house ticker);
       -- the board's own clock does, through Refresh.
@@ -611,12 +613,27 @@ describe("ForeverDeals", function()
       assert.is_false(D.Refresh(clock + 6)) -- nothing left to wait for
     end)
 
-    it("stops rebuilding for an item whose vendor price never comes", function()
+    -- Owner's client, 2026-11-13 (diag/deals-stutter-probe): the clock rebuilt the whole scan every
+    -- 5 s while anything was outstanding, 90-130 ms a build, for a minute after every scan.
+    it("rebuilds for an item it waits on only once the client hands it over, and stops waiting", function()
       D.Rows(clock)
-      assert.is_true(D.Due(clock + 5))
+      assert.is_false(D.Due(clock + 5))    -- nothing arrived: nothing to rebuild for
+      assert.is_false(D.Refresh(clock + 5))
+      D.OnItemInfo(2589)                   -- arrived, still with no vendor price
+      assert.is_false(D.Due(clock + 4))    -- not twice inside 5 s
       assert.is_true(D.Refresh(clock + 5))
+      assert.is_false(D.Due(clock + 10))   -- the arrival was spent on that build
+      D.OnItemInfo(2589)
       assert.is_true(D.Due(clock + 10))
       assert.is_false(D.Due(clock + 40))   -- asked 40 s ago: treated as no vendor price
+    end)
+
+    it("is not made due by an item its last build did not wait for", function()
+      vendor[2589] = 13
+      assert.equal(1, #D.Rows(clock))
+      D.OnItemInfo(2589)                   -- priced already: not waited for
+      D.OnItemInfo(4242)                   -- not on the board at all
+      assert.is_false(D.Due(clock + 5))
     end)
 
     it("rebuilds when a new fold lands", function()
@@ -841,6 +858,7 @@ describe("ForeverDeals", function()
       assert.is_nil(GC.db.commodityByItem[2592])
       assert.is_false(D.Due(clock + 1))
       cached[2592] = true                           -- ITEM_KEY_ITEM_INFO_RECEIVED
+      D.OnItemInfo(2592)
       assert.is_true(D.Refresh(clock + 5))
       assert.equal("market", D.CeilingFor(2592).kind)
       _G.C_AuctionHouse = nil
@@ -850,7 +868,8 @@ describe("ForeverDeals", function()
       withClient({}, {})
       saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
       D.Rows(clock)
-      assert.is_true(D.Refresh(clock + 5))
+      assert.is_false(D.Refresh(clock + 5))         -- no answer: nothing to rebuild for
+      D.OnItemInfo(2592)                            -- one past the wait changes nothing
       assert.is_false(D.Due(clock + 40))
       _G.C_AuctionHouse = nil
     end)
@@ -880,6 +899,7 @@ describe("ForeverDeals", function()
       assert.is_true(D.Refresh(clock + 1200))      -- the board clock asks, now for real
       assert.is_nil(D.CeilingFor(2592))
       client.answer()                              -- ITEM_KEY_ITEM_INFO_RECEIVED
+      D.OnItemInfo(2592)
       assert.is_true(D.Refresh(clock + 1205))      -- inside the new wait
       assert.equal("market", D.CeilingFor(2592).kind)
       _G.C_AuctionHouse = nil
@@ -894,6 +914,7 @@ describe("ForeverDeals", function()
       saved = { at = 6200, items = items }         -- the scan on opening lands a new fold
       assert.equal(0, #D.Rows(clock + 1200))       -- asked; the answer is not in yet
       client.answer()
+      D.OnItemInfo(2592)
       assert.is_true(D.Due(clock + 1205))
       assert.is_true(D.Refresh(clock + 1205))
       assert.equal("market", D.CeilingFor(2592).kind)
@@ -924,6 +945,22 @@ describe("ForeverDeals", function()
       saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
       assert.equal(0, #D.Rows(clock))
       assert.is_false(D.Due(clock + 5))
+      _G.C_AuctionHouse = nil
+    end)
+
+    -- With the clock rebuilding only on an arrival, a buy the client would not quote a deposit for
+    -- would have stayed off the board for the session: its item is waited for like a vendor price.
+    it("waits for an item whose deposit the client would not quote, and builds its row once it comes", function()
+      local ah = withClient({ [2592] = true }, { [2592] = true })
+      local quotes = false
+      ah.CalculateCommodityDeposit = function() if quotes then return 2 end return nil end
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
+      assert.equal(0, #D.Rows(clock))
+      assert.same({ 2592 }, requests)
+      quotes = true
+      D.OnItemInfo(2592)
+      assert.is_true(D.Refresh(clock + 5))
+      assert.equal("market", D.CeilingFor(2592).kind)
       _G.C_AuctionHouse = nil
     end)
 
@@ -990,5 +1027,86 @@ describe("ForeverDeals", function()
       assert.is_nil(D.BuyLimits(config(0.05), 0 / 0, "vendor"))
       assert.is_nil(D.BuyLimits(nil, 10000, "vendor"))
     end)
+  end)
+end)
+
+-- Owner's client, 2026-11-13 (diag/deals-stutter-probe): a build asked the client about every item
+-- of a 5,800-item scan, and the client loaded again every one it had dropped since the last build,
+-- ~3,800 items, with two or three 130-200 ms frames after each build. A kept answer is read
+-- without asking, and the rest are asked about a bounded number at a time.
+describe("ForeverDeals, what a build asks the client", function()
+  local GC, D, saved, infoAsked, requests, loaded
+
+  local function bigFold(n)
+    local items = {}
+    for id = 1, n do items[id] = "100,10,1,;0x10" end
+    return { at = 5000, items = items, itemCount = n }
+  end
+
+  local function distinct(t) local k = 0 for _ in pairs(t) do k = k + 1 end return k end
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/FullScan.lua", GC)
+    helper.loadModule("Core/ForeverFold.lua", GC)
+    helper.loadModule("Core/Flips.lua", GC)
+    helper.loadModule("Core/ForeverValue.lua", GC)
+    helper.loadModule("Core/ForeverDeals.lua", GC)
+    D = GC.ForeverDeals
+    saved = bigFold(5000)
+    GC.ForeverScan = { Enabled = function() return true end, Fold = function() return saved end }
+    GC.db = { settings = { sniper = { watchPins = {} } }, commodityByItem = {} }
+    infoAsked, requests, loaded = {}, {}, {}
+    _G.C_Item = {
+      GetItemInfo = function(id)
+        infoAsked[id] = (infoAsked[id] or 0) + 1
+        if loaded[id] then return "Thing", nil, 1, 1, 1, "Misc", "Junk", 20, "", 1, 3 end
+        return nil
+      end,
+      RequestLoadItemDataByID = function(id) requests[#requests + 1] = id end,
+    }
+  end)
+
+  after_each(function() _G.C_Item = nil end)
+
+  it("asks about at most ASKS_PER_BUILD items with no kept answer, and requests at most REQUEST_PER_BUILD", function()
+    D.Rows(1000)
+    local asked = distinct(infoAsked)
+    assert.is_true(asked > 0)
+    assert.is_true(asked <= D.C.ASKS_PER_BUILD, asked)
+    assert.is_true(#requests <= D.C.REQUEST_PER_BUILD, #requests)
+  end)
+
+  it("asks nothing about an item whose answer is kept", function()
+    GC.db.foreverItemInfo = {}
+    for id = 1, 5000 do GC.db.foreverItemInfo[id] = 5 * 8 + 1 end
+    D.Rows(1000)
+    assert.equal(0, distinct(infoAsked))
+    assert.equal(0, #requests)
+    assert.is_false(D.Due(1005))
+  end)
+
+  it("takes a kept answer with no vendor price for an answer: nothing requested, nothing waited for", function()
+    saved = bigFold(1)
+    GC.db.foreverItemInfo = { [1] = 0 * 8 + 1 }
+    D.Rows(1000)
+    assert.equal(0, #requests)
+    D.OnItemInfo(1)
+    assert.is_false(D.Due(1005))
+  end)
+
+  it("keeps an arrival's answer and makes the board due for it", function()
+    saved = bigFold(1)
+    D.Rows(1000)
+    assert.same({ 1 }, requests)
+    loaded[1] = true
+    D.OnItemInfo(1)                       -- GET_ITEM_INFO_RECEIVED
+    assert.equal(3 * 8 + 1, GC.db.foreverItemInfo[1])
+    assert.is_true(D.Due(1005))
+    assert.is_true(D.Refresh(1005))
+    infoAsked = {}
+    D.Rows(1006)
+    assert.equal(0, distinct(infoAsked)) -- kept now: not asked again
   end)
 end)

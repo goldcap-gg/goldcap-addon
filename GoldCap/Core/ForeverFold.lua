@@ -193,16 +193,25 @@ end
 
 -- isGear(itemID) is the caller's client question (weapon or armor: several random suffixes can
 -- share one id, so the fold's figure is the cheapest version's); a failing answer is "no".
-function GC.ForeverFold.Freeze(acc, isGear)
-  local out, n = {}, 0
-  for itemID, e in pairs(acc.items) do
+--
+-- `over`, when given, is asked after each entry whether this frame's share is spent: Freeze then
+-- answers nil and how far it got, and a call given that back (`from`) goes on from there.
+-- acc.items must take no new key in between, which the scanner sees to: it folds nothing while it
+-- saves (Core/ForeverScan.lua's saveStep).
+function GC.ForeverFold.Freeze(acc, isGear, over, from)
+  local job = from or { out = {}, n = 0 }
+  local out = job.out
+  local itemID, e = next(acc.items, job.key)
+  while itemID ~= nil do
     local gear = false
     if isGear then
       local ok, g = pcall(isGear, itemID)
       gear = ok and g == true
     end
     out[itemID] = GC.ForeverFold.Encode(e, gear)
-    n = n + 1
+    job.n, job.key = job.n + 1, itemID
+    if over and over() then return nil, job end
+    itemID, e = next(acc.items, itemID)
   end
-  return out, n
+  return out, job.n
 end

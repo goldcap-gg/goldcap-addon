@@ -314,6 +314,22 @@ describe("Forever craft panel", function()
     assert.same({ 2000, 0 }, { CC.SellOf(901) })
   end)
 
+  -- ClickUp 1an60dzww4h: on a market that rose, the tape's median (the lowest of the week, the day
+  -- and six hours) is last week's price. What it sells for now, when the site says, holds it instead.
+  it("counts a craft at what the item sells for now when the site says, else at the tape's median", function()
+    load()
+    VALUES[901] = scan(2000)
+    local recent = 1800
+    GC.Data.ForeverSales = function() return { units = 100, sales = 50, median = 300, recent = recent, perDay = 20, hours = 120 } end
+    assert.equal(1800, (CC.SellOf(901)))
+    -- Over the cheapest listing: the listing stands.
+    recent = 2600
+    assert.equal(2000, (CC.SellOf(901)))
+    -- No word from the site (a site from before it, or an item it leaves out): the median, as before.
+    recent = nil
+    assert.equal(300, (CC.SellOf(901)))
+  end)
+
   it("names the deposit a post of one takes in a row's tooltip, and that a sale returns it", function()
     load()
     prices()
