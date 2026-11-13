@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.28.1 (unreleased)
+
+- WoW: Forever: Worth crafting now counts a craft at what the item has sold for over the last day,
+  not over the week. On an item whose price rose this week it read far under what the item sells
+  for now, and a craft that pays could show a loss: Draught of Water Breathing was counted at 2s 40c
+  while its cheapest lot asked 8s 36c.
+
 ## 0.28.0 (2026-11-11)
 
 - Worth crafting can now list recipes you have not learned yet, with what a craft would cost and

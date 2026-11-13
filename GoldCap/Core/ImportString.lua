@@ -392,6 +392,9 @@ end
 --   H:<hours>   hours of that house's sales tape, inside the last 168
 --   S:<id>=<units>=<sales>=<median>=<p25>,...  what sold in them: units, sales (a partial fill is
 --                                              one), and the median and quarter-way unit price
+--   R:<id>=<price>,...  what a crafted item sells for now, where that is not S's median: the lower
+--                       of the last day's and the last six hours' medians that hold three sales
+--                       (the crafting panel's cap; an item R leaves out sells at S's median)
 GC.ImportString.FOREVER_MAX_LEN = 2000000
 
 local function unescapeField(s)
@@ -433,6 +436,15 @@ function GC.ImportString.ParseForever(str)
           result.sales[tonumber(id)] = { units = tonumber(units), sales = tonumber(count),
             median = tonumber(median), p25 = tonumber(p25) }
         end
+      end
+    elseif kind == "R" then
+      -- What a crafted item sells for now, where that is not S's median (goldcap.gg, ClickUp
+      -- 1an60dzww4h): S's median is the lowest of the week's, the day's and six hours', which on a
+      -- market that rose this week is last week's price.
+      result.recent = result.recent or {}
+      for token in body:gmatch("[^,]+") do
+        local id, price = token:match("^(%d+)=(%d+)$")
+        if id then result.recent[tonumber(id)] = tonumber(price) end
       end
     end
   end

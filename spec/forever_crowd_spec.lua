@@ -51,6 +51,15 @@ describe("GCF1, the WoW: Forever crowd payload", function()
     assert.is_nil(none.sales)
   end)
 
+  -- ClickUp 1an60dzww4h: what a crafted item sells for now, a section of its own after S.
+  it("reads what a crafted item sells for now, and skips a malformed one alone", function()
+    local p = GC.ImportString.ParseForever(BODY .. ";H:72;S:2589=300=41=75=71;R:2589=90,oops,2592=x,5996=590")
+    assert.same({ [2589] = 90, [5996] = 590 }, p.recent)
+    assert.same({ units = 300, sales = 41, median = 75, p25 = 71 }, p.sales[2589])
+    assert.equal(2, p.count)
+    assert.is_nil(GC.ImportString.ParseForever(BODY .. ";H:72;S:2589=300=41=75=71").recent)
+  end)
+
   it("refuses what is not a Forever payload", function()
     assert.same({ nil, "empty" }, { GC.ImportString.ParseForever(nil) })
     assert.same({ nil, "bad_header" }, { GC.ImportString.ParseForever("GCM1;eu;1;I:1=2") })
@@ -104,6 +113,11 @@ describe("adopting the crowd payload", function()
     assert.same({ units = 300, sales = 41, median = 75, p25 = 71, perDay = 150, hours = 48, at = at },
       GC.Data.ForeverSales(2589))
     assert.same({ units = 0, sales = 0, perDay = 0, hours = 48, at = at }, GC.Data.ForeverSales(2592)) -- sold nothing
+    -- What a crafted item sells for now rides along where the site sends it.
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71;R:2589=90" }
+    GC.Data.AdoptAppData()
+    assert.equal(90, GC.Data.ForeverSales(2589).recent)
+    assert.equal(75, GC.Data.ForeverSales(2589).median)
     _G.GoldCap_AppData = { foreverString = body() .. ";H:23;S:2589=300=41=75=71" }
     GC.Data.AdoptAppData()
     assert.is_nil(GC.Data.ForeverSales(2589))
