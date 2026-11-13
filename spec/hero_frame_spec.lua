@@ -9,7 +9,7 @@ local W = require("spec.support.wow_frames")
 -- were asked. The widgets are spec/support/wow_frames.lua's, read through W.state.
 describe("HERO tab", function()
   local GC, H, restore, saved, timers, delays, prefs, result, road, builds, views, toggled, windowShown
-  local selected, tipLink, tipShown, tipOwner, modified, clicked, chat, host
+  local selected, tipLink, tipShown, tipOwner, modified, clicked, chat, host, snapshots
   local KEYS = { "UIParent", "C_Item", "C_Timer", "GameTooltip", "HandleModifiedItemClick", "UnitClass", "UnitLevel",
     "GetMoney", "RAID_CLASS_COLORS", "GetClassAtlas", "C_Texture", "C_PaperDollInfo", "GetInventorySlotInfo",
     "GetCoinTextureString", "ChatFrame_OpenChat", "InCombatLockdown", "ITEM_MOD_STRENGTH_SHORT",
@@ -63,6 +63,14 @@ describe("HERO tab", function()
   end
 
   local function row(i) return H._view.rows[i] end
+  -- The weights panel's stats, top to bottom, as shown.
+  local function statsShown(p)
+    local out = {}
+    for _, r in ipairs(p.rows) do if shown(r.frame) then out[#out + 1] = r.token end end
+    local hidden = 0
+    for _, r in pairs(p.pool) do if not shown(r.frame) then hidden = hidden + 1 end end
+    return out, hidden
+  end
   local function panel(key) return H._view.panels and H._view.panels[key] end
   local function run() return GC.AppRuns.Get(prefs.heroList) end
 
@@ -70,7 +78,7 @@ describe("HERO tab", function()
     saved = {}
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     restore = W.install()
-    timers, delays, builds, views, toggled, windowShown = {}, {}, 0, {}, false, true
+    timers, delays, builds, views, toggled, windowShown, snapshots = {}, {}, 0, {}, false, true, 0
     selected, tipLink, tipShown, tipOwner, modified, clicked, chat = nil, nil, false, nil, false, nil, nil
     _G.C_Timer = { After = function(s, fn) delays[#delays + 1] = s; timers[#timers + 1] = fn end }
     _G.UnitClass = function() return "Rogue", "ROGUE", 4 end
@@ -126,7 +134,7 @@ describe("HERO tab", function()
     result = aResult()
     road = { money = 5973, bags = 4620, gain = 3112, gainItems = 12, cost = 20000, level = 17, progress = 17.5 }
     GC.ForeverUpgrades.Current = function() builds = builds + 1; return result end
-    GC.ForeverRoad.Snapshot = function() return road end
+    GC.ForeverRoad.Snapshot = function() snapshots = snapshots + 1; return road end
     host = CreateFrame("Frame")
     H.Attach(host, { panelLeft = 90, panelRightInset = 14, top = -52, bottom = 14, rowWidth = 640, rowHeight = 32 })
   end)
@@ -167,6 +175,9 @@ describe("HERO tab", function()
     assert.equal("3990c", textOf(r1.best.price))
     assert.equal("AT 19", textOf(r1.best.tags[1].text))
     assert.is_true(shown(r1.best.tags[1]))
+    -- The tag stands on the plate's top edge, and the name starts under its lower half.
+    assert.same({ "RIGHT", r1.best, "TOPRIGHT" }, { unpack(W.state(r1.best.tags[1]).points[1], 1, 3) })
+    assert.is_true(-W.state(r1.best.name).points[1][5] >= GC.Hero.C.TAG_H / 2)
     -- The other choices: one line each, the set's pick tagged and chosen for "+ Buy".
     assert.equal("Night Watch Shortsword", textOf(r1.minis[1].name))
     assert.equal("+4 Stamina, +4.4 Damage Per Second", textOf(r1.minis[1].gain))
@@ -190,6 +201,62 @@ describe("HERO tab", function()
     H.RefreshIfShown(true)
     assert.equal("CHEST", textOf(row(1).slotName))
     assert.is_false(shown(row(2)))
+  end)
+
+  -- What the tab is handed is ForeverUpgrades.Build's own answer, not this spec's reading of it: a
+  -- level 20 warrior's scan with a better helm and a one-hand sword for both hands.
+  it("paints what ForeverUpgrades.Build makes of a scan", function()
+    _G.UnitClass = function() return "Warrior", "WARRIOR", 1 end
+    local items = { [301] = { "INVTYPE_HEAD", 4, 2 }, [302] = { "INVTYPE_HEAD", 4, 2 }, [1300] = { "INVTYPE_WEAPON", 2, 7 } }
+    local stats = { ["item:900"] = { ITEM_MOD_STRENGTH_SHORT = 2 }, ["item:301"] = { ITEM_MOD_STRENGTH_SHORT = 6 },
+      ["item:302"] = { ITEM_MOD_STRENGTH_SHORT = 4 }, ["item:1300"] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 } }
+    local driver = {
+      level = function() return 20 end,
+      classFile = function() return "WARRIOR" end,
+      equipped = function(slot) return slot == 1 and "item:900" or nil end,
+      instant = function(id) local it = items[id]; if it then return it[1], it[2], it[3] end end,
+      info = function(str) return 1, "|cff1eff00|H" .. str .. "|h[Piece " .. str:match("%d+") .. "]|h|r" end,
+      stats = function(str) return stats[str] end,
+      usable = function() return nil end,
+      speed = function() return nil end,
+      requestLoad = function() end,
+      money = function() return 5000 end,
+    }
+    result = GC.ForeverUpgrades.Build({ v = 1, at = NOW - 60, items = { [301] = "300:0:0", [302] = "100:0:0",
+      [1300] = "40:0:0" } }, driver, { STR = 1, DPS = 7 })
+    result.at = NOW - 60
+    H.Show()
+    assert.is_true(#result.slots >= 2)
+    for i, slot in ipairs(result.slots) do
+      local r = row(i)
+      assert.is_true(shown(r))
+      assert.equal(GC.Util.Upper(_G[slot.labelKey] or slot.labelKey), textOf(r.slotName))
+      assert.equal("Piece " .. slot.best.itemID, textOf(r.best.name))
+      assert.equal(slot.best.unit .. "c", textOf(r.best.price))
+      -- The slot cell: the worn piece's icon, or the paper doll's empty slot for the group.
+      local art = W.state(r.worn.icon).file
+      if slot.worn then
+        assert.equal(100900, art)
+      else
+        assert.is_truthy(tostring(art):match("^slot:%a+%d?Slot$"), slot.group)
+      end
+    end
+    assert.equal("HEAD", result.slots[1].group)
+    assert.equal(("Add %d to BUY"):format(#result.set.list), textOf(H._view.dock.add.text))
+    assert.equal("Scan again to read each version's own stats.", textOf(H._view.strip.note))
+  end)
+
+  it("has the paper doll's empty-slot art for every slot ForeverUpgrades knows", function()
+    local slots = {}
+    for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
+      slots[#slots + 1] = { group = g.key, labelKey = g.labelKey, alts = {},
+        best = piece(g.key, 400 + #slots, "Piece", 100, { ITEM_MOD_STRENGTH_SHORT = 1 }) }
+    end
+    result.slots = slots
+    H.Show()
+    for i, g in ipairs(GC.ForeverUpgrades.GROUPS) do
+      assert.is_truthy(tostring(W.state(row(i).worn.icon).file):match("^slot:%a+%d?Slot$"), g.key)
+    end
   end)
 
   it("wraps every name, gain and heading instead of cutting it, and sizes buttons and tags to their words", function()
@@ -236,8 +303,10 @@ describe("HERO tab", function()
     assert.equal(result.slots[1].alts[2].link, clicked)
     assert.equal(result.slots[1].alts[1], row(1).chosen)       -- a shift-click links it, picks nothing
     modified = false
+    local walks = snapshots
     press(mini)
     assert.equal(result.slots[1].alts[2], row(1).chosen)
+    assert.equal(walks, snapshots)                                -- a pick repaints; the bags are not walked again
     assert.is_true(shown(mini.onRing))
     assert.is_false(shown(row(1).minis[1].onRing))
   end)
@@ -307,9 +376,7 @@ describe("HERO tab", function()
     assert.is_true(shown(p))
     assert.equal("What counts for a Rogue", textOf(p.title))
     -- One box per stat the class's defaults name, and DPS; the class's main stat and DPS first.
-    local order = {}
-    for i = 1, #p.rows do if shown(p.rows[i].frame) then order[#order + 1] = p.rows[i].token end end
-    assert.same({ "AGI", "DPS", "STR", "STA", "ARMOR", "AP" }, order)
+    assert.same({ "AGI", "DPS", "STR", "STA", "ARMOR", "AP" }, (statsShown(p)))
     assert.equal("1", W.state(p.boxes.AGI.box).text)
     assert.equal("7", W.state(p.boxes.DPS.box).text)
     builds = 0
@@ -328,11 +395,18 @@ describe("HERO tab", function()
     assert.equal(1.5, prefs.weights.ROGUE.AGI)
     typeInto(p.boxes.STR.box, "0")                                -- nothing: off the list of weights
     assert.is_nil(prefs.weights.ROGUE.STR)
-    -- Reset: the class's own defaults again, the box no longer red.
+    -- A stat of the player's own the defaults do not name gets a box too.
+    prefs.weights.ROGUE.SPI = 2
+    H.RefreshIfShown(true)
+    assert.same({ "AGI", "DPS", "STR", "STA", "SPI", "ARMOR", "AP" }, (statsShown(p)))
+    -- Reset: the class's own defaults again, the box no longer red, the rows under SPI still there.
     assert.equal("Reset to Rogue", textOf(p.secondary.text))
     press(p.secondary)
     assert.is_nil(prefs.weights.ROGUE)
     assert.is_nil(p.boxes.AGI.bad)
+    local after, hidden = statsShown(p)
+    assert.same({ "AGI", "DPS", "STR", "STA", "ARMOR", "AP" }, after)
+    assert.equal(1, hidden)                                       -- SPI's row, kept for next time
     -- Done, the X and the Weights button shut it.
     press(p.primary)
     assert.is_nil(H._state.panel)
@@ -358,6 +432,7 @@ describe("HERO tab", function()
     H.RefreshIfShown(true)
     assert.is_false(shown(st.switch))
     assert.equal("What counts for a Warrior", textOf(panel("weights").title))
+    assert.same({ "STR", "DPS", "AGI", "STA", "ARMOR", "AP" }, (statsShown(panel("weights"))))
   end)
 
   it("says what to do when nothing fits the purse, and when the scan is stale", function()

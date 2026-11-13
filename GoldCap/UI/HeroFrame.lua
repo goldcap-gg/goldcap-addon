@@ -219,6 +219,12 @@ local function slotArt(group)
   return ok and texture or nil
 end
 
+-- The gold toward a mount (GC.ForeverRoad.Snapshot), read as the tab is built from a new result or
+-- the riding cost changes, not on every paint: it walks the bags.
+local function readRoad()
+  state.road = GC.ForeverRoad and GC.ForeverRoad.Snapshot and GC.ForeverRoad.Snapshot() or nil
+end
+
 local function current()
   local U = GC.ForeverUpgrades
   local r = U and U.Current and U.Current() or nil
@@ -382,10 +388,12 @@ local function layoutBest(b, width)
   local ribbon = #b.tagWidths > 0 and tagsW <= width - 2 * HD.BEST_PAD
   local tagsH = (#b.tagWidths > 0 and not ribbon) and (HD.TAG_H + 3) or 0
   local textH = nameH + (gainH > 0 and gainH + 2 or 0) + tagsH
-  local h = math.max(HD.BEST_ICON + 8, textH + 10)
+  -- Tags on the top edge reach half their height into the plate: the words start under them.
+  local padTop = ribbon and math.ceil(HD.TAG_H / 2) + 2 or 5
+  local h = math.max(HD.BEST_ICON + 8, padTop + textH + 5)
   b.icon.edge:ClearAllPoints()
   b.icon.edge:SetPoint("LEFT", b, "LEFT", HD.BEST_PAD, 0)
-  local top = math.floor((h - textH) / 2)
+  local top = padTop + math.floor((h - padTop - 5 - textH) / 2)
   b.name:ClearAllPoints()
   b.name:SetPoint("TOPLEFT", b, "TOPLEFT", textX, -top)
   b.gain:ClearAllPoints()
@@ -1161,26 +1169,26 @@ local function weightTokens(class, weights)
   return out
 end
 
+-- A weight typed in its box: read as /gc weights reads one (GC.ForeverUpgrades.ApplyWeights, a comma
+-- taken for the decimal point), into a copy of the weights in force, so a stat with no box here
+-- keeps its own; 0 takes the stat off. What cannot be read turns the box red and changes nothing.
 local function onWeight(token, text)
   local p, class = prefs(), select(2, classOf())
   local well = view.panels.weights.boxes[token]
   if not (p and class and well) then return end
   text = trim(text)
   if text == "" then well:SetBad(false) return end
-  local v = tonumber((text:gsub(",", ".")))
-  if not v then well:SetBad(true) return end
+  local U = GC.ForeverUpgrades
+  local new = U.ApplyWeights(U.WeightsFor(p, class), token .. " " .. text:gsub(",", "."))
+  if not new then well:SetBad(true) return end
   well:SetBad(false)
-  -- A copy of the weights in force, so a stat with no box here keeps its weight.
-  local new = {}
-  for k, w in pairs(GC.ForeverUpgrades.WeightsFor(p, class)) do new[k] = w end
-  new[token] = v ~= 0 and v or nil
   p.weights = type(p.weights) == "table" and p.weights or {}
   p.weights[class] = new
   rebuildSoon()
 end
 
 local function newWeightRow(p, token)
-  local row = { frame = CreateFrame("Frame", nil, p.body) }
+  local row = { frame = CreateFrame("Frame", nil, p.body), token = token }
   row.icon = KP.NewIcon(row.frame, HD.PANEL_ICON)
   row.icon.edge:SetPoint("LEFT", row.frame, "LEFT", 0, 0)
   row.name = Theme.Label(row.frame, 12)
@@ -1212,7 +1220,7 @@ end
 
 local function newWeights()
   local p = newPanel()
-  p.rows, p.boxes = {}, {}
+  p.rows, p.pool, p.boxes = {}, {}, {}
   -- A rogue's main hand: the two ways it is used, in the sunken track of a two-way switch
   -- (Theme.Parts.sunkenTrack), the one in force filled gold.
   p.style = { cap = Theme.Num(p.body, 9, true), hint = Theme.Label(p.body, 10) }
@@ -1253,26 +1261,30 @@ panelPaint.weights = function(p, width)
     sub = GC.L["The list changes as you type"] })
   local U = GC.ForeverUpgrades
   local weights = (class and U.WeightsFor(prefs() or {}, class)) or {}
+  -- A row per stat, kept by its stat (p.pool) and laid out in this paint's order (p.rows): every
+  -- one hidden first, so a stat that moved up the list or dropped off it is never left showing.
   local y = 0
+  for _, row in pairs(p.pool) do row.frame:Hide() end
+  p.rows = {}
   for i, entry in ipairs(weightTokens(class, weights)) do
-    local row = p.rows[i]
-    if not row or row.token ~= entry.token then
-      if row then row.frame:Hide() end
-      row = p.rows[entry.token .. "#"] or newWeightRow(p, entry.token)
-      p.rows[entry.token .. "#"] = row
-      row.token = entry.token
-      p.rows[i] = row
-    end
+    local row = p.pool[entry.token] or newWeightRow(p, entry.token)
+    p.pool[entry.token] = row
+    p.rows[i] = row
     KP.PaintIcon(row.icon, nil, STAT_ICON[entry.token])
     local key = U.TOKENS[entry.token][1]
     put(row.name, _G[key] or entry.token)
     put(row.hint, GC.L[(U.HANDS[class] and HANDS_HINT[entry.token]) or STAT_HINT[entry.token]])
-    local gold = Theme.color.gold
-    if not row.box.bad then
-      row.box:SetTint(nil, entry.top and { gold[1], gold[2], gold[3], 0.65 } or GC.Kit.Tokens.ink(0.14))
+    -- While the player is not typing in it, the box holds the weight in force and is no longer red.
+    local box = row.box
+    if not (box.box.HasFocus and box.box:HasFocus()) then
+      box.bad = nil
+      local w = weights[entry.token]
+      box.box:SetText(w and ("%g"):format(w) or "0")
     end
-    local w = weights[entry.token]
-    fill(row.box, w and ("%g"):format(w) or "0")
+    local gold = Theme.color.gold
+    if not box.bad then
+      box:SetTint(nil, entry.top and { gold[1], gold[2], gold[3], 0.65 } or GC.Kit.Tokens.ink(0.14))
+    end
     local textX = HD.PANEL_ICON + 9
     local textW = bodyW - 2 * HD.PANEL_PAD - textX - HD.BOX_W - HD.GAP
     local nh, hh = wrapTo(row.name, textW), wrapTo(row.hint, textW)
@@ -1287,7 +1299,6 @@ panelPaint.weights = function(p, width)
     row.frame:Show()
     y = y + h
   end
-  for i = #weightTokens(class, weights) + 1, #p.rows do p.rows[i].frame:Hide() end
 
   local st = p.style
   local style = state.r and state.r.style
@@ -1349,6 +1360,7 @@ local function applyCost(well)
     p.mountCost = copper
   end
   well:SetBad(false)
+  readRoad()
   paint()
 end
 
@@ -1602,7 +1614,6 @@ paint = function()
   local r = state.r or { slots = {}, loading = 0 }
   local width = currentWidth()
   view.content:SetWidth(width)
-  state.road = GC.ForeverRoad and GC.ForeverRoad.Snapshot and GC.ForeverRoad.Snapshot() or nil
   local top = layoutStrip(r, width) + HD.GAP
   local dockH = layoutDock(r, width)
   local cols = renderRows(r, width)
@@ -1732,6 +1743,7 @@ function Hero.Render(r, now)
   state.r = r or current()
   state.now = now or time()
   repaint.ids = state.r.loadingIds
+  readRoad()
   paint()
   chaseSpeed(state.r)
 end
