@@ -576,7 +576,6 @@ describe("locale layer", function()
       "Spell damage and healing",
       "The weapon's damage per second",
       "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
-      "Over your gold",
       "At %d",
       "%s · level %d",
       "Scan %s ago",

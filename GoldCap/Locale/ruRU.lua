@@ -1991,7 +1991,6 @@ GC.Locales.ruRU = {
   ["The weapon's damage per second"] = "Урон оружия в секунду",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Правая рука: около 14 силы атаки. Левая вдвое меньше, огнестрельное оружие или лук в семь раз меньше",
-  ["Over your gold"] = "Не по карману",
   ["At %d"] = "С %d уровня",
   ["%s · level %d"] = "%s · уровень %d",
   ["Scan %s ago"] = "Скан %s назад",

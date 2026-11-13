@@ -1912,7 +1912,6 @@ GC.Locales.enUS = {
   ["The weapon's damage per second"] = "The weapon's damage per second",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
-  ["Over your gold"] = "Over your gold",
   ["At %d"] = "At %d",
   ["%s · level %d"] = "%s · level %d",
   ["Scan %s ago"] = "Scan %s ago",
@@ -1949,13 +1948,8 @@ GC.Locales.enUS = {
     "Still reading what you wear here. This fills in by itself.",
   ["You wear %s"] = "You wear %s",
   ["Nothing worn here"] = "Nothing worn here",
-  ["Tick one. Only ticked pieces go into the total below."] =
-    "Tick one. Only ticked pieces go into the total below.",
-  ["Best for your gold"] = "Best for your gold",
-  ["Strongest"] = "Strongest",
   ["Keep %s"] = "Keep %s",
   ["Buy nothing here"] = "Buy nothing here",
-  ["nothing"] = "nothing",
   ["%d ticked: %s"] = "%d ticked: %s",
   ["Picked by GoldCap for the gold you carry"] = "Picked by GoldCap for the gold you carry",
   ["Still reading what you wear: the picks may change"] = "Still reading what you wear: the picks may change",

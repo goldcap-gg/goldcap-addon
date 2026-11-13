@@ -1928,7 +1928,6 @@ GC.Locales.frFR = {
   ["The weapon's damage per second"] = "Les dégâts par seconde de l'arme",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Main droite : environ 14 de puissance d'attaque. Main gauche la moitié, arme à feu ou arc un septième",
-  ["Over your gold"] = "Plus que votre or",
   ["At %d"] = "Au niveau %d",
   ["%s · level %d"] = "%s · niveau %d",
   ["Scan %s ago"] = "Scan d'il y a %s",

@@ -36,8 +36,7 @@ local HD = {
   DOLL_W = 260, DOLL_PAD = 8, SLOT_GAP = 6, SLOT_MIN = 20, SLOT_MAX = 42, HAND_GAP = 6, MODEL_GAP = 9,
   RING = 2, GLOW = 3, BADGE = 14, BADGE_GLYPH = 10, PORTRAIT = 64,
   PAD = 12, HEAD_ICON = 34, LIST_GUTTER = 22, -- the slot panel
-  OPT_PAD_X = 8, OPT_PAD_Y = 6, OPT_GAP = 4, BOX = 16, BOX_GLYPH = 12, OPT_ICON = 28, COL_SHARE = 0.4, TEXT_MIN = 110,
-  TAG_H = 20, TAG_PAD = 5, TAG_GAP = 3, -- the kit's chip: its slice margin stays under half of 20
+  OPT_PAD_X = 8, OPT_PAD_Y = 6, OPT_GAP = 4, BOX = 16, BOX_GLYPH = 12, OPT_ICON = 28, TEXT_MIN = 110,
   BAR_PAD = 8, BAR_TEXT_MIN = 150, BAR_BTN_H = 32, BAR_BTN_W = 120,
   BTN_H = 26, -- plaque's 12px caps stay under half the height
   PANEL_W = 336, PANEL_PAD = 12, PANEL_HEAD_H = 58, PANEL_FOOT_H = 48, PANEL_GUTTER = 22, BOX_W = 62,
@@ -727,52 +726,26 @@ end
 
 -- The slot panel ----------------------------------------------------------------------------
 
--- A tag: the kit's chip, as wide as its words, over an opaque base, so one that stands on a plate
--- does not show the plate through its tint.
-local function newTag(parent)
-  local chip = Theme.Chip(parent)
-  chip:SetHeight(HD.TAG_H)
-  chip.base = chip:CreateTexture(nil, "BACKGROUND", nil, -8)
-  Theme.SetShape(chip.base, "chip")
-  local p = Theme.color.panel
-  chip.base:SetVertexColor(p[1], p[2], p[3], 1)
-  chip.base:SetAllPoints()
-  chip:Hide()
-  return chip
+-- The game's own red (RED_FONT_COLOR: a tooltip's level line you cannot meet yet, a buyout the AH
+-- says you cannot pay), the kit's where the client has none.
+local function gameRed()
+  local c = _G.RED_FONT_COLOR
+  if type(c) == "table" and type(c.r) == "number" then return { c.r, c.g, c.b, 1 } end
+  return Theme.color.red
 end
 
--- A tag per entry of `tags` ({ words, colour }) on `owner` (its pool owner.tags), the rest hidden;
--- answers their widths.
-local function paintTags(owner, tags)
-  owner.tags = owner.tags or {}
-  local widths = {}
-  for i, tag in ipairs(tags) do
-    local chip = owner.tags[i] or newTag(owner)
-    owner.tags[i] = chip
-    chip:SetLabel(GC.Util.Upper(tag[1]), tag[2])
-    put(chip.text, GC.Util.Upper(tag[1]))
-    widths[i] = widthOf(chip.text) + 2 * HD.TAG_PAD
-    chip:SetWidth(widths[i])
-    chip:Show()
-  end
-  for i = #tags + 1, #owner.tags do owner.tags[i]:Hide() end
-  return widths
+-- The client's own level line, ITEM_MIN_LEVEL ("Requires Level %d", in the client's language), or
+-- GoldCap's words where the client has none.
+local function levelLine(level)
+  local fmt = _G.ITEM_MIN_LEVEL
+  if type(fmt) ~= "string" or fmt == "" then fmt = GC.L["At %d"] end
+  return fmt:format(level)
 end
 
--- What a choice is, in the price column: the set's pick, the strongest when the set took another,
--- over the gold carried, and the level it can be worn at.
-local function tagsOf(c, pick, best)
-  local out = {}
-  if c == pick then out[#out + 1] = { GC.L["Best for your gold"], Theme.color.green } end
-  if c == best and c ~= pick then out[#out + 1] = { GC.L["Strongest"], Theme.color.watch } end
-  if c.overGold then out[#out + 1] = { GC.L["Over your gold"], Theme.tier.SUSPECT } end
-  if c.later then out[#out + 1] = { GC.L["At %d"]:format(c.later), Theme.color.goldHi } end
-  return out
-end
-
--- One option of the slot panel: a checkbox, the piece's icon, its name and what it adds wrapping
--- beside it, and at the right its tags over its price. The whole row is the click that ticks it;
--- hover is the engine's HIGHLIGHT layer, a ticked row is green as state.
+-- One option of the slot panel, two lines as the auction house lists a lot: a checkbox and the
+-- piece's icon, then its name with its price at the right, and under them what it adds with, at the
+-- right, the level it waits for. The whole row is the click that ticks it; hover is the engine's
+-- HIGHLIGHT layer, a ticked row is green as state.
 local function newOption(parent)
   local b = CreateFrame("Button", nil, parent)
   b:RegisterForClicks("LeftButtonUp")
@@ -807,6 +780,8 @@ local function newOption(parent)
   b.gain:SetJustifyH("LEFT")
   b.price = Theme.Num(b, 13, true)
   b.price:SetJustifyH("RIGHT")
+  b.level = Theme.Label(b, 11)
+  b.level:SetJustifyH("RIGHT")
   b:SetScript("OnEnter", pieceTip)
   b:SetScript("OnLeave", hideTip)
   -- A modified click is the client's (shift links the piece, ctrl tries it on); a plain one ticks it.
@@ -819,7 +794,8 @@ local function newOption(parent)
 end
 
 -- An option for `c`, or the row that buys nothing (c nil): `worn` its link, `art` the empty slot.
-local function paintOption(b, group, c, on, tags, worn, art)
+-- A price over the gold carried is red, as the AH paints a buyout you cannot pay.
+local function paintOption(b, group, c, on, worn, art)
   b.group, b.cand = group, c
   b.tipLink = c and (c.link or c.itemString) or worn
   if c then
@@ -829,93 +805,118 @@ local function paintOption(b, group, c, on, tags, worn, art)
     local gains = gainText(c.diffs)
     if gains ~= "" then put(b.gain, gains) else b.gain:Hide() end
     put(b.price, coins(c.unit))
-    setColor(b.price, Theme.color.fg)
+    setColor(b.price, c.overGold and gameRed() or Theme.color.fg)
+    if c.later then
+      put(b.level, levelLine(c.later))
+      setColor(b.level, gameRed())
+    else
+      b.level:Hide()
+    end
   else
     local id = itemIdOf(worn)
     KP.PaintIcon(b.icon, id, (id and itemIcon(id)) or art)
     put(b.name, worn and GC.L["Keep %s"]:format(nameOf({ link = worn, itemID = id })) or GC.L["Buy nothing here"])
     setColor(b.name, Theme.color.fgMuted)
-    b.gain:Hide()
-    put(b.price, GC.L["nothing"])
-    setColor(b.price, Theme.color.fgDim)
+    for _, fs in ipairs({ b.gain, b.price, b.level }) do fs:Hide() end
   end
   b.onWash:SetShown(on)
   b.onRing:SetShown(on)
   b.boxFill:SetShown(on)
   b.boxGlyph:SetShown(on)
-  b.tagWidths = paintTags(b, tags)
   b:Show()
 end
 
--- An option at `width`: the text beside the icon wraps. At the right, the price under the tags while
--- that column takes no more than COL_SHARE of the row and leaves the text TEXT_MIN; else the price
--- alone there and the tags flowing under what the piece adds; else, in a narrow panel, the price and
--- the tags both flowing there, so the name keeps the row's width. Answers its height.
-local function layoutOption(b, width)
-  local priceW = hug(b.price)
-  local tagsW = 0
-  for _, w in ipairs(b.tagWidths) do tagsW = math.max(tagsW, w) end
+-- A list's right column, measured over its first `n` rows: its widest price and its widest level
+-- line, 0 where no row has one.
+local function columnsOf(rows, n)
+  local priceW, levelW = 0, 0
+  for i = 1, n do
+    local b = rows[i]
+    if b.price:IsShown() then priceW = math.max(priceW, hug(b.price)) end
+    if b.level:IsShown() then levelW = math.max(levelW, hug(b.level)) end
+  end
+  return priceW, levelW
+end
+
+-- How a list lays its rows out at `width`, from columnsOf: where the words start, how wide the name
+-- runs beside the price column and the gains beside the level column, and where those columns
+-- go. A column stays at the right while the words keep TEXT_MIN beside it; a level line that
+-- cannot drops under the gains, still at the right; a price that cannot, in a narrow panel, goes
+-- under the words with the level line after it.
+local function listShape(width, priceW, levelW)
   local textX = HD.OPT_PAD_X + HD.BOX + HD.SMALL + HD.OPT_ICON + HD.SMALL + 2
-  local function room(colW) return width - textX - (colW > 0 and HD.SMALL + colW or 0) - HD.OPT_PAD_X end
-  local colW = math.max(priceW, tagsW)
-  local mode = "column"
-  if colW > width * HD.COL_SHARE or room(colW) < HD.TEXT_MIN then
-    mode, colW = "price", priceW
-    if room(colW) < HD.TEXT_MIN then mode, colW = "under", 0 end
+  local full = math.max(1, width - textX - HD.OPT_PAD_X)
+  local function beside(colW) return colW > 0 and full - HD.SMALL - colW or full end
+  local shape = { textX = textX, full = full, nameW = beside(priceW), gainW = beside(levelW) }
+  if shape.nameW < HD.TEXT_MIN then
+    shape.under, shape.nameW, shape.gainW = true, full, full
+  elseif shape.gainW < HD.TEXT_MIN then
+    shape.levelDrops, shape.gainW = true, full
   end
-  local textW = math.max(1, room(colW))
-  local y = HD.OPT_PAD_Y
-  b.name:ClearAllPoints()
-  b.name:SetPoint("TOPLEFT", b, "TOPLEFT", textX, -y)
-  y = y + wrapTo(b.name, textW)
+  return shape
+end
+
+-- An option in `shape`: its words wrap, never cut. Answers the height it needs; placeOption puts
+-- it at the list's height.
+local function layoutOption(b, shape)
+  local at = {}
+  local y = wrapTo(b.name, shape.nameW)
   if b.gain:IsShown() then
-    b.gain:ClearAllPoints()
-    b.gain:SetPoint("TOPLEFT", b, "TOPLEFT", textX, -(y + 2))
-    y = y + 2 + wrapTo(b.gain, textW)
+    at.gainY = y + 2
+    y = at.gainY + wrapTo(b.gain, b.level:IsShown() and shape.gainW or shape.full)
   end
-  local colH = 0
-  if mode == "column" then
-    for i = 1, #b.tagWidths do
-      b.tags[i]:ClearAllPoints()
-      b.tags[i]:SetPoint("TOPRIGHT", b, "TOPRIGHT", -HD.OPT_PAD_X, -(HD.OPT_PAD_Y + colH))
-      colH = colH + HD.TAG_H + HD.TAG_GAP
+  local price, level = b.price:IsShown(), b.level:IsShown()
+  if shape.under then
+    -- One line under the words: the price, then the level line where it still fits beside it.
+    y = y + 2
+    at.priceX, at.priceY = shape.textX, y
+    local lineH = price and heightOf(b.price) or 0
+    if level then
+      local x = price and shape.textX + hug(b.price) + HD.SMALL or shape.textX
+      if x + hug(b.level) > shape.textX + shape.full then
+        x, y = shape.textX, y + lineH + 2
+        lineH = 0
+      end
+      at.levelX, at.levelY = x, y
+      lineH = math.max(lineH, heightOf(b.level))
     end
+    y = y + lineH
+  else
+    at.priceY = 0
+    if price then y = math.max(y, heightOf(b.price)) end
+    if level then
+      at.levelY = shape.levelDrops and y + 2 or at.gainY or (price and heightOf(b.price) + 2 or 0)
+      y = math.max(y, at.levelY + heightOf(b.level))
+    end
+  end
+  at.blockH = y
+  b.at = at
+  return math.max(HD.OPT_ICON, y) + 2 * HD.OPT_PAD_Y
+end
+
+-- An option `h` tall: its words in the middle of the row, the box and the icon too.
+local function placeOption(b, shape, h)
+  local at = b.at
+  local top = HD.OPT_PAD_Y + math.floor((h - 2 * HD.OPT_PAD_Y - at.blockH) / 2)
+  b.name:ClearAllPoints()
+  b.name:SetPoint("TOPLEFT", b, "TOPLEFT", shape.textX, -top)
+  if at.gainY then
+    b.gain:ClearAllPoints()
+    b.gain:SetPoint("TOPLEFT", b, "TOPLEFT", shape.textX, -(top + at.gainY))
   end
   b.price:ClearAllPoints()
-  -- What flows under the words: the tags, the price first among them when it has no column. A
-  -- flowing line is as tall as a tag; the price stands at its middle.
-  local flow = {}
-  if mode == "under" then flow[1] = { b.price, priceW } end
-  if mode ~= "column" then
-    for i, w in ipairs(b.tagWidths) do flow[#flow + 1] = { b.tags[i], w } end
+  b.level:ClearAllPoints()
+  if shape.under then
+    b.price:SetPoint("TOPLEFT", b, "TOPLEFT", at.priceX, -(top + at.priceY))
+    if at.levelX then b.level:SetPoint("TOPLEFT", b, "TOPLEFT", at.levelX, -(top + at.levelY)) end
+  else
+    b.price:SetPoint("TOPRIGHT", b, "TOPRIGHT", -HD.OPT_PAD_X, -(top + at.priceY))
+    if at.levelY then b.level:SetPoint("TOPRIGHT", b, "TOPRIGHT", -HD.OPT_PAD_X, -(top + at.levelY)) end
   end
-  if #flow > 0 then
-    local x = textX
-    y = y + HD.TAG_GAP
-    for _, part in ipairs(flow) do
-      if x > textX and x + part[2] > textX + textW then
-        x, y = textX, y + HD.TAG_H + HD.TAG_GAP
-      end
-      if part[1] == b.price then
-        part[1]:SetPoint("LEFT", b, "TOPLEFT", x, -(y + HD.TAG_H / 2))
-      else
-        part[1]:ClearAllPoints()
-        part[1]:SetPoint("TOPLEFT", b, "TOPLEFT", x, -y)
-      end
-      x = x + part[2] + HD.SMALL
-    end
-    y = y + HD.TAG_H
-  end
-  if mode ~= "under" then
-    b.price:SetPoint("TOPRIGHT", b, "TOPRIGHT", -HD.OPT_PAD_X, -(HD.OPT_PAD_Y + colH))
-  end
-  local priceH = mode == "under" and 0 or HD.OPT_PAD_Y + colH + heightOf(b.price) + HD.OPT_PAD_Y
-  local h = math.max(HD.OPT_ICON + 2 * HD.OPT_PAD_Y, y + HD.OPT_PAD_Y, priceH)
   b.box:ClearAllPoints()
   b.box:SetPoint("LEFT", b, "TOPLEFT", HD.OPT_PAD_X, -math.floor(h / 2))
   b.icon.edge:ClearAllPoints()
   b.icon.edge:SetPoint("LEFT", b, "TOPLEFT", HD.OPT_PAD_X + HD.BOX + HD.SMALL, -math.floor(h / 2))
-  return h
 end
 
 local function createPanel(container)
@@ -929,9 +930,6 @@ local function createPanel(container)
   p.sub = Theme.Label(f, 12)
   p.sub:SetJustifyH("LEFT")
   setColor(p.sub, Theme.color.fgMuted)
-  p.hint = Theme.Label(f, 11)
-  p.hint:SetJustifyH("LEFT")
-  setColor(p.hint, Theme.color.fgDim)
   p.message = Theme.Label(f, 12)
   p.message:SetJustifyH("CENTER")
   setColor(p.message, Theme.color.fgMuted)
@@ -955,7 +953,8 @@ local function emptyWhy(r, s, inv)
 end
 
 -- The slot panel at `x`, `midTop` down, `w` wide and `midH` tall: the selected slot's head (what is
--- worn there), the hint, and its options, the set's pick first and "keep" last.
+-- worn there) and its options, the set's pick first and "keep" last, every row of the list as tall
+-- as its tallest.
 local function layoutPanel(r, x, midTop, w, midH)
   local p, f = view.panel, view.panel.frame
   f:ClearAllPoints()
@@ -983,26 +982,20 @@ local function layoutPanel(r, x, midTop, w, midH)
   p.title:SetPoint("TOPLEFT", f, "TOPLEFT", textX, -top)
   p.sub:ClearAllPoints()
   p.sub:SetPoint("TOPLEFT", p.title, "BOTTOMLEFT", 0, -2)
-  local y = HD.PAD + headH + HD.SMALL
+  local y = HD.PAD + headH + HD.GAP
   local why = emptyWhy(r, s, inv)
   local rows = p.rows
   if why then
-    p.hint:Hide()
     for _, row in ipairs(rows) do row:Hide() end
     put(p.message, why)
     wrapTo(p.message, w - 2 * HD.PAD)
     p.message:ClearAllPoints()
-    p.message:SetPoint("TOP", f, "TOP", 0, -(y + HD.GAP))
+    p.message:SetPoint("TOP", f, "TOP", 0, -(y + HD.SMALL))
     view.scroll:Hide()
     return
   end
   p.message:Hide()
-  put(p.hint, GC.L["Tick one. Only ticked pieces go into the total below."])
-  local hh = wrapTo(p.hint, w - 2 * HD.PAD)
-  p.hint:ClearAllPoints()
-  p.hint:SetPoint("TOPLEFT", f, "TOPLEFT", HD.PAD, -y)
-  y = y + hh + HD.SMALL
-  -- The list: its own scroll, inside the panel under the hint.
+  -- The list: its own scroll, inside the panel under the head.
   local scroll, content = view.scroll, view.content
   scroll:ClearAllPoints()
   scroll:SetPoint("TOPLEFT", f, "TOPLEFT", HD.PAD, -y)
@@ -1016,21 +1009,24 @@ local function layoutPanel(r, x, midTop, w, midH)
   local listW = math.max(1, w - HD.PAD - HD.LIST_GUTTER)
   content:SetWidth(listW)
   local options = state.options[s.group] or {}
-  local pick, ticked = setPickOf(r, s), state.ticked[s.group]
+  local ticked = state.ticked[s.group]
   local n = #options + 1
   for i = #rows + 1, n do rows[i] = newOption(content) end
   for i, c in ipairs(options) do
-    paintOption(rows[i], s.group, c, c == ticked, tagsOf(c, pick, s.best))
+    paintOption(rows[i], s.group, c, c == ticked)
   end
-  paintOption(rows[n], s.group, nil, ticked == nil, {}, worn, slotArt(b.art))
+  paintOption(rows[n], s.group, nil, ticked == nil, worn, slotArt(b.art))
+  local shape = listShape(listW, columnsOf(rows, n))
+  local rowH = 0
+  for i = 1, n do rowH = math.max(rowH, layoutOption(rows[i], shape)) end
   local ly = 0
   for i = 1, n do
     local row = rows[i]
-    local h = layoutOption(row, listW)
+    placeOption(row, shape, rowH)
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -ly)
-    row:SetSize(listW, h)
-    ly = ly + h + HD.OPT_GAP
+    row:SetSize(listW, rowH)
+    ly = ly + rowH + HD.OPT_GAP
   end
   for i = n + 1, #rows do
     rows[i].cand, rows[i].tipLink = nil, nil

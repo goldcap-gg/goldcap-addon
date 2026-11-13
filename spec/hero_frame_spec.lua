@@ -17,7 +17,7 @@ describe("HERO tab", function()
     "GetCoinTextureString", "ChatFrame_OpenChat", "InCombatLockdown", "ITEM_MOD_STRENGTH_SHORT",
     "ITEM_MOD_AGILITY_SHORT", "ITEM_MOD_STAMINA_SHORT", "ITEM_MOD_DAMAGE_PER_SECOND_SHORT", "RESISTANCE0_NAME",
     "INVTYPE_WEAPONMAINHAND", "INVTYPE_WEAPONOFFHAND", "INVTYPE_CHEST", "INVTYPE_HEAD", "INVTYPE_FINGER",
-    "ITEM_QUALITY_COLORS", "GetInventoryItemLink", "time" }
+    "ITEM_QUALITY_COLORS", "GetInventoryItemLink", "time", "ITEM_MIN_LEVEL", "RED_FONT_COLOR" }
   local NOW = 1800000000
   local CLUB, WATCH, BRUISER, TUNIC, HATCHET, VEST = 2130, 15210, 2131, 2316, 2134, 2317
   -- The paper doll's slots in the client's own order (Forever's Camelot/PaperDollFrame.xml).
@@ -90,9 +90,10 @@ describe("HERO tab", function()
     for _, r in ipairs(H._view.panel.rows) do if shown(r) then out[#out + 1] = textOf(r.name) end end
     return out
   end
-  local function tagsOf(row)
+  -- The heights of the rows a list shows, top to bottom.
+  local function heightsShown()
     local out = {}
-    for _, t in ipairs(row.tags or {}) do if shown(t) then out[#out + 1] = textOf(t.text) end end
+    for _, r in ipairs(H._view.panel.rows) do if shown(r) then out[#out + 1] = r:GetHeight() end end
     return out
   end
   local function ticked(row) return shown(row.boxFill) end
@@ -133,6 +134,9 @@ describe("HERO tab", function()
     _G.UnitLevel = function() return 17 end
     _G.GetMoney = function() return 5973 end
     _G.GetInventoryItemLink = function(unit, slot) return unit == "player" and wornLinks[slot] or nil end
+    -- The client's own strings: a tooltip's level line, and the red it and the AH draw in.
+    _G.ITEM_MIN_LEVEL = "Requires Level %d"
+    _G.RED_FONT_COLOR = { r = 1, g = 0.125, b = 0.125 }
     _G.RAID_CLASS_COLORS = { ROGUE = { r = 1, g = 0.96, b = 0.41 }, WARRIOR = { r = 0.78, g = 0.61, b = 0.43 } }
     _G.GetClassAtlas = function(file) return ("classicon-%s"):format(file) end
     _G.C_Texture = { GetAtlasInfo = function(atlas) return atlas:find("^classicon%-") and {} or nil end }
@@ -285,12 +289,16 @@ describe("HERO tab", function()
     local p = sp()
     assert.equal("CHEST", textOf(p.title))
     assert.equal("You wear Old Tunic", textOf(p.sub))
-    assert.equal("Tick one. Only ticked pieces go into the total below.", textOf(p.hint))
+    assert.is_nil(p.hint)                                               -- the head, then the list
     assert.same({ "Dark Leather Tunic", "Keep Old Tunic" }, optsShown())
-    assert.same({ "BEST FOR YOUR GOLD" }, tagsOf(opt(1)))                -- the set's pick and the strongest
+    assert.is_nil(opt(1).tags)                                          -- no chips: the tick says it
     assert.is_true(ticked(opt(1)))
-    assert.equal("nothing", textOf(opt(2).price))
+    -- Keep: the box, what is worn and its name, no price; as tall as the piece above it.
+    assert.is_false(shown(opt(2).price))
+    assert.is_false(shown(opt(2).level))
     assert.equal(100000 + 85, W.state(opt(2).icon.icon).file)
+    local hs = heightsShown()
+    assert.equal(hs[1], hs[2])
     assert.is_false(ticked(opt(2)))
     -- The main hand: the set's pick, the strongest, the others by what they add; nothing worn to keep.
     -- Its list starts at the top, wherever the chest's was scrolled to.
@@ -304,13 +312,20 @@ describe("HERO tab", function()
     assert.equal("Nothing worn here", textOf(p.sub))
     assert.same({ "Night Watch Shortsword", "Skeletal Club", "Rusty Hatchet", "Bruiser Club", "Buy nothing here" },
       optsShown())
-    assert.same({ "BEST FOR YOUR GOLD" }, tagsOf(opt(1)))
-    assert.same({ "STRONGEST", "AT 19" }, tagsOf(opt(2)))
-    assert.same({}, tagsOf(opt(3)))
     assert.equal("+4 Stamina, +4.4 Damage Per Second", textOf(opt(1).gain))
     assert.equal("7499c", textOf(opt(1).price))
     assert.equal("3990c", textOf(opt(2).price))
-    assert.equal("nothing", textOf(opt(5).price))
+    -- The club waits for level 19: the tooltip's own line, in the tooltip's red, under its price.
+    local level = opt(2).level
+    assert.equal("Requires Level 19", textOf(level))
+    assert.same({ 1, 0.125, 0.125, 1 }, W.state(level).color)
+    local at = W.state(level).points[1]
+    assert.same({ "TOPRIGHT", opt(2), "TOPRIGHT" }, { at[1], at[2], at[3] })
+    assert.is_false(shown(opt(1).level))
+    assert.is_false(shown(opt(5).price))
+    -- Every row of one list as tall as the others, keep too.
+    hs = heightsShown()
+    for i = 2, #hs do assert.equal(hs[1], hs[i], i) end
     assert.equal("slot:MainHandSlot", W.state(opt(5).icon.icon).file)
     assert.same({ true, false, false, false, false },
       { ticked(opt(1)), ticked(opt(2)), ticked(opt(3)), ticked(opt(4)), ticked(opt(5)) })
@@ -321,12 +336,17 @@ describe("HERO tab", function()
     local red, green = GC.Theme.color.red, GC.Theme.color.green
     assert.equal(GC.Util.Colored(green, "+6 Agility") .. ", " .. GC.Util.Colored(red, "-4 Stamina"),
       W.state(opt(1).gain).text)
-    -- Over the gold carried: still listed, marked.
+    local fg = GC.Theme.color.fg
+    assert.same({ fg[1], fg[2], fg[3], 1 }, W.state(opt(1).price).color)  -- within the gold carried
+    -- Over the gold carried: still listed, its price red as the AH paints a buyout you cannot pay.
     result.slots[1].best.overGold = true
     H.RefreshIfShown(true)
-    assert.same({ "BEST FOR YOUR GOLD", "OVER YOUR GOLD" }, tagsOf(opt(1)))
-    local amber = GC.Theme.tier.SUSPECT
-    assert.same({ amber[1], amber[2], amber[3], 1 }, W.state(opt(1).tags[2].text).color)
+    assert.equal("1589c", textOf(opt(1).price))
+    assert.same({ 1, 0.125, 0.125, 1 }, W.state(opt(1).price).color)
+    -- A client without the level line says it in GoldCap's words.
+    _G.ITEM_MIN_LEVEL = nil
+    press(slotAt(16))
+    assert.equal("At 19", textOf(opt(2).level))
     -- A rebuild keeps the slot the player looks at; a fresh open picks the first with choices again.
     press(slotAt(16))
     H.RefreshIfShown(true)
@@ -587,21 +607,24 @@ describe("HERO tab", function()
     end
   end)
 
-  it("wraps every name, gain and heading instead of cutting it, and sizes buttons and tags to their words", function()
+  it("wraps every name, gain and heading instead of cutting it, and sizes buttons to their words", function()
     result.slots[2].best.link = "|Hitem:2130::::|h[A very long name of a club that takes far more than one line]|h"
     H.Show()
     press(slotAt(16))
     local row = opt(2)
-    for _, fs in ipairs({ row.name, row.gain, sp().title, sp().sub, sp().hint, bar().title, bar().sub, doll().hint,
+    for _, fs in ipairs({ row.name, row.gain, sp().title, sp().sub, bar().title, bar().sub, doll().hint,
         top().name }) do
       assert.is_true(W.state(fs).wordWrap ~= false)
       assert.equal(0, W.state(fs).maxLines)
       assert.is_true(W.state(fs).nonSpaceWrap)
     end
     assert.is_true(row:GetHeight() > W.LINE_H * 2)
-    -- A tag and a button are as wide as their words.
-    local tag = row.tags[1]
-    assert.is_true(tag:GetWidth() >= tag.text:GetUnboundedStringWidth() + 8)
+    -- The rest of its list grows with it: one height per list.
+    for i, h in ipairs(heightsShown()) do assert.equal(row:GetHeight(), h, i) end
+    -- The price and the level line are as wide as their words.
+    assert.is_true(row.price:GetWidth() >= row.price:GetUnboundedStringWidth())
+    assert.is_true(row.level:GetWidth() >= row.level:GetUnboundedStringWidth())
+    -- A button is as wide as its words.
     local add = bar().add
     assert.is_true(add:GetWidth() >= add.text:GetUnboundedStringWidth())
     local weights = top().weights
@@ -820,6 +843,14 @@ describe("HERO tab", function()
     assert.is_true(slotAt(1):GetWidth() >= 40, slotAt(1):GetWidth())
     assert.is_true(sp().frame:GetWidth() >= 330, sp().frame:GetWidth())
     assert.equal(W.LINE_H * 11 / 12, doll().hint:GetStringHeight())    -- one line
+    -- A choice is two lines, its name and price over its gains and level line, and so is keep.
+    press(slotAt(16))
+    local hs = heightsShown()
+    assert.equal(5, #hs)
+    for i = 1, #hs do
+      assert.equal(hs[1], hs[i], i)
+      assert.is_true(hs[i] <= 46, hs[i])
+    end
   end)
 
   it("shows the gold toward a mount: the chip, its panel, a riding cost typed, a line to share", function()

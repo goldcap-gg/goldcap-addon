@@ -1815,7 +1815,6 @@ GC.Locales.zhCN = {
   ["The weapon's damage per second"] = "武器的每秒伤害",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "主手：约等于 14 点攻击强度。副手减半，枪械或弓为七分之一",
-  ["Over your gold"] = "超出金币",
   ["At %d"] = "%d 级可用",
   ["%s · level %d"] = "%s · %d 级",
   ["Scan %s ago"] = "%s 前扫描",
