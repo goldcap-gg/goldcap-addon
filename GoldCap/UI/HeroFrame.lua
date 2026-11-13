@@ -30,18 +30,21 @@ GC.Theme.CLASSIC.icons.hero = "Interface\\Icons\\INV_Sword_04"
 local HD = {
   GAP = 10, SMALL = 6,     -- between the tab's blocks; between the parts of one
   WHO_ICON = 34, WHO_MIN = 150, CHIP_H = 34, CHIP_PAD = 9, CHIP_ICON = 20, -- the top line
-  DOLL_W = 256, DOLL_PAD = 8, SLOT_GAP = 3, SLOT_MIN = 20, SLOT_MAX = 34, HAND_GAP = 6, MODEL_GAP = 9,
-  RING = 2, GLOW = 5, BADGE = 14, BADGE_GLYPH = 10, PORTRAIT = 64,
+  -- The doll: a slot's frame (RING) and the selected one's glow (GLOW) stay inside the gap between it
+  -- and the next, and its check and price inside its own square. SLOT_MAX is the most DOLL_W holds
+  -- with the three hands between the two columns: (DOLL_W - 2 DOLL_PAD - 2 MODEL_GAP - 2 HAND_GAP) / 5.
+  DOLL_W = 260, DOLL_PAD = 8, SLOT_GAP = 6, SLOT_MIN = 20, SLOT_MAX = 42, HAND_GAP = 6, MODEL_GAP = 9,
+  RING = 2, GLOW = 3, BADGE = 14, BADGE_GLYPH = 10, PORTRAIT = 64,
   PAD = 12, HEAD_ICON = 34, LIST_GUTTER = 22, -- the slot panel
   OPT_PAD_X = 8, OPT_PAD_Y = 6, OPT_GAP = 4, BOX = 16, BOX_GLYPH = 12, OPT_ICON = 28, COL_SHARE = 0.4, TEXT_MIN = 110,
   TAG_H = 20, TAG_PAD = 5, TAG_GAP = 3, -- the kit's chip: its slice margin stays under half of 20
-  BAR_PAD = 10, BAR_ICON = 28, BAR_ICONS = 6, BAR_STEP = 32, BAR_STEP_TIGHT = 18, BAR_TEXT_MIN = 150,
-  BAR_BTN_H = 36, BAR_BTN_W = 120,
+  BAR_PAD = 8, BAR_TEXT_MIN = 150, BAR_BTN_H = 32, BAR_BTN_W = 120,
   BTN_H = 26, -- plaque's 12px caps stay under half the height
   PANEL_W = 336, PANEL_PAD = 12, PANEL_HEAD_H = 58, PANEL_FOOT_H = 48, PANEL_GUTTER = 22, BOX_W = 62,
   COST_W = 92, PANEL_ICON = 26, LINE_ICON = 22,
   HEIGHT = 480, -- the tab's height until the client has laid the container out
   STALE_LIMIT = 6, REPAINT_S = 0.5, SPEED_S = 0.2, TYPE_S = 0.4,
+  SELF_S = 1, SELF_MAX = 15, -- the tab's own rebuild while items load: once a second, so many a Show
 }
 Hero.C = HD
 
@@ -56,8 +59,10 @@ Hero._view = view
 -- tickedList those in the result's slot order, options[group] each slot's choices as listed.
 local state = { touched = {} }
 Hero._state = state
--- The repaint rules, moved over from the old window unchanged (Hero.OnItemInfo and below).
-local repaint = { stale = 0 }
+-- The repaint rules, moved over from the old window unchanged (Hero.OnItemInfo and below), and the
+-- tab's own rebuild while items load (selfRefresh): gen is bumped by every Show and Hide, so a tick
+-- of an older chain does nothing; selfCount counts this Show's ticks; selfDue, one on its way.
+local repaint = { stale = 0, gen = 0, selfCount = 0 }
 Hero._repaint = repaint
 
 local Theme, KP
@@ -378,13 +383,15 @@ end
 
 local function anyTouched() return next(state.touched) ~= nil end
 
--- The soonest level among a slot's choices a piece waits for, or nil.
-local function soonest(list)
-  local lv
-  for _, c in ipairs(list or {}) do
-    if c.later and (not lv or c.later < lv) then lv = c.later end
+-- The group a doll slot's choices come from (GC.ForeverUpgrades.GROUPS' slots), or nil for one
+-- that has none: the shirt, the tabard, the trinkets.
+local function groupAt(inv)
+  for _, g in ipairs(GC.ForeverUpgrades and GC.ForeverUpgrades.GROUPS or {}) do
+    for _, slot in ipairs(g.slots) do
+      if slot == inv then return g.key end
+    end
   end
-  return lv
+  return nil
 end
 
 -- The doll slot selected: the one the player clicked; else, at each paint, the first slot with
@@ -398,15 +405,6 @@ local function pickSelection()
       return
     end
   end
-end
-
--- The kit's check (UI/Kit/Icons.lua) in `c`, as an inline texture a line of text can hold.
-local function checkMarkup(c, size)
-  local I = GC.Kit.Icons
-  local l, r, t, b = Theme.IconCoords("check")
-  return ("|T%s:%d:%d:0:0:%d:%d:%d:%d:%d:%d:%d:%d:%d|t"):format(I.file, size, size, I.size, I.size,
-    l * I.size, r * I.size, t * I.size, b * I.size,
-    math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
 end
 
 -- The class --------------------------------------------------------------------------------
@@ -562,9 +560,9 @@ end
 -- The doll ---------------------------------------------------------------------------------
 
 -- A slot of the doll: the piece ticked there or what is worn, in a frame that says which (green:
--- ticked to buy; thin gold: choices, nothing ticked), a check and the price over a ticked piece, the
--- soonest level among its choices on an amber badge, and a gold glow while it is the slot the panel
--- lists. Hover is the engine's HIGHLIGHT layer (docs: "Buttons and hover"); the glow is state.
+-- ticked to buy; thin gold: choices, nothing ticked), a check and the price over a ticked piece,
+-- both inside the slot's own square, and a gold glow while it is the slot the panel lists. Hover is
+-- the engine's HIGHLIGHT layer (docs: "Buttons and hover"); the glow is state.
 local function newSlot(parent, e)
   local b = CreateFrame("Button", nil, parent)
   b:RegisterForClicks("LeftButtonUp")
@@ -586,24 +584,18 @@ local function newSlot(parent, e)
   b.hover:SetColorTexture(hc[1], hc[2], hc[3], hc[4] or 0.16)
   b.badge = Theme.ShapeTexture(b, "OVERLAY", "chip", Theme.color.green)
   b.badge:SetSize(HD.BADGE, HD.BADGE)
-  b.badge:SetPoint("CENTER", b, "TOPLEFT", 1, -1)
+  b.badge:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
   b.glyph = b:CreateTexture(nil, "OVERLAY", nil, 3)
   b.glyph:SetSize(HD.BADGE_GLYPH, HD.BADGE_GLYPH)
   b.glyph:SetPoint("CENTER", b.badge, "CENTER", 0, 0)
   Theme.SetIcon(b.glyph, "check", GC.Kit.Tokens.color.onGold)
-  b.level = Theme.ShapeTexture(b, "OVERLAY", "chip", gold)
-  b.level:SetHeight(HD.BADGE)
-  b.level:SetPoint("CENTER", b, "TOPRIGHT", -1, -1)
-  b.levelText = Theme.Num(b, 9, true)
-  b.levelText:SetPoint("CENTER", b.level, "CENTER", 0, 0)
-  setColor(b.levelText, GC.Kit.Tokens.color.onGold)
   -- The price as the game writes a stack's count over its slot: the condensed heavy face, outlined.
   b.price = b:CreateFontString(nil, "OVERLAY")
   b.price:SetFont(Theme.FONT_HEAD_HEAVY, 10 * Theme.Scale(), "OUTLINE")
   if Theme.TrackFont then
     Theme.TrackFont(b.price, { role = "count", path = Theme.FONT_HEAD_HEAVY, size = 10, flags = "OUTLINE" })
   end
-  b.price:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+  b.price:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
   b.price:SetJustifyH("RIGHT")
   b:SetScript("OnEnter", pieceTip)
   b:SetScript("OnLeave", hideTip)
@@ -658,17 +650,17 @@ local function dress()
   d.portrait:SetShown(not live and atlas ~= nil)
 end
 
--- One slot as this paint sees it: what it shows, its frame, its marks.
+-- One slot as this paint sees it: what it shows, its frame, its marks. Its icon wears no quality
+-- edge (KP.PaintIcon without the item's id draws the untinted one): on the doll, green means ticked.
 local function paintSlot(b)
   local s = view.at[b.invSlot]
   local c = s and state.ticked[s.group] or nil
   local worn = view.worn[b.invSlot]
   b.tipLink = c and (c.link or c.itemString) or worn
   if c then
-    KP.PaintIcon(b.icon, c.itemID, itemIcon(c.itemID))
+    KP.PaintIcon(b.icon, nil, itemIcon(c.itemID))
   elseif worn then
-    local id = itemIdOf(worn)
-    KP.PaintIcon(b.icon, id, itemIcon(id))
+    KP.PaintIcon(b.icon, nil, itemIcon(itemIdOf(worn)))
   else
     KP.PaintIcon(b.icon, nil, slotArt(b.art))
   end
@@ -678,15 +670,6 @@ local function paintSlot(b)
   b.badge:SetShown(c ~= nil)
   b.glyph:SetShown(c ~= nil)
   if c then put(b.price, GC.Util.FormatGoldCeil(c.unit)) else b.price:Hide() end
-  local lv = s and soonest(state.options[s.group]) or nil
-  if lv then
-    put(b.levelText, tostring(lv))
-    b.level:SetWidth(math.max(HD.BADGE, widthOf(b.levelText) + 6))
-    b.level:Show()
-  else
-    b.level:Hide()
-    b.levelText:Hide()
-  end
   b.glow:SetShown(b.invSlot == state.sel)
 end
 
@@ -698,15 +681,7 @@ local function layoutDoll(midTop, midH)
   d.frame:ClearAllPoints()
   d.frame:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -midTop)
   d.frame:SetSize(HD.DOLL_W, midH)
-  -- The hint: a check, and a level number in the badge's amber, the soonest one any slot shows.
-  local lv
-  for _, list in pairs(state.options) do
-    local l = soonest(list)
-    if l and (not lv or l < lv) then lv = l end
-  end
-  lv = lv or (levelOf() or 1) + 1
-  put(d.hint, GC.L["Click a slot. %s ticked to buy, %s stronger at that level"]:format(
-    checkMarkup(Theme.color.green, 12), GC.Util.Colored(Theme.color.gold, tostring(lv))))
+  put(d.hint, GC.L["Click a slot to see what you can buy for it."])
   local hintH = wrapTo(d.hint, HD.DOLL_W - 2 * HD.DOLL_PAD)
   d.hint:ClearAllPoints()
   d.hint:SetPoint("TOP", d.frame, "TOP", 0, -HD.DOLL_PAD)
@@ -965,13 +940,18 @@ local function createPanel(container)
   return p
 end
 
--- Why the panel has nothing to list, or nil.
-local function emptyWhy(r, s)
+-- Why the panel has nothing to list for the doll slot `inv`, or nil: a slot whose group waits for
+-- the stats of what is worn there (Build's r.waiting) says so, not that nothing beats it.
+local function emptyWhy(r, s, inv)
   if r.noScan then return GC.L["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] end
   if r.noStats then return GC.L["This client does not report item stats, so GoldCap cannot compare gear."] end
   if r.noWeights then return GC.L["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] end
-  if not s then return GC.L["Nothing on the auction house beats what you wear at your level."] end
-  return nil
+  if s then return nil end
+  local group = groupAt(inv)
+  if group and r.waiting and r.waiting[group] then
+    return GC.L["Still reading what you wear here. This fills in by itself."]
+  end
+  return GC.L["Nothing on the auction house beats what you wear at your level."]
 end
 
 -- The slot panel at `x`, `midTop` down, `w` wide and `midH` tall: the selected slot's head (what is
@@ -1004,7 +984,7 @@ local function layoutPanel(r, x, midTop, w, midH)
   p.sub:ClearAllPoints()
   p.sub:SetPoint("TOPLEFT", p.title, "BOTTOMLEFT", 0, -2)
   local y = HD.PAD + headH + HD.SMALL
-  local why = emptyWhy(r, s)
+  local why = emptyWhy(r, s, inv)
   local rows = p.rows
   if why then
     p.hint:Hide()
@@ -1061,12 +1041,13 @@ end
 
 -- The bar ------------------------------------------------------------------------------------
 
--- What the ticked pieces come to, at the tab's foot: their icons, how many and what they add, who
--- ticked them, what they cost and what that leaves of the gold carried, and the one button that
--- puts exactly them on a BUY list.
+-- What the ticked pieces come to, at the tab's foot, in one band: how many and what they add, who
+-- ticked them (or that what is worn is still being read), what they cost and what that leaves of
+-- the gold carried, and the one button that puts exactly them on a BUY list. The doll shows the
+-- pieces themselves.
 local function createBar(container)
   local gold, ph = Theme.color.gold, Theme.color.panelHi or Theme.color.panel
-  local b = { frame = Theme.Card(container, { ph[1], ph[2], ph[3], 1 }, { gold[1], gold[2], gold[3], 0.35 }), icons = {} }
+  local b = { frame = Theme.Card(container, { ph[1], ph[2], ph[3], 1 }, { gold[1], gold[2], gold[3], 0.35 }) }
   local f = b.frame
   f:EnableMouse(true)
   b.title = Theme.Label(f, 13)
@@ -1106,9 +1087,9 @@ local function figureH(head, value)
   return (head:IsShown() and heightOf(head) + 2 or 0) + heightOf(value)
 end
 
--- The bar at `width`, on one line while the words keep BAR_TEXT_MIN beside the figures (the icons
--- drawn tighter first), else the figures and the button on a line under the words. Answers its
--- height.
+-- The bar at `width`: the words at the left, the figures and the button at the right, on one band
+-- while the words keep BAR_TEXT_MIN beside them, else the figures and the button on a line under
+-- the words. Its height follows the words. Answers it.
 local function layoutBar(r, width)
   local b, f = view.bar, view.bar.frame
   local list = state.tickedList or {}
@@ -1122,23 +1103,21 @@ local function layoutBar(r, width)
     if v == 0 then diffs[k] = nil end
   end
   local carry = carried()
-  local stack = math.min(n, HD.BAR_ICONS)
-  for i = 1, stack do
-    b.icons[i] = b.icons[i] or KP.NewIcon(f, HD.BAR_ICON)
-    KP.PaintIcon(b.icons[i], list[i].itemID, itemIcon(list[i].itemID))
-  end
-  for i = stack + 1, #b.icons do KP.HideIcon(b.icons[i]) end
+  local waiting = r.waiting and next(r.waiting) ~= nil
   if n > 0 then
     put(b.title, GC.L["%d ticked: %s"]:format(n, gainText(diffs)))
-    if anyTouched() then
-      put(b.sub, GC.L["Your own picks"])
-    else
-      put(b.sub, GC.L["GoldCap ticked the strongest mix your %s pays for"]:format(coins(carry)))
-    end
   else
     local none = r.set and not anyTouched()
     put(b.title, none and GC.L["Nothing on the auction house fits the gold you carry yet."] or GC.L["Nothing ticked"])
+  end
+  if waiting then
+    put(b.sub, GC.L["Still reading what you wear: the picks may change"])
+  elseif n == 0 then
     b.sub:Hide()
+  elseif anyTouched() then
+    put(b.sub, GC.L["Your own picks"])
+  else
+    put(b.sub, GC.L["Picked by GoldCap for the gold you carry"])
   end
   put(b.costHead, GC.Util.Upper(GC.L["Ticked cost"]))
   put(b.cost, coins(cost))
@@ -1160,32 +1139,20 @@ local function layoutBar(r, width)
   local costW = math.max(hug(b.cost), hug(b.costHead))
   local leftW = math.max(hug(b.left), b.leftHead:IsShown() and hug(b.leftHead) or 0)
   local figuresW = costW + HD.GAP + leftW + HD.GAP + addW
-  local step, iconsW, textX, textW
-  for _, try in ipairs({ HD.BAR_STEP, HD.BAR_STEP_TIGHT }) do
-    step = try
-    iconsW = stack > 0 and HD.BAR_ICON + (stack - 1) * step or 0
-    textX = pad + (iconsW > 0 and iconsW + HD.GAP or 0)
-    textW = width - pad - figuresW - HD.GAP - textX
-    if textW >= HD.BAR_TEXT_MIN then break end
-  end
+  local textW = width - 2 * pad - figuresW - HD.GAP
   local oneLine = textW >= HD.BAR_TEXT_MIN
-  if not oneLine then textW = width - pad - textX end
+  if not oneLine then textW = width - 2 * pad end
   local titleH = wrapTo(b.title, textW)
   local subH = b.sub:IsShown() and wrapTo(b.sub, textW) or 0
   local textH = titleH + (subH > 0 and 2 + subH or 0)
   local figH = math.max(figureH(b.costHead, b.cost), figureH(b.leftHead, b.left), HD.BAR_BTN_H)
-  local tier1 = math.max(stack > 0 and HD.BAR_ICON or 0, textH, oneLine and figH or 0)
+  local tier1 = math.max(textH, oneLine and figH or 0)
   local h = oneLine and tier1 + 2 * pad or pad + tier1 + HD.GAP + figH + pad
-  local mid = pad + tier1 / 2
-  for i = 1, stack do
-    b.icons[i].edge:ClearAllPoints()
-    b.icons[i].edge:SetPoint("LEFT", f, "TOPLEFT", pad + (i - 1) * step, -mid)
-  end
   b.title:ClearAllPoints()
-  b.title:SetPoint("TOPLEFT", f, "TOPLEFT", textX, -(pad + math.floor((tier1 - textH) / 2)))
+  b.title:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -(pad + math.floor((tier1 - textH) / 2)))
   b.sub:ClearAllPoints()
   b.sub:SetPoint("TOPLEFT", b.title, "BOTTOMLEFT", 0, -2)
-  local figMid = oneLine and mid or pad + tier1 + HD.GAP + figH / 2
+  local figMid = oneLine and pad + tier1 / 2 or pad + tier1 + HD.GAP + figH / 2
   b.add:ClearAllPoints()
   b.add:SetPoint("RIGHT", f, "TOPRIGHT", -pad, -figMid)
   local right = width - pad - addW - HD.GAP
@@ -1942,6 +1909,25 @@ local function chaseSpeed(r)
   end)
 end
 
+-- While the shown tab's last build still counts items loading, it builds itself again SELF_S on,
+-- whatever events arrive or do not, at most SELF_MAX times a Show, and stops at none loading or on
+-- Hide. One chain at a time: a repaint for any other reason finds the tick on its way and adds none.
+local function selfRefresh(r)
+  if (tonumber(r.loading) or 0) <= 0 or repaint.selfDue or not shown() then return end
+  if repaint.selfCount >= HD.SELF_MAX then return end
+  local timer = _G.C_Timer
+  if type(timer) ~= "table" or type(timer.After) ~= "function" then return end
+  local gen = repaint.gen
+  repaint.selfDue = true
+  timer.After(HD.SELF_S, function()
+    if gen ~= repaint.gen then return end
+    repaint.selfDue = false
+    if not shown() then return end
+    repaint.selfCount = repaint.selfCount + 1
+    Hero.RefreshIfShown(true)
+  end)
+end
+
 --- Paints `r` (GC.ForeverUpgrades.Current's answer) as of `now`: Show and RefreshIfShown build it
 --- and hand it here, and so does Core/ForeverScan.lua's post-scan update, which built it already.
 function Hero.Render(r, now)
@@ -1951,6 +1937,7 @@ function Hero.Render(r, now)
   readRoad()
   paint()
   chaseSpeed(state.r)
+  selfRefresh(state.r)
 end
 
 function Hero.Show()
@@ -1959,6 +1946,7 @@ function Hero.Show()
   build()
   -- A fresh open always gets a fresh chance, whatever a previous visit's storm cap reached.
   repaint.stale, repaint.last, repaint.speedLast = 0, nil, nil
+  repaint.gen, repaint.selfCount, repaint.selfDue = repaint.gen + 1, 0, false
   -- And lists the first slot with choices again, and dresses the character as it stands now.
   state.selByHand, view.dressed = nil, nil
   view.restamp = true -- see put(): every string is drawn again after the hide
@@ -1967,6 +1955,7 @@ function Hero.Show()
 end
 
 function Hero.Hide()
+  repaint.gen, repaint.selfDue = repaint.gen + 1, false
   if view.container then view.container:Hide() end
 end
 

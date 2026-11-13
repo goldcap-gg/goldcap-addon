@@ -1944,8 +1944,9 @@ GC.Locales.enUS = {
   ["Upgrades"] = "Upgrades",
   -- The HERO tab as the character sheet (Task 8b): the doll, the slot panel and the bar.
   ["Stat weights"] = "Stat weights",
-  ["Click a slot. %s ticked to buy, %s stronger at that level"] =
-    "Click a slot. %s ticked to buy, %s stronger at that level",
+  ["Click a slot to see what you can buy for it."] = "Click a slot to see what you can buy for it.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "Still reading what you wear here. This fills in by itself.",
   ["You wear %s"] = "You wear %s",
   ["Nothing worn here"] = "Nothing worn here",
   ["Tick one. Only ticked pieces go into the total below."] =
@@ -1956,7 +1957,8 @@ GC.Locales.enUS = {
   ["Buy nothing here"] = "Buy nothing here",
   ["nothing"] = "nothing",
   ["%d ticked: %s"] = "%d ticked: %s",
-  ["GoldCap ticked the strongest mix your %s pays for"] = "GoldCap ticked the strongest mix your %s pays for",
+  ["Picked by GoldCap for the gold you carry"] = "Picked by GoldCap for the gold you carry",
+  ["Still reading what you wear: the picks may change"] = "Still reading what you wear: the picks may change",
   ["Your own picks"] = "Your own picks",
   ["Nothing ticked"] = "Nothing ticked",
   ["Ticked cost"] = "Ticked cost",

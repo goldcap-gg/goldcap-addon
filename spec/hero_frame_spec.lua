@@ -28,9 +28,15 @@ describe("HERO tab", function()
   local function shown(widget) return W.state(widget).shown and true or false end
   local function press(widget) W.state(widget).scripts.OnClick(widget, "LeftButton", false) end
   local function runTimers()
-    local due = timers
+    local fns = timers
     timers, delays = {}, {}
-    for _, fn in ipairs(due) do fn() end
+    for _, fn in ipairs(fns) do fn() end
+  end
+  -- How many timers wait `s` seconds: the tab's own once-a-second rebuild runs beside the others.
+  local function due(s)
+    local n = 0
+    for _, d in ipairs(delays) do if d == s then n = n + 1 end end
+    return n
   end
   -- What a player types into a box: the text, then the client's OnTextChanged with userInput true.
   local function typeInto(box, text)
@@ -236,13 +242,20 @@ describe("HERO tab", function()
     assert.is_true(shown(chest.badge))
     assert.equal("16s", textOf(chest.price))
     assert.is_true(shown(chest.price))
-    -- The main hand: the set's sword ticked; the club among its choices is for level 19.
+    -- The check and the price stand inside the slot's own square, over nothing of a neighbour's.
+    local badge, price = W.state(chest.badge).points[1], W.state(chest.price).points[1]
+    assert.same({ "TOPLEFT", chest, "TOPLEFT" }, { badge[1], badge[2], badge[3] })
+    assert.is_true(badge[4] >= 0 and badge[5] <= 0)
+    assert.same({ "BOTTOMRIGHT", chest, "BOTTOMRIGHT" }, { price[1], price[2], price[3] })
+    assert.is_true(price[4] <= 0 and price[5] >= 0)
+    -- The main hand: the set's sword ticked. No level badges on the doll: "At 19" is the panel's.
     local main = slotAt(16)
     assert.equal(100000 + WATCH, W.state(main.icon.icon).file)
     assert.equal("75s", textOf(main.price))
-    assert.is_true(shown(main.level))
-    assert.equal("19", textOf(main.levelText))
-    assert.is_false(shown(chest.level))
+    assert.is_nil(main.level)
+    -- Green means ticked only: no icon on the doll wears its quality's edge.
+    local q = GC.Theme.QualityColor(TUNIC)
+    assert.are_not.same({ q.r, q.g, q.b }, colourOf(chest.icon.edge))
     -- Nothing to buy for the head: nothing worn there, the client's empty-slot art, no frame of note.
     local head = slotAt(1)
     assert.equal("slot:HeadSlot", W.state(head.icon.icon).file)
@@ -253,9 +266,7 @@ describe("HERO tab", function()
     for _, inv in ipairs({ 4, 19, 13, 14, 17, 18 }) do
       assert.is_false(shown(slotAt(inv).badge), inv)
     end
-    -- The hint says what a check and a number mean, in their own colours.
-    assert.truthy(W.state(d.hint).text:find(GC.Util.Colored(gold, "19"), 1, true))
-    assert.truthy(textOf(d.hint):find("ticked to buy", 1, true))
+    assert.equal("Click a slot to see what you can buy for it.", textOf(d.hint))
     -- Nothing ticked in a slot with choices: what is worn there, framed thin and gold.
     result.set = { picks = {}, list = {}, cost = 0, left = 5973, diffs = {} }
     H.RefreshIfShown(true)
@@ -352,15 +363,13 @@ describe("HERO tab", function()
     H.Show()
     local b = bar()
     assert.equal("2 ticked: +6 Agility, +4.4 Damage Per Second", textOf(b.title))
-    assert.equal("GoldCap ticked the strongest mix your 5973c pays for", textOf(b.sub))
+    assert.equal("Picked by GoldCap for the gold you carry", textOf(b.sub))
     assert.equal("TICKED COST", textOf(b.costHead))
     assert.equal("9088c", textOf(b.cost))
     assert.equal("Short by 3115c", textOf(b.left))
     local red = GC.Theme.color.red
     assert.same({ red[1], red[2], red[3], 1 }, W.state(b.left).color)
-    assert.is_true(shown(b.icons[1].icon))
-    assert.equal(100000 + TUNIC, W.state(b.icons[1].icon).file)
-    assert.equal(100000 + WATCH, W.state(b.icons[2].icon).file)
+    assert.is_nil(b.icons)                                              -- the doll shows what is ticked
     assert.equal("Add 2 to BUY", textOf(b.add.text))
     assert.is_true(b.add:IsEnabled())
     -- Keep the main hand's nothing: one piece left, the player's own.
@@ -373,7 +382,6 @@ describe("HERO tab", function()
     assert.is_true(shown(b.leftHead))
     assert.equal(tostring(5973 - 1589) .. "c", textOf(b.left))
     assert.are_not.same({ red[1], red[2], red[3], 1 }, W.state(b.left).color)
-    assert.is_false(shown(b.icons[2].icon))
     assert.equal("Add 1 to BUY", textOf(b.add.text))
     -- Nothing ticked at all: the button cannot be pressed.
     press(slotAt(5))
@@ -783,6 +791,37 @@ describe("HERO tab", function()
     assert.same({}, optsShown())
   end)
 
+  -- In game, 13.11: five groups without choices right after a reload, the worn pieces' stats not
+  -- read yet, and the panel saying nothing beat them.
+  it("says a slot still waits for what is worn there, and that the picks may change", function()
+    result.waiting, result.loading = { HEAD = true, FINGER = true }, 2
+    H.Show()
+    assert.equal("Still reading what you wear: the picks may change", textOf(bar().sub))
+    press(slotAt(1))
+    assert.equal("HEAD", textOf(sp().title))
+    assert.equal("Still reading what you wear here. This fills in by itself.", textOf(sp().message))
+    press(slotAt(12))
+    assert.equal("Still reading what you wear here. This fills in by itself.", textOf(sp().message))
+    press(slotAt(2))                                                    -- the neck waits for nothing
+    assert.equal("Nothing on the auction house beats what you wear at your level.", textOf(sp().message))
+    -- Read: the picks are GoldCap's again.
+    result = aResult()
+    H.RefreshIfShown(true)
+    assert.equal("Picked by GoldCap for the gold you carry", textOf(bar().sub))
+  end)
+
+  it("gives the doll the room at the default window: a one-band bar and large slots", function()
+    W.CLIENT_METRICS = true
+    finally(function() W.CLIENT_METRICS = false end)
+    -- The GoldCap window's own size on a fresh install, less its rail and title bar.
+    W.state(H._view.container).width, W.state(H._view.container).height = 600, 552
+    H.Show()
+    assert.is_true(bar().frame:GetHeight() <= 64, bar().frame:GetHeight())
+    assert.is_true(slotAt(1):GetWidth() >= 40, slotAt(1):GetWidth())
+    assert.is_true(sp().frame:GetWidth() >= 330, sp().frame:GetWidth())
+    assert.equal(W.LINE_H * 11 / 12, doll().hint:GetStringHeight())    -- one line
+  end)
+
   it("shows the gold toward a mount: the chip, its panel, a riding cost typed, a line to share", function()
     H.Show()
     local chip = top().mount
@@ -878,7 +917,7 @@ describe("HERO tab", function()
       runTimers()
     end
     H.OnItemInfo(42)                                 -- the item it waits for still gets its repaint
-    assert.equal(1, #timers)
+    assert.equal(1, due(GC.Hero.C.REPAINT_S))
   end)
 
   -- An id nobody was waiting for must not itself trigger a rebuild, and an id that never resolves
@@ -889,9 +928,9 @@ describe("HERO tab", function()
     H.Show()
     assert.equal(1, builds)
     H.OnItemInfo(7)                      -- not one of the ids the last build is waiting on
-    assert.equal(0, #timers)
+    assert.equal(0, due(GC.Hero.C.REPAINT_S))
     H.OnItemInfo(42)                     -- one it IS waiting on
-    assert.equal(1, #timers)
+    assert.equal(1, due(GC.Hero.C.REPAINT_S))
     -- Item 42 never actually resolves: loading stays at 1 every time. Run the storm cap's limit.
     for _ = 1, GC.Hero.C.STALE_LIMIT do
       runTimers()
@@ -899,11 +938,46 @@ describe("HERO tab", function()
     end
     runTimers()
     H.OnItemInfo(42)
-    assert.equal(0, #timers)             -- the storm cap has kicked in: no new timer
+    assert.equal(0, due(GC.Hero.C.REPAINT_S))  -- the storm cap has kicked in: no new timer
     -- Reopening the tab resets the cap.
     H.Show()
     H.OnItemInfo(42)
-    assert.equal(1, #timers)
+    assert.equal(1, due(GC.Hero.C.REPAINT_S))
+  end)
+
+  -- In game, 13.11: right after a reload six items were loading and the tab waited for an event
+  -- that never came until the player searched the auction house.
+  it("rebuilds itself once a second while items load, at most SELF_MAX times a show, and stops at none or on hide", function()
+    local C = GC.Hero.C
+    result = { slots = {}, loading = 2, loadingIds = { [42] = true } }
+    builds = 0
+    H.Show()
+    assert.equal(1, due(C.SELF_S))
+    for _ = 1, C.SELF_MAX + 5 do runTimers() end
+    assert.equal(1 + C.SELF_MAX, builds)
+    assert.equal(0, due(C.SELF_S))
+    -- Other repaints on the way start no second chain, and a second Show leaves the first one dead.
+    builds = 0
+    H.Show()
+    H.Show()
+    H.OnChange()
+    runTimers()                                     -- the dead chain's tick, the live one's, the gold's
+    assert.equal(2 + 2, builds)
+    assert.equal(1, due(C.SELF_S))
+    -- Loaded: the chain stops.
+    result = { slots = {}, loading = 0 }
+    builds = 0
+    runTimers()
+    assert.equal(1, builds)
+    assert.equal(0, due(C.SELF_S))
+    -- Hidden: a tick already on its way rebuilds nothing.
+    result = { slots = {}, loading = 1 }
+    H.Show()
+    builds = 0
+    H.Hide()
+    runTimers()
+    assert.equal(0, builds)
+    assert.equal(0, due(C.SELF_S))
   end)
 
   it("repaints while weapon speeds are still being read, only while that count shrinks", function()
