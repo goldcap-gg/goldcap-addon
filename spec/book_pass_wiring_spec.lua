@@ -248,6 +248,39 @@ describe("Book pass wiring", function()
     assert.equal(1, GC.Sniper._drillQueue:Depth())
   end)
 
+  -- The page event's own rows go to the pass as they came; the whole list so far is read only
+  -- when a written-off keys batch could be answering late (_IsOrphanAnswer needs every row).
+  it("hands a pass its page from the event and reads the whole list only for a late batch", function()
+    local GC = loadSniper()
+    local reads = 0
+    _G.C_AuctionHouse.HasFullBrowseResults = function() return false end
+    _G.C_AuctionHouse.GetBrowseResults = function() reads = reads + 1 return browseResults end
+    local pass = GC.Sniper._bookPass
+    pass:Start("wide")
+    pass:OnThrottleReady()
+    browseResults = { browseRow(100, 100000) }
+    GC.Sniper.OnBrowseResults()
+    assert.equal(1, reads)
+    GC.Sniper.OnBrowseResultsAdded({ browseRow(200, 100000) })
+    assert.equal(1, reads)
+    assert.is_truthy(pass:Book()[200])
+
+    GC.Sniper._keysOrphan = { asked = { [300] = true }, untilAt = 200 }
+    browseResults = { browseRow(100, 100000), browseRow(200, 100000), browseRow(400, 100000) }
+    GC.Sniper.OnBrowseResultsAdded({ browseRow(400, 100000) })
+    assert.equal(2, reads)
+    assert.is_truthy(pass:Book()[400])
+  end)
+
+  it("gets the page's rows from Core/Init.lua, which hands on the event's payload", function()
+    local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+    local init = f:read("*a")
+    f:close()
+    local from = assert(init:find('event == "AUCTION_HOUSE_BROWSE_RESULTS_ADDED" then', 1, true))
+    local branch = init:sub(from, assert(init:find("\n  elseif ", from, true)))
+    assert.is_truthy(branch:find("GC.Sniper.OnBrowseResultsAdded(...)", 1, true))
+  end)
+
   it("keeps the wide pass's out-of-class finds through a classes pass", function()
     local GC = loadSniper()
     GC.Data.GetItemValue = function() return dealValue() end

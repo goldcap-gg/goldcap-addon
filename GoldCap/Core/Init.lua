@@ -997,7 +997,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_ADDED" then
     if GC.Sniper.OnBrowseResultsAdded then
-      GC.Sniper.OnBrowseResultsAdded()
+      GC.Sniper.OnBrowseResultsAdded(...)
     end
   elseif event == "REPLICATE_ITEM_LIST_UPDATE" then
     if GC.ForeverScan then GC.ForeverScan.OnReplicateUpdate() end

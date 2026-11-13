@@ -8131,22 +8131,24 @@ function GC.Sniper.OnBrowseResults()
   -- carries (a keys answer written off as lost, the player's own browse) is not ours.
   if GC.Sniper._bookPass:PendingStart() then return end
   -- ...and one that has may still be handed a written-off batch's late answer (_WriteOffKeys).
-  if GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
+  -- Only then is the whole list read: the client builds it anew on every call.
+  if GC.Sniper._keysOrphan and GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
   lastBrowseEventAt = time()
   trace("pass: page landed")
   GC.Sniper._bookPass:OnResultsUpdated()
 end
 
-function GC.Sniper.OnBrowseResultsAdded()
+-- `added` is the event's own rows (addedBrowseResults): the pass folds those, not the whole list.
+function GC.Sniper.OnBrowseResultsAdded(added)
   GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
   if GC.Sniper._TakeNaming() then return end
   if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end -- see OnBrowseResults
   if not GC.Sniper._bookPass:IsPaging() then return end
   if GC.Sniper._bookPass:PendingStart() then return end -- see OnBrowseResults
-  if GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
+  if GC.Sniper._keysOrphan and GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
   lastBrowseEventAt = time()
-  GC.Sniper._bookPass:OnResultsAdded()
+  GC.Sniper._bookPass:OnResultsAdded(added)
 end
 
 -- Hands the watch loop exactly one send. The grant is a window, not a flag the scanner keeps:
