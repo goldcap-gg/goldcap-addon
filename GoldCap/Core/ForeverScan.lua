@@ -54,6 +54,12 @@ local C = {
   KEEP_FOLD_ATS = 8,
   -- Steps of the scan's journal kept in the save (note below): three or four scans' worth.
   JOURNAL_KEEP = 60,
+  -- HERO probe P1b (13.11): 28,736 of the 79,250 gear rows a scan read (36%) had no link yet, and
+  -- a row with no link has no version to keep. Such rows are remembered (this many at most: 2000 a
+  -- second for GEAR_LATE_SECONDS) and read again once a second after the save, for GEAR_LATE_SECONDS
+  -- at most (lateStep below).
+  GEAR_LATE_ROWS = 60000,
+  GEAR_LATE_SECONDS = 30,
 }
 GC.ForeverScan.C = C
 
@@ -84,6 +90,9 @@ function GC.ForeverScan.New(driver)
   -- again for it (owner, beta 2026-09-27). One read per dump: see OnReplicateUpdate.
   local lastRead
   local busySince -- driver.now() when the scan now running began (obj:Since)
+  -- The late-link pass under way (startLate), or nil. It runs while the scanner is idle, so a scan
+  -- asked for meanwhile is never told the scanner is busy; a new scan's token ends it.
+  local late
 
   -- The scan's journal, GoldCapDB.foreverScan.journal: each step with its time and what the client
   -- answered, the last C.JOURNAL_KEEP of them. A scan that comes back short leaves no other trace
@@ -152,8 +161,10 @@ function GC.ForeverScan.New(driver)
     end
   end
 
-  -- Writes what the scan `a` saw, frozen to `items` (`count` of them), to the save.
+  -- Writes what the scan `a` saw, frozen to `items` (`count` of them), to the save. Returns the
+  -- fold it wrote when the gear lots beside it are this scan's own (a merge keeps the saved ones).
   local function save(a, items, count)
+    local gearOf
     local p = driver.passport() or {}
     local source = a.replicated and (a.browsed and "replicate+browse" or "replicate") or "browse"
     -- A dump read to the end is the whole auction house: commodities and all (the owner's save of
@@ -225,12 +236,101 @@ function GC.ForeverScan.New(driver)
         rememberAt(s, s.fold.at)
         -- Plan 3e: the gear lots of this dump, or none (a browse-only scan has no links).
         s.gear = a.gear and GC.ForeverGear.Freeze(a.gear, s.fold.at) or nil
+        gearOf = a.gear and s.fold or nil
       end
     end
     note("saved", count, (a.cut and "cut " or "") .. (a.partial and "partial " or "") .. (a.givenUp and "given up" or ""))
     driver.notify("done", { rows = a.replicated and a.rows or nil, items = count,
       partial = a.partial == true, replicated = a.replicated == true, pending = a.pending,
       skipped = a.skipped, givenUp = a.givenUp })
+    return gearOf
+  end
+
+  -- The late-link pass (HERO plan, finding 8): the gear rows the read found with no link yet, read
+  -- again once a second after the save while their links load (each item's data was asked for at
+  -- the read, rememberLate). A row that still holds the same item and now has a link goes into
+  -- the scan's gear lots; one whose index now holds another item is dropped. Each second reads up
+  -- to READ_BATCH of the rows still waiting, within the read's own frame budget, and goes on the
+  -- next frame when the budget cuts it short. It ends when every row is read, after
+  -- GEAR_LATE_SECONDS, when the auction house closes, at logout, or when another scan starts (the
+  -- token); then the gear lots are frozen again under the same `at`, with `late` saying how many
+  -- rows waited and how many were found. Nothing is written once the saved fold is no longer the
+  -- one this scan wrote: its gear lots are another scan's then.
+  local function finishLate(l)
+    if late ~= l then return end
+    late = nil
+    note("late links", l.found, l.missing)
+    local s = driver.store()
+    if type(s) ~= "table" or s.fold ~= l.fold then return end
+    local gear = GC.ForeverGear.Freeze(l.a.gear, l.fold.at)
+    if gear then gear.late = { missing = l.missing, found = l.found } end
+    s.gear = gear
+    driver.notify("late", { missing = l.missing, found = l.found })
+  end
+
+  local lateStep
+  lateStep = function(l, left)
+    if late ~= l then return end
+    if token ~= l.token or state ~= "idle" or not ahOpen then
+      finishLate(l)
+      return
+    end
+    local clock = driver.clock
+    local started = clock and clock() or nil
+    local done = 0
+    while left > 0 do
+      if l.k > #l.rows then
+        -- One sweep over the waiting rows is done: what is still waiting is read next second.
+        l.rows, l.ids, l.waitRows, l.waitIds, l.k = l.waitRows, l.waitIds, {}, {}, 1
+        if #l.rows == 0 then
+          finishLate(l)
+          return
+        end
+        left = 0
+        break
+      end
+      local i, id = l.rows[l.k], l.ids[l.k]
+      l.k = l.k + 1
+      local itemID, count, buyout = driver.rowInfo(i)
+      if itemID == id then
+        local link = driver.rowLink(i)
+        if link then
+          if GC.ForeverGear.AddRow(l.a.gear, itemID, count, buyout, link) then l.found = l.found + 1 end
+        else
+          l.waitRows[#l.waitRows + 1], l.waitIds[#l.waitIds + 1] = i, id
+        end
+      end
+      left, done = left - 1, done + 1
+      if started and done >= C.READ_MIN_ROWS and done % C.READ_CLOCK_EVERY == 0
+          and clock() - started >= C.READ_BUDGET_MS then
+        break
+      end
+    end
+    if left > 0 then
+      driver.after(0, function() lateStep(l, left) end)
+      return
+    end
+    if l.ticks >= C.GEAR_LATE_SECONDS then
+      finishLate(l)
+      return
+    end
+    l.ticks = l.ticks + 1
+    driver.after(1, function() lateStep(l, C.READ_BATCH) end)
+  end
+
+  -- After a save that wrote this scan's gear lots (`fold`), with rows still waiting for a link, while
+  -- that fold is still the saved one and nothing new began.
+  local function startLate(a, fold)
+    local w = a.late
+    if not (fold and a.gear and w and #w.rows > 0) or state ~= "idle" then return end
+    local s = driver.store()
+    if type(s) ~= "table" or s.fold ~= fold then return end
+    if late then finishLate(late) end
+    late = { a = a, fold = fold, rows = w.rows, ids = w.ids, waitRows = {}, waitIds = {}, k = 1,
+      missing = #w.rows, found = 0, ticks = 1, token = token }
+    note("late links", "waiting", #w.rows)
+    local l = late
+    driver.after(1, function() lateStep(l, C.READ_BATCH) end)
   end
 
   -- The save under way ("saving"): the scan it writes, how far the freeze got, and whether a dump
@@ -262,10 +362,12 @@ function GC.ForeverScan.New(driver)
     end
     saving = nil
     reset()
-    save(sv.a, items, count)
+    local gearOf = save(sv.a, items, count)
     -- A dump stage that came while this saved is read as it would have been had the save taken
     -- no time: as a dump this scanner has not read, if it is one.
     if sv.dumpCame then obj:OnReplicateUpdate() end
+    -- Only while nothing new began: a stage read in place of this one owns the rows now.
+    startLate(sv.a, gearOf)
   end
 
   local function commit()
@@ -332,6 +434,24 @@ function GC.ForeverScan.New(driver)
     return known
   end
 
+  -- A gear row read with no link: its index and item, for the late-link pass (startLate), and the
+  -- item's data asked for once per scan, so the link can load meanwhile. Kept on the scan's own
+  -- accumulator: a later stage read in its place starts over with its own.
+  local function rememberLate(i, itemID)
+    local w = acc.late
+    if not w then
+      w = { rows = {}, ids = {}, asked = {} }
+      acc.late = w
+    end
+    if #w.rows < C.GEAR_LATE_ROWS then
+      w.rows[#w.rows + 1], w.ids[#w.ids + 1] = i, itemID
+    end
+    if not w.asked[itemID] then
+      w.asked[itemID] = true
+      if driver.requestLoad then pcall(driver.requestLoad, itemID) end
+    end
+  end
+
   local readBatch
   readBatch = function(t)
     if token ~= t or state ~= "reading" then return end
@@ -351,9 +471,10 @@ function GC.ForeverScan.New(driver)
         local itemID, count, buyout, hasAll = driver.rowInfo(i)
         GC.ForeverFold.AddRow(acc, itemID, count, buyout, hasAll)
         -- Plan 3e: a gear row's link, for the Upgrade Finder (Core/ForeverGear.lua). Beside the
-        -- fold, never in it.
+        -- fold, never in it. A row whose link has not loaded is read again after the save.
         if acc.gear and isGearRow(itemID) then
-          GC.ForeverGear.AddRow(acc.gear, itemID, count, buyout, driver.rowLink(i))
+          local _, why = GC.ForeverGear.AddRow(acc.gear, itemID, count, buyout, driver.rowLink(i))
+          if why == "nolink" then rememberLate(i, itemID) end
         end
         i = i + 1
         local done = i - readIndex
@@ -502,6 +623,8 @@ function GC.ForeverScan.New(driver)
   function obj:OnAuctionHouseClosed()
     ahOpen = false
     note("closed", state)
+    -- The late-link pass reads the dump this auction house handed over: it ends here, with what it found.
+    if late then finishLate(late) end
     -- A scan that is saving saw all it was going to: closing changes nothing it writes.
     if state == "idle" or state == "saving" then return end
     if state == "waiting" then reset(); return end
@@ -510,8 +633,12 @@ function GC.ForeverScan.New(driver)
     commit()
   end
 
-  -- The game writes the save only after the logout's handlers: a save under way is finished now.
-  function obj:OnLogout() saveStep(true) end
+  -- The game writes the save only after the logout's handlers: a save under way is finished now,
+  -- and the late-link pass keeps what it found (chat says to /reload right after a scan).
+  function obj:OnLogout()
+    saveStep(true)
+    if late then finishLate(late) end
+  end
 
   function obj:IsBusy() return state ~= "idle" end
   function obj:State() return state end
@@ -615,6 +742,9 @@ local function notify(kind, a, b)
     if GC.Sniper and GC.Sniper.SetScanStatus then GC.Sniper.SetScanStatus(text, 6) end
   elseif kind == "noanswer" then
     GC.Print(GC.L["The auction house did not answer the full scan. Scanning by browsing instead"])
+  elseif kind == "late" then
+    -- Gear rows whose links loaded after the save: the upgrades are built again, once, if any did.
+    if type(a) == "table" and (a.found or 0) > 0 then GC.ForeverScan._QueueUpgradesUpdate() end
   elseif kind == "progress" then
     if GC.Sniper and GC.Sniper.SetScanStatus then
       GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b))), 1)
@@ -678,6 +808,13 @@ local function realDriver()
     isGear = function(itemID)
       local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(itemID)
       return classID == 2 or classID == 4
+    end,
+    -- A gear row read with no link: the item's data is asked for, for the late-link pass.
+    requestLoad = function(itemID)
+      local item = _G.C_Item
+      if type(item) == "table" and type(item.RequestLoadItemDataByID) == "function" then
+        pcall(item.RequestLoadItemDataByID, itemID)
+      end
     end,
     -- Final review M6: this flag above covers every weapon/armor item generically (the fold's "g"
     -- flag); gear LOTS (Core/ForeverGear.lua) are read only for the Upgrade Finder, which never
@@ -870,8 +1007,13 @@ function GC.ForeverScan.Summary(now)
   if type(g) == "table" and type(g.items) == "table" then
     local n = 0
     for _ in pairs(g.items) do n = n + 1 end
-    lines[#lines + 1] = ("own scan: gear lots for %d items%s"):format(n,
-      (type(f) == "table" and g.at == f.at) and "" or " (from an older scan, not used)")
+    local lateText = ""
+    if type(g.late) == "table" then
+      lateText = (", %s of %s rows with no link at the read found later"):format(tostring(g.late.found),
+        tostring(g.late.missing))
+    end
+    lines[#lines + 1] = ("own scan: gear lots for %d items%s%s"):format(n,
+      (type(f) == "table" and g.at == f.at) and "" or " (from an older scan, not used)", lateText)
   end
   local scanner = GC.ForeverScan._scanner
   lines[#lines + 1] = "own scan: scanner " .. (scanner and scanner:State() or "off")
