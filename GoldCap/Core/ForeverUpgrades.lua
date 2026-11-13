@@ -113,11 +113,12 @@ local function set(list)
   return out
 end
 
--- Classic's rules: the fallback when the tooltip cannot tell, and the only judge for a piece a few
--- levels ahead (its tooltip is red for the level anyway). Armour subclass -> the level the class
--- may wear it from (0 misc, 1 cloth, 2 leather, 3 mail, 4 plate, 6 shield). Weapon subclass ->
--- the class can learn it (0/1 axe, 2 bow, 3 gun, 4/5 mace, 6 polearm, 7/8 sword, 10 staff, 13
--- fist, 15 dagger, 16 thrown, 18 crossbow, 19 wand). A class not listed has no fallback.
+-- Classic's rules: the fallback when the tooltip cannot tell, and for a piece a few levels ahead
+-- the judge at the level it will be worn at (TooltipUsable passes over its red level line).
+-- Armour subclass -> the level the class may wear it from (0 misc, 1 cloth, 2 leather, 3 mail, 4
+-- plate, 6 shield). Weapon subclass -> the class can learn it (0/1 axe, 2 bow, 3 gun, 4/5 mace, 6
+-- polearm, 7/8 sword, 10 staff, 13 fist, 15 dagger, 16 thrown, 18 crossbow, 19 wand). A class not
+-- listed has no fallback.
 local ARMOR = {
   WARRIOR = { [0] = 1, [1] = 1, [2] = 1, [3] = 1, [4] = 40, [6] = 1 },
   PALADIN = { [0] = 1, [1] = 1, [2] = 1, [3] = 1, [4] = 40, [6] = 1 },
@@ -254,18 +255,79 @@ local function isRed(c)
   return type(c) == "table" and (c.r or 0) > 0.9 and (c.g or 1) < 0.25 and (c.b or 1) < 0.25
 end
 
--- The client's tooltip for the piece, as data: false on any red line, true when it drew coloured
--- lines and none was red, nil when it cannot tell (no client call, nothing loaded, no colours).
-function GC.ForeverUpgrades.TooltipUsable(itemString, api)
+-- A client string as a Lua pattern that matches it literally.
+local function literal(text)
+  return (text:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+end
+
+-- The tooltip's own text for a line, turned into a pattern: every "%d" (or "%1$d") a number, the
+-- rest literal. nil without the client's string, or with one that holds no number.
+local function formatPattern(fmt)
+  if type(fmt) ~= "string" or fmt == "" then return nil end
+  local out, pos, numbers = {}, 1, 0
+  while true do
+    local from, to = fmt:find("%%%d*%$?d", pos)
+    if not from then break end
+    out[#out + 1] = literal(fmt:sub(pos, from - 1))
+    out[#out + 1] = "%d+"
+    numbers, pos = numbers + 1, to + 1
+  end
+  if numbers == 0 then return nil end
+  out[#out + 1] = literal(fmt:sub(pos))
+  return "^" .. table.concat(out) .. "$"
+end
+
+-- The client's tooltip for a link or an item string, as data, or nil.
+local function tooltipLines(itemString, api)
   if api == nil then api = _G.C_TooltipInfo end
   if type(api) ~= "table" or type(api.GetHyperlink) ~= "function" then return nil end
   local ok, data = pcall(api.GetHyperlink, itemString)
   if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
+  return data.lines
+end
+
+-- A weapon's speed, from its tooltip's damage line: the right text is the client's SPEED and the
+-- seconds (HERO probe P4, 13.11: "Speed 1.50" on worn Hook Daggers, "Speed 1.80" on Jagged
+-- Knives). A comma reads as the decimal point, as some languages write it. nil for a piece with no
+-- such line, a tooltip not answered, or a client without the string. Works on a full link too (the
+-- probe read the worn weapons' tooltips by their links).
+function GC.ForeverUpgrades.TooltipSpeed(itemString, api)
+  local word = _G.SPEED
+  if type(word) ~= "string" or word == "" then return nil end
+  local lines = tooltipLines(itemString, api)
+  if not lines then return nil end
+  local pattern = "^" .. literal(word) .. "%s*([%d%.,]+)$"
+  for _, line in ipairs(lines) do
+    local text = type(line) == "table" and line.rightText or nil
+    local n = type(text) == "string" and text:match(pattern) or nil
+    if n then
+      local v = tonumber((n:gsub(",", ".")))
+      if v and v > 0 then return v end
+    end
+  end
+  return nil
+end
+
+-- The client's tooltip for the piece, as data: false on any red line, true when it drew coloured
+-- lines and none was red, nil when it cannot tell (no client call, nothing loaded, no colours).
+-- One red line is not a "no": the level the piece requires, which the client draws red until the
+-- character reaches it (HERO probe P5, 13.11: Feet of the Lynx at level 17, "Requires Level 19" in
+-- 1.00/0.13/0.13, line type 43). Every level-ahead piece used to fail here, so the "at level N"
+-- picks never showed. Type 43 is every usage requirement, class and skill included, so the line is
+-- known by its text, the client's ITEM_MIN_LEVEL, never by its type.
+function GC.ForeverUpgrades.TooltipUsable(itemString, api)
+  local lines = tooltipLines(itemString, api)
+  if not lines then return nil end
+  local levelLine = formatPattern(_G.ITEM_MIN_LEVEL)
   local sawColour = false
-  for _, line in ipairs(data.lines) do
+  for _, line in ipairs(lines) do
     if type(line) == "table" then
       if line.leftColor or line.rightColor then sawColour = true end
-      if isRed(line.leftColor) or isRed(line.rightColor) then return false end
+      local leftRed = isRed(line.leftColor)
+      if leftRed and levelLine and type(line.leftText) == "string" and line.leftText:match(levelLine) then
+        leftRed = false
+      end
+      if leftRed or isRed(line.rightColor) then return false end
     end
   end
   return sawColour or nil
@@ -775,7 +837,8 @@ end
 -- level, so a level-up asks again (a red "Requires Level" line is gone then). A skill trained
 -- mid-session shows on the next level or /reload. Only a yes or a no is kept: "cannot tell"
 -- (nothing loaded yet, no colours) is asked again next time.
-local keptInfo, keptStats, keptUsable = {}, {}, {}
+-- keptSpeed: a weapon's speed per item string or link, only once the tooltip has said it.
+local keptInfo, keptStats, keptUsable, keptSpeed = {}, {}, {}, {}
 
 local function playerLevel()
   local ok, l = pcall(_G.UnitLevel, "player")
@@ -822,9 +885,16 @@ local function realDriver(getStats)
       if u ~= nil then keptUsable[key] = u end
       return u
     end,
-    -- A weapon's speed, for DpsFactor: not read yet. The shape of the tooltip's speed line is the
-    -- HERO probe's question P4; until it is answered every weapon counts at REF_SPEED, as before.
-    speed = function() return nil end,
+    -- A weapon's speed, for DpsFactor (TooltipSpeed): a candidate's by its item string, the worn
+    -- one's by its link. Kept once the tooltip said it; asked again while it says nothing.
+    speed = function(s)
+      if type(s) ~= "string" then return nil end
+      local kept = keptSpeed[s]
+      if kept then return kept end
+      local v = GC.ForeverUpgrades.TooltipSpeed(s)
+      if v then keptSpeed[s] = v end
+      return v
+    end,
     requestLoad = function(itemID) pcall(item.RequestLoadItemDataByID, itemID) end,
     money = function()
       local ok, m = pcall(_G.GetMoney)

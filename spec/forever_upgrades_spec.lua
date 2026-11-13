@@ -660,6 +660,82 @@ describe("ForeverUpgrades", function()
     assert.is_nil(U.TooltipUsable("item:1", { GetHyperlink = function() error("not loaded") end }))
   end)
 
+  -- The HERO probe's tooltips (13.11, a level 17 rogue), line by line as the client drew them: the
+  -- worn Hook Dagger of the Falcon (P4) and Feet of the Lynx, which requires level 19 (P5).
+  local WHITE, GREEN, BLUE, GOLD = { r = 1, g = 1, b = 1 }, { r = 0.12, g = 1, b = 0 }, { r = 0, g = 0.44, b = 0.87 },
+    { r = 1, g = 0.82, b = 0 }
+  local LEVEL_RED = { r = 1, g = 0.13, b = 0.13 }
+  local function hookDagger()
+    return {
+      { leftText = "Hook Dagger of the Falcon", leftColor = GREEN, type = 22 },
+      { leftText = "Binds when equipped", leftColor = WHITE, type = 20 },
+      { leftText = "One-Hand", leftColor = WHITE, rightText = "Dagger", rightColor = WHITE, type = 21 },
+      { leftText = "10 - 20 Damage", leftColor = WHITE, rightText = "Speed 1.50", rightColor = WHITE, type = 0 },
+      { leftText = "(10.0 damage per second)", leftColor = WHITE, type = 0 },
+      { leftText = "+2 Agility", leftColor = WHITE, type = 0 },
+      { leftText = "+2 Intellect", leftColor = WHITE, type = 0 },
+      { leftText = "Requires Level 15", leftColor = WHITE, type = 43 },
+      { leftText = "", leftColor = GOLD, type = 11 },
+    }
+  end
+  local function feetOfTheLynx()
+    return {
+      { leftText = "Feet of the Lynx", leftColor = BLUE, type = 22 },
+      { leftText = "Binds when equipped", leftColor = WHITE, type = 20 },
+      { leftText = "Feet", leftColor = WHITE, rightText = "Leather", rightColor = WHITE, type = 21 },
+      { leftText = "63 Armor", leftColor = WHITE, type = 0 },
+      { leftText = "+3 Strength", leftColor = WHITE, type = 0 },
+      { leftText = "+8 Agility", leftColor = WHITE, type = 0 },
+      { leftText = "Requires Level 19", leftColor = LEVEL_RED, type = 43 },
+      { leftText = "", leftColor = GOLD, type = 11 },
+    }
+  end
+  local function tip(lines) return { GetHyperlink = function() return { lines = lines } end } end
+  local function withGlobals(values, fn)
+    local was = {}
+    for k, v in pairs(values) do was[k] = _G[k]; _G[k] = v end
+    local ok, err = pcall(fn)
+    for k in pairs(values) do _G[k] = was[k] end
+    if not ok then error(err, 0) end
+  end
+
+  it("reads weapon speed from the tooltip", function()
+    withGlobals({ SPEED = "Speed" }, function()
+      assert.equal(1.5, U.TooltipSpeed("item:3184", tip(hookDagger())))
+      -- Jagged Knives (P4): the thrown weapon's damage line.
+      assert.equal(1.8, U.TooltipSpeed("item:285282", tip({
+        { leftText = "10 - 19 Damage", leftColor = WHITE, rightText = "Speed 1.80", rightColor = WHITE, type = 0 } })))
+      -- A language that writes the decimal with a comma reads the same.
+      local comma = hookDagger()
+      comma[4].rightText = "Speed 1,50"
+      assert.equal(1.5, U.TooltipSpeed("item:3184", tip(comma)))
+      assert.is_nil(U.TooltipSpeed("item:1121", tip(feetOfTheLynx())))   -- no speed line
+      assert.is_nil(U.TooltipSpeed("item:3184", {}))                       -- no client call
+      assert.is_nil(U.TooltipSpeed("item:3184", { GetHyperlink = function() error("not loaded") end }))
+    end)
+    withGlobals({ SPEED = false }, function()
+      assert.is_nil(U.TooltipSpeed("item:3184", tip(hookDagger())))        -- no word to look for
+    end)
+  end)
+
+  it("offers a level-ahead piece whose only red line is its level", function()
+    withGlobals({ ITEM_MIN_LEVEL = "Requires Level %d" }, function()
+      assert.is_true(U.TooltipUsable("item:1121", tip(feetOfTheLynx())))
+      -- Any other red line still says no: leather this class cannot wear, here.
+      local leather = feetOfTheLynx()
+      leather[3].rightColor = LEVEL_RED
+      assert.is_false(U.TooltipUsable("item:1121", tip(leather)))
+      -- A red line that only starts like the level line is not it.
+      local other = feetOfTheLynx()
+      other[7].leftText = "Requires Level 19 Engineering"
+      assert.is_false(U.TooltipUsable("item:1121", tip(other)))
+    end)
+    -- Without the client's string the level line cannot be known, and red is a no, as before.
+    withGlobals({ ITEM_MIN_LEVEL = false }, function()
+      assert.is_false(U.TooltipUsable("item:1121", tip(feetOfTheLynx())))
+    end)
+  end)
+
   it("knows Classic's armour and weapon rules, and says nothing for a class it does not know", function()
     assert.is_false(U.ClassAllows("WARRIOR", 4, 4, 39))
     assert.is_true(U.ClassAllows("WARRIOR", 4, 4, 40))
@@ -676,7 +752,7 @@ describe("ForeverUpgrades in the client", function()
   local GC, db, printed, saved
   local INFO = { [101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2, stats = { ITEM_MOD_STRENGTH_SHORT = 8 } } }
   local KEYS = { "C_Item", "UnitLevel", "UnitClass", "GetInventoryItemLink", "C_TooltipInfo", "GetItemStats",
-    "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_STAMINA_SHORT", "GetMoney" }
+    "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_STAMINA_SHORT", "GetMoney", "SPEED" }
 
   local function init(interface)
     GC.ForeverScan.Init(db, { passport = function() return { interface = interface, region = 90, realm = "Forever" } end })
@@ -820,6 +896,38 @@ describe("ForeverUpgrades in the client", function()
     r = GC.ForeverUpgrades.Current()
     assert.equal("sinister", r.style)
     assert.equal(151, r.slots[1].best.itemID)
+  end)
+
+  -- HERO probe P4 (13.11): the speed is on the tooltip's damage line, and the probe read the worn
+  -- weapons' tooltips by their full links.
+  it("reads a weapon's speed from its tooltip once per piece, the worn one by its full link", function()
+    init(16001)
+    _G.SPEED = "Speed"
+    local function idOf(s) return tonumber(tostring(s):match("item:(%d+)")) end
+    INFO[150] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7, stats = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 9 } }
+    INFO[160] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7, stats = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 } }
+    INFO[161] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7, stats = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 } }
+    finally(function() INFO[150], INFO[160], INFO[161] = nil, nil, nil end)
+    db.foreverScan.gear.items = { [160] = "300:0:0", [161] = "300:0:0" }
+    _G.UnitClass = function() return "Rogue", "ROGUE", 4 end
+    local WORN = "|cnIQ2:|Hitem:150::::::::17:1488:::::::::|h[Worn Sword]|h|r"
+    _G.GetInventoryItemLink = function(_, slot) return slot == 16 and WORN or nil end
+    local speeds, asked = { [150] = "Speed 2.70", [160] = "Speed 1.80", [161] = "Speed 2.70" }, {}
+    _G.C_TooltipInfo = { GetHyperlink = function(s)
+      asked[s] = (asked[s] or 0) + 1
+      return { lines = { { leftText = "10 - 20 Damage", leftColor = { r = 1, g = 1, b = 1 }, rightText = speeds[idOf(s)],
+        rightColor = { r = 1, g = 1, b = 1 } } } }
+    end }
+    local r = GC.ForeverUpgrades.Current()
+    -- The slower sword at the same DPS; the faster one beats nothing the worn 2.7 sword does.
+    assert.equal(1, #r.slots)
+    assert.equal(161, r.slots[1].best.itemID)
+    assert.equal(WORN, r.slots[1].worn)
+    assert.equal(1, asked[WORN])                                  -- the worn sword, by its link
+    assert.equal(1, asked["item:160"])
+    GC.ForeverUpgrades.Current()
+    assert.equal(1, asked[WORN])                                  -- kept: not asked again
+    assert.equal(1, asked["item:160"])
   end)
 
   it("says there is no scan when the saved gear lots are not this fold's", function()
