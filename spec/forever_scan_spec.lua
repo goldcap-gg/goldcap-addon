@@ -947,6 +947,55 @@ describe("ForeverScan", function()
       assert.equal(before, reads)
     end)
 
+    -- The client has a clock (debugprofilestop): there each second's rows are read a frame at a
+    -- time within the read's own budget, a link read and parse being the cost READ_BUDGET_MS is for.
+    it("reads the waiting rows within the read's frame budget, READ_BATCH a second at most", function()
+      local C = GC.ForeverScan.C
+      local ms, loaded, calls = 0, false, 0
+      local s = GC.ForeverScan.New(driver({
+        clock = function() return ms end,
+        rowInfo = function(i)
+          ms, calls = ms + 0.004, calls + 1
+          local r = rows[i + 1]
+          if not r then return nil end
+          return r[1], r[2], r[3], r[4]
+        end,
+        isGearLot = function() return true end,
+        rowLink = function(i)
+          ms = ms + 0.02                             -- a link read and parse costs more
+          if loaded then return (INTELLECT:gsub("15211", tostring(rows[i + 1][1]))) end
+        end,
+      }))
+      s:OnAuctionHouseShow()
+      rows = dump(3000)
+      s:OnReplicateUpdate()
+      local guard = 0
+      while s:State() ~= "idle" do
+        guard = guard + 1
+        assert(guard < 1000, "runaway timers")
+        table.remove(timers, 1).fn()
+      end
+      assert.same({ 1 }, { timers[1].s })            -- the pass's first second, and nothing else
+      loaded = true
+      local perSecond, frames = {}, 0
+      while #timers > 0 do
+        local t = table.remove(timers, 1)
+        if t.s == 1 then perSecond[#perSecond + 1] = 0 end
+        local before, at = calls, ms
+        t.fn()
+        local read = calls - before
+        perSecond[#perSecond] = perSecond[#perSecond] + read
+        if read > 0 then
+          frames = frames + 1
+          assert.is_true(read < C.READ_BATCH)
+          assert.is_true(ms - at <= C.READ_BUDGET_MS + 0.024 * C.READ_CLOCK_EVERY)
+        end
+      end
+      assert.same({ C.READ_BATCH, 3000 - C.READ_BATCH }, perSecond)
+      assert.is_true(frames > #perSecond)            -- the budget cut every second into frames
+      assert.same({ missing = 3000, found = 3000 }, store.gear.late)
+    end)
+
     it("never adds a late row whose index now holds another item", function()
       scanned()
       rows[3] = { 15210, 1, 500, true }              -- the dump under the index changed
