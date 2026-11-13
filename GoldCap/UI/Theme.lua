@@ -255,6 +255,16 @@ function T.RailButton(parent, iconName, labelText)
   return b
 end
 
+-- The rail's tabs, top to bottom: the four both games have. A tab of one game's own adds its entry
+-- here as its file loads, before any window is built (WoW: Forever's HERO, UI/HeroFrame.lua, which
+-- only GoldCap_Camelot.toc loads), so retail's rail stays these four.
+T.RAIL_ORDER = {
+  { key = "deals", icon = "deals", label = "DEALS" },
+  { key = "sell", icon = "sell", label = "SELL" },
+  { key = "sold", icon = "sold", label = "SOLD" },
+  { key = "buy", icon = "buy", label = "BUY" },
+}
+
 function T.Rail(parent)
   local frame = CreateFrame("Frame", nil, parent)
   frame:SetWidth(T.RAIL_W)
@@ -310,14 +320,8 @@ function T.Rail(parent)
   local LOGO_GAP = 14
 
   local buttons = {}
-  local order = {
-    { key = "deals", icon = "deals", label = "DEALS" },
-    { key = "sell", icon = "sell", label = "SELL" },
-    { key = "sold", icon = "sold", label = "SOLD" },
-    { key = "buy", icon = "buy", label = "BUY" },
-  }
   local prev = logo
-  for i, item in ipairs(order) do
+  for i, item in ipairs(T.RAIL_ORDER) do
     local b = T.RailButton(frame, item.icon, item.label)
     b:SetPoint("TOP", prev, "BOTTOM", 0, i == 1 and -LOGO_GAP or -T.pad.s)
     buttons[item.key] = b

@@ -140,3 +140,16 @@ describe("the AddOns list category", function()
     end)
   end
 end)
+
+-- The rail's tabs (UI/Theme.lua's RAIL_ORDER): the four both games have. A Forever-only tab adds
+-- its own entry from its own file, which only GoldCap_Camelot.toc loads, so retail keeps these.
+describe("the rail's tabs", function()
+  local helper = require("spec.spec_helper")
+
+  it("are DEALS, SELL, SOLD and BUY on retail", function()
+    local GC = helper.loadModule("UI/Theme.lua", {})
+    local keys = {}
+    for i, item in ipairs(GC.Theme.RAIL_ORDER) do keys[i] = item.key end
+    assert.same({ "deals", "sell", "sold", "buy" }, keys)
+  end)
+end)
