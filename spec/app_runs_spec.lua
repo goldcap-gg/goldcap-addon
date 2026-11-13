@@ -814,6 +814,17 @@ describe("AppRuns", function()
         -- Another list's progress is not this list's.
         assert.same({ bought = 7, spent = 70 }, b.other[1])
       end)
+
+      -- The HERO tab's list asks for one fewer when the player takes a piece off: nothing was used,
+      -- and a piece bought must stay bought, or BUY buys it again.
+      it("keeps what was bought when told to, for a list whose lines the player took off", function()
+        local run = GC.AppRuns.NewList(nil, { { i = 1, q = 2, ver = "12718" } })
+        GC.db.buyProgress = { ["A-R"] = { [run.code] = { [1] = { bought = 1, spent = 100 } } } }
+        local _, changed = GC.AppRuns.SetLines(run.code, { { i = 1, q = 1, ver = "12718" } }, true)
+        assert.is_true(changed)
+        assert.same({ { 1, 1 } }, pairsOf(run))
+        assert.same({ bought = 1, spent = 100 }, GC.db.buyProgress["A-R"][run.code][1])
+      end)
     end)
 
     it("survives a companion sync with its favourite, its place and its caps", function()

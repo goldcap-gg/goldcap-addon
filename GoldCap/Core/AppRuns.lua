@@ -116,10 +116,6 @@ local function joinVer(a, b)
   return table.concat(keys, ",")
 end
 
--- For a caller that joins two lines of one item itself (the HERO tab's "Add", which keeps the
--- larger quantity rather than the sum): the same rule mergeLines and AddLines follow.
-GC.AppRuns.JoinVer = joinVer
-
 local function copyLine(raw)
   if type(raw) ~= "table" then return nil end
   local i, q = num(raw.i), num(raw.q)
@@ -792,9 +788,10 @@ end
 --- down by as much: BUY buys a line's need less the larger of what it sees held and what it bought
 --- for the list (Core/BuyRun.lua), and the units the list no longer asks for are ones a craft used,
 --- which counted as bought would keep BUY from buying what is still short. A line that asks for more
---- keeps what was bought for it, held or still in the mailbox. Returns the run and whether a line
---- changed, or nil for any other list.
-function GC.AppRuns.SetLines(code, lines)
+--- keeps what was bought for it, held or still in the mailbox. keepBought: a list whose lines ask for
+--- fewer because the player took a piece off (the HERO tab's), where nothing was used: what was
+--- bought stays bought. Returns the run and whether a line changed, or nil for any other list.
+function GC.AppRuns.SetLines(code, lines, keepBought)
   local run = GC.AppRuns.Get(code)
   if not (type(run) == "table" and run.origin == "game") then return nil end
   local fresh = mergeLines(lines or {})
@@ -810,6 +807,7 @@ function GC.AppRuns.SetLines(code, lines)
   end
   if not changed then return run, false end
   run.lines, run.updatedAt = fresh, time()
+  if keepBought then return run, true end
   for itemID, was in pairs(old) do
     local by = (tonumber(was.q) or 0) - (asked[itemID] or 0)
     if by > 0 then lowerBought(GC.db, code, itemID, by) end

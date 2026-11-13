@@ -86,6 +86,26 @@ describe("BuyRun", function()
     assert.equal(60 * 30000, run:Totals().left)
   end)
 
+  -- Review, 14.11: the HERO tab's line for a piece read as done while the bags held another
+  -- version of it, or the very piece worn before. A line pinned to versions counts only what it
+  -- bought; a line without versions counts what is held, exactly as before (retail's lines).
+  it("counts only what was bought on a line pinned to versions, and what is held on any other", function()
+    have = { [21] = 3, [22] = 3 }
+    run = GC.BuyRun.New({ code = "hero0001", name = "Upgrades", updatedAt = 1, lines = {
+      { i = 21, q = 1, ver = "12718" }, { i = 22, q = 1 },
+    } }, { now = function() return 1000 end, haveOf = function(id) return have[id] or 0 end,
+           usualUnit = function() return 100 end, capPct = function() return 130 end })
+    run:Refresh()
+    assert.equal(1, lineOf(21).buy)
+    assert.is_false(lineOf(21).done)
+    assert.equal(0, lineOf(22).buy)                                -- held: done, as always
+    assert.is_true(lineOf(22).done)
+    run:RecordPurchase(21, 1, 100, 1001)
+    assert.is_true(lineOf(21).done)
+    run:Refresh()
+    assert.equal(0, lineOf(21).buy)
+  end)
+
   it("left to spend uses the floor when one is known, else the usual price", function()
     run:SetFloor(5, 29400, 999)
     assert.equal(150 * 29400 + 0, run:Totals().left)   -- line 7 has no usual and no floor: counts 0

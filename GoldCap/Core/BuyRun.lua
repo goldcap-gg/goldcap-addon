@@ -107,9 +107,14 @@ function GC.BuyRun.New(run, driver)
     local entries, byItem = {}, {}
     for _, src in ipairs(run.lines or {}) do
       local state = stateFor(src.i)
+      local version = versionSet(src.ver)
       local entry = {
         itemID = src.i, name = src.n, need = src.q or 0,
-        have = driver.haveOf(src.i), bought = state.bought, spent = state.spent,
+        -- A line pinned to versions (the HERO tab's, Core/ForeverUpgrades.lua's ListAdd) counts
+        -- only what it bought: the bags, the bank and the mail can hold another version of the
+        -- item, or the very piece the tab weighed the line against, and either read as done a line
+        -- nothing was bought for. Every line without versions counts what is held, as always.
+        have = version and 0 or driver.haveOf(src.i), bought = state.bought, spent = state.spent,
         vendor = src.v == true,
         lineUsual = num(src.u), vendorUnit = num(src.vu),
         -- Hour-of-day (UTC) this item is usually cheapest, and by what percent. Passed through
@@ -125,7 +130,7 @@ function GC.BuyRun.New(run, driver)
         -- row, one variant, and its lots are read under that key alone (UI/BuyFrame.lua).
         exactKey = type(src.key) == "table" and src.key or nil,
         -- The versions of the item the line buys (HERO plan): a lot of any other is never bid on.
-        version = versionSet(src.ver),
+        version = version,
         -- A vendor line is a trip to an NPC at a fixed price. The recipe the site attached
         -- describes what the item is; it is not an offer to make one, and splitting it would
         -- replace a copper purchase from a vendor with reagents bought at the auction house.

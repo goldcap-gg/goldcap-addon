@@ -628,6 +628,17 @@ local LIST_DRIVER = setmetatable({
 local function runList()
   return (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List()) or {}
 end
+
+--- What this character bought on list `code`, { [itemID] = units }, read and never created (the
+--- list column's LIST_DRIVER): the HERO tab tells a piece bought from one still to buy by it.
+function GC.Buy.BoughtOn(code)
+  local out = {}
+  for itemID, saved in pairs(LIST_DRIVER.progress(code) or {}) do
+    local n = type(saved) == "table" and tonumber(saved.bought) or nil
+    if n and n > 0 then out[itemID] = n end
+  end
+  return out
+end
 local openRunMenu -- defined after cycleRun; the band's picker is the only caller
 local vendorListText -- defined with the rows; the run menu's "Copy vendor list" reads it
 

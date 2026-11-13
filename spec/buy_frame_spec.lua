@@ -2491,6 +2491,15 @@ describe("BuyFrame", function()
     assert.is_nil(stored["run-2"])
   end)
 
+  -- The HERO tab reads what this character bought on its list, and writes nothing to read it.
+  it("tells what this character bought on a list, without writing any", function()
+    GC.db.buyProgress = { ["?"] = { ["run-2"] = { [103] = { bought = 2, spent = 10 }, [104] = { bought = 0 } } },
+      ["Other-R"] = { ["run-2"] = { [105] = { bought = 1 } } } }
+    assert.same({ [103] = 2 }, GC.Buy.BoughtOn("run-2"))
+    assert.same({}, GC.Buy.BoughtOn("run-3"))
+    assert.is_nil(GC.db.buyProgress["?"]["run-3"])
+  end)
+
   it("keeps the column hidden in a docked or narrow window", function()
     assert.is_false(GC.Buy._view.lists.frame:IsShown())
     assert.equal(0, GC.Buy._leftInset)
