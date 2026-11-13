@@ -1,5 +1,42 @@
 # GoldCap
 
+## 0.29.0 (unreleased)
+
+- WoW: Forever: a new HERO tab in the GoldCap window replaces the /gc upgrades window. It looks
+  like your character sheet: your own slots around your character, and a slot with something
+  better on the auction house has a gold frame. Click one to see its choices: the strongest piece
+  you can wear now, cheaper ones nearly as good, and a stronger one you can wear in a level or two.
+  A price you cannot pay yet is red, and a piece you cannot wear yet has a red icon with its level
+  in the corner, as in your bags.
+- WoW: Forever: tick what you want to buy, one piece per slot. GoldCap ticks the strongest mix the
+  gold you carry pays for to start with, and you can change any of it. The bar at the bottom counts
+  only what is ticked and says what you have left, or how much you are short. "Add to BUY" puts
+  the ticked pieces on an Upgrades list in BUY, each capped 5% over its price.
+- WoW: Forever: BUY now buys the exact version the HERO tab picked: "of the Monkey" stays "of the
+  Monkey", even when another version of the item is cheaper.
+- WoW: Forever: each version of an item with a random suffix is now weighed by its own stats. All
+  of them used to count as the plain item, so "of the Eagle" and "of the Owl" looked the same, and
+  a caster version with lower weapon damage could be offered to a rogue.
+- WoW: Forever: a scan now keeps the gear whose details the game had not loaded yet when the scan
+  read it, about a third of the gear on the auction house. It used to be left out of the upgrades.
+- WoW: Forever: pieces you can wear in a level or two are now offered. The "Requires Level" line
+  on their tooltip kept every one of them out.
+- WoW: Forever: one-hand weapons are now offered for the off hand to a character that can
+  dual-wield.
+- WoW: Forever: weapon damage now counts as much as it does in a fight. A point of weapon DPS in
+  the main hand is worth about 14 attack power, half that in the off hand, and a rogue's or
+  warrior's gun, bow or thrown weapon about a seventh. For a rogue, a slower main hand counts for
+  more, because Sinister Strike adds a full swing, and with Backstab only daggers are offered for
+  the main hand. The tab reads which you use from the weapon in your main hand; switch it under
+  Stat weights.
+- WoW: Forever: right after you log in or reload, the game takes a few seconds to hand over the
+  details of what you wear. A slot still waiting for them now says so and fills in by itself; it
+  used to say nothing on the auction house beat what you wear.
+- WoW: Forever: stat weights, the bags' worth on the auction house and the road to your riding
+  mount are now in the HERO tab too. /gc weights, /gc bags and /gc mount still work.
+- WoW: Forever: an item's tooltip now says whether it is an upgrade for the character looking, and
+  by how much, or when you can wear it.
+
 ## 0.28.1 (2026-11-13)
 
 - WoW: Forever: scanning the auction house no longer makes the game stutter every second or so,
