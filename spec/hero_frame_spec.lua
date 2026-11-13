@@ -17,7 +17,7 @@ describe("HERO tab", function()
     "GetCoinTextureString", "ChatFrame_OpenChat", "InCombatLockdown", "ITEM_MOD_STRENGTH_SHORT",
     "ITEM_MOD_AGILITY_SHORT", "ITEM_MOD_STAMINA_SHORT", "ITEM_MOD_DAMAGE_PER_SECOND_SHORT", "RESISTANCE0_NAME",
     "INVTYPE_WEAPONMAINHAND", "INVTYPE_WEAPONOFFHAND", "INVTYPE_CHEST", "INVTYPE_HEAD", "INVTYPE_FINGER",
-    "ITEM_QUALITY_COLORS", "GetInventoryItemLink", "time", "ITEM_MIN_LEVEL", "RED_FONT_COLOR" }
+    "ITEM_QUALITY_COLORS", "GetInventoryItemLink", "time", "RED_FONT_COLOR" }
   local NOW = 1800000000
   local CLUB, WATCH, BRUISER, TUNIC, HATCHET, VEST = 2130, 15210, 2131, 2316, 2134, 2317
   -- The paper doll's slots in the client's own order (Forever's Camelot/PaperDollFrame.xml).
@@ -134,8 +134,7 @@ describe("HERO tab", function()
     _G.UnitLevel = function() return 17 end
     _G.GetMoney = function() return 5973 end
     _G.GetInventoryItemLink = function(unit, slot) return unit == "player" and wornLinks[slot] or nil end
-    -- The client's own strings: a tooltip's level line, and the red it and the AH draw in.
-    _G.ITEM_MIN_LEVEL = "Requires Level %d"
+    -- The client's own red, a tooltip's level line's and an unaffordable buyout's.
     _G.RED_FONT_COLOR = { r = 1, g = 0.125, b = 0.125 }
     _G.RAID_CLASS_COLORS = { ROGUE = { r = 1, g = 0.96, b = 0.41 }, WARRIOR = { r = 0.78, g = 0.61, b = 0.43 } }
     _G.GetClassAtlas = function(file) return ("classicon-%s"):format(file) end
@@ -252,7 +251,7 @@ describe("HERO tab", function()
     assert.is_true(badge[4] >= 0 and badge[5] <= 0)
     assert.same({ "BOTTOMRIGHT", chest, "BOTTOMRIGHT" }, { price[1], price[2], price[3] })
     assert.is_true(price[4] <= 0 and price[5] >= 0)
-    -- The main hand: the set's sword ticked. No level badges on the doll: "At 19" is the panel's.
+    -- The main hand: the set's sword ticked. No level badges on the doll: the panel marks the club.
     local main = slotAt(16)
     assert.equal(100000 + WATCH, W.state(main.icon.icon).file)
     assert.equal("75s", textOf(main.price))
@@ -295,7 +294,6 @@ describe("HERO tab", function()
     assert.is_true(ticked(opt(1)))
     -- Keep: the box, what is worn and its name, no price; as tall as the piece above it.
     assert.is_false(shown(opt(2).price))
-    assert.is_false(shown(opt(2).level))
     assert.equal(100000 + 85, W.state(opt(2).icon.icon).file)
     local hs = heightsShown()
     assert.equal(hs[1], hs[2])
@@ -315,13 +313,22 @@ describe("HERO tab", function()
     assert.equal("+4 Stamina, +4.4 Damage Per Second", textOf(opt(1).gain))
     assert.equal("7499c", textOf(opt(1).price))
     assert.equal("3990c", textOf(opt(2).price))
-    -- The club waits for level 19: the tooltip's own line, in the tooltip's red, under its price.
-    local level = opt(2).level
-    assert.equal("Requires Level 19", textOf(level))
-    assert.same({ 1, 0.125, 0.125, 1 }, W.state(level).color)
-    local at = W.state(level).points[1]
-    assert.same({ "TOPRIGHT", opt(2), "TOPRIGHT" }, { at[1], at[2], at[3] })
-    assert.is_false(shown(opt(1).level))
+    -- The club waits for level 19, marked as the game marks a piece you cannot use yet: its art
+    -- tinted red, the level in a stack count's corner in the client's red. The others untinted.
+    local club = opt(2).icon
+    assert.same({ 0.9, 0, 0, 1 }, W.state(club.icon).vertex)
+    assert.equal("19", textOf(club.count))
+    assert.equal(result.slots[2].best.later, tonumber(textOf(club.count)))
+    assert.same({ 1, 0.125, 0.125, 1 }, W.state(club.count).color)
+    local corner = W.state(club.count).points[1]
+    assert.same({ "BOTTOMRIGHT", club.edge, "BOTTOMRIGHT" }, { corner[1], corner[2], corner[3] })
+    for _, i in ipairs({ 1, 3, 4, 5 }) do
+      assert.same({ 1, 1, 1, 1 }, W.state(opt(i).icon.icon).vertex, i)
+      assert.equal("", textOf(opt(i).icon.count), i)
+    end
+    -- Its gains run the whole width, as wide as a piece's with nothing to wait for.
+    assert.equal(opt(1).gain:GetWidth(), opt(2).gain:GetWidth())
+    assert.is_true(opt(2).gain:GetWidth() > opt(2).name:GetWidth())
     assert.is_false(shown(opt(5).price))
     -- Every row of one list as tall as the others, keep too.
     hs = heightsShown()
@@ -343,10 +350,10 @@ describe("HERO tab", function()
     H.RefreshIfShown(true)
     assert.equal("1589c", textOf(opt(1).price))
     assert.same({ 1, 0.125, 0.125, 1 }, W.state(opt(1).price).color)
-    -- A client without the level line says it in GoldCap's words.
-    _G.ITEM_MIN_LEVEL = nil
-    press(slotAt(16))
-    assert.equal("At 19", textOf(opt(2).level))
+    -- Keep reuses the club's row: its icon untinted again, with no number.
+    assert.equal("Keep Old Tunic", textOf(opt(2).name))
+    assert.same({ 1, 1, 1, 1 }, W.state(opt(2).icon.icon).vertex)
+    assert.equal("", textOf(opt(2).icon.count))
     -- A rebuild keeps the slot the player looks at; a fresh open picks the first with choices again.
     press(slotAt(16))
     H.RefreshIfShown(true)
@@ -621,9 +628,8 @@ describe("HERO tab", function()
     assert.is_true(row:GetHeight() > W.LINE_H * 2)
     -- The rest of its list grows with it: one height per list.
     for i, h in ipairs(heightsShown()) do assert.equal(row:GetHeight(), h, i) end
-    -- The price and the level line are as wide as their words.
+    -- The price is as wide as its words.
     assert.is_true(row.price:GetWidth() >= row.price:GetUnboundedStringWidth())
-    assert.is_true(row.level:GetWidth() >= row.level:GetUnboundedStringWidth())
     -- A button is as wide as its words.
     local add = bar().add
     assert.is_true(add:GetWidth() >= add.text:GetUnboundedStringWidth())
@@ -843,7 +849,10 @@ describe("HERO tab", function()
     assert.is_true(slotAt(1):GetWidth() >= 40, slotAt(1):GetWidth())
     assert.is_true(sp().frame:GetWidth() >= 330, sp().frame:GetWidth())
     assert.equal(W.LINE_H * 11 / 12, doll().hint:GetStringHeight())    -- one line
-    -- A choice is two lines, its name and price over its gains and level line, and so is keep.
+    -- A choice is two lines, its name and price over its gains, and so is keep: a piece that waits
+    -- for a level too, with three stats, the line the level line used to take its gains from.
+    result.slots[2].best.diffs = { ITEM_MOD_AGILITY_SHORT = 6, ITEM_MOD_STRENGTH_SHORT = 4, ITEM_MOD_STAMINA_SHORT = 3 }
+    H.RefreshIfShown(true)
     press(slotAt(16))
     local hs = heightsShown()
     assert.equal(5, #hs)

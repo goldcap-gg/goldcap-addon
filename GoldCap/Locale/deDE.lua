@@ -1928,7 +1928,6 @@ GC.Locales.deDE = {
   ["The weapon's damage per second"] = "Der Schaden pro Sekunde der Waffe",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Waffenhand: etwa 14 Angriffskraft. Schildhand die Hälfte, Schusswaffe oder Bogen ein Siebtel",
-  ["At %d"] = "Ab Stufe %d",
   ["%s · level %d"] = "%s · Stufe %d",
   ["Scan %s ago"] = "Scan vor %s",
   ["Scan again to read each version's own stats."] = "Scanne erneut, um die Werte jeder Version einzeln zu lesen.",

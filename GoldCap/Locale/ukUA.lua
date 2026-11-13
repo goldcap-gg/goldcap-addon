@@ -1995,7 +1995,6 @@ GC.Locales.ukUA = {
   ["The weapon's damage per second"] = "Шкода зброї за секунду",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Права рука: близько 14 сили атаки. Ліва вдвічі менше, вогнепальна зброя чи лук у сім разів менше",
-  ["At %d"] = "З %d рівня",
   ["%s · level %d"] = "%s · рівень %d",
   ["Scan %s ago"] = "Сканування %s тому",
   ["Scan again to read each version's own stats."] = "Проскануйте ще раз, щоб прочитати характеристики кожної версії.",

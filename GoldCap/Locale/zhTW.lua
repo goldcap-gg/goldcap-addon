@@ -1816,7 +1816,6 @@ GC.Locales.zhTW = {
   ["The weapon's damage per second"] = "武器的每秒傷害",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "主手：約等於 14 點攻擊強度。副手減半，槍械或弓為七分之一",
-  ["At %d"] = "%d 級可用",
   ["%s · level %d"] = "%s · %d 級",
   ["Scan %s ago"] = "%s 前掃描",
   ["Scan again to read each version's own stats."] = "重新掃描以讀取每個版本各自的屬性。",

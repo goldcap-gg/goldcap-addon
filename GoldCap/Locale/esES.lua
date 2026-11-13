@@ -1925,7 +1925,6 @@ GC.Locales.esES = {
   ["The weapon's damage per second"] = "El daño por segundo del arma",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Mano principal: unos 14 de poder de ataque. Mano secundaria la mitad, arma de fuego o arco un séptimo",
-  ["At %d"] = "A nivel %d",
   ["%s · level %d"] = "%s · nivel %d",
   ["Scan %s ago"] = "Escaneo de hace %s",
   ["Scan again to read each version's own stats."] = "Vuelve a escanear para leer las estadísticas de cada versión.",
