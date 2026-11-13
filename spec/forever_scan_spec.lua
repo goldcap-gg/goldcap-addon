@@ -834,9 +834,9 @@ describe("ForeverScan", function()
     s:OnAuctionHouseShow()
     runAll()
     assert.equal(store.fold.at, store.gear.at)
-    assert.equal(1, store.gear.v)
+    assert.equal(2, store.gear.v)
     -- 6125's link had not loaded (nil): no version, no lot. 2589 is not gear.
-    assert.same({ [15210] = "500:-9:1583 900:-12:1583" }, store.gear.items)
+    assert.same({ [15210] = "500:-9:1583:0 900:-12:1583:0" }, store.gear.items)
     -- The fold itself is folded exactly as before: its strings never carry a link.
     assert.equal(2, GC.ForeverFold.Decode(store.fold.items[15210]).lots)
     for _, encoded in pairs(store.fold.items) do assert.is_nil(encoded:find("item:", 1, true)) end
@@ -1079,6 +1079,9 @@ describe("ForeverScan", function()
       local gear, fold = GC.ForeverScan.Gear()
       assert.equal(db.foreverScan.gear, gear)
       assert.equal(db.foreverScan.fold, fold)
+      -- A gear table saved before bonus versions (v1) is handed out as it is, and its lots still
+      -- read: each version unknown (Core/ForeverUpgrades.lua says the scan is stale).
+      assert.same({ { unit = 501, suffix = "0", unique = "0" } }, GC.ForeverGear.Decode(gear.items[6125]))
       db.foreverScan.gear.at = 4999                       -- an older scan's lots
       assert.is_nil(GC.ForeverScan.Gear())
       db.foreverScan.gear.at = 5000
