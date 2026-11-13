@@ -28,6 +28,11 @@ local C = {
   NEAR_BEST = 0.9,         -- a cheaper piece with at least 90% of the best one's gain is taken instead
   TOOLTIP_CHECKS = 5,      -- tooltip reads per slot and per pass, strongest first
   REQUEST_PER_BUILD = 100, -- item-data requests per build
+  -- The seconds between a class's weapon-swing abilities, for a class whose main hand is weighed by
+  -- its speed (DpsFactor): a rogue's Sinister Strike costs 45 energy and energy comes back at 10 a
+  -- second, so one lands about every 4.5 s.
+  ABILITY_EVERY = { ROGUE = 4.5 },
+  REF_SPEED = 2.0,         -- the weapon speed DpsFactor scores at 1: slower counts more, faster less
 }
 GC.ForeverUpgrades.C = C
 
@@ -44,10 +49,14 @@ GC.ForeverUpgrades.TOKEN_ORDER = { "STR", "AGI", "STA", "INT", "SPI", "ARMOR", "
 
 -- Starting weights per class: which stats a levelling character of the class wants, roughly. Shown
 -- in the window and changed with /gc weights -- a scoring choice the player can see, never a stat.
+-- DPS for the three melee classes is 14 times their AP weight (HERO plan, Finding 3, 2026-11-13): in
+-- Classic one point of weapon DPS is worth 14 attack power, and the 2 these had weighed it like 4.
+-- Hunters, casters and hybrids keep their numbers: nothing measured
+-- says otherwise for them. A player's own /gc weights stay as they were saved.
 GC.ForeverUpgrades.DEFAULT_WEIGHTS = {
-  WARRIOR = { STR = 1, AGI = 0.5, STA = 0.5, AP = 0.5, DPS = 2, ARMOR = 0.01 },
-  PALADIN = { STR = 1, INT = 0.4, STA = 0.5, AGI = 0.3, AP = 0.5, DPS = 2, ARMOR = 0.01 },
-  ROGUE = { AGI = 1, STR = 0.5, STA = 0.4, AP = 0.5, DPS = 2, ARMOR = 0.01 },
+  WARRIOR = { STR = 1, AGI = 0.5, STA = 0.5, AP = 0.5, DPS = 7, ARMOR = 0.01 },
+  PALADIN = { STR = 1, INT = 0.4, STA = 0.5, AGI = 0.3, AP = 0.5, DPS = 7, ARMOR = 0.01 },
+  ROGUE = { AGI = 1, STR = 0.5, STA = 0.4, AP = 0.5, DPS = 7, ARMOR = 0.01 },
   HUNTER = { AGI = 1, INT = 0.3, STA = 0.4, AP = 0.4, DPS = 2, ARMOR = 0.01 },
   SHAMAN = { INT = 0.8, STR = 0.6, AGI = 0.4, STA = 0.5, SPI = 0.2, SP = 0.8, DPS = 1.5, ARMOR = 0.01 },
   DRUID = { INT = 0.8, STR = 0.6, AGI = 0.6, STA = 0.5, SPI = 0.3, SP = 0.8, ARMOR = 0.01 },
@@ -144,16 +153,54 @@ function GC.ForeverUpgrades.ClassAllows(classFile, classID, subclassID, level)
   return false
 end
 
-function GC.ForeverUpgrades.Score(stats, weights)
+-- What a point of weapon DPS is worth in each hand, per class (HERO plan, Finding 3): the off hand
+-- swings for half in Classic, and a melee class's ranged weapon is a pull more than damage, about a
+-- seventh. A class or a group not listed counts as 1: only rogue and warrior get these, from the
+-- same Classic rules; nothing measured says what a hunter's or a caster's hands are worth.
+GC.ForeverUpgrades.HANDS = {
+  ROGUE = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 1 / 7 },
+  WARRIOR = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 1 / 7 },
+}
+
+-- The factor Score puts on a piece's DPS in that group. A class with an ABILITY_EVERY swings its
+-- main hand once more with every such ability (Sinister Strike adds a weapon swing), and that swing
+-- hits for speed x DPS: per second the main hand then does DPS x (1 + speed / E), so at the same
+-- DPS a slower weapon gives more. Scaled to REF_SPEED, so a 2.0 weapon counts as before. A speed
+-- the client has not told counts as REF_SPEED.
+function GC.ForeverUpgrades.DpsFactor(classFile, group, speed)
+  local hands = GC.ForeverUpgrades.HANDS[classFile]
+  local f = hands and hands[group] or 1
+  local every = C.ABILITY_EVERY[classFile]
+  if group == "MAINHAND" and every and type(speed) == "number" and speed > 0 then
+    f = f * (1 + speed / every) / (1 + C.REF_SPEED / every)
+  end
+  return f
+end
+
+-- How a rogue uses its main hand: "backstab" wants a dagger there (Backstab needs one), "sinister"
+-- takes any weapon it can use. The player's own choice wins (prefs.heroStyle); otherwise the
+-- weapon it wears says, a dagger (subclass 15) meaning Backstab. nil for every other class.
+function GC.ForeverUpgrades.StyleFor(prefs, classFile, wornMainSubclass)
+  if classFile ~= "ROGUE" then return nil end
+  local own = type(prefs) == "table" and prefs.heroStyle or nil
+  if own == "backstab" or own == "sinister" then return own end
+  return wornMainSubclass == 15 and "backstab" or "sinister"
+end
+
+-- dpsFactor: DpsFactor's answer for the hand the piece goes in, 1 when not given. Only the DPS
+-- token's share is scaled; parts stay the piece's own numbers, for Diff and the words on screen.
+function GC.ForeverUpgrades.Score(stats, weights, dpsFactor)
   local score, parts = 0, {}
   if type(stats) ~= "table" then return score, parts end
+  local dps = tonumber(dpsFactor) or 1
   for token, w in pairs(weights or {}) do
     local keys = GC.ForeverUpgrades.TOKENS[token]
     if keys and type(w) == "number" and w ~= 0 then
+      local f = token == "DPS" and dps or 1
       for _, key in ipairs(keys) do
         local v = stats[key]
         if type(v) == "number" then
-          score = score + w * v
+          score = score + w * v * f
           parts[key] = (parts[key] or 0) + v
         end
       end

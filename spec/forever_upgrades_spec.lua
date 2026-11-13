@@ -262,6 +262,51 @@ describe("ForeverUpgrades", function()
     _G.ITEM_MOD_STRENGTH_SHORT, _G.ITEM_MOD_STAMINA_SHORT, _G.ITEM_MOD_DAMAGE_PER_SECOND_SHORT = was[1], was[2], was[3]
   end)
 
+  -- HERO plan, Finding 3 (2026-11-13): in Classic a point of weapon DPS is worth 14 attack power,
+  -- the off hand swings for half, and a melee class's ranged weapon is worth about a seventh.
+  it("weighs off-hand DPS at half and a rogue's gun at a seventh", function()
+    local w = { DPS = 7 }
+    local dps = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 }
+    assert.equal(35, U.Score(dps, w, U.DpsFactor("ROGUE", "OFFHAND")))
+    assert.equal(10, U.Score(dps, w, U.DpsFactor("ROGUE", "RANGED")))
+    assert.equal(70, U.Score(dps, w, U.DpsFactor("ROGUE", "MAINHAND")))
+    assert.equal(70, U.Score(dps, w, U.DpsFactor("HUNTER", "RANGED")))   -- a class not listed: as before
+    assert.equal(70, U.Score(dps, w))                                    -- no factor: 1
+    -- Only DPS's share is scaled, and the parts stay the piece's own numbers.
+    local score, parts = U.Score({ ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10, ITEM_MOD_STRENGTH_SHORT = 2 },
+      { DPS = 7, STR = 1 }, 0.5)
+    assert.equal(37, score)
+    assert.same({ ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10, ITEM_MOD_STRENGTH_SHORT = 2 }, parts)
+  end)
+
+  it("prefers a slower main hand for Sinister Strike", function()
+    local ref = 1 + 2 / 4.5
+    assert.near((1 + 2.6 / 4.5) / ref, U.DpsFactor("ROGUE", "MAINHAND", 2.6), 1e-9)
+    assert.near((1 + 1.8 / 4.5) / ref, U.DpsFactor("ROGUE", "MAINHAND", 1.8), 1e-9)
+    assert.equal(1, U.DpsFactor("ROGUE", "MAINHAND", nil))
+    assert.equal(0.5, U.DpsFactor("ROGUE", "OFFHAND", 2.6))        -- Sinister Strike swings the main hand
+    assert.equal(1, U.DpsFactor("WARRIOR", "MAINHAND", 3.8))       -- no ability timer: speed changes nothing
+  end)
+
+  it("reads the rogue's style from the worn main hand unless the player chose one", function()
+    assert.equal("backstab", U.StyleFor({}, "ROGUE", 15))
+    assert.equal("sinister", U.StyleFor({}, "ROGUE", 7))
+    assert.equal("sinister", U.StyleFor(nil, "ROGUE", nil))         -- nothing worn, no prefs yet
+    assert.equal("sinister", U.StyleFor({ heroStyle = "sinister" }, "ROGUE", 15))
+    assert.equal("backstab", U.StyleFor({ heroStyle = "backstab" }, "ROGUE", 7))
+    assert.equal("backstab", U.StyleFor({ heroStyle = "bogus" }, "ROGUE", 15))   -- not a style: the weapon says
+    assert.is_nil(U.StyleFor({ heroStyle = "backstab" }, "WARRIOR", 15))
+  end)
+
+  it("values a melee main hand's DPS at 14 attack power", function()
+    for _, class in ipairs({ "ROGUE", "WARRIOR", "PALADIN" }) do
+      local d = U.DEFAULT_WEIGHTS[class]
+      assert.equal(14 * d.AP, d.DPS)
+    end
+    assert.equal(2, U.DEFAULT_WEIGHTS.HUNTER.DPS)                   -- nothing measured says otherwise for it
+    assert.equal(0.5, U.DEFAULT_WEIGHTS.MAGE.DPS)
+  end)
+
   it("reads a red tooltip line as unusable, and cannot tell without colours or a client", function()
     local function api(lines) return { GetHyperlink = function() return { lines = lines } end } end
     local white, red = { r = 1, g = 1, b = 1 }, { r = 1, g = 0.125, b = 0.125 }
@@ -394,7 +439,7 @@ describe("ForeverUpgrades in the client", function()
   it("shows, changes and resets the class's stat weights with /gc weights", function()
     init(16001)
     GC.ForeverUpgrades.SlashWeights("")
-    assert.equal("Stat weights: Strength 1, AGI 0.5, Stamina 0.5, ARMOR 0.01, DPS 2, AP 0.5", printed[1])
+    assert.equal("Stat weights: Strength 1, AGI 0.5, Stamina 0.5, ARMOR 0.01, DPS 7, AP 0.5", printed[1])
     GC.ForeverUpgrades.SlashWeights("str 2 dps 0")
     assert.same({ STR = 2, AGI = 0.5, STA = 0.5, AP = 0.5, ARMOR = 0.01 }, db.forever.weights.WARRIOR)
     assert.equal("Stat weights: Strength 2, AGI 0.5, Stamina 0.5, ARMOR 0.01, AP 0.5", printed[2])
