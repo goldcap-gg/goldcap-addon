@@ -2,9 +2,11 @@
 
 ## 0.28.1 (unreleased)
 
-- WoW: Forever: the game no longer stutters every few seconds during and after a full scan of the
-  auction house. The Deals board worked out every item of the scan again every five seconds; it
-  now does so only when something one of its rows was waiting for has arrived.
+- WoW: Forever: scanning the auction house no longer makes the game stutter every second or so,
+  in a full scan or with Auto on, and the Deals board no longer stalls the game every few seconds
+  after a scan.
+- WoW: Forever: the gear upgrades window (/gc upgrades) no longer jumps. Its rows came and went
+  every half second while the items in it loaded.
 - WoW: Forever: an item's tooltip now starts with the cheapest lot on the auction house, the figure
   goldcap.gg shows first on the item's page. The AH value, what the cheapest tenth of the listed
   units ask, comes under it only when the two differ noticeably: only a few lots are that cheap, or
