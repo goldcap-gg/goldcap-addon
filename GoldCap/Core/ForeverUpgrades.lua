@@ -599,7 +599,7 @@ end
 --
 -- opts.style: StyleFor's answer. "backstab" keeps the main hand to daggers; nil filters nothing.
 --
--- The answer: { slots, set, loading, loadingIds, stale?, noWeights?, noScan? }
+-- The answer: { slots, set, loading, loadingIds, stale?, waiting?, noWeights?, noScan? }
 --   slots[i]     in GROUPS order, only the groups with a pick: { group, labelKey, best, alts, worn,
 --                invSlot }, worn the link of the piece the slot is weighed against, or nil, and
 --                invSlot that piece's inventory slot: the weaker worn ring's for FINGER (a tie to 11).
@@ -612,6 +612,9 @@ end
 --                build's SPEED_READS, each weighed at REF_SPEED until a later build reads it;
 --                absent when there are none.
 --   stale        gear saved before suffix versions (v1): every version there reads as its base.
+--   waiting      { [group] = true } for each group with a piece to weigh that a worn piece's
+--                unanswered stats left unweighed (a ring: either worn ring); the group is not in
+--                slots until a later build reads it. Its ids are among loadingIds. Absent when none.
 function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   local out = { slots = {}, loading = 0 }
   if type(weights) ~= "table" or next(weights) == nil then out.noWeights = true; return out end
@@ -673,10 +676,15 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   -- (a driver with no money read) marks none.
   local money = type(driver.money) == "function" and tonumber(driver.money()) or nil
 
-  local byGroup = {}
+  -- waiting: the groups a piece could not be weighed in because a worn piece there (either ring, or
+  -- the off hand under a two-hander's weighing) has not answered: base() has nothing to weigh it by.
+  local byGroup, waiting = {}, {}
   local function consider(group, itemID, equipLoc, lot, str, link, stats, minLevel, speed)
     local b = base(group, equipLoc)
-    if not b then return end
+    if not b then
+      waiting[group] = true
+      return
+    end
     local score, parts = Score(stats, weights, DpsFactor(class, group, speed))
     local gain = beats(score, b)
     if gain then
@@ -893,6 +901,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
     if not speeds[id] then speedPending = speedPending + 1 end
   end
   if speedPending > 0 then out.speedPending = speedPending end
+  if next(waiting) ~= nil then out.waiting = waiting end
   return out
 end
 

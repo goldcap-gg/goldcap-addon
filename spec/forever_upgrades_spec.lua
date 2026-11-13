@@ -851,6 +851,28 @@ describe("ForeverUpgrades", function()
     assert.equal(11, (ringSlot()))
   end)
 
+  -- In game, 13.11: right after a reload five groups had no choices, and the panel said nothing beat
+  -- what was worn, because the worn pieces' stats had not answered yet.
+  it("says which groups wait for the stats of what is worn, instead of dropping them unsaid", function()
+    items[101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
+    items[500] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+    items[800] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
+    worn[1], worn[5], worn[11], worn[12], worn[7] = "item:900", "item:905", "item:801", "item:802", "item:907"
+    statsOf = { ["item:101"] = STR(9), ["item:500"] = STR(9), ["item:800"] = STR(9), ["item:905"] = STR(1),
+      ["item:801"] = STR(2) }
+    -- The helm and the second ring worn have not answered; the legs worn neither, but nothing on the
+    -- auction house goes there, so the legs wait for nothing.
+    local r = U.Build(gear({ [101] = "5:0:0", [500] = "5:0:0", [800] = "5:0:0" }), drv(), W)
+    assert.same({ HEAD = true, FINGER = true }, r.waiting)
+    assert.same({ "CHEST" }, (function() local g = {} for i, s in ipairs(r.slots) do g[i] = s.group end return g end)())
+    assert.is_true(r.loading >= 2)
+    -- Answered: nothing waits, and the groups are weighed.
+    statsOf["item:900"], statsOf["item:802"] = STR(1), STR(1)
+    r = U.Build(gear({ [101] = "5:0:0", [500] = "5:0:0", [800] = "5:0:0" }), drv(), W)
+    assert.is_nil(r.waiting)
+    assert.equal(3, #r.slots)
+  end)
+
   it("shows a class it has no rules for only what the tooltip says it can use", function()
     items[1000] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
     statsOf["item:1000"] = STR(3)
