@@ -65,8 +65,13 @@ local C = {
   -- the item no more than this long before the scan did.
   FLOOR_CROWD_MAX_AGE_SECONDS = 6 * 3600,
   ROW_CAP = 100,                     -- per board, as UI/SniperFrame.lua's WIN.ROW_CAP
-  REBUILD_SECONDS = 5,               -- while vendor prices the rows need are still loading
+  REBUILD_SECONDS = 5,               -- at most this often, once something a build waited for arrives
   REQUEST_PER_BUILD = 100,           -- item-data requests per build
+  -- Client questions per build about items with no kept answer (GC.ForeverValue.Known). A build
+  -- asked about all 5,800 items of a scan, and the client answered by loading again every one it
+  -- had dropped: ~3,800 item loads and two or three 130-200 ms frames a build (owner's client,
+  -- 2026-11-13). A new install, with nothing kept yet, learns a scan's items over a few builds.
+  ASKS_PER_BUILD = 1000,
   REQUEST_WAIT_SECONDS = 30,         -- after this, an item still without a vendor price has none
   -- Decision 5 of plan 3c: retail's 5% per-buy share makes "Below vendor" useless at low level
   -- (13s in the bags buys 69c), so a vendor row gets half the wallet while the player kept the
@@ -382,6 +387,13 @@ local cache = { at = nil, itemCount = nil, rev = nil, from = nil, groups = nil, 
 -- keyAsked: when each unsure item's key was first asked, for this fold only (rebuild wipes it when
 -- the fold changes, OnAuctionHouseShow when the auction house opens).
 local requested, dropped, keyAsked = {}, {}, {}
+-- awaited: the items the last build had no answer for (a vendor price and quality the client has
+-- not loaded, an item key it has not answered for, a deposit it would not quote), and `arrived`,
+-- set when the client hands one of them over (GC.ForeverDeals.OnItemInfo). The board clock
+-- rebuilds only then: rebuilding every 5 s while anything was outstanding rebuilt the whole scan
+-- for nothing, a 90-130 ms frame each time, for a minute after every scan (owner's client,
+-- 2026-11-13, diag/deals-stutter-probe).
+local awaited, arrived = {}, false
 -- bought: units the player bought from a row that took less than it found, per item, kept with the
 -- entry the row came from (as `dropped`). A rebuild makes new row objects from the same fold, and
 -- a count kept on the old row was lost: the next rebuild showed the whole row again, at its whole
@@ -438,15 +450,38 @@ local function rebuild(fold, now)
   -- long ago, and their Under market rows never came for that fold.
   if foldChanged(fold) then keyAsked = {} end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
+  local value = GC.ForeverValue
+  local known = value.Known or function() return false end
+  -- Whether this build may ask the client about an item: never about one whose answer is kept (it
+  -- is read without asking), and about at most ASKS_PER_BUILD of the rest.
+  local budget, asks = C.ASKS_PER_BUILD, {}
+  local function ask(itemID)
+    if known(itemID) then return false end
+    local may = asks[itemID]
+    if may == nil then
+      may = budget > 0
+      if may then budget = budget - 1 end
+      asks[itemID] = may
+    end
+    return may
+  end
+  -- A commodity buy the client would not quote a deposit for has no row; its item is waited for,
+  -- as one with no vendor price is.
+  local noDeposit = {}
+  local depositOf = value.CommodityDeposit
   local rows, missing, unsure, floorOnly = GC.ForeverDeals.Build(fold, {
-    vendorFor = GC.ForeverValue.VendorUnit,
-    qualityFor = GC.ForeverValue.Quality,
+    vendorFor = function(itemID) return value.VendorUnit(itemID, ask(itemID)) end,
+    qualityFor = value.Quality and function(itemID) return value.Quality(itemID, ask(itemID)) end or nil,
     salesFor = GC.Data and GC.Data.ForeverSales,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
     -- its deposit -- not only those the Sell tab once saw in the bags (final review I2). The
     -- deposit for one post of the units a buy takes.
-    depositFor = GC.ForeverValue.CommodityDeposit,
+    depositFor = depositOf and function(itemID, units)
+      local deposit = depositOf(itemID, units)
+      if type(deposit) ~= "number" then noDeposit[itemID] = true end
+      return deposit
+    end or nil,
     -- The followed groups the player follows on goldcap.gg (Core/GroupRules.lua).
     groupFor = GC.GroupRules and GC.GroupRules.Followed or nil,
     minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
@@ -474,8 +509,10 @@ local function rebuild(fold, now)
   -- `waitUntil`: the last moment a rebuild could still pick up a vendor price -- REQUEST_WAIT_SECONDS
   -- after the latest request (or after now, for an item past this build's request budget, which
   -- the next build asks about). An item still unpriced after that has no vendor price.
-  local item, asked, waitUntil = _G.C_Item, 0, 0
-  for _, itemID in ipairs(missing) do
+  -- A kept answer with no vendor price in it is an answer: such an item is not waited for.
+  local item, asked, waitUntil, waiting = _G.C_Item, 0, 0, {}
+  local function await(itemID)
+    waiting[itemID] = true
     if requested[itemID] == nil and asked < C.REQUEST_PER_BUILD
         and item and type(item.RequestLoadItemDataByID) == "function" then
       requested[itemID] = now
@@ -484,13 +521,19 @@ local function rebuild(fold, now)
     end
     waitUntil = math.max(waitUntil, (requested[itemID] or now) + C.REQUEST_WAIT_SECONDS)
   end
+  for _, itemID in ipairs(missing) do
+    if not known(itemID) then await(itemID) end
+  end
+  for itemID in pairs(noDeposit) do await(itemID) end
   -- An item key the client had not cached: asking was the request (GetItemKeyInfo), and its
   -- answer (ITEM_KEY_ITEM_INFO_RECEIVED) is read by a rebuild inside the same wait. Past it, the
   -- item has no row until the next fold asks again.
   for _, itemID in ipairs(unsure) do
     keyAsked[itemID] = keyAsked[itemID] or now
+    waiting[itemID] = true
     waitUntil = math.max(waitUntil, keyAsked[itemID] + C.REQUEST_WAIT_SECONDS)
   end
+  awaited, arrived = waiting, false
   cache.at, cache.itemCount, cache.rev, cache.from = fold.at, fold.itemCount, fold.rev, fold
   cache.groups = groupsRev()
   cache.builtAt, cache.waitUntil, cache.rows, cache.byItem = now, waitUntil, kept, byItem
@@ -513,7 +556,17 @@ function GC.ForeverDeals.Due(now)
   if not fold then return cache.at ~= nil end
   if foldChanged(fold) or cache.reask then return true end
   now = now or time()
-  return now < cache.waitUntil and now - cache.builtAt >= C.REBUILD_SECONDS
+  return arrived and now < cache.waitUntil and now - cache.builtAt >= C.REBUILD_SECONDS
+end
+
+-- The client handed over an item (GET_ITEM_INFO_RECEIVED, ITEM_KEY_ITEM_INFO_RECEIVED; Core/Init.lua).
+-- One the last build waited for makes the board due; its vendor price and quality are kept now,
+-- while the client still holds them. The rebuild itself stays the board clock's (UI/SniperFrame.lua):
+-- it writes the deal tables a Buy click reads.
+function GC.ForeverDeals.OnItemInfo(itemID)
+  if not awaited[itemID] then return end
+  arrived = true
+  if GC.ForeverValue and GC.ForeverValue.Quality then GC.ForeverValue.Quality(itemID) end
 end
 
 -- The board's rows. Rebuilt here only for a fold it has not built yet -- the scan that landed it

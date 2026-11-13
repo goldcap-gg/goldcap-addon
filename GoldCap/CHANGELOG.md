@@ -2,6 +2,9 @@
 
 ## 0.28.1 (unreleased)
 
+- WoW: Forever: the game no longer stutters every few seconds during and after a full scan of the
+  auction house. The Deals board worked out every item of the scan again every five seconds; it
+  now does so only when something one of its rows was waiting for has arrived.
 - WoW: Forever: an item's tooltip now starts with the cheapest lot on the auction house, the figure
   goldcap.gg shows first on the item's page. The AH value, what the cheapest tenth of the listed
   units ask, comes under it only when the two differ noticeably: only a few lots are that cheap, or
