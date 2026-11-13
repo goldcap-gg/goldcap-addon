@@ -557,6 +557,83 @@ describe("locale layer", function()
     end
   end)
 
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua) and the upgrade line in an item's tooltip
+  -- (Core/ForeverUpgrades.lua's TooltipVerdict), owner 2026-11-13.
+  it("carries the HERO tab's keys in all twelve languages", function()
+    local keys = {
+      "Upgrade: %s over your %s",
+      "Upgrade: %s, nothing worn there",
+      "You can wear it in %d levels",
+      "You can wear it next level",
+      "Not an upgrade for your %s: nothing here you use",
+      "Attack power",
+      "Attack power, crit and dodge",
+      "Health while you level",
+      "Mana and spell crit",
+      "Health and mana back between fights",
+      "Less damage from hits",
+      "From Equip lines",
+      "Spell damage and healing",
+      "The weapon's damage per second",
+      "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+      "Over your gold",
+      "At %d",
+      "In set",
+      "+ Buy",
+      "%s · level %d",
+      "Scan %s ago",
+      "Scan again to read each version's own stats.",
+      "You carry",
+      "Bags on the AH",
+      "Mount at 40",
+      "of %s",
+      "Weights",
+      "Slot",
+      "Strongest you can wear now",
+      "Other choices",
+      "Best buys for the %s you carry",
+      "1 upgrade: %s",
+      "%d upgrades: %s",
+      "Add %d to BUY",
+      "Nothing on the auction house fits the gold you carry yet.",
+      "Use and Chance on hit effects are not counted.",
+      "Prices from your scan %s ago.",
+      "Left after",
+      "What counts for a %s",
+      "The list changes as you type",
+      "Sword, mace, fist",
+      "Dagger",
+      "From the weapon in your main hand. Backstab needs a dagger.",
+      "Reset to %s",
+      "Gold for your mount",
+      "Riding at level 40",
+      "Gold you carry",
+      "Your bags",
+      "Each stack at the better of a vendor and the AH",
+      "%d items fetch more on the AH",
+      "%s more than a vendor pays",
+      "The upgrade in your set leaves %s toward it.",
+      "The %d upgrades in your set leave %s toward it.",
+      "Riding cost",
+      "%s at the trainer. Type your own after a discount.",
+      "Share in chat",
+      "Upgrades",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+    end
+  end)
+
   -- The buy drawer's hints name the button by what that button reads in the player's language:
   -- «Нажмите Confirm» under a button that says ПОДТВЕРДИТЬ sent a Russian player hunting.
   it("names the quote buttons by the language's own label in the quote hints", function()
