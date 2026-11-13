@@ -611,6 +611,79 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
     assert.equal("GoldCap value", plain[1].label)
     assert.equal(2, #plain)
   end)
+
+  -- HERO plan, Task 9: whether the piece is an upgrade for the character looking
+  -- (GC.ForeverUpgrades.TooltipVerdict) follows the verdict. Gear the auction house never priced, a
+  -- quest reward or a bound drop, has no lines for it to follow and still gets it.
+  it("puts the upgrade line after the verdict, and gives it to gear with no price", function()
+    local UP = { { kind = "verdict", tone = "good", text = "Upgrade: +3 Agility over your Old Cap" },
+      { kind = "verdict", tone = "dim", text = "You can wear it next level" } }
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000 + 720, { forever = { vendorUnit = 100, depositUnit = 50, upgrade = UP } })
+    local at = {}
+    for i, l in ipairs(lines) do at[l.text or l.left or l.label] = i end
+    assert.equal(at["Sell it on the AH"] + 1, at[UP[1].text])
+    assert.equal(at[UP[1].text] + 1, at[UP[2].text])
+    assert.equal(at[UP[2].text] + 1, at["Source"])
+    assert.same(UP, GC.Tooltip.BuildLines(nil, 1000, { forever = { upgrade = UP } }))
+    local live = GC.Tooltip.BuildLines(nil, 1000, { forever = { upgrade = UP }, live = { floor = 15, qty = 2, age = 0 } })
+    assert.equal("Cheapest", live[1].left)
+    assert.same({ UP[1], UP[2] }, { live[2], live[3] })
+    assert.is_nil(GC.Tooltip.BuildLines(nil, 1000, { forever = {} }))
+  end)
+end)
+
+describe("Tooltip on a WoW: Forever item", function()
+  local GC, postCall, lines, asked, enabled
+  local RECIPE = 278333
+  local LINK = "|cff1eff00|Hitem:15211::::::::17:1488:::1:12729::::::|h[Militant Shortsword of the Monkey]|h|r"
+  local UP = { { kind = "verdict", tone = "good", text = "Upgrade: +7 Agility over your Hook Dagger" } }
+
+  before_each(function()
+    postCall, lines, asked, enabled = nil, {}, {}, true
+    _G.TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) postCall = fn end }
+    _G.Enum = { TooltipDataType = { Item = 0 } }
+    _G.GameTooltip = {
+      GetOwner = function() return nil end,
+      AddLine = function(_, text) lines[#lines + 1] = text end,
+      AddDoubleLine = function(_, left, right) lines[#lines + 1] = left .. " = " .. right end,
+    }
+    -- As the client's: the id and the class (sixth), a recipe 9 and the sword a weapon (2).
+    _G.C_Item = { GetItemInfoInstant = function(info)
+      local id = type(info) == "number" and info or tonumber(tostring(info):match("item:(%d+)"))
+      if id then return id, "", "", "", 0, id == RECIPE and 9 or 2, 7 end
+    end }
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Trigger.lua", GC)
+    GC.db = { settings = { tooltip = true } }
+    GC.Data = { GetItemValue = function() return nil end }
+    GC.ForeverScan = { Enabled = function() return enabled end }
+    GC.ForeverValue = { VendorUnit = function() return nil end, DepositUnit = function() return nil end }
+    GC.ForeverUpgrades = { TooltipVerdict = function(link) asked[#asked + 1] = link; return UP end }
+    helper.loadModule("UI/Tooltip.lua", GC)
+  end)
+
+  after_each(function()
+    _G.TooltipDataProcessor, _G.Enum, _G.GameTooltip, _G.C_Item = nil, nil, nil, nil
+  end)
+
+  it("says whether the hovered piece is an upgrade, from its own link, and nothing on retail", function()
+    postCall(_G.GameTooltip, { hyperlink = LINK })
+    assert.same({ LINK }, asked)
+    assert.same({ UP[1].text }, lines)
+    -- An auction house row stands for every version of an item: no link, no line.
+    asked, lines = {}, {}
+    postCall(_G.GameTooltip, { id = 15211 })
+    assert.same({}, asked)
+    -- A recipe's own block has no link of its own; the item it makes is judged by its link.
+    postCall(_G.GameTooltip, { id = RECIPE, hyperlink = LINK })
+    assert.same({ LINK }, asked)
+    assert.same({ "Makes Militant Shortsword of the Monkey", UP[1].text }, lines)
+    asked, lines = {}, {}
+    enabled = false
+    postCall(_G.GameTooltip, { hyperlink = LINK })
+    assert.same({}, asked)
+    assert.same({}, lines)
+  end)
 end)
 
 -- GC.Tooltip.Headline is the one answer to "what does the tooltip say this fetches": the quest

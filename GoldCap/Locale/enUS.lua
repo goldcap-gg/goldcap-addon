@@ -606,6 +606,13 @@ GC.Locales.enUS = {
   ["Sell it on the AH"] = "Sell it on the AH",
   ["Sell it on the AH (deposit not counted)"] = "Sell it on the AH (deposit not counted)",
   ["Sell it to a vendor"] = "Sell it to a vendor",
+  -- Tooltip (WoW: Forever): whether a piece is an upgrade for the character looking. The first %s
+  -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
+  ["Upgrade: %s over your %s"] = "Upgrade: %s over your %s",
+  ["Upgrade: %s, nothing worn there"] = "Upgrade: %s, nothing worn there",
+  ["You can wear it in %d levels"] = "You can wear it in %d levels",
+  ["You can wear it next level"] = "You can wear it next level",
+  ["Not an upgrade for your %s: nothing here you use"] = "Not an upgrade for your %s: nothing here you use",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Sell tab posts one rung above the cheapest ask when the book says it sells just as fast.",
   ["Sell-through"] = "Sell-through",

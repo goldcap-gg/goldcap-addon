@@ -371,6 +371,104 @@ local function merged(a, b)
   return out
 end
 
+-- The character's side of every comparison, for Build and TooltipVerdict alike, so an item's
+-- tooltip never says what the HERO tab does not: what it wears per slot, scored in that slot's
+-- hand; the piece a candidate replaces (the weaker ring; both hands, for a two-hander while a
+-- one-hander is worn); which kinds of piece a group takes; and how much more a piece must score.
+-- wornSpeed(itemID): the worn main hand's speed, or nil (REF_SPEED). loading: where the ids of
+-- worn pieces whose stats have not answered go.
+local function newBench(driver, weights, class, level, style, wornSpeed, loading)
+  local Score, DpsFactor = GC.ForeverUpgrades.Score, GC.ForeverUpgrades.DpsFactor
+  local bench = {}
+  local topPrimary = 0
+  for _, token in ipairs({ "STR", "AGI", "STA", "INT", "SPI" }) do
+    local w = weights[token]
+    if type(w) == "number" and w > topPrimary then topPrimary = w end
+  end
+  local minGain = C.MIN_GAIN_POINTS * topPrimary
+
+  -- What the character wears, per slot, scored in that slot's hand. false: worn, but its stats not
+  -- answered yet -- the group is skipped rather than compared against a guess.
+  local worn = {}
+  local function wornAt(slot)
+    if worn[slot] == nil then
+      local link = driver.equipped(slot)
+      if not link then
+        worn[slot] = { score = 0, parts = {} }
+      else
+        local stats = driver.stats(link)
+        if stats == nil then
+          worn[slot] = false
+          local id = itemIdOf(link)
+          if id then loading[id] = true end
+        else
+          local group = GROUP_AT[slot]
+          local speed = group == "MAINHAND" and wornSpeed and wornSpeed(itemIdOf(link)) or nil
+          local s, p = Score(stats, weights, DpsFactor(class, group, speed))
+          worn[slot] = { score = s, parts = p, link = link }
+        end
+      end
+    end
+    return worn[slot]
+  end
+  local twoHandWorn = driver.instant(itemIdOf(driver.equipped(16)) or 0) == "INVTYPE_2HWEAPON"
+
+  local dualWield
+  local function canDualWield()
+    if dualWield == nil then
+      if type(driver.canDualWield) == "function" then
+        local ok, v = pcall(driver.canDualWield)
+        if ok and type(v) == "boolean" then
+          dualWield = v
+        else
+          dualWield = classCanDualWield(class, level)
+        end
+      else
+        dualWield = classCanDualWield(class, level)
+      end
+    end
+    return dualWield
+  end
+
+  local function base(group, equipLoc)
+    if group == "FINGER" then
+      local a, b = wornAt(11), wornAt(12)
+      if not (a and b) then return nil end
+      return a.score <= b.score and a or b
+    end
+    if group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not twoHandWorn then
+      local m, o = wornAt(16), wornAt(17)
+      if not (m and o) then return nil end
+      return { score = m.score + o.score, parts = merged(m.parts, o.parts), link = m.link }
+    end
+    return wornAt(SLOT_OF[group]) or nil
+  end
+
+  -- Whether a kind of piece goes in the group at all, before any lot of it is read.
+  local function wanted(group, equipLoc, classID, subclassID)
+    if group == "OFFHAND" then
+      -- Under a two-hander there is no off hand to fill. I1 (final review): an off-hand WEAPON (not
+      -- a shield or a held item) needs dual-wield, which is not a red tooltip line -- ClassAllows
+      -- alone would offer a mage an off-hand dagger it cannot equip.
+      return not twoHandWorn and not (OFFHAND_WEAPON[equipLoc] and not canDualWield())
+    end
+    if group == "MAINHAND" and style == "backstab" then return classID == 2 and subclassID == 15 end
+    return true
+  end
+
+  -- The gain over b that makes an upgrade, or nil: a score above nothing, beating b by
+  -- MIN_GAIN_SHARE of b's score and by minGain.
+  local function beats(score, b)
+    local gain = score - b.score
+    if score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then return gain end
+    return nil
+  end
+
+  bench.wornAt, bench.base, bench.wanted, bench.beats = wornAt, base, wanted, beats
+  bench.twoHandWorn = twoHandWorn
+  return bench
+end
+
 local function byCost(a, b)
   if a.cost ~= b.cost then return a.cost < b.cost end
   if a.gain ~= b.gain then return a.gain > b.gain end
@@ -510,12 +608,6 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   local level = tonumber(driver.level()) or 1
   local class = driver.classFile()
   local Score, DpsFactor, loading = GC.ForeverUpgrades.Score, GC.ForeverUpgrades.DpsFactor, {}
-  local topPrimary = 0
-  for _, token in ipairs({ "STR", "AGI", "STA", "INT", "SPI" }) do
-    local w = weights[token]
-    if type(w) == "number" and w > topPrimary then topPrimary = w end
-  end
-  local minGain = C.MIN_GAIN_POINTS * topPrimary
 
   -- A weapon's speed, only where it changes the score: the main hand of a class with an
   -- ABILITY_EVERY, under weights that count DPS. Never on the count-only path. nil: REF_SPEED.
@@ -544,76 +636,11 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
     return speeds[itemID] or nil
   end
 
-  -- What the character wears, per slot, scored in that slot's hand. false: worn, but its stats not
-  -- answered yet -- the group is skipped rather than compared against a guess.
-  local worn = {}
-  local function wornAt(slot)
-    if worn[slot] == nil then
-      local link = driver.equipped(slot)
-      if not link then
-        worn[slot] = { score = 0, parts = {} }
-      else
-        local stats = driver.stats(link)
-        if stats == nil then
-          worn[slot] = false
-          local id = itemIdOf(link)
-          if id then loading[id] = true end
-        else
-          -- The worn main hand's speed comes first among the build's reads: every main-hand
-          -- candidate is weighed against it.
-          local group = GROUP_AT[slot]
-          local speed = group == "MAINHAND" and speedOfItem(itemIdOf(link), true) or nil
-          local s, p = Score(stats, weights, DpsFactor(class, group, speed))
-          worn[slot] = { score = s, parts = p, link = link }
-        end
-      end
-    end
-    return worn[slot]
-  end
-  local twoHandWorn = driver.instant(itemIdOf(driver.equipped(16)) or 0) == "INVTYPE_2HWEAPON"
-
-  local dualWield
-  local function canDualWield()
-    if dualWield == nil then
-      if type(driver.canDualWield) == "function" then
-        local ok, v = pcall(driver.canDualWield)
-        if ok and type(v) == "boolean" then
-          dualWield = v
-        else
-          dualWield = classCanDualWield(class, level)
-        end
-      else
-        dualWield = classCanDualWield(class, level)
-      end
-    end
-    return dualWield
-  end
-
-  local function base(group, equipLoc)
-    if group == "FINGER" then
-      local a, b = wornAt(11), wornAt(12)
-      if not (a and b) then return nil end
-      return a.score <= b.score and a or b
-    end
-    if group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not twoHandWorn then
-      local m, o = wornAt(16), wornAt(17)
-      if not (m and o) then return nil end
-      return { score = m.score + o.score, parts = merged(m.parts, o.parts), link = m.link }
-    end
-    return wornAt(SLOT_OF[group]) or nil
-  end
-
-  -- Whether a kind of piece goes in the group at all, before any lot of it is read.
-  local function wanted(group, equipLoc, classID, subclassID)
-    if group == "OFFHAND" then
-      -- Under a two-hander there is no off hand to fill. I1 (final review): an off-hand WEAPON (not
-      -- a shield or a held item) needs dual-wield, which is not a red tooltip line -- ClassAllows
-      -- alone would offer a mage an off-hand dagger it cannot equip.
-      return not twoHandWorn and not (OFFHAND_WEAPON[equipLoc] and not canDualWield())
-    end
-    if group == "MAINHAND" and style == "backstab" then return classID == 2 and subclassID == 15 end
-    return true
-  end
+  -- What the character wears and what each candidate replaces (newBench). The worn main hand's
+  -- speed comes first among the build's reads: every main-hand candidate is weighed against it.
+  local bench = newBench(driver, weights, class, level, style, function(id) return speedOfItem(id, true) end,
+    loading)
+  local wornAt, base, wanted, beats = bench.wornAt, bench.base, bench.wanted, bench.beats
 
   -- Usable, per item string and build: one sword is the same piece in either hand. known: the class
   -- armour/weapon table said yes. usable: true only on that "yes" (skipUsable) or a tooltip check
@@ -638,8 +665,8 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
     local b = base(group, equipLoc)
     if not b then return end
     local score, parts = Score(stats, weights, DpsFactor(class, group, speed))
-    local gain = score - b.score
-    if score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then
+    local gain = beats(score, b)
+    if gain then
       byGroup[group] = byGroup[group] or {}
       table.insert(byGroup[group], { group = group, itemID = itemID, itemString = str, link = link or str,
         unit = lot.unit, gain = gain, diffs = GC.ForeverUpgrades.Diff(parts, b.parts),
@@ -1019,7 +1046,19 @@ local function realDriver(getStats)
       if ok and type(v) == "boolean" then return v end
       return nil
     end,
+    -- The class's name in the player's language, as the client writes it (TooltipVerdict's words).
+    className = function()
+      local ok, name = pcall(_G.UnitClass, "player")
+      return ok and type(name) == "string" and name or nil
+    end,
   }
+end
+
+-- How a rogue uses its main hand (StyleFor), from the weapon it wears there unless it chose.
+local function wornStyle(driver, prefs, class)
+  local mainID = itemIdOf(driver.equipped(16))
+  local mainSub = mainID and select(3, driver.instant(mainID)) or nil
+  return GC.ForeverUpgrades.StyleFor(prefs, class, mainSub)
 end
 
 -- skipUsable, threaded straight through to Build: nil/false (every existing caller -- the window's
@@ -1036,12 +1075,151 @@ function GC.ForeverUpgrades.Current(skipUsable)
   local class, prefs = classFile(), GC.ForeverScan.Prefs()
   local weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
   local driver = realDriver(getStats)
-  local mainID = itemIdOf(driver.equipped(16))
-  local mainSub = mainID and select(3, driver.instant(mainID)) or nil
-  local style = GC.ForeverUpgrades.StyleFor(prefs, class, mainSub)
+  local style = wornStyle(driver, prefs, class)
   local r = GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, { style = style })
   r.at, r.weights, r.style = fold.at, weights, style
   return r
+end
+
+-- An item's tooltip on WoW: Forever (UI/Tooltip.lua, the HERO plan's Task 9): whether the piece is
+-- an upgrade for the character looking, by the HERO tab's own rules (newBench: the weaker ring, a
+-- two-hander against both hands, dual-wield for an off-hand weapon, the Backstab rogue's dagger,
+-- Build's threshold), so the two never disagree. Lines for BuildLines, { kind = "verdict", tone,
+-- text }, or nil to say nothing.
+--   An upgrade: "Upgrade: <what changes> over your <worn piece>", good, and for a piece above the
+--   character's level how many levels until it can wear it, dim. A one-hand weapon is weighed for
+--   either hand, and the larger gain is said, with that hand's piece.
+--   Nothing the class weighs: "Not an upgrade for your <class>: nothing here you use", dim.
+--   Otherwise nil: a weaker piece, the piece worn, one ClassAllows refuses (the client's own red
+--   line says so), a slot the groups leave out (trinkets, bags), a link the client has not
+--   answered for, and never a bare item id, which scores a suffix version by its base stats.
+-- No tooltip read inside a tooltip: usable is ClassAllows alone, and a weapon's speed is one the
+-- driver already keeps from Build's reads, for both sides or for neither.
+-- driver, weights, opts: as Build's, for a spec; with no driver, the client's and the character's
+-- own, and only on WoW: Forever.
+function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
+  local client = driver == nil
+  if client then
+    if not enabled() then return nil end
+    local getStats = statsCall()
+    if not getStats then return nil end
+    driver = realDriver(getStats)
+  end
+  local itemID = itemIdOf(link)
+  if not itemID then return nil end
+  local equipLoc, classID, subclassID = driver.instant(itemID)
+  local groups = { GROUP_OF[equipLoc] }
+  if not groups[1] then return nil end
+  if equipLoc == "INVTYPE_WEAPON" then groups[2] = "OFFHAND" end
+  -- It runs on every item tooltip: the character's weights only once the item is gear.
+  if client then
+    local class, prefs = classFile(), GC.ForeverScan.Prefs()
+    weights, opts = GC.ForeverUpgrades.WeightsFor(prefs, class), { style = wornStyle(driver, prefs, class) }
+  end
+  if type(weights) ~= "table" or next(weights) == nil then return nil end
+  local level, class = tonumber(driver.level()) or 1, driver.classFile()
+  local minLevel = driver.info(link)
+  if minLevel == nil then return nil end
+  if GC.ForeverUpgrades.ClassAllows(class, classID, subclassID, math.max(level, minLevel)) ~= true then return nil end
+  local stats = driver.stats(link)
+  if stats == nil then return nil end
+
+  -- The piece worn in a slot it could go in says nothing: the stronger of two rings would read as
+  -- an upgrade over the weaker, and a one-hander in the main hand as one over the off hand.
+  local inGroup = {}
+  for _, g in ipairs(groups) do inGroup[g] = true end
+  local suffix, unique, bonus = GC.ForeverGear.Variant(link)
+  for slot, g in pairs(GROUP_AT) do
+    local other = inGroup[g] and driver.equipped(slot) or nil
+    if other and itemIdOf(other) == itemID then
+      local otherSuffix, otherUnique, otherBonus = GC.ForeverGear.Variant(other)
+      if otherSuffix == suffix and otherUnique == unique and otherBonus == bonus then return nil end
+    end
+  end
+
+  -- Speeds as kept, for both sides or for neither: a worn 1.50 dagger kept (about 0.92) against a
+  -- weapon not read yet (REF_SPEED, 1) would call an equal weapon an upgrade.
+  local mine, theirs
+  if C.ABILITY_EVERY[class] and type(driver.speed) == "function" and type(weights.DPS) == "number"
+      and weights.DPS ~= 0 then
+    local function kept(id)
+      local v = id and driver.speed(id, false) or nil
+      return type(v) == "number" and v > 0 and v or nil
+    end
+    local wornMain = itemIdOf(driver.equipped(16))
+    mine, theirs = kept(itemID), kept(wornMain)
+    if not (mine and (theirs or not wornMain)) then mine, theirs = nil, nil end
+  end
+
+  local Score, DpsFactor = GC.ForeverUpgrades.Score, GC.ForeverUpgrades.DpsFactor
+  local style = type(opts) == "table" and opts.style or nil
+  local bench = newBench(driver, weights, class, level, style, function() return theirs end, {})
+  local best, goes = nil, false
+  for _, g in ipairs(groups) do
+    if bench.wanted(g, equipLoc, classID, subclassID) then
+      goes = true
+      local b = bench.base(g, equipLoc)
+      if b then
+        local score, parts = Score(stats, weights, DpsFactor(class, g, g == "MAINHAND" and mine or nil))
+        local gain = bench.beats(score, b)
+        if gain and (best == nil or gain > best.gain) then best = { gain = gain, group = g, base = b, parts = parts } end
+      end
+    end
+  end
+  if not goes then return nil end
+  local _, parts = Score(stats, weights)
+  if next(parts) == nil then
+    local name = type(driver.className) == "function" and driver.className() or class
+    if type(name) ~= "string" then return nil end
+    return { { kind = "verdict", tone = "dim",
+      text = GC.L["Not an upgrade for your %s: nothing here you use"]:format(name) } }
+  end
+  if not best then return nil end
+
+  local what = GC.ForeverUpgrades.DiffText(GC.ForeverUpgrades.Diff(best.parts, best.base.parts))
+  if what == "" then
+    -- Nothing changes but the swing: the same stats at a slower speed, both speeds kept (above).
+    if not (mine and theirs and type(_G.SPEED) == "string" and _G.SPEED ~= "") then return nil end
+    what = ("%+.2f %s"):format(mine - theirs, _G.SPEED)
+  end
+  -- The worn piece by its own name, both hands' for a two-hander over a one-hander and what the
+  -- off hand holds. One the client names nowhere yet goes by its slot's name, never as nothing.
+  local names = {}
+  local function name(worn, group)
+    local text = worn and worn.link
+    if type(text) ~= "string" then return end
+    local n = text:match("%[(.-)%]")
+    if not n then
+      local _, full = driver.info(text)
+      n = type(full) == "string" and full:match("%[(.-)%]") or nil
+    end
+    if not n then
+      for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
+        if g.key == group then n = _G[g.labelKey] or g.labelKey end
+      end
+    end
+    names[#names + 1] = n
+  end
+  if best.group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not bench.twoHandWorn then
+    name(bench.wornAt(16), "MAINHAND"); name(bench.wornAt(17), "OFFHAND")
+  else
+    name(best.base, best.group)
+  end
+  local text
+  if #names == 2 then
+    text = GC.L["Upgrade: %s over your %s"]:format(what, GC.L["%s and %s"]:format(names[1], names[2]))
+  elseif #names == 1 then
+    text = GC.L["Upgrade: %s over your %s"]:format(what, names[1])
+  else
+    text = GC.L["Upgrade: %s, nothing worn there"]:format(what)
+  end
+  local lines = { { kind = "verdict", tone = "good", text = text } }
+  if minLevel > level then
+    local n = minLevel - level
+    lines[2] = { kind = "verdict", tone = "dim",
+      text = n == 1 and GC.L["You can wear it next level"] or GC.L["You can wear it in %d levels"]:format(n) }
+  end
+  return lines
 end
 
 -- Picks (Build's candidates: the set's list, or one row's piece) as BUY lines and their caps, for

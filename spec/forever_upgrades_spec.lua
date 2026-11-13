@@ -545,6 +545,156 @@ describe("ForeverUpgrades", function()
     end)
   end)
 
+  -- HERO plan, Task 9: an item's tooltip says whether the piece beats what the character wears, by
+  -- the HERO tab's own rules, and reads no tooltip of its own to say it.
+  describe("the upgrade line in an item's tooltip", function()
+    local NAMES = { ITEM_MOD_STRENGTH_SHORT = "Strength", ITEM_MOD_STAMINA_SHORT = "Stamina",
+      ITEM_MOD_DAMAGE_PER_SECOND_SHORT = "Damage per Second", SPEED = "Speed" }
+    local was
+    before_each(function()
+      was = {}
+      for k, v in pairs(NAMES) do was[k] = _G[k]; _G[k] = v end
+    end)
+    after_each(function()
+      for k in pairs(NAMES) do _G[k] = was[k] end
+    end)
+
+    -- A link as the client writes one, the name in brackets; a bonus ID makes it a suffix version.
+    local function link(id, name, bonus)
+      local tail = bonus and ("::::::::20:1488:::1:%d::::::"):format(bonus) or ""
+      return ("|cff1eff00|Hitem:%d%s|h[%s]|h|r"):format(id, tail, name)
+    end
+    local function say(text, tone) return { kind = "verdict", tone = tone or "good", text = text } end
+    -- The spec's driver with no tooltip to read: a read inside a tooltip fails the spec.
+    local function quiet(over)
+      local d = drv(over)
+      d.usable = function() error("a tooltip read inside a tooltip") end
+      return d
+    end
+    local HEAD, RING = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }, { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
+
+    it("says how much a piece beats the worn one", function()
+      items[101], items[900] = HEAD, HEAD
+      local old, new = link(900, "Old Cap"), link(101, "Iron Cap", 12729)
+      worn[1] = old
+      statsOf[old] = { ITEM_MOD_STRENGTH_SHORT = 5, ITEM_MOD_STAMINA_SHORT = 3 }
+      statsOf[new] = { ITEM_MOD_STRENGTH_SHORT = 8, ITEM_MOD_STAMINA_SHORT = 1 }
+      assert.same({ say("Upgrade: +3 Strength, -2 Stamina over your Old Cap") }, U.TooltipVerdict(new, quiet(), W))
+      worn[1] = nil
+      assert.same({ say("Upgrade: +8 Strength, +1 Stamina, nothing worn there") }, U.TooltipVerdict(new, quiet(), W))
+      -- A ring beats the weaker of the two worn, and the stronger worn ring itself says nothing.
+      items[801], items[802], items[803] = RING, RING, RING
+      local weak, strong, bag = link(801, "Copper Band"), link(802, "Silver Band"), link(803, "Gold Band")
+      worn[11], worn[12] = strong, weak
+      statsOf[weak], statsOf[strong], statsOf[bag] = STR(2), STR(6), STR(4)
+      assert.same({ say("Upgrade: +2 Strength over your Copper Band") }, U.TooltipVerdict(bag, quiet(), W))
+      assert.is_nil(U.TooltipVerdict(strong, quiet(), W))
+      assert.same({}, speedReads)
+    end)
+
+    it("weighs a one-hand weapon for either hand and says the larger gain, with that hand's piece", function()
+      local R = { AGI = 1, DPS = 7 }
+      items[1300], items[1390] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }, { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
+      items[1391] = { loc = "INVTYPE_WEAPON", class = 2, sub = 15 }
+      local sword, main, off = link(1300, "Raider Shortsword"), link(1390, "Militant Shortsword"), link(1391, "Hook Dagger")
+      worn[16], worn[17] = main, off
+      statsOf[sword], statsOf[main], statsOf[off] = DPS(11), DPS(10), DPS(4)
+      local d = quiet({ classFile = function() return "ROGUE" end })
+      -- +1 DPS in the main hand is 7; +7 in the off hand, which swings for half, is 24.5.
+      assert.same({ say("Upgrade: +7 Damage per Second over your Hook Dagger") },
+        U.TooltipVerdict(sword, d, R, { style = "sinister" }))
+      statsOf[off] = DPS(12)
+      assert.same({ say("Upgrade: +1 Damage per Second over your Militant Shortsword") },
+        U.TooltipVerdict(sword, d, R, { style = "sinister" }))
+      -- A Backstab rogue's main hand takes only a dagger, and the sword is weaker than its off hand.
+      assert.is_nil(U.TooltipVerdict(sword, d, R, { style = "backstab" }))
+      -- A mage never dual-wields: an off-hand dagger goes nowhere it can wear it.
+      items[1100] = { loc = "INVTYPE_WEAPONOFFHAND", class = 2, sub = 15 }
+      local dirk = link(1100, "Dirk")
+      statsOf[dirk] = DPS(20)
+      assert.is_nil(U.TooltipVerdict(dirk, quiet({ classFile = function() return "MAGE" end }), R))
+    end)
+
+    it("weighs a two-hander against both hands, naming both", function()
+      items[910], items[911] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }, { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
+      items[701] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
+      local main, shield, great = link(910, "Short Sword"), link(911, "Buckler"), link(701, "Claymore")
+      worn[16], worn[17] = main, shield
+      statsOf[main], statsOf[shield], statsOf[great] = STR(6), { ITEM_MOD_STAMINA_SHORT = 8 }, STR(12)
+      assert.same({ say("Upgrade: +6 Strength, -8 Stamina over your Short Sword and Buckler") },
+        U.TooltipVerdict(great, quiet(), W))
+      statsOf[great] = STR(10.5)                                   -- 0.5 over both: under MIN_GAIN_POINTS
+      assert.is_nil(U.TooltipVerdict(great, quiet(), W))
+    end)
+
+    it("says when a piece is wearable in N levels", function()
+      items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 23 }
+      items[601] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 21 }
+      items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 4, minLevel = 40 }     -- plate, which a warrior wears from 40
+      local silk, linen, plate = link(600, "Silk Pants"), link(601, "Linen Pants"), link(602, "Plate Legguards")
+      statsOf[silk], statsOf[linen], statsOf[plate] = STR(5), STR(4), STR(9)
+      assert.same({ say("Upgrade: +5 Strength, nothing worn there"), say("You can wear it in 3 levels", "dim") },
+        U.TooltipVerdict(silk, quiet(), W))
+      assert.same({ say("Upgrade: +4 Strength, nothing worn there"), say("You can wear it next level", "dim") },
+        U.TooltipVerdict(linen, quiet(), W))
+      assert.same({ say("Upgrade: +9 Strength, nothing worn there"), say("You can wear it in 2 levels", "dim") },
+        U.TooltipVerdict(plate, quiet({ level = function() return 38 end }), W))
+    end)
+
+    it("says plainly when a piece holds nothing the class uses", function()
+      items[810] = RING
+      local owl = link(810, "Band of the Owl")
+      statsOf[owl] = { ITEM_MOD_INTELLECT_SHORT = 5, ITEM_MOD_SPIRIT_SHORT = 3 }
+      assert.same({ say("Not an upgrade for your Krieger: nothing here you use", "dim") },
+        U.TooltipVerdict(owl, quiet({ className = function() return "Krieger" end }), W))
+    end)
+
+    it("says nothing for a weaker piece, one the class cannot wear, or one it cannot weigh", function()
+      items[101], items[900] = HEAD, HEAD
+      local old, new = link(900, "Old Cap"), link(101, "Iron Cap")
+      worn[1], statsOf[old] = old, STR(5)
+      statsOf[new] = STR(4)
+      assert.is_nil(U.TooltipVerdict(new, quiet(), W))
+      statsOf[new] = STR(5.5)                                      -- better, by less than a point of strength
+      assert.is_nil(U.TooltipVerdict(new, quiet(), W))
+      items[400] = { loc = "INVTYPE_CHEST", class = 4, sub = 4 }   -- plate at 20: the client's red line says so
+      items[420] = { loc = "INVTYPE_TRINKET", class = 4, sub = 0 }
+      items[430] = { loc = "INVTYPE_HEAD", class = 4, sub = 2, loading = true }
+      items[440] = HEAD                                            -- its stats not answered
+      for _, id in ipairs({ 400, 420, 430 }) do statsOf[link(id, "Piece")] = STR(30) end
+      for _, id in ipairs({ 400, 420, 430, 440 }) do assert.is_nil(U.TooltipVerdict(link(id, "Piece"), quiet(), W)) end
+      statsOf["item:101"] = STR(30)                                -- a bare id: a suffix version's base stats
+      assert.is_nil(U.TooltipVerdict(101, quiet(), W))
+      assert.is_nil(U.TooltipVerdict(nil, quiet(), W))
+      assert.is_nil(U.TooltipVerdict(link(101, "Iron Cap"), quiet(), {}))   -- no weights
+    end)
+
+    -- A worn 1.50 dagger kept (about 0.92) against a weapon not read yet (1) would call a weapon
+    -- of the same DPS an upgrade.
+    it("weighs a weapon's speed only as kept, for both sides or neither, and never reads one", function()
+      local R = { AGI = 1, DPS = 7 }
+      items[1600] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 7 }
+      items[1690] = { loc = "INVTYPE_WEAPONMAINHAND", class = 2, sub = 15 }
+      local cutlass, dagger = link(1600, "Cutlass"), link(1690, "Hook Dagger")
+      worn[16], statsOf[cutlass], statsOf[dagger] = dagger, DPS(10.3), DPS(10)
+      local kept, reads = { [1690] = 1.5 }, 0
+      local d = quiet({ classFile = function() return "ROGUE" end, speed = function(id, read)
+        if read then reads = reads + 1 end
+        return kept[id]
+      end })
+      -- The dagger's speed is kept and the cutlass's is not: both weigh at REF_SPEED, and 0.3 DPS
+      -- more is under 5% of the dagger's score.
+      assert.is_nil(U.TooltipVerdict(cutlass, d, R, { style = "sinister" }))
+      kept[1600] = 2.7                                             -- Build has read it since
+      assert.same({ say("Upgrade: +0.3 Damage per Second over your Hook Dagger") },
+        U.TooltipVerdict(cutlass, d, R, { style = "sinister" }))
+      -- The same DPS at a slower speed: the swing is all that changes, and the line says so.
+      statsOf[cutlass] = DPS(10)
+      assert.same({ say("Upgrade: +1.20 Speed over your Hook Dagger") }, U.TooltipVerdict(cutlass, d, R, { style = "sinister" }))
+      assert.equal(0, reads)
+    end)
+  end)
+
   it("says a scan saved before suffix versions is stale", function()
     items[101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
     statsOf["item:101"] = STR(3)
@@ -1062,6 +1212,23 @@ describe("ForeverUpgrades in the client", function()
     assert.equal(1, asked["item:150"])                            -- kept: not asked again
     assert.equal(1, asked["item:160"])
     assert.equal(1, asked["item:161"])
+  end)
+
+  it("tells the character looking at a piece whether it is an upgrade, on WoW: Forever only", function()
+    INFO[102] = { loc = "INVTYPE_HEAD", class = 4, sub = 2, stats = { ITEM_MOD_STRENGTH_SHORT = 5 } }
+    INFO[103] = { loc = "INVTYPE_FINGER", class = 4, sub = 0, stats = { ITEM_MOD_INTELLECT_SHORT = 5 } }
+    finally(function() INFO[102], INFO[103] = nil, nil end)
+    _G.GetInventoryItemLink = function(_, slot) return slot == 1 and "|cffffffff|Hitem:102|h[Old Cap]|h|r" or nil end
+    _G.C_TooltipInfo = { GetHyperlink = function() error("a tooltip read inside a tooltip") end }
+    local cap, ring = "|cff1eff00|Hitem:101|h[Cap]|h|r", "|cff1eff00|Hitem:103|h[Band]|h|r"
+    init(120100)
+    assert.is_nil(GC.ForeverUpgrades.TooltipVerdict(cap))
+    assert.is_nil(db.forever)                                     -- retail never makes Forever's prefs
+    init(16001)
+    assert.same({ { kind = "verdict", tone = "good", text = "Upgrade: +3 Strength over your Old Cap" } },
+      GC.ForeverUpgrades.TooltipVerdict(cap))
+    assert.same({ { kind = "verdict", tone = "dim", text = "Not an upgrade for your Warrior: nothing here you use" } },
+      GC.ForeverUpgrades.TooltipVerdict(ring))
   end)
 
   it("says there is no scan when the saved gear lots are not this fold's", function()
