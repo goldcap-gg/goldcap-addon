@@ -1659,8 +1659,11 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
   if not best or minLevel > level + C.LEVEL_AHEAD then return nil end
 
   -- What changes, each loss in the client's red: with a model, first what the piece adds to the
-  -- character's DPS (Build's `dps`, by the same bench) and the stats that make it in brackets, then
-  -- the others; without one, every stat.
+  -- character's DPS (Build's `dps`, by the same bench) and what makes it in brackets, then the
+  -- other stats; without one, every stat. In the brackets, for a main hand whose speed the figure
+  -- counts (ABILITY_EVERY), the worn speed and the piece's when both were read and they differ:
+  -- most of a rogue's slower dagger's figure is there (owner, 14.11: +1.9 DPS from -1 Agility and
+  -- +0.9 DPS), red when the new speed costs DPS.
   local U = GC.ForeverUpgrades
   local function said(diffs, skip)
     local out = {}
@@ -1677,6 +1680,14 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
     what = GC.L["%s DPS"]:format(figure)
     if sign < 0 then what = lossRed(what) end
     local inside = said(counted)
+    local swings = best.group == "MAINHAND" and C.ABILITY_EVERY[class] ~= nil
+    if swings and mine and theirs and math.abs(mine - theirs) >= 0.05 then
+      local swing = GC.L["Speed %s to %s"]:format(("%.2f"):format(theirs), ("%.2f"):format(mine))
+      if U.DpsFactor(class, "MAINHAND", mine) < U.DpsFactor(class, "MAINHAND", theirs) then
+        swing = lossRed(swing)
+      end
+      inside = inside ~= "" and inside .. ", " .. swing or swing
+    end
     if inside ~= "" then what = GC.L["%s (%s)"]:format(what, inside) end
     local rest = said(diff, U.MODELLED)
     if rest ~= "" then what = what .. ", " .. rest end

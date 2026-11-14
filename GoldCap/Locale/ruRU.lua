@@ -507,6 +507,7 @@ GC.Locales.ruRU = {
   ["Upgrade: %s, nothing worn there"] = "Улучшение: %s, в этом слоте ничего не надето",
   ["%s DPS"] = "%s урона в секунду",
   ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "Скорость с %s до %s",
   ["You can wear it in %d levels"] = "Можно будет надеть через %d ур.",
   ["You can wear it next level"] = "Можно будет надеть на следующем уровне",
   ["Not an upgrade for your %s: nothing here you use"] = "Не улучшение для вашего класса (%s): здесь нет ничего, что вы используете",

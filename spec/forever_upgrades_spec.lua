@@ -858,8 +858,88 @@ describe("ForeverUpgrades", function()
       local slow = link(2011, "Slow Dagger")
       statsOf[slow] = DPS(10)
       local lines = U.TooltipVerdict(slow, d, weights, { model = U.ModelFor(d, "ROGUE", false) })
-      assert.equal("Upgrade: " .. U.DpsFigure(main.dps) .. " DPS over your item:2001", lines[1].text)
+      assert.equal("Upgrade: " .. U.DpsFigure(main.dps) .. " DPS (Speed 1.50 to 2.80) over your item:2001",
+        lines[1].text)
       assert.equal("+4.4", (U.DpsFigure(main.dps)))
+    end)
+
+    -- Owner, 14.11: Big Bronze Knife over Serrated Knife read "+1.9 DPS (-1 Agility, +0.9 Damage per
+    -- Second), +2 Stamina", the parts well under the figure. Most of it is the slower swing, which
+    -- adds Sinister Strike's damage: the brackets say so, for a main hand whose speed counts.
+    describe("the main hand's speed in the brackets", function()
+      local DAGGER = { loc = "INVTYPE_WEAPON", class = 2, sub = 15 }
+      local knife, hook
+      local function owner()
+        _G.ITEM_MOD_AGILITY_SHORT = "Agility"
+        items[2091], items[2092] = DAGGER, DAGGER
+        knife, hook = link(2091, "Serrated Knife"), link(2092, "Hook Dagger of the Monkey")
+        worn[16], worn[17] = knife, hook
+        statsOf[knife] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 9.1, ITEM_MOD_AGILITY_SHORT = 1,
+          ITEM_MOD_STAMINA_SHORT = 1 }
+        statsOf[hook] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10, ITEM_MOD_AGILITY_SHORT = 2,
+          ITEM_MOD_STAMINA_SHORT = 2 }
+        speedOf[2091], speedOf[2092] = 1.6, 1.5
+        local d = rogue({ level = function() return 17 end, char = function()
+          return { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
+            critPer = { AGI = 0.0015150 } }
+        end })
+        d.usable = function() return true end
+        return d
+      end
+      local agility
+      before_each(function() agility = _G.ITEM_MOD_AGILITY_SHORT end)
+      after_each(function() _G.ITEM_MOD_AGILITY_SHORT = agility end)
+      -- A main-hand dagger with `stats` at `speed` (nil: the client never tells it): Build reads its
+      -- speed as the HERO tab does, then the tooltip says its line, by the speeds kept.
+      local function line(id, name, stats, speed, loc)
+        local d = owner()
+        items[id], speedOf[id] = loc and { loc = loc, class = 2, sub = 15 } or DAGGER, speed
+        local str = link(id, name)
+        statsOf[str], statsOf["item:" .. id] = stats, stats
+        local m = U.ModelFor(d, "ROGUE", true)
+        local weights = U.WeightsFor({}, "ROGUE", m)
+        local r = U.Build(gear({ [id] = "100:0:0" }), d, weights, nil, { model = m })
+        if loc and speed then d.speed(id, true) end                   -- an off-hand piece: Build reads none
+        local tip = U.TooltipVerdict(str, d, weights, { model = U.ModelFor(d, "ROGUE", false) })
+        return tip and tip[1].text, r
+      end
+      local BIG = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10, ITEM_MOD_STAMINA_SHORT = 3 }
+      local QUICK = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 12, ITEM_MOD_STAMINA_SHORT = 3 }
+
+      it("says the owner's slower knife's speed, in the line's own colour", function()
+        local text, r = line(2093, "Big Bronze Knife", BIG, 1.9)
+        assert.near(1.6916756, bestIn(r, "MAINHAND").dps, 1e-6)
+        assert.equal("Upgrade: +1.7 DPS (" .. red("-1 Agility") .. ", +0.9 Damage per Second, Speed 1.60 to 1.90)"
+          .. ", +2 Stamina over your Serrated Knife", text)
+      end)
+
+      it("says no speed when the two are the same", function()
+        for _, speed in ipairs({ 1.6, 1.63 }) do                       -- 1.63: under 0.05 apart
+          local text, r = line(2094, "Bronze Knife", BIG, speed)
+          assert.equal("Upgrade: " .. U.DpsFigure(bestIn(r, "MAINHAND").dps) .. " DPS (" .. red("-1 Agility")
+            .. ", +0.9 Damage per Second), +2 Stamina over your Serrated Knife", text, speed)
+        end
+      end)
+
+      it("never says an off-hand piece's speed", function()
+        local text = line(2095, "Parrying Dirk", QUICK, 1.9, "INVTYPE_WEAPONOFFHAND")
+        assert.is_string(text)
+        assert.is_nil(text:find("Speed", 1, true))
+        assert.truthy(text:find("over your Hook Dagger of the Monkey", 1, true))
+      end)
+
+      it("says a faster one's speed in red", function()
+        local text, r = line(2096, "Quick Knife", QUICK, 1.3)
+        local figure = U.DpsFigure(bestIn(r, "MAINHAND").dps)
+        assert.equal("Upgrade: " .. figure .. " DPS (" .. red("-1 Agility") .. ", +2.9 Damage per Second, "
+          .. red("Speed 1.60 to 1.30") .. "), +2 Stamina over your Serrated Knife", text)
+      end)
+
+      it("says no speed the client has not told", function()
+        local text = line(2097, "Odd Knife", BIG, nil)
+        assert.equal("Upgrade: +0.7 DPS (" .. red("-1 Agility") .. ", +0.9 Damage per Second)"
+          .. ", +2 Stamina over your Serrated Knife", text)
+      end)
     end)
 
     -- The tooltip and the HERO tab say the same DPS, the worn main hand at the speed Build read.

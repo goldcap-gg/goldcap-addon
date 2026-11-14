@@ -492,6 +492,7 @@ GC.Locales.zhTW = {
   ["Upgrade: %s, nothing worn there"] = "升級：%s，該部位未裝備物品",
   ["%s DPS"] = "每秒傷害 %s",
   ["%s (%s)"] = "%s（%s）",
+  ["Speed %s to %s"] = "速度從 %s 變為 %s",
   ["You can wear it in %d levels"] = "%d 級後可裝備",
   ["You can wear it next level"] = "下一級可裝備",
   ["Not an upgrade for your %s: nothing here you use"] = "對你的%s不是升級：沒有你用得上的屬性",

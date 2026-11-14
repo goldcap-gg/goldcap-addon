@@ -613,6 +613,7 @@ GC.Locales.enUS = {
   ["Upgrade: %s, nothing worn there"] = "Upgrade: %s, nothing worn there",
   ["%s DPS"] = "%s DPS",
   ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "Speed %s to %s",
   ["You can wear it in %d levels"] = "You can wear it in %d levels",
   ["You can wear it next level"] = "You can wear it next level",
   ["Not an upgrade for your %s: nothing here you use"] = "Not an upgrade for your %s: nothing here you use",

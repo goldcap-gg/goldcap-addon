@@ -516,6 +516,7 @@ GC.Locales.ukUA = {
   ["Upgrade: %s, nothing worn there"] = "Покращення: %s, у цьому слоті нічого не надягнуто",
   ["%s DPS"] = "%s шкоди за секунду",
   ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "Швидкість з %s до %s",
   ["You can wear it in %d levels"] = "Можна буде надягнути через %d рів.",
   ["You can wear it next level"] = "Можна буде надягнути на наступному рівні",
   ["Not an upgrade for your %s: nothing here you use"] = "Не покращення для вашого класу (%s): тут немає нічого, що ви використовуєте",

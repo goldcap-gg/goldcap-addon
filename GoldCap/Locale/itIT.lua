@@ -521,6 +521,7 @@ GC.Locales.itIT = {
   ["Upgrade: %s, nothing worn there"] = "Miglioramento: %s, lì non indossi nulla",
   ["%s DPS"] = "%s DPS",
   ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "Velocità da %s a %s",
   ["You can wear it in %d levels"] = "Potrai indossarlo tra %d livelli",
   ["You can wear it next level"] = "Potrai indossarlo al prossimo livello",
   ["Not an upgrade for your %s: nothing here you use"] = "Non è un miglioramento per la tua classe (%s): niente che usi",

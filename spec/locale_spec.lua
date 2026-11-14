@@ -566,6 +566,7 @@ describe("locale layer", function()
       "Upgrade: %s, nothing worn there",
       "%s DPS",
       "%s (%s)",
+      "Speed %s to %s",
       "You can wear it in %d levels",
       "You can wear it next level",
       "Not an upgrade for your %s: nothing here you use",
