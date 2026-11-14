@@ -177,6 +177,7 @@ GC.Locales.enUS = {
     "Items in your bags that fetch more on the auction house than at a vendor: %d (%s more).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Items still loading: %d. Open this again in a moment.",
+  ["Reading the auction house's items: %d left."] = "Reading the auction house's items: %d left.",
   ["Last post may still go up. Wait a minute"] = "Last post may still go up. Wait a minute",
   ["Level 40 reached: %s to go."] = "Level 40 reached: %s to go.",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
@@ -1924,6 +1925,7 @@ GC.Locales.enUS = {
   ["Scan again to read each version's own stats."] = "Scan again to read each version's own stats.",
   ["Mount at 40"] = "Mount at 40",
   ["Best for my gold (%d)"] = "Best for my gold (%d)",
+  ["Best for my gold"] = "Best for my gold",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "GoldCap's pick: part of the strongest mix your gold pays for",
   ["How HERO works"] = "How HERO works",

@@ -249,6 +249,7 @@ describe("locale layer", function()
       "No scan with gear in it yet. Open the auction house and let GoldCap scan it.",
       "Nothing on the auction house beats what you wear at your level.",
       "Items still loading: %d. Open this again in a moment.",
+      "Reading the auction house's items: %d left.",
       "This client does not report item stats, so GoldCap cannot compare gear.",
       "No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5",
       "Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them.",
@@ -585,6 +586,7 @@ describe("locale layer", function()
       "Scan again to read each version's own stats.",
       "Mount at 40",
       "Best for my gold (%d)",
+      "Best for my gold",
       "GoldCap's pick: part of the strongest mix your gold pays for",
       "Open BUY",
       -- The guide, "?" and the rail's tooltip.

@@ -207,6 +207,7 @@ GC.Locales.ptBR = {
     "Itens nas suas bolsas que valem mais na casa de leilões do que no vendedor: %d (%s a mais).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Itens ainda carregando: %d. Abra de novo em um instante.",
+  ["Reading the auction house's items: %d left."] = "Lendo os itens da casa de leilões: faltam %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "A contagem de saque está desligada. Digite /gc loot clear para remover o que foi registrado.",
   ["Loot counting is on."] = "A contagem de saque está ligada.",
@@ -1931,6 +1932,7 @@ GC.Locales.ptBR = {
   ["Scan again to read each version's own stats."] = "Escaneie de novo para ler os atributos de cada versão.",
   ["Mount at 40"] = "Montaria no nível 40",
   ["Best for my gold (%d)"] = "O melhor para o meu ouro (%d)",
+  ["Best for my gold"] = "O melhor para o meu ouro",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Escolha do GoldCap: parte da combinação mais forte que o seu ouro paga",
   ["How HERO works"] = "Como o HERO funciona",

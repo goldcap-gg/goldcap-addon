@@ -196,6 +196,7 @@ GC.Locales.ruRU = {
     "Предметов в сумках, которые на аукционе стоят больше, чем у торговца: %d (на %s больше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ещё загружается предметов: %d. Откройте это снова через минуту.",
+  ["Reading the auction house's items: %d left."] = "Читаем предметы аукциона: осталось %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Подсчёт добычи выключен. Введите /gc loot clear, чтобы удалить записанное.",
   ["Loot counting is on."] = "Подсчёт добычи включён.",
@@ -2003,6 +2004,7 @@ GC.Locales.ruRU = {
   ["Scan again to read each version's own stats."] = "Просканируйте ещё раз, чтобы прочитать характеристики каждой версии.",
   ["Mount at 40"] = "Ездовое животное к 40",
   ["Best for my gold (%d)"] = "Лучшее на моё золото (%d)",
+  ["Best for my gold"] = "Лучшее на моё золото",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Выбор GoldCap: часть самого сильного набора, который можно купить на ваше золото",
   ["How HERO works"] = "Как работает HERO",

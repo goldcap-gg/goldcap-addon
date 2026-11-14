@@ -199,6 +199,7 @@ GC.Locales.ukUA = {
     "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ще завантажується предметів: %d. Відкрийте це знову за мить.",
+  ["Reading the auction house's items: %d left."] = "Читаємо предмети аукціону: лишилося %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Підрахунок здобичі вимкнено. Введіть /gc loot clear, щоб видалити записане.",
   ["Loot counting is on."] = "Підрахунок здобичі увімкнено.",
@@ -2007,6 +2008,7 @@ GC.Locales.ukUA = {
   ["Scan again to read each version's own stats."] = "Проскануйте ще раз, щоб прочитати характеристики кожної версії.",
   ["Mount at 40"] = "Скакун до 40 рівня",
   ["Best for my gold (%d)"] = "Найкраще на моє золото (%d)",
+  ["Best for my gold"] = "Найкраще на моє золото",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Вибір GoldCap: частина найсильнішого набору, який можна купити за ваше золото",
   ["How HERO works"] = "Як працює HERO",

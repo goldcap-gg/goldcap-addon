@@ -206,6 +206,8 @@ GC.Locales.frFR = {
     "Objets de vos sacs qui valent plus à l'hôtel des ventes que chez un marchand : %d (%s de plus).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Objets encore en chargement : %d. Rouvre ceci dans un instant.",
+  ["Reading the auction house's items: %d left."] =
+    "Lecture des objets de l'hôtel des ventes : encore %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Le comptage du butin est désactivé. Tapez /gc loot clear pour supprimer ce qui a été enregistré.",
   ["Loot counting is on."] = "Le comptage du butin est activé.",
@@ -1940,6 +1942,7 @@ GC.Locales.frFR = {
   ["Scan again to read each version's own stats."] = "Relance un scan pour lire les caractéristiques propres à chaque version.",
   ["Mount at 40"] = "Monture au niveau 40",
   ["Best for my gold (%d)"] = "Le mieux pour mon or (%d)",
+  ["Best for my gold"] = "Le mieux pour mon or",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Choix de GoldCap : fait partie de la meilleure combinaison que ton or peut payer",
   ["How HERO works"] = "Comment fonctionne HERO",

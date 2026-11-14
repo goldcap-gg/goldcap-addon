@@ -203,6 +203,7 @@ GC.Locales.zhCN = {
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "背包中在拍卖行比卖给商人更值钱的物品：%d 件（多 %s）。",
   ["Items still loading: %d. Open this again in a moment."] = "仍在加载的物品：%d 件。请稍后再打开。",
+  ["Reading the auction house's items: %d left."] = "正在读取拍卖行的物品：还剩 %d 件。",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "掉落统计已关闭。输入 /gc loot clear 可删除已记录的内容。",
   ["Loot counting is on."] = "掉落统计已开启。",
@@ -1826,6 +1827,7 @@ GC.Locales.zhCN = {
   ["Scan again to read each version's own stats."] = "重新扫描以读取每个版本各自的属性。",
   ["Mount at 40"] = "40 级坐骑",
   ["Best for my gold (%d)"] = "我的金币能买的最佳（%d 件）",
+  ["Best for my gold"] = "我的金币能买的最佳",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 推荐：你的金币买得起的最强组合中的一件",
   ["How HERO works"] = "HERO 使用说明",
   ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =

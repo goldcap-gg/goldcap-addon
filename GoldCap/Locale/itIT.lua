@@ -207,6 +207,8 @@ GC.Locales.itIT = {
     "Oggetti nelle borse che valgono di più alla casa d'aste che da un mercante: %d (%s in più).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Oggetti ancora in caricamento: %d. Riapri tra un momento.",
+  ["Reading the auction house's items: %d left."] =
+    "Lettura degli oggetti della casa d'aste: ne mancano %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Il conteggio del bottino è disattivato. Scrivi /gc loot clear per rimuovere quanto registrato.",
   ["Loot counting is on."] = "Il conteggio del bottino è attivo.",
@@ -1934,6 +1936,7 @@ GC.Locales.itIT = {
   ["Scan again to read each version's own stats."] = "Scansiona di nuovo per leggere le statistiche di ogni versione.",
   ["Mount at 40"] = "Cavalcatura al livello 40",
   ["Best for my gold (%d)"] = "Il meglio per il mio oro (%d)",
+  ["Best for my gold"] = "Il meglio per il mio oro",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Scelta di GoldCap: parte della combinazione più forte che il tuo oro può pagare",
   ["How HERO works"] = "Come funziona HERO",

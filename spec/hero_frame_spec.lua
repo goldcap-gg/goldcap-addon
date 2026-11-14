@@ -38,6 +38,18 @@ describe("HERO tab", function()
     for _, d in ipairs(delays) do if d == s then n = n + 1 end end
     return n
   end
+  -- Runs only the timers that wait `s` seconds; the others stay on their way.
+  local function runDue(s)
+    local fns, ds = timers, delays
+    timers, delays = {}, {}
+    for i, fn in ipairs(fns) do
+      if ds[i] == s then
+        fn()
+      else
+        timers[#timers + 1], delays[#delays + 1] = fn, ds[i]
+      end
+    end
+  end
   -- What a player types into a box: the text, then the client's OnTextChanged with userInput true.
   local function typeInto(box, text)
     W.state(box).text = text
@@ -1024,6 +1036,11 @@ describe("HERO tab", function()
   it("says a slot still waits for what is worn there, and that the picks may change", function()
     result.waiting, result.loading = { HEAD = true, FINGER2 = true }, 2
     H.Show()
+    -- First the tab settles: how many items are left, and not the wait as well.
+    assert.equal("Reading the auction house's items: 2 left.", textOf(sp().message))
+    assert.is_false(shown(bar().sub))
+    runDue(GC.Hero.C.HOLD_S)                                            -- the client never answered
+    assert.equal("Items still loading: 2. Open this again in a moment.", textOf(top().note))
     assert.equal("Still reading what you wear: the picks may change", textOf(bar().sub))
     press(slotAt(1))
     assert.equal("HEAD", textOf(sp().title))
@@ -1042,6 +1059,140 @@ describe("HERO tab", function()
     result = aResult()
     H.RefreshIfShown(true)
     assert.equal("+6 Agility, -4 Stamina", textOf(bar().sub))
+  end)
+
+  -- In game, 14.11: after a reload the tab opened at "Items still loading: 67", then 13, then 0,
+  -- and every partial build moved the gold frames and stars between slots and "Best for my gold"
+  -- from (1) to (3). It waits now, the picks held back, and shows them once.
+  it("holds GoldCap's picks back while the game still loads items, and shows them once it has", function()
+    local gold = GC.Theme.color.gold
+    local function calm(left)
+      for _, inv in ipairs(DOLL_ORDER) do
+        local b = slotAt(inv)
+        assert.are_not.same(rgb(gold), colourOf(b.frameRing), inv)
+        assert.is_false(shown(b.star), inv)
+        assert.is_false(shown(b.badge), inv)
+      end
+      assert.equal(100000 + 85, W.state(slotAt(5).icon.icon).file)     -- what is worn
+      assert.equal("Best for my gold", textOf(bar().picks.text))
+      assert.is_false(bar().picks:IsEnabled())
+      local note = ("Reading the auction house's items: %d left."):format(left)
+      assert.equal(note, textOf(top().note))
+      assert.equal(note, textOf(sp().message))
+      assert.same({}, optsShown())
+    end
+    -- The guide up: a slot clicked while the tab settles is selected, and the guide stays.
+    prefs.heroGuide = nil
+    result.loading = 67
+    H.Show()
+    assert.is_true(H._state.settling)
+    calm(67)
+    assert.equal("In your list: 0", textOf(bar().title))
+    assert.equal(1, H._state.sel)                                       -- no slot chosen by its choices yet
+    press(slotAt(16))
+    assert.equal(16, H._state.sel)
+    assert.equal("MAIN HAND", textOf(sp().title))
+    assert.is_true(H._state.guide)
+    assert.is_true(shown(H._view.guide))
+    press(H._view.guide.primary)
+    calm(67)
+    -- 13 left: still calm.
+    result.loading = 13
+    H.RefreshIfShown()
+    calm(13)
+    -- All read: the frames, the stars and the count, once.
+    result.loading = 0
+    H.RefreshIfShown()
+    assert.is_false(H._state.settling)
+    assert.same(rgb(gold), colourOf(slotAt(5).frameRing))
+    assert.same({ true, true }, { shown(slotAt(5).star), shown(slotAt(16).star) })
+    assert.equal("Best for my gold (2)", textOf(bar().picks.text))
+    assert.is_true(bar().picks:IsEnabled())
+    assert.is_false(shown(top().note))
+    assert.equal(5, H._state.sel)                                       -- the guide put away: the first with choices
+    assert.same({ "Dark Leather Tunic" }, optsShown())
+    -- Nothing loading at the Show: nothing held back, and no hold on its way.
+    local holds = due(GC.Hero.C.HOLD_S)
+    H.Hide()
+    H.Show()
+    assert.is_false(H._state.settling)
+    assert.equal(holds, due(GC.Hero.C.HOLD_S))
+  end)
+
+  it("stops holding back when its own rebuilds give up, after HOLD_S, and never again until the next Show", function()
+    local C, gold = GC.Hero.C, GC.Theme.color.gold
+    local function settled()
+      assert.is_false(H._state.settling)
+      assert.same(rgb(gold), colourOf(slotAt(5).frameRing))
+      assert.is_true(bar().picks:IsEnabled())
+    end
+    -- An item the client never answers for: the count stays at 5, and the rebuild that makes the
+    -- SELF_FLAT-th in a row loading nothing is the chain's last, and shows the picks.
+    GC.ForeverUpgrades.Current = function()
+      builds = builds + 1
+      local r = aResult()
+      r.loading = 5
+      return r
+    end
+    H.Show()
+    for _ = 1, C.SELF_FLAT - 1 do
+      runDue(C.SELF_S)
+      assert.is_true(H._state.settling)
+    end
+    runDue(C.SELF_S)
+    settled()
+    assert.equal(0, due(C.SELF_S))
+    assert.equal("Items still loading: 5. Open this again in a moment.", textOf(top().note))
+    -- A scan's build with items loading again moves nothing back.
+    local r = aResult()
+    r.loading = 9
+    H.Render(r, NOW)
+    settled()
+    assert.equal("Items still loading: 9. Open this again in a moment.", textOf(top().note))
+    -- Items that keep answering but never finish: HOLD_S after the Show, the picks show, with no
+    -- build of its own.
+    local loading = 40
+    GC.ForeverUpgrades.Current = function()
+      builds = builds + 1
+      loading = loading - 1
+      local out = aResult()
+      out.loading = loading
+      return out
+    end
+    timers, delays = {}, {}                                             -- the first Show's hold, dead
+    H.Show()
+    for _ = 1, 4 do runDue(C.SELF_S) end
+    assert.is_true(H._state.settling)
+    assert.equal(1, due(C.HOLD_S))
+    builds = 0
+    runDue(C.HOLD_S)
+    assert.equal(0, builds)
+    settled()
+    assert.equal(1, due(C.SELF_S))                                      -- the rebuilds go on
+    -- A hold from an earlier Show does nothing to a later one.
+    H.Show()
+    H.Hide()
+    H.Show()
+    assert.equal(2, due(C.HOLD_S))
+    timers[1]()                                                         -- the dead one, run first
+    assert.is_true(H._state.settling)
+    runDue(C.HOLD_S)
+    settled()
+  end)
+
+  it("stops holding back when the storm cap gives up on an item", function()
+    local C = GC.Hero.C
+    result.loading, result.loadingIds = 1, { [42] = true }
+    H.Show()
+    -- The first repaint sets the count it is measured from; each after it that loads nothing is one.
+    for _ = 1, C.STALE_LIMIT do
+      H.OnItemInfo(42)
+      runDue(C.REPAINT_S)
+    end
+    assert.is_true(H._state.settling)
+    H.OnItemInfo(42)
+    runDue(C.REPAINT_S)
+    assert.is_false(H._state.settling)
   end)
 
   it("gives the doll the room at the default window: a one-band bar and large slots", function()

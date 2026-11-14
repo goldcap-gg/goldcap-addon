@@ -52,6 +52,7 @@ local HD = {
   STALE_LIMIT = 6, REPAINT_S = 0.5, SPEED_S = 0.2, TYPE_S = 0.4,
   SELF_S = 1, SELF_MAX = 15, -- the tab's own rebuild while items load: once a second, so many a Show
   SELF_FLAT = 3,             -- ...and no more after this many in a row that loaded nothing
+  HOLD_S = 15,               -- the longest a Show holds its picks back while items load (settling)
 }
 Hero.C = HD
 
@@ -65,7 +66,9 @@ Hero._view = view
 -- character bought on it), options[group] each slot's choices as listed, picks[group] GoldCap's pick
 -- among them, inList[group] the piece the list holds for that slot, listed those in the result's slot
 -- order. placed[item string] is the slot the player last put a piece in, this session's: a ring on
--- the list shows on that finger.
+-- the list shows on that finger. settling: this Show still waits for the client to answer for items
+-- (Hero.Show), and the doll, the slot panel and "Best for my gold" hold GoldCap's picks back until
+-- it has, since each partial build moved them between slots (owner, 14.11).
 local state = { placed = {}, lines = {}, bought = {} }
 Hero._state = state
 -- The repaint rules, moved over from the old window unchanged (Hero.OnItemInfo and below), and the
@@ -574,6 +577,7 @@ end
 local function pickSelection()
   if state.selByHand and state.sel then return end
   state.sel = DOLL[1][1]
+  if state.settling then return end
   for _, e in ipairs(DOLL) do
     if view.at[e[1]] then
       state.sel = e[1]
@@ -698,7 +702,8 @@ local function layoutTop(r, width)
   local notes = {}
   if r.stale then notes[#notes + 1] = GC.L["Scan again to read each version's own stats."] end
   if (r.loading or 0) > 0 then
-    notes[#notes + 1] = GC.L["Items still loading: %d. Open this again in a moment."]:format(r.loading)
+    notes[#notes + 1] = state.settling and GC.L["Reading the auction house's items: %d left."]:format(r.loading)
+      or GC.L["Items still loading: %d. Open this again in a moment."]:format(r.loading)
   end
   if #notes > 0 then put(t.note, table.concat(notes, " ")) else t.note:Hide() end
 
@@ -788,11 +793,13 @@ local function newSlot(parent, e)
   b:SetScript("OnEnter", pieceTip)
   b:SetScript("OnLeave", hideTip)
   -- A modified click is the client's (shift links the piece shown, ctrl tries it on); a plain one
-  -- lists the slot's choices, the guide put away if it is up.
+  -- lists the slot's choices, the guide put away if it is up. While the tab settles there are no
+  -- choices to list yet, and the guide stays.
   b:SetScript("OnClick", function(self)
     local handle = _G.HandleModifiedItemClick
     if self.tipLink and type(handle) == "function" and handle(self.tipLink) then return end
-    state.sel, state.selByHand, state.guide = self.invSlot, true, false
+    state.sel, state.selByHand = self.invSlot, true
+    if not state.settling then state.guide = false end
     paint()
   end)
   return b
@@ -841,9 +848,10 @@ end
 -- One slot as this paint sees it: what it shows, its frame, its marks. Its icon wears no quality
 -- edge (KP.PaintIcon without the item's id draws the untinted one): on the doll, green means the
 -- piece is on the list, gold that the slot has choices, and the star that GoldCap picks one the list
--- does not hold yet: the whole mix GoldCap suggests reads on the doll.
+-- does not hold yet: the whole mix GoldCap suggests reads on the doll. While the tab settles, only
+-- what is worn, framed as a slot with nothing of note.
 local function paintSlot(b)
-  local s = view.at[b.invSlot]
+  local s = not state.settling and view.at[b.invSlot] or nil
   local c = s and state.inList[s.group] or nil
   local worn = view.worn[b.invSlot]
   b.tipLink = c and (c.link or c.itemString) or worn
@@ -1135,12 +1143,16 @@ local function createPanel(container)
   return p
 end
 
--- Why the panel has nothing to list for the doll slot `inv`, or nil: a slot whose group waits for
--- the stats of what is worn there (Build's r.waiting) says so, not that nothing beats it.
+-- Why the panel has nothing to list for the doll slot `inv`, or nil: while the tab settles, how many
+-- items the client still reads; a slot whose group waits for the stats of what is worn there
+-- (Build's r.waiting) says so, not that nothing beats it.
 local function emptyWhy(r, s, inv)
   if r.noScan then return GC.L["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] end
   if r.noStats then return GC.L["This client does not report item stats, so GoldCap cannot compare gear."] end
   if r.noWeights then return GC.L["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] end
+  if state.settling then
+    return GC.L["Reading the auction house's items: %d left."]:format(math.max(0, tonumber(r.loading) or 0))
+  end
   if s then return nil end
   local group = groupAt(inv)
   if group and r.waiting and r.waiting[group] then
@@ -1286,7 +1298,7 @@ local function layoutBar(r, width)
   local b, f = view.bar, view.bar.frame
   local n, cost, diffs = listTotals()
   local picks = r.set and r.set.list or {}
-  if n == 0 and #picks == 0 then
+  if n == 0 and #picks == 0 and not state.settling then
     put(b.title, GC.L["Nothing on the auction house fits the gold you carry yet."])
   else
     put(b.title, GC.L["In your list: %d"]:format(n))
@@ -1294,7 +1306,7 @@ local function layoutBar(r, width)
   local sub = {}
   local gains = n > 0 and gainText(diffs) or ""
   if gains ~= "" then sub[#sub + 1] = gains end
-  if r.waiting and next(r.waiting) ~= nil then
+  if r.waiting and next(r.waiting) ~= nil and not state.settling then
     sub[#sub + 1] = GC.L["Still reading what you wear: the picks may change"]
   end
   if #sub > 0 then put(b.sub, table.concat(sub, "\n")) else b.sub:Hide() end
@@ -1311,9 +1323,15 @@ local function layoutBar(r, width)
     put(b.left, GC.L["Short by %s"]:format(coins(-left)))
     setColor(b.left, Theme.color.red)
   end
+  -- While the tab settles GoldCap's picks are not counted: they move as items answer.
   local off = picksOff(r)
-  label(b.picks, GC.L["Best for my gold (%d)"]:format(off), HD.BAR_BTN_W)
-  if off > 0 then b.picks:Enable() else b.picks:Disable() end
+  if state.settling then
+    label(b.picks, GC.L["Best for my gold"], HD.BAR_BTN_W)
+    b.picks:Disable()
+  else
+    label(b.picks, GC.L["Best for my gold (%d)"]:format(off), HD.BAR_BTN_W)
+    if off > 0 then b.picks:Enable() else b.picks:Disable() end
+  end
   label(b.open, GC.L["Open BUY"], HD.BAR_BTN_W)
   if n > 0 then b.open:Enable() else b.open:Disable() end
 
@@ -2224,6 +2242,15 @@ local function chaseSpeed(r)
   end)
 end
 
+-- The tab's own rebuilds below in a row that did not shrink the loading count (selfFlat), counted
+-- before the paint (Render): the rebuild that reaches SELF_FLAT is the chain's last, and settles the
+-- tab as it paints.
+local function countFlat(r)
+  if repaint.selfFrom == nil then return end
+  repaint.selfFlat = (tonumber(r.loading) or 0) >= repaint.selfFrom and repaint.selfFlat + 1 or 0
+  repaint.selfFrom = nil
+end
+
 -- While the shown tab's last build still counts items loading, it builds itself again SELF_S on,
 -- whatever events arrive or do not, at most SELF_MAX times a Show, and stops at none loading, on
 -- Hide, or after SELF_FLAT of its own rebuilds in a row that did not shrink the count: an item the
@@ -2231,10 +2258,6 @@ end
 -- other reason finds the tick on its way and adds none.
 local function selfRefresh(r)
   local loading = tonumber(r.loading) or 0
-  if repaint.selfFrom ~= nil then
-    repaint.selfFlat = loading >= repaint.selfFrom and repaint.selfFlat + 1 or 0
-    repaint.selfFrom = nil
-  end
   if loading <= 0 or repaint.selfDue or not shown() then return end
   if repaint.selfCount >= HD.SELF_MAX or repaint.selfFlat >= HD.SELF_FLAT then return end
   local timer = _G.C_Timer
@@ -2250,12 +2273,42 @@ local function selfRefresh(r)
   end)
 end
 
+-- A Show that finds items still loading (or a worn piece still being read) settles first: the doll
+-- shows what is worn and the panel how many items are left, until none are, the tab's own rebuilds
+-- or the storm cap give up on the rest, or HOLD_S has passed. Then it stays settled until the next
+-- Show: a later build with items loading again (a scan's) moves nothing back. One hold timer a Show,
+-- dead once the tab hides or opens again; none at all where there is no timer to end it.
+local function hold(r)
+  local timer = _G.C_Timer
+  local waiting = type(r.waiting) == "table" and next(r.waiting) ~= nil
+  state.settling = ((tonumber(r.loading) or 0) > 0 or waiting)
+    and type(timer) == "table" and type(timer.After) == "function"
+  if not state.settling then return end
+  local gen = repaint.gen
+  timer.After(HD.HOLD_S, function()
+    if gen ~= repaint.gen or not state.settling then return end
+    state.settling = false
+    if shown() then paint() end
+  end)
+end
+
+local function settle(r)
+  if not state.settling then return end
+  local waiting = type(r.waiting) == "table" and next(r.waiting) ~= nil
+  if ((tonumber(r.loading) or 0) <= 0 and not waiting) or repaint.selfCount >= HD.SELF_MAX
+      or repaint.selfFlat >= HD.SELF_FLAT or repaint.stale >= HD.STALE_LIMIT then
+    state.settling = false
+  end
+end
+
 --- Paints `r` (GC.ForeverUpgrades.Current's answer) as of `now`: Show and RefreshIfShown build it
 --- and hand it here, and so does Core/ForeverScan.lua's post-scan update, which built it already.
 function Hero.Render(r, now)
   state.r = r or current()
   state.now = now or time()
   repaint.ids = state.r.loadingIds
+  countFlat(state.r)
+  settle(state.r)
   readRoad()
   paint()
   chaseSpeed(state.r)
@@ -2274,8 +2327,10 @@ function Hero.Show()
   -- guide comes up until the player has read it.
   state.selByHand, view.dressed = nil, nil
   state.guide = not (prefs() or {}).heroGuide
+  local r = current()
+  hold(r)
   view.restamp = true -- see put(): every string is drawn again after the hide
-  Hero.Render(current(), time())
+  Hero.Render(r, time())
   view.restamp = false
 end
 

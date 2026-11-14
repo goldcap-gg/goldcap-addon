@@ -206,6 +206,8 @@ GC.Locales.deDE = {
     "Gegenstände in deinen Taschen, die im Auktionshaus mehr bringen als beim Händler: %d (%s mehr).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Gegenstände, die noch laden: %d. Öffne dies gleich noch einmal.",
+  ["Reading the auction house's items: %d left."] =
+    "Die Gegenstände des Auktionshauses werden gelesen: noch %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Beutezählung ist aus. Tippe /gc loot clear, um das Aufgezeichnete zu entfernen.",
   ["Loot counting is on."] = "Beutezählung ist an.",
@@ -1940,6 +1942,7 @@ GC.Locales.deDE = {
   ["Scan again to read each version's own stats."] = "Scanne erneut, um die Werte jeder Version einzeln zu lesen.",
   ["Mount at 40"] = "Reittier mit 40",
   ["Best for my gold (%d)"] = "Das Beste für mein Gold (%d)",
+  ["Best for my gold"] = "Das Beste für mein Gold",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "GoldCaps Wahl: Teil der stärksten Kombination, die du mit deinem Gold bezahlen kannst",
   ["How HERO works"] = "So funktioniert HERO",

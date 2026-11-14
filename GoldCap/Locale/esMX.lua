@@ -210,6 +210,8 @@ GC.Locales.esMX = {
     "Objetos de tus bolsas que valen más en la casa de subastas que en un vendedor: %d (%s más).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Objetos que aún se cargan: %d. Vuelve a abrir esto en un momento.",
+  ["Reading the auction house's items: %d left."] =
+    "Leyendo los objetos de la casa de subastas: quedan %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "El recuento de botín está desactivado. Escribe /gc loot clear para eliminar lo registrado.",
   ["Loot counting is on."] = "El recuento de botín está activado.",
@@ -1939,6 +1941,7 @@ GC.Locales.esMX = {
   ["Scan again to read each version's own stats."] = "Vuelve a escanear para leer las estadísticas de cada versión.",
   ["Mount at 40"] = "Montura a nivel 40",
   ["Best for my gold (%d)"] = "Lo mejor para mi oro (%d)",
+  ["Best for my gold"] = "Lo mejor para mi oro",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Elección de GoldCap: parte de la combinación más fuerte que puedes pagar con tu oro",
   ["How HERO works"] = "Cómo funciona HERO",

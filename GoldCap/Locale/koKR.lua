@@ -204,6 +204,7 @@ GC.Locales.koKR = {
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "상인보다 경매장에서 더 비싼 가방 속 아이템: %d개 (%s 더).",
   ["Items still loading: %d. Open this again in a moment."] = "아직 불러오는 아이템: %d개. 잠시 후 다시 여세요.",
+  ["Reading the auction house's items: %d left."] = "경매장 아이템을 읽는 중: %d개 남음.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "전리품 집계가 꺼져 있습니다. 기록된 내용을 지우려면 /gc loot clear를 입력하세요.",
   ["Loot counting is on."] = "전리품 집계가 켜져 있습니다.",
@@ -1863,6 +1864,7 @@ GC.Locales.koKR = {
   ["Scan again to read each version's own stats."] = "다시 스캔하면 버전마다 고유한 능력치를 읽습니다.",
   ["Mount at 40"] = "40레벨 탈것",
   ["Best for my gold (%d)"] = "내 골드에 맞는 최선 (%d개)",
+  ["Best for my gold"] = "내 골드에 맞는 최선",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 추천: 보유 골드로 살 수 있는 가장 강한 조합의 일부",
   ["How HERO works"] = "HERO 사용법",
   ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
