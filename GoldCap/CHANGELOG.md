@@ -37,9 +37,9 @@
   Backstab only daggers are offered for the main hand. The tab reads which you use from the weapon
   in your main hand; switch it under Stat weights.
 - WoW: Forever: each choice now says how much damage per second it adds or costs your character,
-  counted from your own attack power, crit and weapons as the game counts them, for warriors,
-  rogues, paladins, shamans and hunters; Stamina, Armor and the like still show beside it; stat
-  weights for these come from your character too unless you set your own.
+  counted from your own attack power, crit and weapons the way the game counts them. This is for
+  warriors, rogues, paladins, shamans and hunters, and Stamina, Armor and the like show beside it.
+  Their stat weights now come from your character too, unless you set your own.
 - WoW: Forever: a mage's, priest's or warlock's starting stat weights now count the wand's damage,
   and a staff's or dagger's only for its stats. A druid's count attack power and ignore weapon
   damage, which its forms do not use. Weights you set yourself stay as they are.
