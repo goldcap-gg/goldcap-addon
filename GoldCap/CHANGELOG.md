@@ -10,10 +10,11 @@
   red, and a piece you cannot wear yet has a red icon with its level in the corner, as in your bags.
 - WoW: Forever: the "+" beside a piece puts it on your Upgrades list in BUY, one piece per slot,
   capped 5% over its price, and its check takes it off again. The slot turns green with the price.
-  GoldCap's own picks, the strongest mix the gold you carry pays for, have a gold star, and one
-  button puts them all on the list. The bar at the bottom says how many pieces are on the list, what
-  they add and cost, and what you have left or how much you are short; "Open BUY" takes you to the
-  list. A piece you have bought from it says Bought.
+  GoldCap's own picks, the strongest mix the gold you carry pays for, have the auction house's
+  favourite star and a gold frame, and a small star marks their slots on your character. "Best for
+  my gold" puts GoldCap's picks on your list for you to look over. The bar at the bottom says how
+  many pieces are on the list, what they add and cost, and what you have left or how much you are
+  short; "Open BUY" takes you to the list. A piece you have bought from it says Bought.
 - WoW: Forever: each ring slot has its own choices, weighed against the ring on that finger, and
   GoldCap never picks the same ring for both.
 - WoW: Forever: BUY now buys the exact version the HERO tab picked: "of the Monkey" stays "of the
