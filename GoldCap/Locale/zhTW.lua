@@ -1822,6 +1822,16 @@ GC.Locales.zhTW = {
   ["Mount at 40"] = "40 級坐騎",
   ["Best for my gold (%d)"] = "我的金幣能買的最佳（%d 件）",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 推薦：你的金幣買得起的最強組合中的一件",
+  ["How HERO works"] = "HERO 使用說明",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "金色邊框：拍賣場有適合這個部位的更好裝備。點選該部位查看可選裝備。",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ 把裝備加入你的「裝備升級」清單，勾選標記則把它移出。星號是 GoldCap 的推薦。",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "「我的金幣能買的最佳」會把你的金幣買得起的最強組合加入清單。底部欄顯示清單總價和剩餘金幣。",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "打開 BUY，在拍賣場裡買下清單。「屬性權重」決定哪些屬性對你的職業重要。",
+  ["HERO: gear upgrades for your character from the auction house"] = "HERO：在拍賣場為你的角色找裝備升級",
   ["Open BUY"] = "打開 BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "拍賣場上暫時沒有你身上的金幣買得起的裝備。",

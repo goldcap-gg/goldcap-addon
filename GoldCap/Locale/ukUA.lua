@@ -2002,6 +2002,17 @@ GC.Locales.ukUA = {
   ["Best for my gold (%d)"] = "Найкраще на моє золото (%d)",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Вибір GoldCap: частина найсильнішого набору, який можна купити за ваше золото",
+  ["How HERO works"] = "Як працює HERO",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "Золота рамка: на аукціоні є щось краще для цього слота. Натисніть на слот, щоб побачити варіанти.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ додає річ до списку «Покращення», галочка прибирає її. Зірка позначає вибір GoldCap.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "«Найкраще на моє золото» додає до списку найсильніший набір, який можна купити за ваше золото. Смуга внизу показує ціну списку й залишок золота.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "Відкрийте BUY і купіть список там, на аукціоні. Кнопка «Ваги характеристик» задає, що важливо для вашого класу.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: покращення спорядження для вашого персонажа з аукціону",
   ["Open BUY"] = "Відкрити BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "На аукціоні поки немає нічого, на що вистачить вашого золота.",

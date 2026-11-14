@@ -1998,6 +1998,17 @@ GC.Locales.ruRU = {
   ["Best for my gold (%d)"] = "Лучшее на моё золото (%d)",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Выбор GoldCap: часть самого сильного набора, который можно купить на ваше золото",
+  ["How HERO works"] = "Как работает HERO",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "Золотая рамка: на аукционе есть что-то лучше для этого слота. Нажмите на слот, чтобы увидеть варианты.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ добавляет вещь в список «Улучшения», галочка убирает её. Звезда отмечает выбор GoldCap.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "«Лучшее на моё золото» добавляет в список самый сильный набор, который можно купить на ваше золото. Полоса внизу показывает цену списка и остаток золота.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "Откройте BUY и купите список там, на аукционе. Кнопка «Веса характеристик» задаёт, что важно для вашего класса.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: улучшения снаряжения для вашего персонажа с аукциона",
   ["Open BUY"] = "Открыть BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "На аукционе пока нет ничего, на что хватит вашего золота.",

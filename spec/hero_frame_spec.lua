@@ -192,7 +192,8 @@ describe("HERO tab", function()
     helper.loadModule("Core/ForeverGear.lua", GC)
     helper.loadModule("Core/ForeverUpgrades.lua", GC)
     helper.loadModule("Core/ForeverRoad.lua", GC)
-    prefs = {}
+    -- The guide read already: the cases below look at the tab under it (the guide's own case clears it).
+    prefs = { heroGuide = true }
     GC.ForeverScan = { Prefs = function() return prefs end }
     GC.Buy = {
       _SetLineCap = function(code, itemID, copper)
@@ -215,6 +216,7 @@ describe("HERO tab", function()
     GC.ForeverUpgrades.Current = function() builds = builds + 1; return result end
     GC.ForeverRoad.Snapshot = function() snapshots = snapshots + 1; return road end
     host = CreateFrame("Frame")
+    host.heroTab = CreateFrame("Button", nil, host)                -- the rail's HERO tab (UI/SniperFrame.lua)
     H.Attach(host, { panelLeft = 90, panelRightInset = 14, top = -52, bottom = 14, rowWidth = 640, rowHeight = 32 })
     W.state(H._view.container).height = 500
   end)
@@ -1298,10 +1300,116 @@ describe("HERO tab", function()
     H.Show()
     local t = top()
     local function y(frame) return W.state(frame).points[1][5] end
+    local function x(frame) return W.state(frame).points[1][4] end
     assert.equal(y(t.mount.frame), y(t.weights))
+    assert.equal(y(t.help), y(t.weights))
     assert.is_true(-y(t.mount.frame) < 10)
+    -- The chip, "?" square, then the button, ending at the right edge.
+    assert.is_true(x(t.mount.frame) < x(t.help) and x(t.help) < x(t.weights))
+    assert.equal(t.help:GetWidth(), t.help:GetHeight())
+    assert.equal(H._view.width, x(t.weights) + t.weights:GetWidth())
     W.state(H._view.container).width = 300
     H.RefreshIfShown(true)
     assert.is_true(-y(t.mount.frame) > 20)                        -- under the name, not beside it
+    assert.is_true(x(t.mount.frame) < x(t.help) and x(t.help) < x(t.weights))
+  end)
+
+  -- Owner, 14.11: players have to understand what the tab is and what it is for.
+  it("explains itself the first time it opens, until the player has read it", function()
+    prefs.heroGuide = nil
+    H.Show()
+    local g = H._view.guide
+    assert.is_true(shown(g))
+    -- Over the slot panel's area, under the side panels, and the keys stay the window's.
+    assert.equal(sp().frame, W.state(g).points[1][2])
+    assert.equal(sp().frame, W.state(g).points[2][2])
+    assert.is_false(W.state(g).keyboard)
+    assert.equal("How HERO works", textOf(g.title))
+    assert.equal("HERO: gear upgrades for your character from the auction house", textOf(g.sub))
+    assert.equal("Interface\\Icons\\INV_Sword_04", W.state(g.icon).file)
+    -- Four steps, each with its picture at the left of its words.
+    assert.equal(4, #g.steps)
+    local words = {
+      "A gold frame: the auction house has something better for that slot. Click the slot to see its choices.",
+      "+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick.",
+      "Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left.",
+      "Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class.",
+    }
+    for i, st in ipairs(g.steps) do
+      assert.equal(words[i], textOf(st.text), i)
+      assert.is_true(W.state(st.text).points[1][4] >= GC.Hero.C.GUIDE_COL, i)
+      assert.equal(st.frame, W.state(st.art).points[1][2], i)
+    end
+    local slot, plus, coin, buy = g.steps[1], g.steps[2], g.steps[3], g.steps[4]
+    assert.equal("Interface\\Icons\\INV_Boots_05", W.state(slot.icon.icon).file)
+    assert.same(rgb(GC.Theme.color.gold), colourOf(slot.ring))
+    assert.same({ GC.Theme.IconCoords("plus") }, W.state(plus.glyph).texCoord)
+    assert.equal("auctionhouse-icon-favorite", W.state(plus.star).atlas)
+    assert.equal("Interface\\Icons\\INV_Misc_Coin_01", W.state(coin.icon.icon).file)
+    assert.same({ GC.Theme.IconCoords("buy") }, W.state(buy.glyph).texCoord)
+    assert.equal("Got it", textOf(g.primary.text))
+    assert.is_false(shown(g.close))
+    assert.is_false(shown(g.secondary))
+    -- No slot is listed under it, and "?" is lit.
+    assert.is_false(shown(slotAt(5).glow))
+    local help, lit = top().help, nil
+    local setVariant = help.SetVariant
+    help.SetVariant = function(self, name) lit = name; return setVariant(self, name) end
+    H.RefreshIfShown(true)
+    assert.equal("active", lit)
+    -- The weights open over it as over a slot, and shut back onto it.
+    press(top().weights)
+    assert.equal("weights", H._state.panel)
+    assert.is_true(shown(g))
+    press(panel("weights").primary)
+    assert.is_true(shown(g))
+    -- Got it: remembered, the first slot with choices listed.
+    press(g.primary)
+    assert.is_true(prefs.heroGuide)
+    assert.is_false(shown(g))
+    assert.equal("ghost", lit)
+    assert.equal(5, H._state.sel)
+    assert.is_true(shown(slotAt(5).glow))
+    H.Hide()
+    H.Show()
+    assert.is_false(shown(g))                                    -- read: it stays away
+  end)
+
+  it("puts the guide away for a slot clicked without remembering it, and brings it back from ?", function()
+    prefs.heroGuide = nil
+    H.Show()
+    local g = H._view.guide
+    press(slotAt(16))
+    assert.is_false(shown(g))
+    assert.is_nil(prefs.heroGuide)
+    assert.equal(16, H._state.sel)
+    assert.equal("MAIN HAND", textOf(sp().title))
+    H.Hide()
+    H.Show()
+    assert.is_true(shown(g))                                     -- not read yet: up again
+    press(g.primary)
+    -- "?" brings it back over an open panel, its tooltip says what it is; a second press puts it away.
+    local help = top().help
+    assert.equal("?", textOf(help.text))
+    W.state(help).hooks.OnEnter(help)
+    assert.equal("How HERO works", tipText)
+    W.state(help).hooks.OnLeave(help)
+    press(top().weights)
+    press(help)
+    assert.is_true(shown(g))
+    assert.is_nil(H._state.panel)
+    assert.is_true(prefs.heroGuide)
+    press(help)
+    assert.is_false(shown(g))
+  end)
+
+  it("says what HERO is for under the cursor on its rail tab", function()
+    local tab = host.heroTab
+    W.state(tab).hooks.OnEnter(tab)
+    assert.equal("HERO: gear upgrades for your character from the auction house", tipText)
+    assert.equal(tab, tipOwner)
+    assert.is_true(tipShown)
+    W.state(tab).hooks.OnLeave(tab)
+    assert.is_false(tipShown)
   end)
 end)

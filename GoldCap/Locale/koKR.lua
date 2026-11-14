@@ -1857,6 +1857,17 @@ GC.Locales.koKR = {
   ["Mount at 40"] = "40레벨 탈것",
   ["Best for my gold (%d)"] = "내 골드에 맞는 최선 (%d개)",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 추천: 보유 골드로 살 수 있는 가장 강한 조합의 일부",
+  ["How HERO works"] = "HERO 사용법",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "금색 테두리: 경매장에 그 부위에 더 좋은 장비가 있습니다. 부위를 클릭하면 선택지를 볼 수 있습니다.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+를 누르면 장비가 업그레이드 목록에 담기고, 체크 표시를 누르면 빠집니다. 별은 GoldCap 추천입니다.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "내 골드에 맞는 최선은 보유 골드로 살 수 있는 가장 강한 조합을 목록에 담습니다. 아래 막대에 목록 비용과 남는 골드가 표시됩니다.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "BUY를 열어 경매장에서 목록을 구매하세요. 능력치 가중치에서 직업에 중요한 능력치를 정할 수 있습니다.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: 경매장에서 찾는 내 캐릭터의 장비 업그레이드",
   ["Open BUY"] = "BUY 열기",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "아직 경매장에 가진 골드로 살 수 있는 것이 없습니다.",

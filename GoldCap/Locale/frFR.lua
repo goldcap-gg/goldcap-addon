@@ -1935,6 +1935,17 @@ GC.Locales.frFR = {
   ["Best for my gold (%d)"] = "Le mieux pour mon or (%d)",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "Choix de GoldCap : fait partie de la meilleure combinaison que ton or peut payer",
+  ["How HERO works"] = "Comment fonctionne HERO",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "Un cadre doré : l'hôtel des ventes a mieux pour cet emplacement. Clique sur l'emplacement pour voir les choix.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ met une pièce sur ta liste Améliorations, sa coche l'en retire. L'étoile est le choix de GoldCap.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "« Le mieux pour mon or » met sur la liste la meilleure combinaison que ton or peut payer. La barre montre ce que coûte la liste et l'or qui reste.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "Ouvre BUY et achète la liste là-bas, à l'hôtel des ventes. « Pondérations » règle ce qui compte pour ta classe.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO : améliorations d'équipement pour ton personnage à l'hôtel des ventes",
   ["Open BUY"] = "Ouvrir BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "Rien à l'hôtel des ventes n'est encore à la portée de l'or que tu as.",

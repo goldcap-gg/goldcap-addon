@@ -8,8 +8,10 @@ local _, GC = ...
 -- the list holds, with "Best for my gold", which puts GoldCap's whole set on the list for the player
 -- to look over, and "Open BUY". The list is the
 -- player's Upgrades list in BUY (prefs.heroList), never a copy: what it holds is what the tab shows.
--- The stat weights and the gold toward a mount open over the slot panel. Only GoldCap_Camelot.toc
--- loads this file, and it adds its own rail entry as it loads, so retail's rail keeps its four tabs.
+-- The stat weights and the gold toward a mount open over the slot panel, and so does a guide to the
+-- tab, by itself until the player has read it and from "?" after. Only GoldCap_Camelot.toc loads
+-- this file, and it adds its own rail entry as it loads (with its tooltip), so retail's rail keeps
+-- its four tabs.
 --
 -- A tab of the GoldCap window as Sold is (UI/SoldFrame.lua): Attach builds its container over the
 -- same region, Show and Hide follow the rail, RefreshIfShown repaints it while it is on screen, and
@@ -42,6 +44,7 @@ local HD = {
   PAD = 12, HEAD_ICON = 34, LIST_GUTTER = 22, -- the slot panel
   OPT_PAD_X = 8, OPT_PAD_Y = 6, OPT_GAP = 4, BOX = 16, BOX_GLYPH = 12, OPT_ICON = 28, TEXT_MIN = 110,
   BAR_PAD = 8, BAR_TEXT_MIN = 120, BAR_BTN_H = 32, BAR_BTN_W = 96,
+  GUIDE_ICON = 30, GUIDE_COL = 44, GUIDE_PAD = 8, GUIDE_GLYPH = 22, -- the guide's steps: picture, words
   BTN_H = 26, -- plaque's 12px caps stay under half the height
   PANEL_W = 336, PANEL_PAD = 12, PANEL_HEAD_H = 58, PANEL_FOOT_H = 48, PANEL_GUTTER = 22, BOX_W = 62,
   COST_W = 92, PANEL_ICON = 26, LINE_ICON = 22,
@@ -58,7 +61,7 @@ local view = {}
 Hero._view = view
 -- The result painted (r), when (now), the panel open ("weights", "mount" or nil), the road to a
 -- mount read this paint, the doll slot selected (sel, an inventory slot; selByHand once the player
--- clicked one), and the list read this paint: lines (the Upgrades list's own) and bought (what this
+-- clicked one), whether the guide is up (guide), and the list read this paint: lines (the Upgrades list's own) and bought (what this
 -- character bought on it), options[group] each slot's choices as listed, picks[group] GoldCap's pick
 -- among them, inList[group] the piece the list holds for that slot, listed those in the result's slot
 -- order. placed[item string] is the slot the player last put a piece in, this session's: a ring on
@@ -78,7 +81,7 @@ local Theme, KP
 -- Real WoW icons for what the panels count: items and spells both clients have.
 local ICON = {
   carry = "Interface\\Icons\\INV_Misc_Coin_01", bags = "Interface\\Icons\\INV_Misc_Bag_08",
-  mount = "Interface\\Icons\\Ability_Mount_RidingHorse",
+  mount = "Interface\\Icons\\Ability_Mount_RidingHorse", boots = "Interface\\Icons\\INV_Boots_05",
 }
 local STAT_ICON = {
   STR = "Interface\\Icons\\Spell_Nature_Strength", AGI = "Interface\\Icons\\Spell_Holy_BlessingOfAgility",
@@ -306,6 +309,14 @@ end
 
 local function hideTip()
   if GameTooltip then GameTooltip:Hide() end
+end
+
+-- A line of words for what `owner` is, wrapping, on the side of it the screen has room on.
+local function textTip(owner, text)
+  if not GameTooltip then return end
+  GameTooltip:SetOwner(owner, Theme.TooltipAnchor(owner))
+  GameTooltip:SetText(GC.Util.ClientText(text), 1, 1, 1, 1, true)
+  GameTooltip:Show()
 end
 
 local paint -- forward: the whole tab from the last result (below)
@@ -596,8 +607,8 @@ end
 -- The top line ------------------------------------------------------------------------------
 
 -- Who looks (the class's icon, its name and level, the scan's age and any note about the scan),
--- and at the right the gold toward a mount, a chip that opens its panel, and the button that opens
--- the stat weights.
+-- and at the right the gold toward a mount, a chip that opens its panel, "?", which shows how the
+-- tab works, and the button that opens the stat weights.
 local function createTop(container)
   local t = {}
   t.classEdge = container:CreateTexture(nil, "BORDER")
@@ -628,6 +639,10 @@ local function createTop(container)
   setColor(m.value, Theme.color.fg)
   m.frame:SetScript("OnClick", function() Hero.TogglePanel("mount") end)
   t.mount = m
+  t.help = Theme.Button(container, "ghost", "plaque")
+  t.help:SetScript("OnClick", function() Hero.ToggleGuide() end)
+  t.help:HookScript("OnEnter", function(self) textTip(self, GC.L["How HERO works"]) end)
+  t.help:HookScript("OnLeave", hideTip)
   t.weights = Theme.Button(container, "ghost", "plaque")
   t.weights:SetScript("OnClick", function() Hero.TogglePanel("weights") end)
   return t
@@ -657,9 +672,9 @@ local function paintChip(m)
   return w, h
 end
 
--- The top line at `width`: who looks at the left, the chip and the button at the right; on one
--- line while the name keeps WHO_MIN beside them, else the chip and the button on a line under it.
--- Answers its height.
+-- The top line at `width`: who looks at the left, the chip, "?" and the button at the right; on one
+-- line while the name keeps WHO_MIN beside them, else those on a line under it. "?" is square, and
+-- lit while the guide is up. Answers its height.
 local function layoutTop(r, width)
   local t = view.top
   local className, file = classOf()
@@ -682,7 +697,10 @@ local function layoutTop(r, width)
   label(t.weights, GC.L["Stat weights"], 0)
   t.weights:SetVariant(state.panel == "weights" and "active" or "ghost")
   t.weights:SetHeight(chipH)
-  local partsW = chipW + HD.SMALL + (t.weights:GetWidth() or 0)
+  label(t.help, "?", 0)
+  t.help:SetVariant(state.guide and "active" or "ghost")
+  t.help:SetSize(chipH, chipH)
+  local partsW = chipW + HD.SMALL + chipH + HD.SMALL + (t.weights:GetWidth() or 0)
   local whoRoom = width - partsW - HD.GAP
   local oneLine = whoRoom >= HD.WHO_MIN
   local whoW = oneLine and whoRoom or width
@@ -702,13 +720,15 @@ local function layoutTop(r, width)
   t.sub:SetPoint("TOPLEFT", t.name, "BOTTOMLEFT", 0, -2)
   t.note:ClearAllPoints()
   t.note:SetPoint("TOPLEFT", subH > 0 and t.sub or t.name, "BOTTOMLEFT", 0, -2)
-  -- The chip and the button, right to left, centred in the band; under it when the line is short.
+  -- The chip, "?" and the button, right to left, centred in the band; under it when the line is short.
   local y = oneLine and math.floor((band - chipH) / 2) or whoH + HD.SMALL
-  local x = width - (t.weights:GetWidth() or 0)
-  t.weights:ClearAllPoints()
-  t.weights:SetPoint("TOPLEFT", view.container, "TOPLEFT", oneLine and x or chipW + HD.SMALL, -y)
+  local x = oneLine and width - partsW or 0
   t.mount.frame:ClearAllPoints()
-  t.mount.frame:SetPoint("TOPLEFT", view.container, "TOPLEFT", oneLine and x - HD.SMALL - chipW or 0, -y)
+  t.mount.frame:SetPoint("TOPLEFT", view.container, "TOPLEFT", x, -y)
+  t.help:ClearAllPoints()
+  t.help:SetPoint("TOPLEFT", view.container, "TOPLEFT", x + chipW + HD.SMALL, -y)
+  t.weights:ClearAllPoints()
+  t.weights:SetPoint("TOPLEFT", view.container, "TOPLEFT", x + chipW + HD.SMALL + chipH + HD.SMALL, -y)
   return oneLine and band or y + chipH
 end
 
@@ -759,11 +779,11 @@ local function newSlot(parent, e)
   b:SetScript("OnEnter", pieceTip)
   b:SetScript("OnLeave", hideTip)
   -- A modified click is the client's (shift links the piece shown, ctrl tries it on); a plain one
-  -- lists the slot's choices.
+  -- lists the slot's choices, the guide put away if it is up.
   b:SetScript("OnClick", function(self)
     local handle = _G.HandleModifiedItemClick
     if self.tipLink and type(handle) == "function" and handle(self.tipLink) then return end
-    state.sel, state.selByHand = self.invSlot, true
+    state.sel, state.selByHand, state.guide = self.invSlot, true, false
     paint()
   end)
   return b
@@ -832,7 +852,7 @@ local function paintSlot(b)
   b.glyph:SetShown(c ~= nil)
   b.star:SetShown(s ~= nil and c == nil and pickWaits(state.picks[s.group]))
   if c then put(b.price, GC.Util.FormatGoldCeil(c.unit)) else b.price:Hide() end
-  b.glow:SetShown(b.invSlot == state.sel)
+  b.glow:SetShown(b.invSlot == state.sel and not state.guide)
 end
 
 -- The doll at the tab's left, `midTop` down and `midH` tall: the hint over it; eight slots down
@@ -961,11 +981,7 @@ local function newOption(parent)
   b.star.tex:SetAllPoints()
   paintStar(b.star.tex)
   b.star:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
-    GameTooltip:SetText(GC.Util.ClientText(GC.L["GoldCap's pick: part of the strongest mix your gold pays for"]),
-      1, 1, 1, 1, true)
-    GameTooltip:Show()
+    textTip(self, GC.L["GoldCap's pick: part of the strongest mix your gold pays for"])
   end)
   b.star:SetScript("OnLeave", hideTip)
   b.name = Theme.Label(b, 13)
@@ -1949,6 +1965,144 @@ function Hero.TogglePanel(key)
   paint()
 end
 
+-- The guide ---------------------------------------------------------------------------------
+
+-- How the tab works, in the slot panel's place and a side panel's look: up on every Show until the
+-- player presses "Got it" (prefs.heroGuide, account-wide as the other Forever prefs), and from "?"
+-- in the top line after. The weights and the mount open over it as over a slot's choices, and a
+-- click on a doll slot puts it away and lists that slot. Four steps, each with the picture of what
+-- it names: a slot with choices in its gold frame, an option's "+" and GoldCap's star, the gold
+-- carried, and BUY as the rail draws it.
+local function newGuide()
+  local p = newPanel()
+  -- Under the side panels (newPanel's +20), over the slot panel and its list.
+  p:SetFrameLevel((view.container:GetFrameLevel() or 0) + 10)
+  -- It takes no keys: Escape stays the window's, as over a slot's choices.
+  if p.EnableKeyboard then p:EnableKeyboard(false) end
+  p:SetScript("OnKeyDown", nil)
+  p:SetScript("OnKeyUp", nil)
+  p.close:Hide()
+  p.secondary:Hide()
+  p.primary:SetScript("OnClick", function() Hero.CloseGuide(true) end)
+  local gold, dim = Theme.color.gold, Theme.color.fgDim
+  local function step()
+    local st = { frame = CreateFrame("Frame", nil, p.body) }
+    st.art = CreateFrame("Frame", nil, st.frame)
+    st.art:SetSize(HD.GUIDE_COL, HD.GUIDE_ICON + 2 * HD.RING)
+    st.text = Theme.Label(st.frame, 12)
+    st.text:SetJustifyH("LEFT")
+    setColor(st.text, Theme.color.fgMuted)
+    return st
+  end
+  local function icon(st)
+    st.icon = KP.NewIcon(st.art, HD.GUIDE_ICON)
+    st.icon.edge:SetPoint("LEFT", st.art, "LEFT", HD.RING, 0)
+  end
+  -- 1. A doll slot with choices: an item's art in the slot's thin gold frame.
+  local slot = step()
+  icon(slot)
+  slot.ring = slot.art:CreateTexture(nil, "BORDER", nil, -2)
+  slot.ring:SetColorTexture(gold[1], gold[2], gold[3], 1)
+  slot.ring:SetPoint("TOPLEFT", slot.icon.edge, "TOPLEFT", -HD.RING, HD.RING)
+  slot.ring:SetPoint("BOTTOMRIGHT", slot.icon.edge, "BOTTOMRIGHT", HD.RING, -HD.RING)
+  -- 2. An option's "+", and GoldCap's star beside it.
+  local plus = step()
+  plus.box = Theme.ShapeTexture(plus.art, "ARTWORK", "chip", { dim[1], dim[2], dim[3], 0.9 }, true)
+  plus.box:SetSize(HD.BOX, HD.BOX)
+  plus.box:SetPoint("LEFT", plus.art, "LEFT", HD.RING, 0)
+  plus.glyph = plus.art:CreateTexture(nil, "OVERLAY")
+  plus.glyph:SetSize(HD.BOX_GLYPH, HD.BOX_GLYPH)
+  plus.glyph:SetPoint("CENTER", plus.box, "CENTER", 0, 0)
+  Theme.SetIcon(plus.glyph, "plus", Theme.color.fg)
+  plus.star = plus.art:CreateTexture(nil, "OVERLAY")
+  plus.star:SetSize(HD.STAR_W, HD.STAR_H)
+  plus.star:SetPoint("LEFT", plus.box, "RIGHT", HD.STAR_GAP, 0)
+  paintStar(plus.star)
+  -- 3. The gold carried.
+  local coin = step()
+  icon(coin)
+  -- 4. BUY as the rail draws it: the client's item icon in Classic, the kit's cart in the others.
+  local buy = step()
+  local plate = Theme.Plate and Theme.Plate()
+  if plate and plate.client then
+    icon(buy)
+  else
+    buy.glyph = buy.art:CreateTexture(nil, "ARTWORK")
+    buy.glyph:SetSize(HD.GUIDE_GLYPH, HD.GUIDE_GLYPH)
+    buy.glyph:SetPoint("LEFT", buy.art, "LEFT", HD.RING + 4, 0)
+    Theme.SetIcon(buy.glyph, "buy", Theme.color.fg)
+  end
+  p.steps = { slot, plus, coin, buy }
+  return p
+end
+
+-- The guide at `width`: its head, then the steps down its body, each as tall as its words or its
+-- picture, the body scrolling when the panel is shorter than they are.
+local function paintGuide(p, width)
+  local bodyW = paintHead(p, width, { file = Theme.CLASSIC.icons.hero, edge = Theme.color.gold,
+    titleColor = Theme.color.goldHi, title = GC.L["How HERO works"],
+    sub = GC.L["HERO: gear upgrades for your character from the auction house"] })
+  local steps = p.steps
+  KP.PaintIcon(steps[1].icon, nil, ICON.boots)
+  KP.PaintIcon(steps[3].icon, nil, ICON.carry)
+  if steps[4].icon then KP.PaintIcon(steps[4].icon, nil, Theme.CLASSIC.icons.buy) end
+  local words = {
+    GC.L["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."],
+    GC.L["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."],
+    GC.L["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."],
+    GC.L["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."],
+  }
+  local inner = bodyW - 2 * HD.PANEL_PAD
+  local textX = HD.GUIDE_COL + HD.GAP
+  local artH = HD.GUIDE_ICON + 2 * HD.RING
+  local y = 4
+  for i, st in ipairs(steps) do
+    put(st.text, words[i])
+    local th = wrapTo(st.text, inner - textX)
+    local h = math.max(artH, th) + 2 * HD.GUIDE_PAD
+    st.frame:ClearAllPoints()
+    st.frame:SetPoint("TOPLEFT", p.body, "TOPLEFT", HD.PANEL_PAD, -y)
+    st.frame:SetSize(inner, h)
+    st.art:ClearAllPoints()
+    st.art:SetPoint("LEFT", st.frame, "LEFT", 0, 0)
+    st.text:ClearAllPoints()
+    st.text:SetPoint("TOPLEFT", st.frame, "TOPLEFT", textX, -math.floor((h - th) / 2))
+    y = y + h
+  end
+  p.body:SetHeight(math.max(1, y + HD.PANEL_PAD))
+  label(p.primary, GC.L["Got it"], 0)
+end
+
+-- The guide over the slot panel `w` wide while it is up; else away.
+local function paintGuideIfUp(w)
+  if not state.guide then
+    if view.guide then view.guide:Hide() end
+    return
+  end
+  view.guide = view.guide or newGuide()
+  view.guide:SetWidth(w)
+  placePanel(view.guide)
+  paintGuide(view.guide, w)
+  view.guide:Show()
+end
+
+--- "?": the guide in the slot panel's place, a side panel open shut so it is what the player sees;
+--- or, while it is up, away again.
+function Hero.ToggleGuide()
+  state.guide = not state.guide
+  if state.guide then state.panel = nil end
+  paint()
+end
+
+--- The guide away and the first slot with choices listed; `learned` ("Got it") remembers that the
+--- player has read it, so it no longer comes up by itself.
+function Hero.CloseGuide(learned)
+  local p = prefs()
+  if learned and p then p.heroGuide = true end
+  state.guide, state.selByHand = false, nil
+  paint()
+end
+
 -- The whole tab -------------------------------------------------------------------------------
 
 local function currentWidth()
@@ -1983,6 +2137,7 @@ paint = function()
   layoutDoll(midTop, midH)
   local panelW = math.max(1, width - HD.DOLL_W - HD.GAP)
   layoutPanel(r, HD.DOLL_W + HD.GAP, midTop, panelW, midH)
+  paintGuideIfUp(panelW)
   paintPanels(panelW)
   -- The character dressed again on every Show and whenever what it wears changed, once laid out.
   if view.dressed ~= view.wornSig then
@@ -2033,6 +2188,15 @@ function Hero.Attach(f, geo)
     if shown() then paint() end
   end)
   if Theme.OnRescale then Theme.OnRescale(function() if shown() then paint() end end) end
+  -- The rail's HERO tab says what the tab is for under the cursor. No other tab has a tooltip, and
+  -- retail's rail has no HERO tab, so this is HERO's own.
+  local tab = f.heroTab
+  if tab and tab.HookScript then
+    tab:HookScript("OnEnter", function(self)
+      textTip(self, GC.L["HERO: gear upgrades for your character from the auction house"])
+    end)
+    tab:HookScript("OnLeave", hideTip)
+  end
 end
 
 -- One more repaint SPEED_S on while Core/ForeverUpgrades.lua says weapon speeds are still being
@@ -2097,8 +2261,10 @@ function Hero.Show()
   repaint.stale, repaint.last, repaint.speedLast = 0, nil, nil
   repaint.gen, repaint.selfCount, repaint.selfDue = repaint.gen + 1, 0, false
   repaint.selfFlat, repaint.selfFrom = 0, nil
-  -- And lists the first slot with choices again, and dresses the character as it stands now.
+  -- And lists the first slot with choices again, and dresses the character as it stands now; the
+  -- guide comes up until the player has read it.
   state.selByHand, view.dressed = nil, nil
+  state.guide = not (prefs() or {}).heroGuide
   view.restamp = true -- see put(): every string is drawn again after the hide
   Hero.Render(current(), time())
   view.restamp = false

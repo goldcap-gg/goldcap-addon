@@ -1821,6 +1821,16 @@ GC.Locales.zhCN = {
   ["Mount at 40"] = "40 级坐骑",
   ["Best for my gold (%d)"] = "我的金币能买的最佳（%d 件）",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 推荐：你的金币买得起的最强组合中的一件",
+  ["How HERO works"] = "HERO 使用说明",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "金色边框：拍卖行有适合这个部位的更好装备。点击该部位查看可选装备。",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ 把装备加入你的“装备升级”清单，勾选标记则把它移出。星标是 GoldCap 的推荐。",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "“我的金币能买的最佳”会把你的金币买得起的最强组合加入清单。底部栏显示清单总价和剩余金币。",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "打开 BUY，在拍卖行里买下清单。“属性权重”决定哪些属性对你的职业重要。",
+  ["HERO: gear upgrades for your character from the auction house"] = "HERO：在拍卖行为你的角色找装备升级",
   ["Open BUY"] = "打开 BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "拍卖行上暂时没有你身上的金币买得起的装备。",

@@ -1919,6 +1919,17 @@ GC.Locales.enUS = {
   ["Best for my gold (%d)"] = "Best for my gold (%d)",
   ["GoldCap's pick: part of the strongest mix your gold pays for"] =
     "GoldCap's pick: part of the strongest mix your gold pays for",
+  ["How HERO works"] = "How HERO works",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "A gold frame: the auction house has something better for that slot. Click the slot to see its choices.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: gear upgrades for your character from the auction house",
   ["Open BUY"] = "Open BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "Nothing on the auction house fits the gold you carry yet.",
