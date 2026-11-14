@@ -62,20 +62,23 @@ GC.ForeverUpgrades.TOKEN_ORDER = { "STR", "AGI", "STA", "INT", "SPI", "ARMOR", "
 
 -- Starting weights per class: which stats a levelling character of the class wants, roughly. Shown
 -- in the window and changed with /gc weights -- a scoring choice the player can see, never a stat.
--- DPS for the three melee classes is 14 times their AP weight (HERO plan, Finding 3, 2026-11-13): in
--- Classic one point of weapon DPS is worth 14 attack power, and the 2 these had weighed it like 4.
--- Hunters, casters and hybrids keep their numbers: nothing measured
--- says otherwise for them. A player's own /gc weights stay as they were saved.
+-- In Classic one point of weapon DPS is worth 14 attack power (HERO plan, Finding 3, 2026-11-13), so
+-- a class's DPS weight is 14 times its AP weight, for the weapon it fights with (HANDS below says
+-- which hand that is): the melee classes' 7 (AP 0.5), the hunter's 5.6 (AP 0.4, the bow). A
+-- shaman's strength is two attack power, so its AP is half its STR, 0.3, and its DPS 14 times that,
+-- 4.2; a druid's 0.3 AP is the attack power on gear its forms fight with. A caster's weapon DPS is
+-- its wand's: 2, as much as its top stat for a few points of DPS, the most its wand adds while it
+-- levels. A player's own /gc weights stay as they were saved (migrateWeights below).
 GC.ForeverUpgrades.DEFAULT_WEIGHTS = {
   WARRIOR = { STR = 1, AGI = 0.5, STA = 0.5, AP = 0.5, DPS = 7, ARMOR = 0.01 },
   PALADIN = { STR = 1, INT = 0.4, STA = 0.5, AGI = 0.3, AP = 0.5, DPS = 7, ARMOR = 0.01 },
   ROGUE = { AGI = 1, STR = 0.5, STA = 0.4, AP = 0.5, DPS = 7, ARMOR = 0.01 },
-  HUNTER = { AGI = 1, INT = 0.3, STA = 0.4, AP = 0.4, DPS = 2, ARMOR = 0.01 },
-  SHAMAN = { INT = 0.8, STR = 0.6, AGI = 0.4, STA = 0.5, SPI = 0.2, SP = 0.8, DPS = 1.5, ARMOR = 0.01 },
-  DRUID = { INT = 0.8, STR = 0.6, AGI = 0.6, STA = 0.5, SPI = 0.3, SP = 0.8, ARMOR = 0.01 },
-  MAGE = { INT = 1, SPI = 0.4, STA = 0.5, SP = 1, DPS = 0.5, ARMOR = 0.005 },
-  PRIEST = { INT = 1, SPI = 0.6, STA = 0.5, SP = 1, DPS = 0.5, ARMOR = 0.005 },
-  WARLOCK = { INT = 1, SPI = 0.4, STA = 0.6, SP = 1, DPS = 0.5, ARMOR = 0.005 },
+  HUNTER = { AGI = 1, INT = 0.3, STA = 0.4, AP = 0.4, DPS = 5.6, ARMOR = 0.01 },
+  SHAMAN = { INT = 0.8, STR = 0.6, AGI = 0.4, STA = 0.5, SPI = 0.2, SP = 0.8, AP = 0.3, DPS = 4.2, ARMOR = 0.01 },
+  DRUID = { INT = 0.8, STR = 0.6, AGI = 0.6, STA = 0.5, SPI = 0.3, SP = 0.8, AP = 0.3, ARMOR = 0.01 },
+  MAGE = { INT = 1, SPI = 0.4, STA = 0.5, SP = 1, DPS = 2, ARMOR = 0.005 },
+  PRIEST = { INT = 1, SPI = 0.6, STA = 0.5, SP = 1, DPS = 2, ARMOR = 0.005 },
+  WARLOCK = { INT = 1, SPI = 0.4, STA = 0.6, SP = 1, DPS = 2, ARMOR = 0.005 },
 }
 
 -- Slot groups in display order; labelKey is the client's own slot name global (INVTYPE_*).
@@ -179,13 +182,23 @@ function GC.ForeverUpgrades.ClassAllows(classFile, classID, subclassID, level)
   return false
 end
 
--- What a point of weapon DPS is worth in each hand, per class (HERO plan, Finding 3): the off hand
--- swings for half in Classic, and a melee class's ranged weapon is a pull more than damage, about a
--- seventh. A class or a group not listed counts as 1: only rogue and warrior get these, from the
--- same Classic rules; nothing measured says what a hunter's or a caster's hands are worth.
+-- What a point of weapon DPS is worth in each hand, per class (HERO plan, Finding 3), the hand the
+-- class fights with at 1: the off hand swings for half in Classic, and a melee class's ranged
+-- weapon is a pull more than damage, about a seventh. Paladins and shamans swing the main hand and
+-- shoot nothing (their off hand is a shield or a held piece); a hunter fights with the bow, gun or
+-- crossbow, its melee weapon a tenth of that; a mage's, priest's or warlock's weapon DPS is the
+-- wand's, a staff's or a dagger's counting for its stats alone; a druid's forms fight without the
+-- weapon. A class or a group not listed counts as 1.
 GC.ForeverUpgrades.HANDS = {
   ROGUE = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 1 / 7 },
   WARRIOR = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 1 / 7 },
+  PALADIN = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 0 },
+  SHAMAN = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 0 },
+  HUNTER = { MAINHAND = 0.1, OFFHAND = 0.05, RANGED = 1 },
+  MAGE = { MAINHAND = 0, OFFHAND = 0, RANGED = 1 },
+  PRIEST = { MAINHAND = 0, OFFHAND = 0, RANGED = 1 },
+  WARLOCK = { MAINHAND = 0, OFFHAND = 0, RANGED = 1 },
+  DRUID = { MAINHAND = 0, OFFHAND = 0, RANGED = 0 },
 }
 
 -- The factor Score puts on a piece's DPS in that group. A class with an ABILITY_EVERY swings its
@@ -214,15 +227,16 @@ function GC.ForeverUpgrades.StyleFor(prefs, classFile, wornMainSubclass)
 end
 
 -- dpsFactor: DpsFactor's answer for the hand the piece goes in, 1 when not given. Only the DPS
--- token's share is scaled; parts stay the piece's own numbers, for Diff and the words on screen.
+-- token's share is scaled; parts stay the piece's own numbers, for Diff and the words on screen,
+-- but a DPS that counts for nothing in that hand (a priest's staff) is not among them.
 function GC.ForeverUpgrades.Score(stats, weights, dpsFactor)
   local score, parts = 0, {}
   if type(stats) ~= "table" then return score, parts end
   local dps = tonumber(dpsFactor) or 1
   for token, w in pairs(weights or {}) do
     local keys = GC.ForeverUpgrades.TOKENS[token]
-    if keys and type(w) == "number" and w ~= 0 then
-      local f = token == "DPS" and dps or 1
+    local f = token == "DPS" and dps or 1
+    if keys and type(w) == "number" and w ~= 0 and f ~= 0 then
       for _, key in ipairs(keys) do
         local v = stats[key]
         if type(v) == "number" then
@@ -922,20 +936,36 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   return out
 end
 
--- The three melee classes' DPS default was 2 until the HERO plan (Finding 3, 13.11), and every
--- /gc weights call saved the whole table, that 2 included: a saved 2 there is the old default, not
--- the player's choice. It moves to the new default once, for every class in the account's prefs
--- at the same time, and prefs.weightsV = 2 says it is done, so a 2 the player types later stays.
+-- Every /gc weights call saves the class's whole table, its defaults included, so a saved default
+-- is not the player's choice and moves with the defaults, once, for every class in the account's
+-- prefs at the same time; prefs.weightsV says how far that has gone, so a number the player types
+-- later stays. 2: the three melee classes' DPS was 2 until the HERO plan (Finding 3, 13.11). 3
+-- (14.11): the other classes' DPS was the old number below (a druid had none), and a shaman's or a
+-- druid's table had no AP.
 local MELEE_DPS_MOVED = { "WARRIOR", "PALADIN", "ROGUE" }
+local OLD_DPS = { HUNTER = 2, SHAMAN = 1.5, MAGE = 0.5, PRIEST = 0.5, WARLOCK = 0.5 }
+local AP_ADDED = { "SHAMAN", "DRUID" }
 local function migrateWeights(prefs)
-  if type(prefs) ~= "table" or (tonumber(prefs.weightsV) or 0) >= 2 then return end
-  if type(prefs.weights) == "table" then
+  if type(prefs) ~= "table" then return end
+  local v = tonumber(prefs.weightsV) or 0
+  if v >= 3 then return end
+  local saved = type(prefs.weights) == "table" and prefs.weights or {}
+  local defaults = GC.ForeverUpgrades.DEFAULT_WEIGHTS
+  if v < 2 then
     for _, class in ipairs(MELEE_DPS_MOVED) do
-      local own = prefs.weights[class]
-      if type(own) == "table" and own.DPS == 2 then own.DPS = GC.ForeverUpgrades.DEFAULT_WEIGHTS[class].DPS end
+      local own = saved[class]
+      if type(own) == "table" and own.DPS == 2 then own.DPS = defaults[class].DPS end
     end
   end
-  prefs.weightsV = 2
+  for class, old in pairs(OLD_DPS) do
+    local own = saved[class]
+    if type(own) == "table" and own.DPS == old then own.DPS = defaults[class].DPS end
+  end
+  for _, class in ipairs(AP_ADDED) do
+    local own = saved[class]
+    if type(own) == "table" and own.AP == nil then own.AP = defaults[class].AP end
+  end
+  prefs.weightsV = 3
 end
 
 -- Stat weights: the player's own for this class, else a copy of the class's default, else none.

@@ -185,9 +185,13 @@ describe("ForeverUpgrades", function()
       gain = 35, diffs = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 }, overGold = false, inSet = false,
       twoHand = false }, r.slots[2].best)                          -- the off hand swings for half
     assert.are_not.equal(r.slots[1].best, r.slots[2].best)         -- one candidate per hand
-    local mage = U.Build(g, drv({ classFile = function() return "MAGE" end }), w)
+    -- A mage dual-wields nothing; and a sword's DPS counts for nothing in its hand, its strength does.
+    items[1301] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
+    statsOf["item:1301"] = STR(3)
+    local mage = U.Build(gear({ [1300] = "40:0:0", [1301] = "30:0:0" }), drv({ classFile = function() return "MAGE" end }), w)
     assert.equal(1, #mage.slots)
     assert.equal("MAINHAND", mage.slots[1].group)
+    assert.equal(1301, mage.slots[1].best.itemID)
   end)
 
   it("keeps only daggers for the main hand of a Backstab rogue", function()
@@ -685,6 +689,26 @@ describe("ForeverUpgrades", function()
       assert.is_nil(U.TooltipVerdict(great, quiet(), W))
     end)
 
+    -- The tooltip weighs by Build's own numbers: a priest's wand by its DPS, a staff's DPS not at all.
+    it("weighs a caster's wand by its DPS and says nothing of a staff's", function()
+      items[1610], items[1611] = { loc = "INVTYPE_RANGEDRIGHT", class = 2, sub = 19 },
+        { loc = "INVTYPE_RANGEDRIGHT", class = 2, sub = 19 }
+      items[1612] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 10 }
+      local old, new, staff = link(1610, "Lesser Magic Wand"), link(1611, "Greater Magic Wand"), link(1612, "Oak Staff")
+      worn[18] = old
+      statsOf[old], statsOf[new], statsOf[staff] = DPS(4), DPS(6), DPS(20)
+      local d = quiet({ classFile = function() return "PRIEST" end })
+      local w = U.DEFAULT_WEIGHTS.PRIEST
+      assert.same({ say("Upgrade: +2 Damage per Second over your Lesser Magic Wand") }, U.TooltipVerdict(new, d, w))
+      assert.is_nil(U.TooltipVerdict(staff, d, w))
+      -- Build says the same of them.
+      statsOf["item:1611"], statsOf["item:1612"] = DPS(6), DPS(20)
+      local r = U.Build(gear({ [1611] = "50:0:0", [1612] = "50:0:0" }), drv({ classFile = function() return "PRIEST" end }), w)
+      assert.equal(1, #r.slots)
+      assert.equal("RANGED", r.slots[1].group)
+      assert.equal(2 * 2, r.slots[1].best.gain)
+    end)
+
     it("says when a piece is wearable in N levels", function()
       items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 22 }
       items[601] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 21 }
@@ -977,7 +1001,7 @@ describe("ForeverUpgrades", function()
     assert.equal(35, U.Score(dps, w, U.DpsFactor("ROGUE", "OFFHAND")))
     assert.equal(10, U.Score(dps, w, U.DpsFactor("ROGUE", "RANGED")))
     assert.equal(70, U.Score(dps, w, U.DpsFactor("ROGUE", "MAINHAND")))
-    assert.equal(70, U.Score(dps, w, U.DpsFactor("HUNTER", "RANGED")))   -- a class not listed: as before
+    assert.equal(70, U.Score(dps, w, U.DpsFactor("DEATHKNIGHT", "RANGED")))   -- a class not listed: as before
     assert.equal(70, U.Score(dps, w))                                    -- no factor: 1
     -- Only DPS's share is scaled, and the parts stay the piece's own numbers.
     local score, parts = U.Score({ ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10, ITEM_MOD_STRENGTH_SHORT = 2 },
@@ -1005,13 +1029,75 @@ describe("ForeverUpgrades", function()
     assert.is_nil(U.StyleFor({ heroStyle = "backstab" }, "WARRIOR", 15))
   end)
 
-  it("values a melee main hand's DPS at 14 attack power", function()
-    for _, class in ipairs({ "ROGUE", "WARRIOR", "PALADIN" }) do
+  -- Owner, 14.11: does HERO weigh every class right? Each class's weapon DPS per hand, the hand it
+  -- fights with at 1, and its starting DPS and AP weights.
+  it("weighs every class's weapon DPS in the hand it fights with, at 14 attack power", function()
+    local CLASSES = {
+      -- class        main  off   ranged  DPS  AP
+      { "WARRIOR",    1,    0.5,  1 / 7,  7,   0.5 },
+      { "ROGUE",      1,    0.5,  1 / 7,  7,   0.5 },
+      { "PALADIN",    1,    0.5,  0,      7,   0.5 },
+      { "SHAMAN",     1,    0.5,  0,      4.2, 0.3 },
+      { "HUNTER",     0.1,  0.05, 1,      5.6, 0.4 },
+      { "MAGE",       0,    0,    1,      2,   nil },
+      { "PRIEST",     0,    0,    1,      2,   nil },
+      { "WARLOCK",    0,    0,    1,      2,   nil },
+      { "DRUID",      0,    0,    0,      nil, 0.3 },
+    }
+    for _, row in ipairs(CLASSES) do
+      local class = row[1]
+      assert.same({ row[2], row[3], row[4] },
+        { U.DpsFactor(class, "MAINHAND"), U.DpsFactor(class, "OFFHAND"), U.DpsFactor(class, "RANGED") }, class)
       local d = U.DEFAULT_WEIGHTS[class]
-      assert.equal(14 * d.AP, d.DPS)
+      assert.equal(row[5], d.DPS, class)
+      assert.equal(row[6], d.AP, class)
+      -- A weapon class's DPS is 14 of its attack power.
+      if d.DPS and d.AP then assert.near(14 * d.AP, d.DPS, 1e-9, class) end
     end
-    assert.equal(2, U.DEFAULT_WEIGHTS.HUNTER.DPS)                   -- nothing measured says otherwise for it
-    assert.equal(0.5, U.DEFAULT_WEIGHTS.MAGE.DPS)
+    assert.equal(1, U.DpsFactor("DEATHKNIGHT", "MAINHAND"))      -- a class not listed counts as 1
+  end)
+
+  it("gives a hunter the bow over a sword that adds more DPS", function()
+    items[1500] = { loc = "INVTYPE_RANGED", class = 2, sub = 2 }     -- a bow
+    items[1501] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }     -- a one-handed sword
+    statsOf["item:1500"], statsOf["item:1501"] = DPS(3), DPS(10)
+    local hunter = drv({ classFile = function() return "HUNTER" end, money = function() return 60 end })
+    local r = U.Build(gear({ [1500] = "50:0:0", [1501] = "50:0:0" }), hunter, U.DEFAULT_WEIGHTS.HUNTER)
+    local by = {}
+    for _, slot in ipairs(r.slots) do by[slot.group] = slot.best end
+    assert.near(3 * 5.6, by.RANGED.gain, 1e-9)
+    assert.near(10 * 5.6 * 0.1, by.MAINHAND.gain, 1e-9)
+    assert.is_true(by.RANGED.gain > by.MAINHAND.gain)
+    -- Gold for one of them: the bow.
+    assert.equal(1500, r.set.picks.RANGED.itemID)
+    assert.is_nil(r.set.picks.MAINHAND)
+  end)
+
+  it("gives a priest the wand's DPS and none of a staff's, the staff counted for its stats", function()
+    items[1600] = { loc = "INVTYPE_RANGEDRIGHT", class = 2, sub = 19 }   -- a wand
+    items[1601] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 10 }      -- a staff
+    items[1602] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 10 }
+    statsOf["item:1600"], statsOf["item:1601"] = DPS(5), DPS(20)
+    statsOf["item:1602"] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 20, ITEM_MOD_INTELLECT_SHORT = 2 }
+    local priest = drv({ classFile = function() return "PRIEST" end })
+    local w = U.DEFAULT_WEIGHTS.PRIEST
+    local r = U.Build(gear({ [1600] = "50:0:0", [1601] = "50:0:0" }), priest, w)
+    assert.equal(1, #r.slots)                                        -- the staff's DPS is nothing to it
+    assert.equal("RANGED", r.slots[1].group)
+    assert.equal(5 * 2, r.slots[1].best.gain)
+    r = U.Build(gear({ [1602] = "50:0:0" }), priest, w)
+    assert.equal("MAINHAND", r.slots[1].group)
+    assert.equal(2, r.slots[1].best.gain)
+    assert.same({ ITEM_MOD_INTELLECT_SHORT = 2 }, r.slots[1].best.diffs)   -- its DPS not even shown
+  end)
+
+  it("values attack power on a shaman's ring", function()
+    items[1700] = { loc = "INVTYPE_FINGER", class = 4, sub = 0 }
+    statsOf["item:1700"] = { ITEM_MOD_ATTACK_POWER_SHORT = 10 }
+    local shaman = drv({ classFile = function() return "SHAMAN" end })
+    local r = U.Build(gear({ [1700] = "50:0:0" }), shaman, U.DEFAULT_WEIGHTS.SHAMAN)
+    assert.equal("FINGER1", r.slots[1].group)
+    assert.near(3, r.slots[1].best.gain, 1e-9)
   end)
 
   it("reads a red tooltip line as unusable, and cannot tell without colours or a client", function()
@@ -1383,16 +1469,50 @@ describe("ForeverUpgrades in the client", function()
     assert.same({ STR = 1, DPS = 7 }, db.forever.weights.WARRIOR)   -- the alt's too, in the same pass
     assert.same({ INT = 1, DPS = 2 }, db.forever.weights.MAGE)      -- a mage's 2 was never the old melee one
     assert.same({ STR = 1, DPS = 3 }, db.forever.weights.PALADIN)   -- typed, not the old default
-    assert.equal(2, db.forever.weightsV)
+    assert.equal(3, db.forever.weightsV)
     -- Typed again after the move, a 2 is the player's own.
     db.forever.weights.ROGUE.DPS = 2
     assert.same({ AGI = 1.5, DPS = 2 }, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE"))
     -- A save with no weights of its own is marked done too, so a 2 typed later stays.
     db.forever = {}
     GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE")
-    assert.equal(2, db.forever.weightsV)
+    assert.equal(3, db.forever.weightsV)
     db.forever.weights = { ROGUE = { AGI = 1, DPS = 2 } }
     assert.equal(2, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE").DPS)
+  end)
+
+  -- 14.11: every class's DPS weighed by the weapon it fights with, and AP for shamans and druids.
+  -- The other classes' old defaults move too, once, after the melee move; a player's own stays.
+  it("moves the other classes' old DPS defaults and adds AP for shamans and druids, once", function()
+    init(16001)
+    -- A save from before either move.
+    db.forever = { weights = { ROGUE = { AGI = 1, DPS = 2 }, HUNTER = { AGI = 1, DPS = 2 },
+      SHAMAN = { INT = 1, DPS = 1.5 }, DRUID = { INT = 1 }, MAGE = { INT = 1, DPS = 0.5 },
+      PRIEST = { INT = 1, DPS = 0.5 }, WARLOCK = { INT = 1, DPS = 0.5 } } }
+    GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "HUNTER")
+    local own = db.forever.weights
+    assert.same({ AGI = 1, DPS = 7 }, own.ROGUE)                   -- the melee move still runs first
+    assert.same({ AGI = 1, DPS = 5.6 }, own.HUNTER)
+    assert.same({ INT = 1, DPS = 4.2, AP = 0.3 }, own.SHAMAN)
+    assert.same({ INT = 1, AP = 0.3 }, own.DRUID)
+    for _, class in ipairs({ "MAGE", "PRIEST", "WARLOCK" }) do assert.same({ INT = 1, DPS = 2 }, own[class], class) end
+    assert.equal(3, db.forever.weightsV)
+    -- A save from after the melee move: a melee 2 is the player's own, the others still move.
+    db.forever = { weightsV = 2, weights = { ROGUE = { AGI = 1, DPS = 2 }, MAGE = { INT = 1, DPS = 0.5 } } }
+    GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "MAGE")
+    assert.same({ AGI = 1, DPS = 2 }, db.forever.weights.ROGUE)
+    assert.same({ INT = 1, DPS = 2 }, db.forever.weights.MAGE)
+    -- The player's own numbers stay: a hunter's 3, a shaman's AP 1, a druid's DPS, a priest without DPS.
+    db.forever = { weightsV = 2, weights = { HUNTER = { AGI = 1, DPS = 3 }, SHAMAN = { INT = 1, DPS = 1.5, AP = 1 },
+      DRUID = { INT = 1, DPS = 1, AP = 0.2 }, PRIEST = { INT = 1 } } }
+    GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "HUNTER")
+    assert.same({ AGI = 1, DPS = 3 }, db.forever.weights.HUNTER)
+    assert.same({ INT = 1, DPS = 4.2, AP = 1 }, db.forever.weights.SHAMAN)
+    assert.same({ INT = 1, DPS = 1, AP = 0.2 }, db.forever.weights.DRUID)
+    assert.same({ INT = 1 }, db.forever.weights.PRIEST)
+    -- Once: an old number typed again after the move stays.
+    db.forever.weights.HUNTER.DPS = 2
+    assert.equal(2, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "HUNTER").DPS)
   end)
 
   -- V3: a valid token with nothing after it at all ("/gc weights STR") is a different mistake
