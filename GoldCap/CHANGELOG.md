@@ -8,6 +8,7 @@
   you can wear now, cheaper ones nearly as good (or the next strongest, when the strongest is also
   the cheapest), and a stronger one you can wear in a level or two. A price you cannot pay yet is
   red, and a piece you cannot wear yet has a red icon with its level in the corner, as in your bags.
+  The tab explains how it works the first time it opens, and "?" at its top shows that again.
 - WoW: Forever: the "+" beside a piece puts it on your Upgrades list in BUY, one piece per slot,
   capped 5% over its price, and its check takes it off again. The slot turns green with the price.
   GoldCap's own picks, the strongest mix the gold you carry pays for, have the auction house's
