@@ -827,7 +827,7 @@ describe("ForeverUpgrades", function()
       assert.equal(0, reads)
     end)
 
-    -- The tooltip weighs a two-hander against both hands as Build does, each hand's attack power too.
+    -- The tooltip weighs a two-hander against both hands as Build does, with the dual-wield miss.
     it("says the DPS a two-hander gives over a pair as the HERO tab does", function()
       local char = { ap = 400, rap = 20, crit = 0.05, apPer = { STR = 2, AGI = 0 }, rapPer = { AGI = 1 },
         critPer = { AGI = 0.0004 } }
@@ -838,9 +838,10 @@ describe("ForeverUpgrades", function()
       statsOf[main], statsOf[off], statsOf[great] = DPS(25), DPS(20), DPS(60)
       local d = quiet({ char = function() return char end })
       local m = U.ModelFor(d, "WARRIOR")
-      assert.same({ say("Upgrade: +11.2 DPS (+15 Damage per Second) over your Short Sword and Main Gauche") },
+      -- 93 against 0.8 x (25 + 400 / 14) + 0.4 x (20 + 400 / 14), each times 1.05.
+      assert.same({ say("Upgrade: +27.6 DPS (+15 Damage per Second) over your Short Sword and Main Gauche") },
         U.TooltipVerdict(great, d, U.WeightsFor({}, "WARRIOR", m), { model = m }))
-      statsOf[great] = DPS(40)                                       -- loses the off hand's swing: no upgrade
+      statsOf[great] = DPS(30)                                       -- -3.9: the off hand's swing was worth more
       assert.is_nil(U.TooltipVerdict(great, d, U.WeightsFor({}, "WARRIOR", m), { model = m }))
     end)
 
@@ -881,9 +882,9 @@ describe("ForeverUpgrades", function()
       local tip = { model = U.ModelFor(d, "ROGUE", false) }
       assert.same({ say("Upgrade: " .. U.DpsFigure(chest.dps) .. " DPS (" .. red("-4 Agility") .. ", +14 Attack Power), "
         .. red("-3 Stamina") .. ", +8 Armor over your Fine Leather Tunic") }, U.TooltipVerdict(harness, d, weights, tip))
-      assert.equal("+1.1", (U.DpsFigure(chest.dps)))
+      assert.equal("+0.9", (U.DpsFigure(chest.dps)))
       -- A piece that costs DPS and wins on the rest: the figure red too.
-      assert.same({ say("Upgrade: " .. red("-0.5 DPS") .. " (" .. red("-4 Agility") .. "), +17 Stamina, +7 Armor"
+      assert.same({ say("Upgrade: " .. red("-0.4 DPS") .. " (" .. red("-4 Agility") .. "), +17 Stamina, +7 Armor"
         .. " over your Fine Leather Tunic") }, U.TooltipVerdict(vest, d, weights, tip))
       -- Without a model, as before.
       assert.same({ say("Upgrade: " .. red("-4 Agility") .. ", " .. red("-3 Stamina") .. ", +8 Armor, +14 Attack Power"
@@ -1267,16 +1268,18 @@ describe("ForeverUpgrades", function()
   describe("the character's DPS", function()
     -- Owner, 14.11: "Feral Harness of Power: -4 Agility, -3 Stamina, +8 Armor, +14 Attack Power" left
     -- him adding up stats. Each choice now says what it adds to the character's DPS, counted from
-    -- its own numbers as the game counts them, and ranks by it.
+    -- its own numbers as the game counts them, and ranks by it. The numbers below are worked by hand
+    -- from the base: each hand's factor times its weapon's DPS and attack power / 14, the main
+    -- hand's white part and the off hand at 0.8 while a weapon swings in each, times (1 + crit).
     it("counts a rogue's DPS from its attack power, crit and daggers, and ranks each choice by it", function()
       local d = dressRogue(CHAR, 8, 1.8, 6, 1.7)
       local m = U.ModelFor(d, "ROGUE", true)
       assert.equal(7, m.K)
-      assert.near(0.110192, m.per.AP, 1e-5)                          -- the two hands it swings, no ranged
-      assert.near(0.110192, m.per.STR, 1e-5)
-      assert.near(0.120816, m.per.AGI, 1e-5)
-      assert.near(21.248352, m.base, 1e-5)
-      assert.near(1.05 * U.DpsFactor("ROGUE", "OFFHAND"), m.weapon("OFFHAND"), 1e-9)
+      -- Main hand (1 + 1.8 / 4.5 - 0.2) / (1 + 2 / 4.5) = 0.8308, off hand 0.5 x 0.8, no ranged.
+      assert.near(0.0923077, m.per.AP, 1e-6)
+      assert.near(0.0923077, m.per.STR, 1e-6)
+      assert.near(0.1012264, m.per.AGI, 1e-6)
+      assert.near(17.8373626, m.base, 1e-6)
       -- The weights in force: K times what a point adds, weapon DPS at K (1 + crit), the rest as set.
       local weights, derived = U.WeightsFor({}, "ROGUE", m)
       assert.is_true(derived)
@@ -1287,16 +1290,16 @@ describe("ForeverUpgrades", function()
       assert.same({ 0.4, 0.01 }, { weights.STA, weights.ARMOR })
       -- Typed into, at the two decimals the window shows.
       local edit = U.EditWeights({}, "ROGUE", m)
-      assert.same({ AGI = 0.85, STR = 0.77, AP = 0.77, DPS = 7.35, STA = 0.4, ARMOR = 0.01 }, edit)
+      assert.same({ AGI = 0.71, STR = 0.65, AP = 0.65, DPS = 7.35, STA = 0.4, ARMOR = 0.01 }, edit)
       local r = U.Build(gear(LOTS), d, weights, nil, { model = m })
       local chest, hands = bestIn(r, "CHEST"), bestIn(r, "HANDS")
       assert.equal(HARNESS, chest.itemID)
-      assert.near(1.059426, chest.dps, 1e-5)                         -- 14 x AP - 4 x AGI
+      assert.near(0.8856440, chest.dps, 1e-6)                        -- +14 AP -4 AGI, the crit it costs too
       assert.near(7 * chest.dps - 0.4 * 3 + 0.01 * 8, chest.gain, 1e-9)
       assert.equal(RIGID, hands.itemID)
-      assert.near(0.529713, hands.dps, 1e-5)                         -- 10 x AP - 3 x STR - 2 x AGI
+      assert.near(0.4432615, hands.dps, 1e-6)                        -- +10 AP -3 STR -2 AGI
       assert.near(7 * hands.dps + 0.01 * 3, hands.gain, 1e-9)
-      assert.same({ "+1.1", 1 }, { U.DpsFigure(chest.dps) })
+      assert.same({ "+0.9", 1 }, { U.DpsFigure(chest.dps) })
       assert.same({ "0.0", 0 }, { U.DpsFigure(0.049) })
       assert.same({ "-0.1", -1 }, { U.DpsFigure(-0.05) })
     end)
@@ -1304,20 +1307,22 @@ describe("ForeverUpgrades", function()
     -- The owner's own numbers, read in the client (14.11 13:16): attack power 126, ranged 139, crit
     -- 14.5565%, a point of strength or agility a point of attack power, a point of agility 0.1515% crit,
     -- both daggers about 10 DPS at 1.5, a thrown weapon in the ranged slot (dressRogue) that only
-    -- pulls, so the ranged attack power counts for nothing.
+    -- pulls, so the ranged attack power counts for nothing. Two daggers swing: the white hits miss
+    -- more, Sinister Strike's do not.
     it("gives the owner's rogue both pieces he doubted as gains, the chest the larger", function()
       local owner = { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
         critPer = { AGI = 0.0015150 } }
       local d = dressRogue(owner, 10, 1.5, 10, 1.5)
       local m = U.ModelFor(d, "ROGUE", true)
-      assert.near(0.116445, m.per.AP, 1e-5)
-      assert.near(0.116445, m.per.STR, 1e-5)
-      assert.near(0.157408, m.per.AGI, 1e-5)
-      assert.near(27.038462, m.base, 1e-5)
+      -- Main hand (1 + 1.5 / 4.5 - 0.2) / (1 + 2 / 4.5) = 0.7846, off hand 0.4: 1.1846 x 19 = 22.51.
+      assert.near(0.0969324, m.per.AP, 1e-6)
+      assert.near(0.0969324, m.per.STR, 1e-6)
+      assert.near(0.1310316, m.per.AGI, 1e-6)
+      assert.near(22.5076923, m.base, 1e-6)
       local r = U.Build(gear(LOTS), d, U.WeightsFor({}, "ROGUE", m), nil, { model = m })
       local chest, hands = bestIn(r, "CHEST"), bestIn(r, "HANDS")
-      assert.near(1.00, chest.dps, 0.005)
-      assert.near(0.50, hands.dps, 0.005)
+      assert.near(0.8277999, chest.dps, 1e-6)
+      assert.near(0.4151819, hands.dps, 1e-6)
       assert.is_true(hands.dps > 0)
       assert.is_true(chest.dps > hands.dps)
       assert.is_true(chest.gain > hands.gain)
@@ -1358,13 +1363,13 @@ describe("ForeverUpgrades", function()
       assert.near(0.0075714, m.per.STR, 1e-6)                         -- melee only
       local r = U.Build(gear({ [2202] = "400:0:0", [106] = "100:0:0" }), d, U.WeightsFor({}, "HUNTER", m), nil,
         { model = m })
-      assert.near(5 * m.per.AGI, bestIn(r, "HEAD").dps, 1e-9)
-      assert.near(2 * 1.06 + 2 * m.per.AGI, bestIn(r, "RANGED").dps, 1e-9)
+      assert.near(0.8671071, bestIn(r, "HEAD").dps, 1e-6)             -- 25.1 x 1.063 - 23.29 x 1.06
+      assert.near(2.4687029, bestIn(r, "RANGED").dps, 1e-6)
     end)
 
     -- Review, 14.11: a piece that changes a hand changes how much of the attack power that hand
-    -- carries, not only the weapon's own DPS. Each figure is what the model's own base says the
-    -- character does with it, against what it does now.
+    -- carries, and the stats on it reach the hands it leaves: each figure is the character's whole
+    -- DPS with the piece worn, less what it does now, never a sum of points.
     describe("a weapon that changes a hand", function()
       local function gain(class, char, before, after)
         local m0, m1 = U.DpsModel(class, char, before), U.DpsModel(class, char, after)
@@ -1372,6 +1377,16 @@ describe("ForeverUpgrades", function()
       end
       local WARRIOR_CHAR = { ap = 400, rap = 20, crit = 0.05, apPer = { STR = 2, AGI = 0 }, rapPer = { AGI = 1 },
         critPer = { AGI = 0.0004 } }
+      -- The review's warrior: 280 attack power, two per point of strength, 5% crit.
+      local REVIEW = { ap = 280, rap = 140, crit = 0.05, apPer = { STR = 2, AGI = 0 }, rapPer = { AGI = 2 },
+        critPer = { AGI = 0.0005 } }
+      local SWORD, GREAT = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }, { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
+      local function pair()
+        items[2022], items[2023] = SWORD, SWORD
+        worn[16], worn[17] = "item:2022", "item:2023"
+        statsOf["item:2022"], statsOf["item:2023"] = DPS(20), DPS(15)
+        return drv({ char = function() return REVIEW end })
+      end
 
       it("counts a rogue's slower main hand with the attack power it swings with", function()
         local owner = { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
@@ -1381,16 +1396,17 @@ describe("ForeverUpgrades", function()
         statsOf["item:2011"], speedOf[2011] = DPS(10), 2.8
         local m = U.ModelFor(d, "ROGUE", true)
         local r = U.Build(gear({ [2011] = "500:0:0" }), d, U.WeightsFor({}, "ROGUE", m), nil, { model = m })
-        local want = gain("ROGUE", owner,
+        -- 1.3 / 4.5 more Sinister Strikes' worth of the hand's 19, over 1 + 2 / 4.5, times 1.1456.
+        assert.near(4.353147, bestIn(r, "MAINHAND").dps, 1e-6)
+        assert.near(gain("ROGUE", owner,
           { MAINHAND = { dps = 10, speed = 1.5 }, OFFHAND = { dps = 10 }, RANGED = { dps = 0 } },
-          { MAINHAND = { dps = 10, speed = 2.8 }, OFFHAND = { dps = 10 }, RANGED = { dps = 0 } })
-        assert.near(4.35, want, 0.005)                                 -- the weapon's own share alone was 2.29
-        assert.near(want, bestIn(r, "MAINHAND").dps, 1e-9)
+          { MAINHAND = { dps = 10, speed = 2.8 }, OFFHAND = { dps = 10 }, RANGED = { dps = 0 } }),
+          bestIn(r, "MAINHAND").dps, 1e-9)
         assert.is_nil(bestIn(r, "OFFHAND"))                           -- the same dagger in the off hand: nothing
       end)
 
-      -- The 5% an upgrade must beat what is worn by is of the piece's own score: the attack power a
-      -- hand carries would ask a weapon for more the more attack power the character has.
+      -- The 5% an upgrade must beat what is worn by is of the worn piece's own score, whatever
+      -- attack power its hand carries.
       it("still offers a dagger a little better than the one worn, whatever attack power the hand carries", function()
         local owner = { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
           critPer = { AGI = 0.0015150 } }
@@ -1401,41 +1417,95 @@ describe("ForeverUpgrades", function()
         local r = U.Build(gear({ [2012] = "500:0:0" }), d, U.WeightsFor({}, "ROGUE", m), nil, { model = m })
         local main = bestIn(r, "MAINHAND")
         assert.equal(2012, main.itemID)
-        assert.near(0.6345, main.dps, 1e-4)                            -- 0.6 in a 0.92 hand, crits on top
+        assert.near(0.5392968, main.dps, 1e-6)                         -- 0.6 in a 0.78 hand, crits on top
       end)
 
-      it("prices the attack power a hand carries at a player's own DPS weight too", function()
-        local SWORD = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
-        items[2022], items[2023], items[2021] = SWORD, SWORD, { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
-        worn[16], worn[17] = "item:2022", "item:2023"
-        statsOf["item:2022"], statsOf["item:2023"], statsOf["item:2021"] = DPS(25), DPS(20), DPS(40)
-        local d = drv({ char = function() return WARRIOR_CHAR end })
+      -- Review, 14.11: 33 DPS and 30 strength over a bare 20 and 15 showed +2.0, the strength's 60
+      -- attack power counted in both hands. The two-hander swings in one.
+      it("counts a two-hander's strength in the one hand it swings", function()
+        local d = pair()
+        items[2021], items[2025] = GREAT, GREAT
+        statsOf["item:2021"] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 33, ITEM_MOD_STRENGTH_SHORT = 30 }
+        statsOf["item:2025"] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 21, ITEM_MOD_STRENGTH_SHORT = 30 }
         local m = U.ModelFor(d, "WARRIOR")
-        local own = { STR = 1, DPS = 7 }
-        assert.equal(own, U.WeightsFor({ weights = { WARRIOR = own }, weightsV = 4 }, "WARRIOR", m))
-        assert.is_nil(bestIn(U.Build(gear({ [2021] = "500:0:0" }), d, own, nil, { model = m }), "MAINHAND"))
-        -- Without the character's numbers, as before: 40 weapon DPS over 25 and half of 20.
-        assert.equal(2021, bestIn(U.Build(gear({ [2021] = "500:0:0" }), drv(), own), "MAINHAND").itemID)
+        local weights = U.WeightsFor({}, "WARRIOR", m)
+        -- (33 + 340 / 14) x 1.05 against (0.8 x 40 + 0.4 x 35) x 1.05 = 48.3.
+        local great = bestIn(U.Build(gear({ [2021] = "500:0:0" }), d, weights, nil, { model = m }), "MAINHAND")
+        assert.near(11.85, great.dps, 1e-9)
+        -- Its strength is 60 / 14 x 1.05 = 4.5 in the one hand, not 30 x per.STR = 5.4 over two.
+        assert.near(0.18, m.per.STR, 1e-9)
+        assert.near(4.5, great.dps - gain("WARRIOR", REVIEW, { MAINHAND = { dps = 20 }, OFFHAND = { dps = 15 } },
+          { MAINHAND = { dps = 33 } }), 1e-9)
+        assert.near(7 * great.dps, great.gain, 1e-9)
+        -- A weaker one with the same strength costs DPS, and neither tab nor tooltip offers it.
+        assert.is_nil(bestIn(U.Build(gear({ [2025] = "500:0:0" }), d, weights, nil, { model = m }), "MAINHAND"))
+        assert.is_nil(U.TooltipVerdict("item:2025", d, weights, { model = m }))
+        local mm = U.DpsModel("WARRIOR", { ap = 340, rap = 140, crit = 0.05, apPer = { STR = 2, AGI = 0 },
+          rapPer = { AGI = 2 }, critPer = { AGI = 0.0005 } }, { MAINHAND = { dps = 21 } })
+        assert.near(-0.75, mm.base * 1.05 - 48.3, 1e-9)
       end)
 
-      it("weighs a warrior's two-hander against both hands of a pair, each with its attack power", function()
-        local SWORD = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
+      -- Its mirror: a one-hander with strength in an empty off hand, or for a shield, reaches the
+      -- main hand's swing too (the review's 21.15 against the base's own figure).
+      it("counts a one-hander's strength in both hands once it fills the off hand", function()
+        local d = pair()
+        items[2026], items[2032] = SWORD, { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
+        worn[17] = nil
+        statsOf["item:2026"] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 18, ITEM_MOD_STRENGTH_SHORT = 8 }
+        statsOf["item:2032"] = { RESISTANCE0_NAME = 500, ITEM_MOD_STAMINA_SHORT = 5 }
+        for _, shield in ipairs({ false, true }) do
+          worn[17] = shield and "item:2032" or nil
+          local m = U.ModelFor(d, "WARRIOR")
+          local r = U.Build(gear({ [2026] = "300:0:0" }), d, U.WeightsFor({}, "WARRIOR", m), nil, { model = m })
+          -- (0.8 x (20 + 296 / 14) + 0.4 x (18 + 296 / 14)) x 1.05 = 51 against (20 + 20) x 1.05 = 42.
+          assert.near(9, bestIn(r, "OFFHAND").dps, 1e-9, shield and "for a shield" or "empty")
+          -- The strength: 16 / 14 x 1.2 x 1.05 = 1.44, in both hands; the model's per.STR, 1.2, in one.
+          assert.near(1.44, bestIn(r, "OFFHAND").dps - gain("WARRIOR", REVIEW, { MAINHAND = { dps = 20 } },
+            { MAINHAND = { dps = 20 }, OFFHAND = { dps = 18 } }), 1e-9)
+        end
+        -- A shield in the empty off hand swings nothing and misses nothing: its stats alone, no figure.
+        worn[17], statsOf["item:2022"] = nil, DPS(25)
+        local m = U.ModelFor(d, "WARRIOR")
+        local weights = U.WeightsFor({}, "WARRIOR", m)
+        local shield = bestIn(U.Build(gear({ [2032] = "300:0:0" }), d, weights, nil, { model = m }), "OFFHAND")
+        assert.is_nil(shield.dps)
+        assert.near(500 * weights.ARMOR + 5 * weights.STA, shield.gain, 1e-9)
+      end)
+
+      -- Classic's dual-wield miss (DUAL_WIELD_WHITE): the review's bare 34 two-hander over a bare 20
+      -- and 15 read -3.5, the pair counted at full white damage.
+      it("counts the white hits a pair misses, and offers the two-hander that swings without", function()
+        local d = pair()
+        items[2021] = GREAT
+        statsOf["item:2021"] = DPS(34)
+        local m = U.ModelFor(d, "WARRIOR")
+        assert.near(0.8 * (20 + 20) + 0.4 * (15 + 20), m.base, 1e-9)      -- 46
+        assert.near(20 + 20, U.DpsModel("WARRIOR", REVIEW, { MAINHAND = { dps = 20 } }).base, 1e-9)
+        local main = bestIn(U.Build(gear({ [2021] = "500:0:0" }), d, U.WeightsFor({}, "WARRIOR", m), nil, { model = m }),
+          "MAINHAND")
+        assert.equal(2021, main.itemID)
+        assert.near(8.4, main.dps, 1e-9)                                -- (54 - 46) x 1.05
+        -- A rogue's Sinister Strike misses as before: a 2.0 weapon alone still counts 1, with an off
+        -- hand its white part, 1 / (1 + 2 / 4.5), at 0.8.
+        local CH0 = { ap = 140, rap = 0, crit = 0, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 }, critPer = { AGI = 0 } }
+        assert.near(20, U.DpsModel("ROGUE", CH0, { MAINHAND = { dps = 10, speed = 2 } }).base, 1e-9)
+        assert.near((1 - 0.2 / (1 + 2 / 4.5)) * 20 + 0.4 * 20,
+          U.DpsModel("ROGUE", CH0, { MAINHAND = { dps = 10, speed = 2 }, OFFHAND = { dps = 10 } }).base, 1e-9)
+      end)
+
+      it("weighs a warrior's two-hander against both hands of a pair, with the pair's misses", function()
         items[2022], items[2023] = SWORD, SWORD
-        items[2021], items[2024] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }, { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
+        items[2021], items[2024] = GREAT, GREAT
         worn[16], worn[17] = "item:2022", "item:2023"
         statsOf["item:2022"], statsOf["item:2023"] = DPS(25), DPS(20)
-        statsOf["item:2021"], statsOf["item:2024"] = DPS(40), DPS(60)
+        statsOf["item:2021"], statsOf["item:2024"] = DPS(30), DPS(60)
         local d = drv({ char = function() return WARRIOR_CHAR end })
         local m = U.ModelFor(d, "WARRIOR")
-        local pair = { MAINHAND = { dps = 25 }, OFFHAND = { dps = 20 } }
-        local lose, win = gain("WARRIOR", WARRIOR_CHAR, pair, { MAINHAND = { dps = 40 } }),
-          gain("WARRIOR", WARRIOR_CHAR, pair, { MAINHAND = { dps = 60 } })
-        assert.near(-9.75, lose, 0.005)                                -- the weapons' own DPS alone said +5.25
-        assert.near(11.25, win, 0.005)
-        -- The 40 loses the off hand's swing and its attack power: the figure says so, and it is not offered.
-        local v40 = U.DpsOf(m, DPS(40), "MAINHAND", nil, "INVTYPE_2HWEAPON")
-          - U.DpsOf(m, DPS(25), "MAINHAND", nil, "INVTYPE_WEAPON") - U.DpsOf(m, DPS(20), "OFFHAND", nil, "INVTYPE_WEAPON")
-        assert.near(lose, v40, 1e-9)
+        local pairW = { MAINHAND = { dps = 25 }, OFFHAND = { dps = 20 } }
+        local lose, win = gain("WARRIOR", WARRIOR_CHAR, pairW, { MAINHAND = { dps = 30 } }),
+          gain("WARRIOR", WARRIOR_CHAR, pairW, { MAINHAND = { dps = 60 } })
+        assert.near(-3.9, lose, 1e-9)
+        assert.near(27.6, win, 1e-9)
         local r = U.Build(gear({ [2021] = "500:0:0", [2024] = "900:0:0" }), d, U.WeightsFor({}, "WARRIOR", m), nil,
           { model = m })
         local main = nil
@@ -1443,25 +1513,6 @@ describe("ForeverUpgrades", function()
         assert.equal(2024, main.best.itemID)
         assert.near(win, main.best.dps, 1e-9)
         for _, c in ipairs(main.alts) do assert.are_not.equal(2021, c.itemID) end
-      end)
-
-      it("counts a weapon in an empty off hand, or in place of a shield, with the hand's attack power", function()
-        local char = { ap = 40, rap = 20, crit = 0.05, apPer = { STR = 2, AGI = 0 }, rapPer = { AGI = 1 },
-          critPer = { AGI = 0.0004 } }
-        items[2022] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
-        items[2031] = { loc = "INVTYPE_WEAPONOFFHAND", class = 2, sub = 7 }
-        items[2032] = { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
-        worn[16], statsOf["item:2022"], statsOf["item:2031"] = "item:2022", DPS(10), DPS(4)
-        statsOf["item:2032"] = { RESISTANCE0_NAME = 300 }
-        local d = drv({ char = function() return char end })
-        local want = gain("WARRIOR", char, { MAINHAND = { dps = 10 } }, { MAINHAND = { dps = 10 }, OFFHAND = { dps = 4 } })
-        assert.near(3.6, want, 0.005)                                  -- the weapon's own share alone was 2.1
-        for _, shield in ipairs({ false, true }) do
-          worn[17] = shield and "item:2032" or nil
-          local m = U.ModelFor(d, "WARRIOR")
-          local r = U.Build(gear({ [2031] = "300:0:0" }), d, U.WeightsFor({}, "WARRIOR", m), nil, { model = m })
-          assert.near(want, bestIn(r, "OFFHAND").dps, 1e-9, shield and "for a shield" or "empty")
-        end
       end)
 
       it("counts a hunter's bow in an empty ranged slot with its ranged attack power", function()
@@ -1478,22 +1529,29 @@ describe("ForeverUpgrades", function()
       end)
     end)
 
-    -- Review, 14.11: between bows a hunter's agility is still its ranged attack power. Its weights
-    -- count the hand it fights with, whatever is in it; only what it does now (base) leaves it out.
-    it("keeps a hunter's agility at its ranged attack power with nothing in the ranged slot", function()
-      local char = { ap = 80, rap = 150, crit = 0.06, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 2 },
-        critPer = { AGI = 0.0006 } }
-      items[106] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
+    -- Review, 14.11: with no bow a hunter's agility moves only its melee tenth and its crit, and the
+    -- figure says so (+10 agility read +1.62 while the base moved 0.09). The panel's weights still
+    -- count the hand it fights with, for between bows.
+    it("says a small figure for a hunter's agility with nothing in the ranged slot", function()
+      local char = { ap = 150, rap = 300, crit = 0.07, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 2 },
+        critPer = { AGI = 0.0005 } }
+      items[2042], items[106] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 6 }, { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
+      items[3010] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+      worn[16], statsOf["item:2042"] = "item:2042", DPS(20)
       statsOf["item:106"] = { ITEM_MOD_AGILITY_SHORT = 5 }
+      statsOf["item:3010"] = { ITEM_MOD_AGILITY_SHORT = 10, ITEM_MOD_STAMINA_SHORT = 6 }
       local d = drv({ classFile = function() return "HUNTER" end, char = function() return char end })
       local m = U.ModelFor(d, "HUNTER")
-      assert.near(0.1 * 80 / 14, m.base, 1e-9)                         -- a melee tenth: no bow, nothing shot
-      assert.near((0.1 + 2 * 1) / 14 * 1.06 + 0.0006 * m.base, m.per.AGI, 1e-9)
-      assert.near((0.1 + 1) / 14 * 1.06, m.per.AP, 1e-9)
+      assert.near(0.1 * (20 + 150 / 14), m.base, 1e-9)                -- a melee tenth: no bow, nothing shot
+      assert.near((0.1 + 2 * 1) / 14 * 1.07 + 0.0005 * m.base, m.per.AGI, 1e-9)
       local weights = U.WeightsFor({}, "HUNTER", m)
-      assert.is_true(weights.AGI > 0.8)                                -- 5.6 x 0.159: still its top stat
-      local r = U.Build(gear({ [106] = "100:0:0" }), d, weights, nil, { model = m })
-      assert.near(5 * m.per.AGI, bestIn(r, "HEAD").dps, 1e-9)
+      assert.is_true(weights.AGI > 0.9)                                -- 5.6 x 0.162: its top stat on the panel
+      local r = U.Build(gear({ [106] = "100:0:0", [3010] = "100:0:0" }), d, weights, nil, { model = m })
+      local chest = bestIn(r, "CHEST")
+      -- 0.1 x (20 + 160 / 14) x 1.075 - 0.1 x (20 + 150 / 14) x 1.07.
+      assert.near(0.0921429, chest.dps, 1e-6)
+      assert.near(5.6 * chest.dps + 0.4 * 6, chest.gain, 1e-9)        -- offered for its stamina
+      assert.is_nil(bestIn(r, "HEAD"))                                 -- 5 agility: 0.05 DPS, under a point of it
       -- A rogue's ranged hand still counts only with something in it.
       local rogueM = U.DpsModel("ROGUE", CHAR, { MAINHAND = { dps = 8 } })
       assert.near(1 / 14 * 1.05, rogueM.per.AP, 1e-9)
@@ -1509,14 +1567,14 @@ describe("ForeverUpgrades", function()
       statsOf["item:2053"] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 20, ITEM_MOD_AGILITY_SHORT = 3 }
       local m = U.ModelFor(d, "ROGUE", true)
       local weights = U.WeightsFor({}, "ROGUE", m)
-      assert.near(0, m.weapon("RANGED"), 1e-12)
+      assert.equal(0, U.DpsFactor("ROGUE", "RANGED"))
       assert.is_nil(bestIn(U.Build(gear({ [2051] = "100:0:0", [2052] = "100:0:0" }), d, weights, nil, { model = m }),
         "RANGED"))
       -- With agility, offered for the agility, and its figure is the agility's alone.
       local bow = bestIn(U.Build(gear({ [2053] = "100:0:0" }), d, weights, nil, { model = m }), "RANGED")
       assert.equal(2053, bow.itemID)
-      assert.near(3 * m.per.AGI, bow.dps, 1e-9)
-      assert.near(3 * weights.AGI, bow.gain, 1e-9)
+      assert.near(0.3040747, bow.dps, 1e-6)
+      assert.near(7 * bow.dps, bow.gain, 1e-9)
       -- A warrior's the same, with or without the character's numbers.
       worn[16], worn[17], worn[18] = nil, nil, nil
       local warrior = drv({ char = function()
@@ -1560,8 +1618,50 @@ describe("ForeverUpgrades", function()
       assert.is_nil(derived)
       local chest = bestIn(U.Build(gear(LOTS), d, weights, nil, { model = m }), "CHEST")
       assert.equal(4, chest.gain)                                     -- 81 armour over 4 agility and 73
-      assert.near(1.059426, chest.dps, 1e-5)                          -- the 14 attack power counted all the same
+      assert.near(0.8856440, chest.dps, 1e-6)                         -- the 14 attack power counted all the same
       assert.is_nil(chest.diffs.ITEM_MOD_ATTACK_POWER_SHORT)
+    end)
+
+    -- Review, 14.11: a saved table ranks as it did before the character's numbers were read, by its
+    -- weighted sum alone: a warrior's tank table had a bare 12 DPS sword over a 900 armour shield,
+    -- on the attack power its swing would carry. And a two-hander its DPS weight prefers is offered.
+    it("ranks by a saved table as before the model, the figure still the character's", function()
+      local REVIEW = { ap = 280, rap = 140, crit = 0.05, apPer = { STR = 2, AGI = 0 }, rapPer = { AGI = 2 },
+        critPer = { AGI = 0.0005 } }
+      items[2022], items[2061] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }, { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
+      items[2062], items[2063] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }, { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
+      worn[16], worn[17] = "item:2022", "item:2061"
+      statsOf["item:2022"], statsOf["item:2062"] = DPS(20), DPS(12)
+      statsOf["item:2061"] = { RESISTANCE0_NAME = 600, ITEM_MOD_STAMINA_SHORT = 5 }
+      statsOf["item:2063"] = { RESISTANCE0_NAME = 900, ITEM_MOD_STAMINA_SHORT = 12 }
+      local d = drv({ char = function() return REVIEW end })
+      local m = U.ModelFor(d, "WARRIOR")
+      local tank = { STR = 1, AGI = 0.5, STA = 1.5, AP = 0.5, DPS = 7, ARMOR = 0.05 }
+      assert.equal(tank, U.WeightsFor({ weights = { WARRIOR = tank }, weightsV = 4 }, "WARRIOR", m))
+      local lots = gear({ [2062] = "100:0:0", [2063] = "100:0:0" })
+      local with, without = U.Build(lots, d, tank, nil, { model = m }), U.Build(lots, drv(), tank)
+      local off = nil
+      for _, sl in ipairs(with.slots) do if sl.group == "OFFHAND" then off = sl end end
+      assert.equal(2063, off.best.itemID)
+      assert.near(25.5, off.best.gain, 1e-9)                          -- 45 + 18 over 30 + 7.5
+      assert.equal(2062, off.alts[1].itemID)
+      assert.near(4.5, off.alts[1].gain, 1e-9)                        -- 7 x 0.5 x 12 over the shield's 37.5
+      assert.near(5.04, off.alts[1].dps, 1e-9)                         -- its swing, with the pair's misses
+      assert.equal(2063, bestIn(without, "OFFHAND").itemID)
+      assert.near(off.best.gain, bestIn(without, "OFFHAND").gain, 1e-9)
+      -- A two-hander the table's DPS weight prefers, over the pair's 25 and half of 20.
+      items[2024], items[2023] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }, items[2022]
+      worn[16], worn[17] = "item:2022", "item:2023"
+      statsOf["item:2022"], statsOf["item:2023"], statsOf["item:2024"] = DPS(25), DPS(20), DPS(40)
+      local wd = drv({ char = function()
+        return { ap = 400, rap = 20, crit = 0.05, apPer = { STR = 2, AGI = 0 }, rapPer = { AGI = 1 }, critPer = { AGI = 0.0004 } }
+      end })
+      local own = { STR = 1, DPS = 7 }
+      local great = bestIn(U.Build(gear({ [2024] = "500:0:0" }), wd, own, nil, { model = U.ModelFor(wd, "WARRIOR") }),
+        "MAINHAND")
+      assert.equal(2024, great.itemID)
+      assert.near(35, great.gain, 1e-9)                                -- 7 x (40 - 25 - 10)
+      assert.near(6.6, great.dps, 1e-9)
     end)
 
     it("reads exactly as before when the character's numbers do not answer", function()
