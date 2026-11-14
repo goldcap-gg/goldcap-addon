@@ -560,15 +560,17 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
 
   -- A piece's score in `group` (Score, its DPS in that hand's DpsFactor) and its parts; with a model,
   -- a piece that swings in that hand also carries the hand's attack power (DpsOf), priced as the
-  -- weights price that hand's weapon DPS. For Build, the tooltip and what is worn alike.
+  -- weights price that hand's weapon DPS. For Build, the tooltip and what is worn alike. Third
+  -- return value: the piece's own score, without that attack power (beats' share of it).
   local wDps = type(weights.DPS) == "number" and weights.DPS or 0
   local function scoreOf(stats, group, equipLoc, speed)
     local f = DpsFactor(class, group, speed)
     local s, p = Score(stats, weights, f)
+    local own = s
     if model and wDps ~= 0 and f ~= 0 and swingsIn(group, equipLoc) then
       s = s + wDps * f * (model.share[group] or 0)
     end
-    return s, p
+    return s, p, own
   end
 
   -- What the character wears, per slot, scored in that slot's hand. false: worn, but its stats not
@@ -581,7 +583,7 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
       local group = GROUP_AT[slot]
       if not link then
         local s = scoreOf({}, group, nil, nil)
-        worn[slot] = { score = s, parts = {}, stats = {}, group = group }
+        worn[slot] = { score = s, own = 0, parts = {}, stats = {}, group = group }
       else
         local stats = driver.stats(link)
         if stats == nil then
@@ -591,8 +593,8 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
         else
           local speed = group == "MAINHAND" and wornSpeed and wornSpeed(itemIdOf(link)) or nil
           local equipLoc = model and driver.instant(itemIdOf(link) or 0) or nil
-          local s, p = scoreOf(stats, group, equipLoc, speed)
-          worn[slot] = { score = s, parts = p, link = link, stats = stats, group = group, speed = speed,
+          local s, p, own = scoreOf(stats, group, equipLoc, speed)
+          worn[slot] = { score = s, own = own, parts = p, link = link, stats = stats, group = group, speed = speed,
             equipLoc = equipLoc }
         end
       end
@@ -622,7 +624,8 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     if group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not twoHandWorn then
       local m, o = wornAt(16), wornAt(17)
       if not (m and o) then return nil end
-      return { score = m.score + o.score, parts = merged(m.parts, o.parts), link = m.link, pair = { m, o } }
+      return { score = m.score + o.score, own = m.own + o.own, parts = merged(m.parts, o.parts), link = m.link,
+        pair = { m, o } }
     end
     return wornAt(SLOT_OF[group]) or nil
   end
@@ -643,10 +646,11 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
   end
 
   -- The gain over b that makes an upgrade, or nil: a score above nothing, beating b by
-  -- MIN_GAIN_SHARE of b's score and by minGain.
+  -- MIN_GAIN_SHARE of b's own score (the piece's, not the attack power its hand carries, which
+  -- would ask a weapon for more as the character's attack power grows) and by minGain.
   local function beats(score, b)
     local gain = score - b.score
-    if score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then return gain end
+    if score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * (b.own or b.score), minGain) then return gain end
     return nil
   end
 

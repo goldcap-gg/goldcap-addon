@@ -844,6 +844,23 @@ describe("ForeverUpgrades", function()
       assert.is_nil(U.TooltipVerdict(great, d, U.WeightsFor({}, "WARRIOR", m), { model = m }))
     end)
 
+    -- Speed is where the two would drift apart: both speeds kept, the tooltip says Build's figure.
+    it("says a rogue's slower dagger adds what the HERO tab says, both speeds kept", function()
+      local owner = { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
+        critPer = { AGI = 0.0015150 } }
+      local d = dressRogue(owner, 10, 1.5, 10, 1.5)
+      items[2011] = items[MAIN]
+      statsOf["item:2011"], speedOf[2011] = DPS(10), 2.8
+      local m = U.ModelFor(d, "ROGUE", true)
+      local weights = U.WeightsFor({}, "ROGUE", m)
+      local main = bestIn(U.Build(gear({ [2011] = "500:0:0" }), d, weights, nil, { model = m }), "MAINHAND")
+      local slow = link(2011, "Slow Dagger")
+      statsOf[slow] = DPS(10)
+      local lines = U.TooltipVerdict(slow, d, weights, { model = U.ModelFor(d, "ROGUE", false) })
+      assert.equal("Upgrade: " .. U.DpsFigure(main.dps) .. " DPS over your item:2001", lines[1].text)
+      assert.equal("+4.4", (U.DpsFigure(main.dps)))
+    end)
+
     -- The tooltip and the HERO tab say the same DPS, the worn main hand at the speed Build read.
     it("says what a piece adds to the character's DPS, the stats that make it in brackets, each loss red", function()
       local names = { ITEM_MOD_AGILITY_SHORT = "Agility", ITEM_MOD_ATTACK_POWER_SHORT = "Attack Power",
@@ -1362,6 +1379,35 @@ describe("ForeverUpgrades", function()
         assert.near(4.35, want, 0.005)                                 -- the weapon's own share alone was 2.29
         assert.near(want, bestIn(r, "MAINHAND").dps, 1e-9)
         assert.is_nil(bestIn(r, "OFFHAND"))                           -- the same dagger in the off hand: nothing
+      end)
+
+      -- The 5% an upgrade must beat what is worn by is of the piece's own score: the attack power a
+      -- hand carries would ask a weapon for more the more attack power the character has.
+      it("still offers a dagger a little better than the one worn, whatever attack power the hand carries", function()
+        local owner = { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
+          critPer = { AGI = 0.0015150 } }
+        local d = dressRogue(owner, 10, 1.5, 10, 1.5)
+        items[2012] = items[MAIN]
+        statsOf["item:2012"], speedOf[2012] = DPS(10.6), 1.5
+        local m = U.ModelFor(d, "ROGUE", true)
+        local r = U.Build(gear({ [2012] = "500:0:0" }), d, U.WeightsFor({}, "ROGUE", m), nil, { model = m })
+        local main = bestIn(r, "MAINHAND")
+        assert.equal(2012, main.itemID)
+        assert.near(0.6345, main.dps, 1e-4)                            -- 0.6 in a 0.92 hand, crits on top
+      end)
+
+      it("prices the attack power a hand carries at a player's own DPS weight too", function()
+        local SWORD = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
+        items[2022], items[2023], items[2021] = SWORD, SWORD, { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }
+        worn[16], worn[17] = "item:2022", "item:2023"
+        statsOf["item:2022"], statsOf["item:2023"], statsOf["item:2021"] = DPS(25), DPS(20), DPS(40)
+        local d = drv({ char = function() return WARRIOR_CHAR end })
+        local m = U.ModelFor(d, "WARRIOR")
+        local own = { STR = 1, DPS = 7 }
+        assert.equal(own, U.WeightsFor({ weights = { WARRIOR = own }, weightsV = 4 }, "WARRIOR", m))
+        assert.is_nil(bestIn(U.Build(gear({ [2021] = "500:0:0" }), d, own, nil, { model = m }), "MAINHAND"))
+        -- Without the character's numbers, as before: 40 weapon DPS over 25 and half of 20.
+        assert.equal(2021, bestIn(U.Build(gear({ [2021] = "500:0:0" }), drv(), own), "MAINHAND").itemID)
       end)
 
       it("weighs a warrior's two-hander against both hands of a pair, each with its attack power", function()
