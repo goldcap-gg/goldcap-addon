@@ -17,7 +17,7 @@ describe("HERO tab", function()
     "GetCoinTextureString", "ChatFrame_OpenChat", "InCombatLockdown", "ITEM_MOD_STRENGTH_SHORT",
     "ITEM_MOD_AGILITY_SHORT", "ITEM_MOD_STAMINA_SHORT", "ITEM_MOD_DAMAGE_PER_SECOND_SHORT", "RESISTANCE0_NAME",
     "INVTYPE_WEAPONMAINHAND", "INVTYPE_WEAPONOFFHAND", "INVTYPE_CHEST", "INVTYPE_HEAD", "INVTYPE_FINGER",
-    "ITEM_QUALITY_COLORS", "GetInventoryItemLink", "time", "RED_FONT_COLOR" }
+    "ITEM_QUALITY_COLORS", "GetInventoryItemLink", "GetInventoryItemID", "time", "RED_FONT_COLOR" }
   local NOW = 1800000000
   local CLUB, WATCH, BRUISER, TUNIC, HATCHET, VEST = 2130, 15210, 2131, 2316, 2134, 2317
   -- The paper doll's slots in the client's own order (Forever's Camelot/PaperDollFrame.xml).
@@ -802,6 +802,25 @@ describe("HERO tab", function()
     assert.is_false(shown(d.model))
     assert.is_true(shown(d.portrait))
     assert.equal("classicon-rogue", W.state(d.portrait).atlas)
+  end)
+
+  it("does not dress the character again while a worn piece's link or name loads", function()
+    -- Right after a login the client answers a worn piece's id before its link, and the link's name
+    -- arrives later still: neither is a change of what the character wears.
+    local ids = { [1] = 90 }
+    _G.GetInventoryItemID = function(unit, slot) return unit == "player" and ids[slot] or nil end
+    wornLinks[1] = nil
+    H.Show()
+    assert.same({ "player" }, units)
+    wornLinks[1] = "|Hitem:90::::|h[]|h"
+    H.RefreshIfShown(true)
+    wornLinks[1] = "|Hitem:90::::|h[Cap]|h"
+    H.RefreshIfShown(true)
+    assert.same({ "player" }, units)
+    -- Another item in the slot is a change.
+    ids[1], wornLinks[1] = 91, "|Hitem:91::::|h[Hood]|h"
+    H.RefreshIfShown(true)
+    assert.same({ "player", "player" }, units)
   end)
 
   it("shows the class's icon where the client has no PlayerModel, and draws the rest", function()

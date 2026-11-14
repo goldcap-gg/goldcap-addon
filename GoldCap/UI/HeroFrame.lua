@@ -281,13 +281,22 @@ local function paintStar(tex)
 end
 
 -- What the character wears in each of the doll's slots (view.worn[inventory slot], a link), read
--- once a paint, and a line of them all that changes when any of them does (view.wornSig).
+-- once a paint, and a line of them all that changes when any of them does (view.wornSig). The line
+-- holds item ids, not links: right after a login a worn piece's link is missing or changes while its
+-- name loads, and every such change dressed the character again (SetUnit starts its animation over)
+-- paint after paint. What the model wears changes with the item, not with its name.
+local function wornId(slot, link)
+  local ok, id = pcall(_G.GetInventoryItemID, "player", slot)
+  if ok and tonumber(id) then return tostring(id) end
+  return link and link:match("item:(%d+)") or "-"
+end
+
 local function readWorn()
   local worn, parts = {}, {}
   for i, e in ipairs(DOLL) do
     local ok, link = pcall(_G.GetInventoryItemLink, "player", e[1])
     worn[e[1]] = ok and type(link) == "string" and link or nil
-    parts[i] = worn[e[1]] or "-"
+    parts[i] = wornId(e[1], worn[e[1]])
   end
   view.worn, view.wornSig = worn, table.concat(parts, "\n")
 end
