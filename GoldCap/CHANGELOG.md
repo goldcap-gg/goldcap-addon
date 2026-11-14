@@ -32,7 +32,8 @@
 - WoW: Forever: rogues, warriors and hunters are no longer offered cloth armour, except cloaks.
 - WoW: Forever: weapon damage now counts as much as it does in a fight. A point of weapon DPS in
   the main hand is worth about 14 attack power and half that in the off hand, and a rogue's or
-  warrior's gun, bow or thrown weapon counts for its stats only, since it is for pulling. For a
+  warrior's gun, bow or thrown weapon counts for its stats only, since it is for pulling. With a
+  weapon in each hand your normal swings miss more often, so a two-hander can beat a pair. For a
   rogue, a slower main hand counts for more, because Sinister Strike adds a full swing, and with
   Backstab only daggers are offered for the main hand. The tab reads which you use from the weapon
   in your main hand; switch it under Stat weights.
