@@ -60,8 +60,11 @@ describe("ForeverUpgrades", function()
     local CHEST, HANDS = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }, { loc = "INVTYPE_HAND", class = 4, sub = 2 }
     items[MAIN], items[OFF], items[TUNIC], items[HARNESS], items[MITTS], items[RIGID] =
       DAGGER, DAGGER, CHEST, CHEST, HANDS, HANDS
-    worn[16], worn[17], worn[5], worn[10] = "item:2001", "item:2002", "item:3001", "item:3101"
-    statsOf["item:2001"], statsOf["item:2002"] = DPS(mainDps), DPS(offDps)
+    -- A thrown weapon in the ranged slot, as the owner's rogue carries one; its own DPS not read
+    -- (counted 0), its hand a seventh (HANDS) for the ranged attack power.
+    items[2003] = { loc = "INVTYPE_THROWN", class = 2, sub = 16 }
+    worn[16], worn[17], worn[18], worn[5], worn[10] = "item:2001", "item:2002", "item:2003", "item:3001", "item:3101"
+    statsOf["item:2001"], statsOf["item:2002"], statsOf["item:2003"] = DPS(mainDps), DPS(offDps), {}
     speedOf[MAIN], speedOf[OFF] = mainSpeed, offSpeed
     statsOf["item:3001"] = { ITEM_MOD_AGILITY_SHORT = 4, ITEM_MOD_STAMINA_SHORT = 3, RESISTANCE0_NAME = 73 }
     statsOf["item:3002"] = { RESISTANCE0_NAME = 81, ITEM_MOD_ATTACK_POWER_SHORT = 14 }
@@ -1198,8 +1201,8 @@ describe("ForeverUpgrades", function()
 
     -- The owner's own numbers, read in the client (14.11 13:16): attack power 126, ranged 139, crit
     -- 14.5565%, a point of strength or agility a point of attack power, a point of agility 0.1515% crit,
-    -- both daggers about 10 DPS at 1.5, nothing in the ranged slot. A point of agility gives the
-    -- ranged 1 too (not read, as the game's rule for a rogue).
+    -- both daggers about 10 DPS at 1.5, a thrown weapon in the ranged slot (dressRogue). A point of
+    -- agility gives the ranged 1 too (not read, as the game's rule for a rogue).
     it("gives the owner's rogue both pieces he doubted as gains, the chest the larger", function()
       local owner = { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
         critPer = { AGI = 0.0015150 } }
@@ -1228,9 +1231,9 @@ describe("ForeverUpgrades", function()
       end })
       local m = U.ModelFor(d, "WARRIOR")
       assert.near(0.15, m.per.STR, 1e-9)                              -- 2 x (main hand 1) / 14 x 1.05
-      assert.near(0.0857143, m.per.AP, 1e-6)                          -- (1 + a seventh for the bow) / 14 x 1.05
-      assert.near(0.0205102, m.per.AGI, 1e-6)                         -- crit only: 0.0004 x 24.49
-      assert.near(24.489796, m.base, 1e-5)
+      assert.near(0.075, m.per.AP, 1e-9)                              -- main hand / 14 x 1.05: no bow worn
+      assert.near(0.0097143, m.per.AGI, 1e-6)                         -- crit only: 0.0004 x 24.29
+      assert.near(24.285714, m.base, 1e-5)                            -- 10 + 200 / 14
       local r = U.Build(gear({ [105] = "100:0:0" }), d, U.WeightsFor({}, "WARRIOR", m), nil, { model = m })
       assert.near(0.45, bestIn(r, "HEAD").dps, 1e-9)
     end)
@@ -1428,7 +1431,7 @@ describe("ForeverUpgrades in the client", function()
   local INFO = { [101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2, stats = { ITEM_MOD_STRENGTH_SHORT = 8 } } }
   -- The character sheet's reads (realDriver's char()): none in this suite unless a case puts them.
   local CHAR_KEYS = { "GetCritChance", "UnitAttackPower", "UnitRangedAttackPower", "UnitStat", "GetAttackPowerForStat",
-    "GetRangedAttackPowerForStat", "GetCritChanceFromStat" }
+    "GetRangedAttackPowerForStat", "GetCritChanceFromStat", "issecretvalue" }
   local KEYS = { "C_Item", "UnitLevel", "UnitClass", "GetInventoryItemLink", "C_TooltipInfo", "GetItemStats",
     "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_STAMINA_SHORT", "GetMoney", "SPEED" }
   for _, k in ipairs(CHAR_KEYS) do KEYS[#KEYS + 1] = k end
@@ -1745,11 +1748,11 @@ describe("ForeverUpgrades in the client", function()
     local r = GC.ForeverUpgrades.Current()
     local m = r.model
     assert.near(0.145565, m.crit, 1e-9)
-    -- Nothing worn: the main hand's 126 / 14 and a seventh of the ranged 139 / 14, before crits.
-    assert.near(10.418367, m.base, 1e-5)
-    assert.near(0.0935155, m.per.AP, 1e-6)
+    -- Nothing worn: the main hand's 126 / 14 before crits, and no ranged weapon to count.
+    assert.near(9, m.base, 1e-9)
+    assert.near(0.0818261, m.per.AP, 1e-6)
     assert.near(0.0818261, m.per.STR, 1e-6)
-    assert.near(0.0818261 * 8 / 7 + 0.001515 * m.base, m.per.AGI, 1e-6)
+    assert.near(0.0818261 + 0.001515 * m.base, m.per.AGI, 1e-6)
     assert.near(7 * m.per.AGI, r.weights.AGI, 1e-9)
     assert.near(7 * 1.145565, r.weights.DPS, 1e-9)
     -- The tooltip and /gc weights read the same numbers: a cap's 8 strength is about 0.7 DPS to a
@@ -1758,20 +1761,55 @@ describe("ForeverUpgrades in the client", function()
     assert.same({ { kind = "verdict", tone = "good", text = "Upgrade: +0.7 DPS (+8 Strength), nothing worn there" } },
       GC.ForeverUpgrades.TooltipVerdict("|cff1eff00|Hitem:101|h[Cap]|h|r"))
     GC.ForeverUpgrades.SlashWeights("")
-    local said = "Stat weights: Strength 0.57, AGI 0.77, Stamina 0.4, ARMOR 0.01, DPS 8.02, AP 0.65"
+    local said = "Stat weights: Strength 0.57, AGI 0.67, Stamina 0.4, ARMOR 0.01, DPS 8.02, AP 0.57"
     assert.equal(said, printed[#printed])
     GC.ForeverUpgrades.SlashWeights("sta 0.5")
-    assert.same({ STR = 0.57, AGI = 0.77, STA = 0.5, ARMOR = 0.01, DPS = 8.02, AP = 0.65 }, db.forever.weights.ROGUE)
+    assert.same({ STR = 0.57, AGI = 0.67, STA = 0.5, ARMOR = 0.01, DPS = 8.02, AP = 0.57 }, db.forever.weights.ROGUE)
     GC.ForeverUpgrades.SlashWeights("reset")
     assert.is_nil(db.forever.weights.ROGUE)
     assert.equal(said, printed[#printed])
     -- A buff and a debuff count; a client without one of the reads has no model, and the defaults.
     _G.UnitAttackPower = function() return 126, 30, -10 end
-    assert.near(146 / 14 + 139 / 14 / 7, GC.ForeverUpgrades.Current().model.base, 1e-9)
+    assert.near(146 / 14, GC.ForeverUpgrades.Current().model.base, 1e-9)
     _G.GetRangedAttackPowerForStat = nil
     r = GC.ForeverUpgrades.Current()
     assert.is_nil(r.model)
     assert.same(GC.ForeverUpgrades.DEFAULT_WEIGHTS.ROGUE, r.weights)
+  end)
+
+  -- Every one of these reads is SecretWhenUnitStatsRestricted in Forever: where the client keeps unit
+  -- stats secret, its answer cannot be counted with. The tab keeps the last numbers it read whole, at
+  -- the same level, rather than dropping its DPS figures and ranking by other weights for a while.
+  it("keeps the character's last numbers while the client keeps one secret, at the same level", function()
+    local SECRET, level = 999, 17
+    _G.UnitClass = function() return "Rogue", "ROGUE", 4 end
+    _G.UnitLevel = function() return level end
+    _G.GetCritChance = function() return 14.5565 end
+    _G.UnitAttackPower = function() return 126, 0, 0 end
+    _G.UnitRangedAttackPower = function() return 139, 0, 0 end
+    _G.UnitStat = function(_, i) if i == 1 then return 41, 41 elseif i == 2 then return 71, 71 end end
+    _G.GetAttackPowerForStat = function(_, v) return v end
+    _G.GetRangedAttackPowerForStat = function(_, v) return v end
+    _G.GetCritChanceFromStat = function(i, v) return i == 2 and 0.107565 + (v - 71) * 0.001515 or 0 end
+    _G.issecretvalue = function(v) return v == SECRET end
+    init(16001)
+    local before = GC.ForeverUpgrades.Current().model
+    assert.near(0.145565, before.crit, 1e-9)
+    -- Secret, then an error: the same numbers both times.
+    _G.GetCritChance = function() return SECRET end
+    _G.UnitAttackPower = function() return 200, 0, 0 end
+    local m = GC.ForeverUpgrades.Current().model
+    assert.near(0.145565, m.crit, 1e-9)
+    assert.near(before.base, m.base, 1e-9)
+    _G.GetCritChance = function() error("secret arithmetic") end
+    assert.near(before.per.AGI, GC.ForeverUpgrades.Current().model.per.AGI, 1e-9)
+    -- A level up: the old numbers no longer stand, so no model until the client answers again.
+    level = 18
+    assert.is_nil(GC.ForeverUpgrades.Current().model)
+    _G.GetCritChance = function() return 15 end
+    m = GC.ForeverUpgrades.Current().model
+    assert.near(0.15, m.crit, 1e-9)
+    assert.near(200 / 14, m.base, 1e-9)
   end)
 
   -- /gc weights saved the class's whole table, so a table of the defaults was never the player's

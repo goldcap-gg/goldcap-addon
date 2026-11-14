@@ -440,7 +440,8 @@ function GC.ForeverUpgrades.DpsModel(classFile, char, worn)
   local DpsFactor, M = GC.ForeverUpgrades.DpsFactor, C.AP_PER_DPS
   local hMH = DpsFactor(classFile, "MAINHAND", num(worn.MAINHAND, "speed"))
   local hOH = worn.OFFHAND and DpsFactor(classFile, "OFFHAND") or 0
-  local hR = hands.RANGED or 0
+  -- A ranged hand counts only with a ranged weapon in it: nothing there, nothing shot.
+  local hR = worn.RANGED and (hands.RANGED or 0) or 0
   local base = hMH * (dpsAt("MAINHAND") + ap / M) + hOH * (dpsAt("OFFHAND") + ap / M) + hR * (dpsAt("RANGED") + rap / M)
   local melee = hMH + hOH
   return {
@@ -1211,6 +1212,12 @@ end
 -- changes a weapon's stats and damage, never its speed, so every version and the worn piece share
 -- one read (kept per item string until 13.11, two versions of one dagger cost two).
 local keptInfo, keptStats, keptUsable, keptSpeed = {}, {}, {}, {}
+-- keptChar: the character's numbers (char() below) as last read whole, and at what level. Each of
+-- the reads is SecretWhenUnitStatsRestricted in Forever (1.60.1 docs): where the client keeps unit
+-- stats secret it answers with a value addon code cannot count with, and the tab would then lose
+-- its DPS figures and rank by other weights until it can read again. Those moments use the last
+-- numbers instead, at the same level.
+local keptChar = nil
 
 local function playerLevel()
   local ok, l = pcall(_G.UnitLevel, "player")
@@ -1292,12 +1299,24 @@ local function realDriver(getStats)
     -- its crit chance (GetCritChance is a percent, kept as a fraction), and what ten more points of
     -- strength (1) or agility (2) give at the character's own, a point's worth (GetCritChanceFromStat
     -- is a fraction already). nil when any of it does not answer: no model, the weights as before.
+    -- A client without one of the calls has no model; one that has them all but keeps an answer
+    -- secret (or errors) for now gives keptChar, at the level it was read.
     char = function()
+      local absent = false
+      local function secret(v)
+        local is = _G.issecretvalue
+        if type(is) ~= "function" then return false end
+        local ok, yes = pcall(is, v)
+        return ok and yes == true
+      end
       local function call(fn, ...)
-        if type(fn) ~= "function" then return nil end
+        if type(fn) ~= "function" then
+          absent = true
+          return nil
+        end
         local ok, a, b, c = pcall(fn, ...)
-        if ok then return a, b, c end
-        return nil
+        if not ok or secret(a) or secret(b) or secret(c) then return nil end
+        return a, b, c
       end
       local function total(fn)
         local base, pos, neg = call(fn, "player")
@@ -1319,8 +1338,10 @@ local function realDriver(getStats)
         critPer = { AGI = per(_G.GetCritChanceFromStat, 2) } }
       if not (out.ap and out.rap and out.crit and out.apPer.STR and out.apPer.AGI and out.rapPer.AGI
           and out.critPer.AGI) then
-        return nil
+        if absent or not keptChar or keptChar.level ~= playerLevel() then return nil end
+        return keptChar.out
       end
+      keptChar = { level = playerLevel(), out = out }
       return out
     end,
   }

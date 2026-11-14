@@ -965,7 +965,7 @@ describe("HERO tab", function()
   it("shows the weights the character's numbers set, to two decimals, and saves them as shown once one is typed", function()
     local U = GC.ForeverUpgrades
     local m = U.DpsModel("ROGUE", { ap = 100, rap = 50, crit = 0.05, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
-      critPer = { AGI = 0.0005 } }, { MAINHAND = { dps = 8, speed = 1.8 }, OFFHAND = { dps = 6 } })
+      critPer = { AGI = 0.0005 } }, { MAINHAND = { dps = 8, speed = 1.8 }, OFFHAND = { dps = 6 }, RANGED = { dps = 0 } })
     result.model = m
     H.Show()
     press(top().weights)
