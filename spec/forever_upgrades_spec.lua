@@ -1047,7 +1047,8 @@ describe("ForeverUpgrades", function()
     local diffs = U.Diff({ ITEM_MOD_STRENGTH_SHORT = 4, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 5.5 },
       { ITEM_MOD_STRENGTH_SHORT = 1, ITEM_MOD_STAMINA_SHORT = 1, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 4 })
     assert.same({ ITEM_MOD_STRENGTH_SHORT = 3, ITEM_MOD_STAMINA_SHORT = -1, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 1.5 }, diffs)
-    assert.equal("+3 Strength, -1 Stamina, +1.5 DPS", U.DiffText(diffs))   -- no client name: the token
+    assert.same({ { text = "+3 Strength", loss = false, token = "STR" }, { text = "-1 Stamina", loss = true, token = "STA" },
+      { text = "+1.5 DPS", loss = false, token = "DPS" } }, U.DiffParts(diffs))   -- no client name: the token
     _G.ITEM_MOD_STRENGTH_SHORT, _G.ITEM_MOD_STAMINA_SHORT, _G.ITEM_MOD_DAMAGE_PER_SECOND_SHORT = was[1], was[2], was[3]
   end)
 
@@ -1751,6 +1752,19 @@ describe("ForeverUpgrades in the client", function()
     assert.near(0.0818261 * 8 / 7 + 0.001515 * m.base, m.per.AGI, 1e-6)
     assert.near(7 * m.per.AGI, r.weights.AGI, 1e-9)
     assert.near(7 * 1.145565, r.weights.DPS, 1e-9)
+    -- The tooltip and /gc weights read the same numbers: a cap's 8 strength is about 0.7 DPS to a
+    -- rogue wearing nothing, and the weights print as the window shows them.
+    _G.GetInventoryItemLink = function() return nil end
+    assert.same({ { kind = "verdict", tone = "good", text = "Upgrade: +0.7 DPS (+8 Strength), nothing worn there" } },
+      GC.ForeverUpgrades.TooltipVerdict("|cff1eff00|Hitem:101|h[Cap]|h|r"))
+    GC.ForeverUpgrades.SlashWeights("")
+    local said = "Stat weights: Strength 0.57, AGI 0.77, Stamina 0.4, ARMOR 0.01, DPS 8.02, AP 0.65"
+    assert.equal(said, printed[#printed])
+    GC.ForeverUpgrades.SlashWeights("sta 0.5")
+    assert.same({ STR = 0.57, AGI = 0.77, STA = 0.5, ARMOR = 0.01, DPS = 8.02, AP = 0.65 }, db.forever.weights.ROGUE)
+    GC.ForeverUpgrades.SlashWeights("reset")
+    assert.is_nil(db.forever.weights.ROGUE)
+    assert.equal(said, printed[#printed])
     -- A buff and a debuff count; a client without one of the reads has no model, and the defaults.
     _G.UnitAttackPower = function() return 126, 30, -10 end
     assert.near(146 / 14 + 139 / 14 / 7, GC.ForeverUpgrades.Current().model.base, 1e-9)

@@ -1237,8 +1237,15 @@ describe("HERO tab", function()
     H.Hide()
     H.Show()
     assert.equal(2, due(C.HOLD_S))
-    timers[1]()                                                         -- the dead one, run first
+    for i, d in ipairs(delays) do
+      if d == C.HOLD_S then
+        table.remove(delays, i)
+        table.remove(timers, i)()                                       -- the first Show's, dead
+        break
+      end
+    end
     assert.is_true(H._state.settling)
+    assert.equal(1, due(C.HOLD_S))
     runDue(C.HOLD_S)
     settled()
   end)

@@ -278,8 +278,8 @@ local function signed(v)
   return ("%+.1f"):format(v)
 end
 
--- What DiffText says, part by part in TOKEN_ORDER: { text = "+3 Strength", loss = the stat goes
--- down, token }, for a caller that colours a loss or leaves some tokens out.
+-- A diff in words, part by part in TOKEN_ORDER: { text = "+3 Strength", loss = the stat goes down,
+-- token }, for a caller that colours a loss or leaves some tokens out (the HERO tab, the tooltip).
 function GC.ForeverUpgrades.DiffParts(diffs)
   local parts = {}
   for _, token in ipairs(GC.ForeverUpgrades.TOKEN_ORDER) do
@@ -289,12 +289,6 @@ function GC.ForeverUpgrades.DiffParts(diffs)
     end
   end
   return parts
-end
-
-function GC.ForeverUpgrades.DiffText(diffs)
-  local out = {}
-  for i, part in ipairs(GC.ForeverUpgrades.DiffParts(diffs)) do out[i] = part.text end
-  return table.concat(out, ", ")
 end
 
 local function isRed(c)
