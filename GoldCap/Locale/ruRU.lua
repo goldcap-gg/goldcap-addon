@@ -2026,6 +2026,8 @@ GC.Locales.ruRU = {
   ["Left after"] = "Останется",
   ["What counts for a %s"] = "%s: что важно",
   ["The list changes as you type"] = "Список меняется, пока вы вводите",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "Сила, ловкость, сила атаки и урон в секунду берутся у вашего персонажа и меняются, пока он растёт в уровне и одевается. Измените число, и ваши значения сохранятся до сброса.",
   ["Sword, mace, fist"] = "Меч, дробящее, кистевое",
   ["Dagger"] = "Кинжал",
   ["From the weapon in your main hand. Backstab needs a dagger."] =

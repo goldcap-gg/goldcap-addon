@@ -1885,6 +1885,8 @@ GC.Locales.koKR = {
   ["Left after"] = "구매 후 잔액",
   ["What counts for a %s"] = "%s에게 중요한 능력치",
   ["The list changes as you type"] = "입력하는 대로 목록이 바뀝니다",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "힘, 민첩성, 전투력, 초당 공격력은 캐릭터에서 가져오며 레벨이 오르고 장비를 갖출수록 바뀝니다. 숫자를 바꾸면 초기화할 때까지 직접 정한 값이 유지됩니다.",
   ["Sword, mace, fist"] = "도검, 둔기, 장착 무기",
   ["Dagger"] = "단검",
   ["From the weapon in your main hand. Backstab needs a dagger."] =

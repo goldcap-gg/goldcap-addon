@@ -1947,6 +1947,8 @@ GC.Locales.enUS = {
   ["Left after"] = "Left after",
   ["What counts for a %s"] = "What counts for a %s",
   ["The list changes as you type"] = "The list changes as you type",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset.",
   ["Sword, mace, fist"] = "Sword, mace, fist",
   ["Dagger"] = "Dagger",
   ["From the weapon in your main hand. Backstab needs a dagger."] =

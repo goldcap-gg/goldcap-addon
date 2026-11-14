@@ -931,6 +931,69 @@ describe("HERO tab", function()
     assert.is_true(p.slider == nil or p.slider:Leaving() or not shown(p))
   end)
 
+  -- Owner, 14.11: "+0.7 DPS" instead of adding up -4 Agility and +14 Attack Power.
+  it("says on each choice what it adds to the character's DPS, then only the stats that figure leaves out", function()
+    local green, red, muted = GC.Theme.color.green, GC.Theme.color.red, GC.Theme.color.fgMuted
+    local function hex(c) return ("|cff%02x%02x%02x"):format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5),
+      math.floor(c[3] * 255 + 0.5)) end
+    local r = aResult()
+    local tunic = r.slots[1].best
+    tunic.dps, tunic.diffs = 0.66, { ITEM_MOD_AGILITY_SHORT = 6, ITEM_MOD_STAMINA_SHORT = -4, ITEM_MOD_ATTACK_POWER_SHORT = 2 }
+    local slot = r.slots[2]
+    slot.best.dps, slot.alts[1].dps, slot.alts[2].dps = -0.34, 0.01, nil
+    result = r
+    H.Show()
+    assert.equal("+0.7 DPS, -4 Stamina", textOf(opt(1).gain))
+    assert.equal(hex(green) .. "+0.7 DPS|r, " .. hex(red) .. "-4 Stamina|r", W.state(opt(1).gain).text)
+    -- A choice that costs DPS says it in red, one that changes it by less than 0.05 says 0.0, and
+    -- one without a figure reads as before.
+    press(slotAt(16))
+    assert.equal("0.0 DPS, +4 Stamina", textOf(opt(1).gain))                    -- the sword, the set's
+    assert.equal(hex(muted) .. "0.0 DPS|r, " .. hex(green) .. "+4 Stamina|r", W.state(opt(1).gain).text)
+    assert.equal("-0.3 DPS", textOf(opt(2).gain))                                -- the club
+    assert.equal(hex(red) .. "-0.3 DPS|r", W.state(opt(2).gain).text)
+    assert.equal("+2 Strength, +2 Damage Per Second", textOf(opt(4).gain))       -- the bruiser
+    -- The bar sums what the list's pieces add: their DPS, and the tunic's stamina and the sword's even out.
+    press(slotAt(5))
+    press(opt(1))
+    assert.equal("+0.7 DPS, -4 Stamina", textOf(bar().sub))
+    press(slotAt(16))
+    press(opt(1))
+    assert.equal("+0.7 DPS", textOf(bar().sub))
+  end)
+
+  it("shows the weights the character's numbers set, to two decimals, and saves them as shown once one is typed", function()
+    local U = GC.ForeverUpgrades
+    local m = U.DpsModel("ROGUE", { ap = 100, rap = 50, crit = 0.05, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
+      critPer = { AGI = 0.0005 } }, { MAINHAND = { dps = 8, speed = 1.8 }, OFFHAND = { dps = 6 } })
+    result.model = m
+    H.Show()
+    press(top().weights)
+    local p = panel("weights")
+    local note = "Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up."
+      .. " Change a number and yours stay until Reset."
+    assert.equal(note, textOf(p.derived))
+    assert.is_true(shown(p.derived))
+    assert.same({ "0.92", "0.77", "0.85", "7.35", "0.4", "0.01" }, { W.state(p.boxes.AGI.box).text,
+      W.state(p.boxes.STR.box).text, W.state(p.boxes.AP.box).text, W.state(p.boxes.DPS.box).text,
+      W.state(p.boxes.STA.box).text, W.state(p.boxes.ARMOR.box).text })
+    -- A number typed: the whole table saved as the boxes showed it, and the boxes the player's now.
+    typeInto(p.boxes.STA.box, "0.5")
+    assert.same({ AGI = 0.92, STR = 0.77, AP = 0.85, DPS = 7.35, STA = 0.5, ARMOR = 0.01 }, prefs.weights.ROGUE)
+    H.RefreshIfShown(true)
+    assert.is_false(shown(p.derived))
+    assert.equal("0.92", W.state(p.boxes.AGI.box).text)
+    -- Reset: from the character again.
+    press(p.secondary)
+    assert.is_nil(prefs.weights.ROGUE)
+    assert.is_true(shown(p.derived))
+    -- No model (a mage, or a client that did not answer): the defaults, and no line.
+    result.model = nil
+    H.RefreshIfShown(true)
+    assert.is_false(shown(p.derived))
+    assert.equal("1", W.state(p.boxes.AGI.box).text)
+  end)
+
   it("switches a rogue between Sinister Strike and Backstab and rebuilds", function()
     H.Show()
     H.TogglePanel("weights")

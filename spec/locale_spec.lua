@@ -603,6 +603,7 @@ describe("locale layer", function()
       "Left after",
       "What counts for a %s",
       "The list changes as you type",
+      "Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset.",
       "Sword, mace, fist",
       "Dagger",
       "From the weapon in your main hand. Backstab needs a dagger.",

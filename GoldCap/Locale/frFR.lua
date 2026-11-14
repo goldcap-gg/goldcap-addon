@@ -1964,6 +1964,8 @@ GC.Locales.frFR = {
   ["Left after"] = "Reste après",
   ["What counts for a %s"] = "%s : ce qui compte",
   ["The list changes as you type"] = "La liste change pendant que tu tapes",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "La Force, l'Agilité, la Puissance d'attaque et les DPS viennent de ton personnage et changent à mesure qu'il monte de niveau et s'équipe. Change un nombre et les tiens restent jusqu'à la réinitialisation.",
   ["Sword, mace, fist"] = "Épée, masse, arme de pugilat",
   ["Dagger"] = "Dague",
   ["From the weapon in your main hand. Backstab needs a dagger."] =

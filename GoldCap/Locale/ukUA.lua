@@ -2030,6 +2030,8 @@ GC.Locales.ukUA = {
   ["Left after"] = "Залишиться",
   ["What counts for a %s"] = "%s: що важливо",
   ["The list changes as you type"] = "Список змінюється, поки ви вводите",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "Сила, спритність, сила атаки й шкода за секунду беруться з вашого персонажа й змінюються, поки він підвищує рівень і вдягається. Змініть число, і ваші значення залишаться до скидання.",
   ["Sword, mace, fist"] = "Меч, булава, кастет",
   ["Dagger"] = "Кинджал",
   ["From the weapon in your main hand. Backstab needs a dagger."] =

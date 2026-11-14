@@ -1848,6 +1848,8 @@ GC.Locales.zhTW = {
   ["Left after"] = "購買後剩餘",
   ["What counts for a %s"] = "%s看重的屬性",
   ["The list changes as you type"] = "清單隨輸入即時變化",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "力量、敏捷、攻擊強度和每秒傷害來自你的角色，會隨著升級和換裝變化。改動任一數字後，你的數值會一直保留，直到重置。",
   ["Sword, mace, fist"] = "劍、錘、拳套",
   ["Dagger"] = "匕首",
   ["From the weapon in your main hand. Backstab needs a dagger."] =

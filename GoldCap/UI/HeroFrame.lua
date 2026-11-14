@@ -189,14 +189,21 @@ end
 
 local function coins(copper) return GC.Util.CoinText(math.max(0, math.floor(tonumber(copper) or 0))) end
 
--- What a piece adds, in the client's own stat names (GC.ForeverUpgrades.DiffText), each part green
--- or, where it gives something up, red.
-local function gainText(diffs)
-  local text = GC.ForeverUpgrades.DiffText(diffs)
-  if text == "" then return "" end
+-- What a piece adds, in the client's own stat names (GC.ForeverUpgrades.DiffParts), each part green
+-- or, where it gives something up, red. With `dps` (Build's, or the list's sum), what it adds to the
+-- character's DPS comes first, and after it only the stats that figure does not stand for.
+local function gainText(diffs, dps)
+  local U = GC.ForeverUpgrades
   local parts = {}
-  for part in (text .. ", "):gmatch("(.-), ") do
-    parts[#parts + 1] = GC.Util.Colored(part:sub(1, 1) == "-" and Theme.color.red or Theme.color.green, part)
+  if dps then
+    local figure, sign = U.DpsFigure(dps)
+    local c = sign > 0 and Theme.color.green or sign < 0 and Theme.color.red or Theme.color.fgMuted
+    parts[1] = GC.Util.Colored(c, GC.L["%s DPS"]:format(figure))
+  end
+  for _, part in ipairs(U.DiffParts(diffs)) do
+    if not (dps and U.MODELLED[part.token]) then
+      parts[#parts + 1] = GC.Util.Colored(part.loss and Theme.color.red or Theme.color.green, part.text)
+    end
   end
   return table.concat(parts, ", ")
 end
@@ -402,10 +409,11 @@ local function readList()
 end
 
 -- What the list still buys, whatever slot it is for: how many pieces, what those the doll shows add
--- (diffs, none zero), and what they all cost, a piece the doll shows at its lot's price and any
--- other at the most BUY pays for it (its line cap, GC.db.runLineCaps).
+-- (diffs, none zero, and dps, their DPS figures summed, or nil without one), and what they all
+-- cost, a piece the doll shows at its lot's price and any other at the most BUY pays for it (its
+-- line cap, GC.db.runLineCaps).
 local function listTotals()
-  local n, cost, diffs, open = 0, 0, {}, {}
+  local n, cost, diffs, open, dps = 0, 0, {}, {}, nil
   for _, line in ipairs(state.lines) do
     local left = math.max(0, (tonumber(line.q) or 0) - (tonumber(state.bought[line.i]) or 0))
     open[line.i] = (open[line.i] or 0) + left
@@ -415,6 +423,7 @@ local function listTotals()
     cost = cost + (tonumber(c.unit) or 0)
     open[c.itemID] = (open[c.itemID] or 0) - 1
     for k, v in pairs(c.diffs or {}) do diffs[k] = (diffs[k] or 0) + v end
+    if c.dps then dps = (dps or 0) + c.dps end
   end
   local run = heroRun()
   local caps = run and GC.db and type(GC.db.runLineCaps) == "table" and GC.db.runLineCaps[run.code] or nil
@@ -424,7 +433,7 @@ local function listTotals()
   for k, v in pairs(diffs) do
     if v == 0 then diffs[k] = nil end
   end
-  return n, cost, diffs
+  return n, cost, diffs, dps
 end
 
 -- Each slot's choices, and the piece the list holds for each slot. Per item, the units the list
@@ -1037,7 +1046,7 @@ local function paintOption(b, s, c, on, star)
   b.pickRing:SetShown(star and not on)
   put(b.name, nameOf(c))
   setColor(b.name, qualityOf(c.itemID))
-  local gains = gainText(c.diffs)
+  local gains = gainText(c.diffs, c.dps)
   if gains ~= "" then put(b.gain, gains) else b.gain:Hide() end
   if not on and GC.ForeverUpgrades.ListState(state.lines, state.bought, c) == "bought" then
     put(b.price, GC.L["Bought"])
@@ -1296,7 +1305,7 @@ end
 -- Its height follows the words. Answers it.
 local function layoutBar(r, width)
   local b, f = view.bar, view.bar.frame
-  local n, cost, diffs = listTotals()
+  local n, cost, diffs, dps = listTotals()
   local picks = r.set and r.set.list or {}
   if n == 0 and #picks == 0 and not state.settling then
     put(b.title, GC.L["Nothing on the auction house fits the gold you carry yet."])
@@ -1304,7 +1313,7 @@ local function layoutBar(r, width)
     put(b.title, GC.L["In your list: %d"]:format(n))
   end
   local sub = {}
-  local gains = n > 0 and gainText(diffs) or ""
+  local gains = n > 0 and gainText(diffs, dps) or ""
   if gains ~= "" then sub[#sub + 1] = gains end
   if r.waiting and next(r.waiting) ~= nil and not state.settling then
     sub[#sub + 1] = GC.L["Still reading what you wear: the picks may change"]
@@ -1594,8 +1603,9 @@ local function weightTokens(class, weights)
 end
 
 -- A weight typed in its box: read as /gc weights reads one (GC.ForeverUpgrades.ApplyWeights, a comma
--- taken for the decimal point), into a copy of the weights in force, so a stat with no box here
--- keeps its own; 0 takes the stat off. What cannot be read turns the box red and changes nothing.
+-- taken for the decimal point), into a copy of the weights in force (EditWeights: those from the
+-- character as the boxes show them), so a stat with no box here keeps its own; 0 takes the stat off.
+-- What cannot be read turns the box red and changes nothing.
 local function onWeight(token, text)
   local p, class = prefs(), select(2, classOf())
   local well = view.panels.weights.boxes[token]
@@ -1603,7 +1613,7 @@ local function onWeight(token, text)
   text = trim(text)
   if text == "" then well:SetBad(false) return end
   local U = GC.ForeverUpgrades
-  local new = U.ApplyWeights(U.WeightsFor(p, class), token .. " " .. text:gsub(",", "."))
+  local new = U.ApplyWeights(U.EditWeights(p, class, state.r and state.r.model), token .. " " .. text:gsub(",", "."))
   if not new then well:SetBad(true) return end
   well:SetBad(false)
   p.weights = type(p.weights) == "table" and p.weights or {}
@@ -1650,6 +1660,9 @@ local function newWeights()
   p.style = { cap = Theme.Num(p.body, 9, true), hint = Theme.Label(p.body, 10) }
   setColor(p.style.cap, Theme.color.fgDim)
   setColor(p.style.hint, Theme.color.fgDim)
+  -- Under the stats, when the character's DPS model set some of them (WeightsFor): where they come from.
+  p.derived = Theme.Label(p.body, 10)
+  setColor(p.derived, Theme.color.fgDim)
   p.style.switch = CreateFrame("Frame", nil, p.body)
   KP.sunkenTrack(p.style.switch)
   for _, id in ipairs({ "sinister", "backstab" }) do
@@ -1683,7 +1696,10 @@ panelPaint.weights = function(p, width)
     title = GC.L["What counts for a %s"]:format(className or ""),
     sub = GC.L["The list changes as you type"] })
   local U = GC.ForeverUpgrades
-  local weights = (class and U.WeightsFor(prefs() or {}, class)) or {}
+  -- The weights in force: with no table of the player's own, those the character's DPS model sets
+  -- (derived), shown to two decimals.
+  local weights, derived = {}, nil
+  if class then weights, derived = U.WeightsFor(prefs() or {}, class, state.r and state.r.model) end
   -- A row per stat, kept by its stat (p.pool) and laid out in this paint's order (p.rows): every
   -- one hidden first, so a stat that moved up the list or dropped off it is never left showing.
   local y = 0
@@ -1702,7 +1718,8 @@ panelPaint.weights = function(p, width)
     if not (box.box.HasFocus and box.box:HasFocus()) then
       box.bad = nil
       local w = weights[entry.token]
-      box.box:SetText(w and ("%g"):format(w) or "0")
+      local shape = derived and U.MODELLED[entry.token] and "%.2f" or "%g"
+      box.box:SetText(w and shape:format(w) or "0")
     end
     local gold = Theme.color.gold
     if not box.bad then
@@ -1721,6 +1738,16 @@ panelPaint.weights = function(p, width)
     row.frame:SetSize(bodyW - 2 * HD.PANEL_PAD, h)
     row.frame:Show()
     y = y + h
+  end
+  if derived then
+    y = y + 8
+    put(p.derived, GC.L["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."])
+    local dh = wrapTo(p.derived, bodyW - 2 * HD.PANEL_PAD)
+    p.derived:ClearAllPoints()
+    p.derived:SetPoint("TOPLEFT", p.body, "TOPLEFT", HD.PANEL_PAD, -y)
+    y = y + dh
+  else
+    p.derived:Hide()
   end
 
   local st = p.style
