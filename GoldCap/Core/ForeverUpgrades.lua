@@ -522,7 +522,8 @@ end
 -- given and taken off add to each (char's apPer, rapPer, critPer), and the piece swings in its
 -- hand: a two-hander empties the off hand, a shield or a held piece leaves it without a swing, any
 -- piece not for a hand leaves the weapons as they are. Counted whole, never a point at a time: a
--- two-hander's strength reaches one hand, not the two its per counted (review, 14.11).
+-- two-hander's strength reaches one hand, not the two its per counted (review, 14.11). A main hand
+-- whose speed is not known (speed nil) swings at the worn one's: its speed counts once it is read.
 local function swapDps(model, stats, group, speed, equipLoc, off)
   local dSTR, dAGI, dAP = statOf(stats, "STR"), statOf(stats, "AGI"), statOf(stats, "AP")
   for _, st in ipairs(off) do
@@ -531,7 +532,7 @@ local function swapDps(model, stats, group, speed, equipLoc, off)
   local w, ch = model.worn, model.char
   local mh, mhSpeed, oh, r = w.mh, w.mhSpeed, w.oh, w.r
   if group == "MAINHAND" then
-    mh, mhSpeed = statOf(stats, "DPS"), speed
+    mh, mhSpeed = statOf(stats, "DPS"), speed or w.mhSpeed
     if equipLoc == "INVTYPE_2HWEAPON" then oh = nil end
   elseif group == "OFFHAND" then
     oh = OFFHAND_WEAPON[equipLoc] and statOf(stats, "DPS") or nil
@@ -600,8 +601,9 @@ local DERIVED = setmetatable({}, { __mode = "k" })
 -- tooltip never says what the HERO tab does not: what it wears per slot, scored in that slot's
 -- hand; the piece a candidate replaces (the ring on that finger; both hands, for a two-hander while
 -- a one-hander is worn); which kinds of piece a group takes; and how much more a piece must score.
--- wornSpeed(itemID): the worn main hand's speed, or nil (REF_SPEED). loading: where the ids of
--- worn pieces whose stats have not answered go. model: the character's DPS model (DpsModel), or
+-- wornSpeed(itemID): the worn main hand's speed, or nil (REF_SPEED); a main-hand candidate's speed
+-- not read yet is that one too, so speed counts nothing until it is known. loading: where the ids
+-- of worn pieces whose stats have not answered go. model: the character's DPS model (DpsModel), or
 -- nil. With weights set from it (WeightsFor), a candidate gains K times the DPS it adds over what
 -- it replaces (swapDps) and the other stats' worth; with weights of the player's own, the weighted
 -- sum as before the model, its DPS said all the same (bench.dps).
@@ -684,11 +686,25 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     if group == "OFFHAND" then
       -- Under a two-hander there is no off hand to fill. I1 (final review): an off-hand WEAPON (not
       -- a shield or a held item) needs dual-wield, which is not a red tooltip line -- ClassAllows
-      -- alone would offer a mage an off-hand dagger it cannot equip.
+      -- alone would offer a mage an off-hand dagger it cannot equip. With nothing in the main hand,
+      -- a weapon goes there first: no off-hand weapon is offered, nor put in the set (review,
+      -- 14.11: the set put the only sword in the off hand). With the DPS model, so a build without
+      -- the character's numbers reads as before it.
+      if OFFHAND_WEAPON[equipLoc] and model and not driver.equipped(16) then return false end
       return not twoHandWorn and not (OFFHAND_WEAPON[equipLoc] and not canDualWield())
     end
     if group == "MAINHAND" and style == "backstab" then return classID == 2 and subclassID == 15 end
     return true
+  end
+
+  -- A candidate's speed in `group` for its score: its own, or in the main hand while it is not read
+  -- the worn main hand's (nil, REF_SPEED, with nothing there or its speed not read either), as the
+  -- model's figure does with its own (swapDps). Review, 14.11: at REF_SPEED a worn 1.5 dagger
+  -- credited every weapon not read yet with 7.7% of its DPS.
+  local function speedIn(group, speed)
+    if speed or group ~= "MAINHAND" then return speed end
+    local w = wornAt(16)
+    return w and w.speed or nil
   end
 
   -- The gain over b that makes an upgrade, or nil: a score above nothing, gaining (gain: score less
@@ -711,7 +727,7 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
   -- set from the model, that gain is K times the DPS it adds (swapDps) and what the stats the model
   -- does not count add at their weights; otherwise its score less b's. For Build and the tooltip.
   local function over(stats, group, equipLoc, speed, b)
-    local s, p = Score(stats, weights, DpsFactor(class, group, speed))
+    local s, p = Score(stats, weights, DpsFactor(class, group, speedIn(group, speed)))
     if not rest then return s, p, s - b.score end
     local gain = model.K * swapDps(model, stats, group, speed, equipLoc, offOf(b)) + (Score(stats, rest))
     for _, w in ipairs(b.pair or { b }) do gain = gain - (Score(w.stats, rest)) end
@@ -851,7 +867,7 @@ end
 -- known, the same class armour/weapon table and CanDualWield check every candidate already passed
 -- to reach byGroup. The window's own render always passes false (the default): a picked row must
 -- still clear the tooltip's red-line check, exactly as before. Nor does it read a weapon's speed,
--- a tooltip read too: every weapon there counts at REF_SPEED.
+-- a tooltip read too: every weapon there swings at the worn main hand's speed, or REF_SPEED.
 --
 -- opts.style: StyleFor's answer. "backstab" keeps the main hand to daggers; nil filters nothing.
 --
@@ -865,8 +881,8 @@ end
 --   set          BestSet's answer, its picks marked inSet; nil without a money read, and on the
 --                count-only path, which only counts slots.
 --   speedPending the main-hand items (the worn one included) still without a speed after this
---                build's SPEED_READS, each weighed at REF_SPEED until a later build reads it;
---                absent when there are none.
+--                build's SPEED_READS, each weighed at the worn main hand's speed (the worn one at
+--                REF_SPEED) until a later build reads it; absent when there are none.
 --   stale        gear saved before suffix versions (v1): every version there reads as its base.
 --   waiting      { [group] = true } for each group with a piece to weigh that a worn piece's
 --                unanswered stats left unweighed; the group is not in slots until a later build
@@ -883,14 +899,15 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   local loading = {}
 
   -- A weapon's speed, only where it changes the score: the main hand of a class with an
-  -- ABILITY_EVERY, under weights that count DPS. Never on the count-only path. nil: REF_SPEED.
+  -- ABILITY_EVERY, under weights that count DPS. Never on the count-only path. nil: not read (the
+  -- worn main hand's at REF_SPEED, a candidate at the worn one's).
   local readSpeed = not skipUsable and C.ABILITY_EVERY[class] ~= nil and type(driver.speed) == "function"
     and type(weights.DPS) == "number" and weights.DPS ~= 0
   -- Per item, never per version: a random suffix changes a weapon's stats and damage, not its
   -- speed. driver.speed(itemID, false) is what the driver already knows, never a tooltip read;
   -- (itemID, true) reads one when it knows none. read: this caller needs the speed, and may spend
-  -- one of the build's SPEED_READS on it, once per item; an item past them scores at REF_SPEED
-  -- this build and counts in speedPending.
+  -- one of the build's SPEED_READS on it, once per item; an item past them scores at the worn main
+  -- hand's speed this build and counts in speedPending.
   local speeds, speedAsked, speedReads, speedWanted = {}, {}, 0, {}
   local function speedOfItem(itemID, read)
     if not (readSpeed and itemID) then return nil end
@@ -993,10 +1010,10 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
     end
   end
 
-  -- The main hand's speeds, strongest item first: each item's strongest version, weighed at
-  -- REF_SPEED against what it replaces, ties on the itemID, so the picks that matter settle in
-  -- the first builds. A piece with no DPS has no use for its speed. Then every main-hand lot,
-  -- with the speed now known or none.
+  -- The main hand's speeds, strongest item first: each item's strongest version, weighed at the
+  -- worn main hand's speed against what it replaces, ties on the itemID, so the picks that matter
+  -- settle in the first builds. A piece with no DPS has no use for its speed. Then every main-hand
+  -- lot, with the speed now known or none.
   if #mainLots > 0 then
     local gainOf, order = {}, {}
     for _, e in ipairs(mainLots) do
@@ -1176,7 +1193,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   -- window) can tell a GET_ITEM_INFO_RECEIVED it was not waiting for from one that might resolve
   -- something, instead of rebuilding on every arrival regardless.
   out.loadingIds = loading
-  -- The main-hand items still without a speed, weighed at REF_SPEED this build: a later build
+  -- The main-hand items still without a speed, weighed at the worn one's this build: a later build
   -- reads the next SPEED_READS of them.
   local speedPending = 0
   for id in pairs(speedWanted) do
@@ -1521,7 +1538,7 @@ end
 --   line says so), a slot the groups leave out (trinkets, bags), a link the client has not
 --   answered for, and never a bare item id, which scores a suffix version by its base stats.
 -- No tooltip read inside a tooltip: usable is ClassAllows alone, and a weapon's speed is one the
--- driver already keeps from Build's reads, for both sides or for neither.
+-- driver already keeps from Build's reads; one not kept is the worn main hand's, as in Build.
 -- driver, weights, opts: as Build's, for a spec; with no driver, the client's and the character's
 -- own, and only on WoW: Forever.
 function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
@@ -1565,8 +1582,9 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
     end
   end
 
-  -- Speeds as kept, for both sides or for neither: a worn 1.50 dagger kept (about 0.92) against a
-  -- weapon not read yet (REF_SPEED, 1) would call an equal weapon an upgrade.
+  -- Speeds as kept: a weapon not read yet swings at the worn main hand's (newBench), and with the
+  -- worn one's not kept neither counts. A worn 1.50 dagger kept (about 0.92) against REF_SPEED
+  -- (1) would call an equal weapon an upgrade.
   local mine, theirs
   if C.ABILITY_EVERY[class] and type(driver.speed) == "function" and type(weights.DPS) == "number"
       and weights.DPS ~= 0 then
@@ -1576,7 +1594,7 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
     end
     local wornMain = itemIdOf(driver.equipped(16))
     mine, theirs = kept(itemID), kept(wornMain)
-    if not (mine and (theirs or not wornMain)) then mine, theirs = nil, nil end
+    if wornMain and not theirs then mine = nil end
   end
 
   local Score = GC.ForeverUpgrades.Score

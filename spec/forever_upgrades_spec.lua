@@ -1515,6 +1515,57 @@ describe("ForeverUpgrades", function()
         for _, c in ipairs(main.alts) do assert.are_not.equal(2021, c.itemID) end
       end)
 
+      -- Review, 14.11: with nothing in the main hand the set put the only sword in the off hand.
+      it("offers no off-hand weapon while nothing is in the main hand, nor puts one in the set", function()
+        local DIRK = { loc = "INVTYPE_WEAPONOFFHAND", class = 2, sub = 15 }
+        items[2071], items[2072], items[2073] = SWORD, SWORD, DIRK
+        statsOf["item:2071"], statsOf["item:2072"], statsOf["item:2073"] = DPS(18), DPS(17), DPS(16)
+        local d = drv({ char = function() return REVIEW end, money = function() return 1e6 end })
+        local m = U.ModelFor(d, "WARRIOR")
+        local weights = U.WeightsFor({}, "WARRIOR", m)
+        local lots = gear({ [2071] = "100:0:0", [2072] = "100:0:0", [2073] = "100:0:0" })
+        local r = U.Build(lots, d, weights, nil, { model = m })
+        assert.equal(2071, bestIn(r, "MAINHAND").itemID)
+        assert.is_nil(bestIn(r, "OFFHAND"))
+        assert.equal(2071, r.set.picks.MAINHAND.itemID)
+        assert.is_nil(r.set.picks.OFFHAND)
+        assert.is_nil(U.TooltipVerdict("item:2073", d, weights, { model = m }))
+        -- A main hand worn: weapons for the off hand again.
+        items[2070], worn[16], statsOf["item:2070"] = SWORD, "item:2070", DPS(10)
+        m = U.ModelFor(d, "WARRIOR")
+        assert.is_not_nil(bestIn(U.Build(lots, d, U.WeightsFor({}, "WARRIOR", m), nil, { model = m }), "OFFHAND"))
+        -- Without the character's numbers, as before the model.
+        worn[16] = nil
+        assert.is_not_nil(bestIn(U.Build(lots, d, U.WeightsFor({}, "WARRIOR")), "OFFHAND"))
+      end)
+
+      -- Review, 14.11: a weapon whose speed was not read yet scored at REF_SPEED, and against a worn
+      -- 1.5 dagger that credited it 7.7% of what its hand hits for.
+      it("weighs a weapon whose speed is not read yet at the worn main hand's, in the tab and the tooltip", function()
+        local owner = { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
+          critPer = { AGI = 0.0015150 } }
+        local d = dressRogue(owner, 10, 1.5, 10, 1.5)
+        items[2013], items[2014] = items[MAIN], items[MAIN]
+        statsOf["item:2013"], statsOf["item:2014"] = DPS(10), DPS(10.6)   -- no speed the client tells
+        local m = U.ModelFor(d, "ROGUE", true)
+        local weights = U.WeightsFor({}, "ROGUE", m)
+        local lots = gear({ [2013] = "500:0:0", [2014] = "600:0:0" })
+        local r = U.Build(lots, d, weights, nil, { model = m })
+        assert.equal(2, r.speedPending)
+        local main = nil
+        for _, sl in ipairs(r.slots) do if sl.group == "MAINHAND" then main = sl end end
+        assert.equal(2014, main.best.itemID)
+        assert.near(0.5392968, main.best.dps, 1e-6)                    -- as at the worn dagger's 1.5
+        for _, c in ipairs(main.alts) do assert.are_not.equal(2013, c.itemID) end   -- the same dagger: nothing
+        local tip = { model = U.ModelFor(d, "ROGUE", false) }
+        assert.is_nil(U.TooltipVerdict("item:2013", d, weights, tip))
+        assert.equal("Upgrade: " .. U.DpsFigure(main.best.dps) .. " DPS (+0.6 DPS) over your item:2001",
+          U.TooltipVerdict("item:2014", d, weights, tip)[1].text)
+        -- Without the character's numbers too, and on the count-only path, which reads no speed.
+        assert.is_nil(bestIn(U.Build(gear({ [2013] = "500:0:0" }), d, U.WeightsFor({}, "ROGUE")), "MAINHAND"))
+        assert.is_nil(bestIn(U.Build(gear({ [2013] = "500:0:0" }), d, weights, true, { model = m }), "MAINHAND"))
+      end)
+
       it("counts a hunter's bow in an empty ranged slot with its ranged attack power", function()
         local char = { ap = 80, rap = 150, crit = 0.06, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 2 },
           critPer = { AGI = 0.0006 } }
