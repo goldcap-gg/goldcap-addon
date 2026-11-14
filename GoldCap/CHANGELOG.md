@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.29.0 (unreleased)
+## 0.29.0 (2026-11-14)
 
 - WoW: Forever: a new HERO tab in the GoldCap window replaces the /gc upgrades window. It looks
   like your character sheet: your own slots around your character, and a slot with something
