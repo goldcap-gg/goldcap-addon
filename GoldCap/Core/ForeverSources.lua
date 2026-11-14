@@ -25,9 +25,11 @@ local _, GC = ...
 --   nothing. Blizzard's trainer window hides what the character has already learned, so each
 --   character sees another part of the list. A row whose item the client had not loaded yet has no
 --   link: it leaves `i` as it was, and a later visit with the link fills it.
--- - A merchant's item list is replaced on each visit by the list it showed then. Blizzard's merchant
---   window resets its item filter at each show (ResetSetMerchantFilter), so that list may be only
---   what the filter lets through (not measured). A read with no rows changes nothing.
+-- - A merchant's items merge the same way: a visit adds or updates each item it shows, field by
+--   field, and deletes nothing. Blizzard's merchant window resets its item filter to the player's
+--   class at each show (ResetSetMerchantFilter), so one character's list can be part of what the
+--   merchant sells. `x` is set by every visit that shows the item. A read with no rows changes
+--   nothing.
 -- - Only a creature is an npc here: a GUID of any other kind (a player, a vehicle) keeps nothing.
 -- - At most C.MAX_TRAINERS trainers and C.MAX_VENDORS merchants: past that, the one seen longest
 --   ago goes, never the one just written.
@@ -157,7 +159,7 @@ function S.RecordTrainer(root, npc, services, now)
   return n
 end
 
---- Keeps what one merchant sells, in place of what it sold before: `npc` as for RecordTrainer,
+--- Keeps what one merchant sells, beside what earlier visits saw: `npc` as for RecordTrainer,
 --- `items` = a list of { itemID, price, stack, available, classID, subclassID, extended }. An item
 --- listed twice keeps its row for gold over one for a currency, else its first row. Answers how
 --- many items it wrote.
@@ -186,7 +188,18 @@ function S.RecordVendor(root, npc, items, now)
     s.vendors[id] = entry
   end
   stamp(entry, npc, now)
-  entry.it = list
+  if type(entry.it) ~= "table" then entry.it = {} end
+  for item, row in pairs(list) do
+    local kept = entry.it[item]
+    if type(kept) == "table" then
+      -- A field this visit could not read (nil) is not in `row`, so the kept one stays. Whether the
+      -- item costs a currency is read on every row, so `x` is this visit's.
+      for k, v in pairs(row) do kept[k] = v end
+      kept.x = row.x
+    else
+      entry.it[item] = row
+    end
+  end
   trim(s.vendors, C.MAX_VENDORS, id)
   return n
 end

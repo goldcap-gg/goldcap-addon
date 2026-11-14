@@ -157,14 +157,27 @@ describe("Forever trainers and merchants", function()
         } } } }, root.foreverSources)
     end)
 
-    it("replaces its list on each visit: the window shows all it sells", function()
+    -- Blizzard's merchant window filters by the player's class at each show: a second character
+    -- can see fewer items, and nothing the first one saw is lost.
+    it("merges what each visit shows and deletes nothing", function()
       local root = {}
-      S.RecordVendor(root, npc(), { ware(3372), ware(2320) }, 100)
-      assert.equal(2, S.RecordVendor(root, npc(), { ware(3372, { available = 4 }), ware(2321) }, 200))
+      S.RecordVendor(root, npc(), { ware(3372), ware(2320), ware(799, { classID = 4, subclassID = 2 }) }, 100)
+      assert.equal(2, S.RecordVendor(root, npc(), { ware(3372, { price = 200, available = 4 }), ware(2321) }, 200))
       local entry = root.foreverSources.vendors[4591]
-      assert.same({ [3372] = { p = 180, k = 5, a = 4, c = 7, sc = 11 }, [2321] = { p = 180, k = 5, a = -1, c = 7, sc = 11 } },
-        entry.it)
+      assert.same({
+        [3372] = { p = 200, k = 5, a = 4, c = 7, sc = 11 },
+        [2320] = { p = 180, k = 5, a = -1, c = 7, sc = 11 },
+        [799] = { p = 180, k = 5, a = -1, c = 4, sc = 2 },
+        [2321] = { p = 180, k = 5, a = -1, c = 7, sc = 11 },
+      }, entry.it)
       assert.equal(200, entry.at)
+    end)
+
+    it("merges field by field: a field a visit could not read stays, and `x` is the visit's", function()
+      local root = {}
+      S.RecordVendor(root, npc(), { ware(3372, { price = 0, extended = true }) }, 100)
+      S.RecordVendor(root, npc(), { ware(3372, { classID = "x", price = 180 }) }, 200)
+      assert.same({ p = 180, k = 5, a = -1, c = 7, sc = 11 }, root.foreverSources.vendors[4591].it[3372])
     end)
 
     -- Half the probe's merchant reads, a second after the window opened, listed no items.
