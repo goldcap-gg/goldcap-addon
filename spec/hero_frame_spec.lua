@@ -994,6 +994,22 @@ describe("HERO tab", function()
     assert.equal("1", W.state(p.boxes.AGI.box).text)
   end)
 
+  -- Review, 14.11: with no scan saved the panel showed the plain defaults, and the first number
+  -- typed saved them as the player's own, while /gc weights saved the character's.
+  it("shows and saves the character's weights with no scan saved too", function()
+    local m = GC.ForeverUpgrades.DpsModel("ROGUE", { ap = 100, rap = 50, crit = 0.05, apPer = { STR = 1, AGI = 1 },
+      rapPer = { AGI = 1 }, critPer = { AGI = 0.0005 } }, { MAINHAND = { dps = 8, speed = 1.8 }, OFFHAND = { dps = 6 },
+      RANGED = { dps = 0 } })
+    result = { slots = {}, loading = 0, noScan = true, model = m }
+    H.Show()
+    press(top().weights)
+    local p = panel("weights")
+    assert.is_true(shown(p.derived))
+    assert.equal("0.92", W.state(p.boxes.AGI.box).text)
+    typeInto(p.boxes.STA.box, "0.5")
+    assert.same({ AGI = 0.92, STR = 0.77, AP = 0.85, DPS = 7.35, STA = 0.5, ARMOR = 0.01 }, prefs.weights.ROGUE)
+  end)
+
   it("switches a rogue between Sinister Strike and Backstab and rebuilds", function()
     H.Show()
     H.TogglePanel("weights")

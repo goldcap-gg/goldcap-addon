@@ -420,11 +420,13 @@ local PER_ORDER = { "STR", "AGI", "AP" }
 -- DpsFactor, and a crit doubles a hit:
 --   base   = hMH (dpsMH + ap/14) + hOH (dpsOH + ap/14) + hR (dpsR + rap/14), before crits: the main
 --            hand always (bare, it still hits), the off hand and the ranged slot with a weapon in them
---   per.AP = (hMH + hOH + hR) / 14 (1 + crit): Classic's attack power on gear is melee and ranged
+--   per.AP = (hMH + hOH + hR') / 14 (1 + crit): Classic's attack power on gear is melee and ranged
 --   per.STR, per.AGI: the attack power the game says a point gives, in the hands it reaches, and
 --   for agility the crit a point gives times base
 --   weapon(group, speed): a point of weapon DPS in that group, DpsFactor (1 + crit)
 --   share[group]: the attack power that hand carries, as weapon DPS (ap/14, rap/14 for ranged)
+-- hR' is hR, or for a class that fights with the ranged hand (a hunter, HANDS' RANGED 1) that hand's
+-- whole factor even with nothing in it: its agility is its ranged attack power, between bows too.
 -- K is the class's default DPS weight, the points one DPS is worth on the scale every other weight
 -- sits on (WeightsFor).
 function GC.ForeverUpgrades.DpsModel(classFile, char, worn)
@@ -446,13 +448,14 @@ function GC.ForeverUpgrades.DpsModel(classFile, char, worn)
   local hR = worn.RANGED and (hands.RANGED or 0) or 0
   local base = hMH * (dpsAt("MAINHAND") + ap / M) + hOH * (dpsAt("OFFHAND") + ap / M) + hR * (dpsAt("RANGED") + rap / M)
   local melee = hMH + hOH
+  local hRper = (hands.RANGED or 0) >= 1 and hands.RANGED or hR
   return {
     K = K, crit = c, base = base, class = classFile,
     share = { MAINHAND = ap / M, OFFHAND = ap / M, RANGED = rap / M },
     per = {
-      AP = (melee + hR) / M * (1 + c),
+      AP = (melee + hRper) / M * (1 + c),
       STR = apSTR * melee / M * (1 + c),
-      AGI = (apAGI * melee + rapAGI * hR) / M * (1 + c) + critAGI * base,
+      AGI = (apAGI * melee + rapAGI * hRper) / M * (1 + c) + critAGI * base,
     },
     weapon = function(group, speed) return DpsFactor(classFile, group, speed) * (1 + c) end,
   }
@@ -1400,16 +1403,17 @@ end
 --
 -- r.style: the rogue's style Build was given (StyleFor), from the main hand it wears unless the
 -- player chose one; nil for every other class. r.model: the character's DPS model (ModelFor), or nil;
--- its worn main hand's speed read once off the count-only path.
+-- its worn main hand's speed read once off the count-only path. Read before a scan is there too:
+-- with none, the weights panel still shows and saves the weights in force (review, 14.11).
 function GC.ForeverUpgrades.Current(skipUsable)
   if not enabled() then return nil end
   local gear, fold = GC.ForeverScan.Gear()
-  if not gear then return { slots = {}, loading = 0, noScan = true } end
   local getStats = statsCall()
-  if not getStats then return { slots = {}, loading = 0, noStats = true } end
   local class, prefs = classFile(), GC.ForeverScan.Prefs()
-  local driver = realDriver(getStats)
-  local model = GC.ForeverUpgrades.ModelFor(driver, class, not skipUsable)
+  local driver = getStats and realDriver(getStats) or nil
+  local model = driver and GC.ForeverUpgrades.ModelFor(driver, class, not skipUsable) or nil
+  if not gear then return { slots = {}, loading = 0, noScan = true, model = model } end
+  if not driver then return { slots = {}, loading = 0, noStats = true } end
   local weights = GC.ForeverUpgrades.WeightsFor(prefs, class, model)
   local style = wornStyle(driver, prefs, class)
   local r = GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, { style = style, model = model })

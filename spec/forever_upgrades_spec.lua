@@ -1364,6 +1364,27 @@ describe("ForeverUpgrades", function()
       end)
     end)
 
+    -- Review, 14.11: between bows a hunter's agility is still its ranged attack power. Its weights
+    -- count the hand it fights with, whatever is in it; only what it does now (base) leaves it out.
+    it("keeps a hunter's agility at its ranged attack power with nothing in the ranged slot", function()
+      local char = { ap = 80, rap = 150, crit = 0.06, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 2 },
+        critPer = { AGI = 0.0006 } }
+      items[106] = { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
+      statsOf["item:106"] = { ITEM_MOD_AGILITY_SHORT = 5 }
+      local d = drv({ classFile = function() return "HUNTER" end, char = function() return char end })
+      local m = U.ModelFor(d, "HUNTER")
+      assert.near(0.1 * 80 / 14, m.base, 1e-9)                         -- a melee tenth: no bow, nothing shot
+      assert.near((0.1 + 2 * 1) / 14 * 1.06 + 0.0006 * m.base, m.per.AGI, 1e-9)
+      assert.near((0.1 + 1) / 14 * 1.06, m.per.AP, 1e-9)
+      local weights = U.WeightsFor({}, "HUNTER", m)
+      assert.is_true(weights.AGI > 0.8)                                -- 5.6 x 0.159: still its top stat
+      local r = U.Build(gear({ [106] = "100:0:0" }), d, weights, nil, { model = m })
+      assert.near(5 * m.per.AGI, bestIn(r, "HEAD").dps, 1e-9)
+      -- A rogue's ranged hand still counts only with something in it.
+      local rogueM = U.DpsModel("ROGUE", CHAR, { MAINHAND = { dps = 8 } })
+      assert.near(1 / 14 * 1.05, rogueM.per.AP, 1e-9)
+    end)
+
     it("has no model for a mage, a priest, a warlock or a druid, whose choices read as before", function()
       local char = function() return CHAR end
       for _, class in ipairs({ "MAGE", "PRIEST", "WARLOCK", "DRUID" }) do
@@ -1761,6 +1782,26 @@ describe("ForeverUpgrades in the client", function()
     init(16001)
     db.foreverScan.gear.at = 4000
     assert.is_true(GC.ForeverUpgrades.Current().noScan)
+  end)
+
+  -- Review, 14.11: with no scan the HERO tab's weights panel still shows the weights in force, so
+  -- the character's model comes with the no-scan answer too.
+  it("reads the character's model with no scan saved too", function()
+    _G.UnitClass = function() return "Rogue", "ROGUE", 4 end
+    _G.GetCritChance = function() return 14.5565 end
+    _G.UnitAttackPower = function() return 126, 0, 0 end
+    _G.UnitRangedAttackPower = function() return 139, 0, 0 end
+    _G.UnitStat = function(_, i) if i == 1 then return 41, 41 elseif i == 2 then return 71, 71 end end
+    _G.GetAttackPowerForStat = function(_, v) return v end
+    _G.GetRangedAttackPowerForStat = function(_, v) return v end
+    _G.GetCritChanceFromStat = function(i, v) return i == 2 and 0.107565 + (v - 71) * 0.001515 or 0 end
+    init(16001)
+    db.foreverScan.gear.at = 4000
+    local r = GC.ForeverUpgrades.Current()
+    assert.is_true(r.noScan)
+    assert.near(0.145565, r.model.crit, 1e-9)
+    _G.GetAttackPowerForStat = nil                                   -- a missing call: no model
+    assert.is_nil(GC.ForeverUpgrades.Current().model)
   end)
 
   it("shows, changes and resets the class's stat weights with /gc weights", function()
