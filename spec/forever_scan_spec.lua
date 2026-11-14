@@ -834,12 +834,189 @@ describe("ForeverScan", function()
     s:OnAuctionHouseShow()
     runAll()
     assert.equal(store.fold.at, store.gear.at)
-    assert.equal(1, store.gear.v)
+    assert.equal(2, store.gear.v)
     -- 6125's link had not loaded (nil): no version, no lot. 2589 is not gear.
-    assert.same({ [15210] = "500:-9:1583 900:-12:1583" }, store.gear.items)
+    assert.same({ [15210] = "500:-9:1583:0 900:-12:1583:0" }, store.gear.items)
     -- The fold itself is folded exactly as before: its strings never carry a link.
     assert.equal(2, GC.ForeverFold.Decode(store.fold.items[15210]).lots)
     for _, encoded in pairs(store.fold.items) do assert.is_nil(encoded:find("item:", 1, true)) end
+  end)
+
+  -- HERO probe P1b (13.11): 28,736 of the 79,250 gear rows a scan read had no link yet, and a row
+  -- with no link has no version, so a third of the gear on sale never reached the upgrades. Such a
+  -- row is read again after the save, once a second, while its link loads. Links from the probe.
+  describe("gear rows whose links load after the read", function()
+    local INTELLECT = "|cnIQ2:|Hitem:15211::::::::17:1488:::1:12729::::::|h[Militant Shortsword of Intellect]|h|r"
+    local MAGIC = "|cnIQ2:|Hitem:15211::::::::17:1488::1:1:12917:1:28:5240:::::|h[Militant Shortsword of Magic]|h|r"
+    local POWER = "|cnIQ2:|Hitem:15210::::::::17:1488:::1:12733::::::|h[Raider Shortsword of Power]|h|r"
+    local links, asked, reads
+
+    local function lateDriver(over)
+      local drv = driver({
+        isGear = function(id) return id == 15210 or id == 15211 end,
+        rowLink = function(i) return links[i + 1] end,
+        rowInfo = function(i)
+          reads = reads + 1
+          local r = rows[i + 1]
+          if not r then return nil end
+          return r[1], r[2], r[3], r[4]
+        end,
+        requestLoad = function(id) asked[#asked + 1] = id end,
+      })
+      for k, v in pairs(over or {}) do drv[k] = v end
+      return drv
+    end
+
+    -- Opens, reads the dump and saves it; the late pass's first second is the one timer left.
+    local function scanned(drv)
+      local s = GC.ForeverScan.New(drv or lateDriver())
+      s:OnAuctionHouseShow()
+      runRead(s)
+      assert.equal("idle", s:State())
+      return s
+    end
+
+    local function seconds()
+      local n = 0
+      for _, x in ipairs(timers) do if x.s == 1 then n = n + 1 end end
+      return n
+    end
+
+    before_each(function()
+      links, asked, reads = {}, {}, 0
+      rows = { { 2589, 20, 1340, true }, { 15211, 1, 1930, true }, { 15211, 1, 1918, true },
+        { 15210, 1, 819, true }, { 15211, 1, 1949, true } }
+      links = { "item:2589", INTELLECT, nil, nil, nil }
+    end)
+
+    it("reads a gear row whose link was not loaded yet once it loads, and saves it with the scan", function()
+      local s = scanned()
+      -- Saved at once with what had a link; each waiting item's data asked for once.
+      assert.same({ [15211] = "1930:0:0:12729" }, store.gear.items)
+      assert.same({ 15211, 15210 }, asked)
+      assert.is_false(s:IsBusy())                    -- the scanner is free: the pass is no scan
+      assert.equal(1, seconds())
+      links[3] = MAGIC
+      table.remove(timers, 1).fn()                   -- a second later: Magic loaded
+      assert.same({ [15211] = "1930:0:0:12729" }, store.gear.items) -- written once, at the end
+      links[4], links[5] = POWER, INTELLECT
+      table.remove(timers, 1).fn()                   -- every row read: the pass ends
+      assert.equal(0, #timers)
+      assert.equal(2, store.gear.v)
+      assert.equal(store.fold.at, store.gear.at)
+      assert.same({ [15211] = "1918:0:0:12917 1930:0:0:12729", [15210] = "819:0:0:12733" }, store.gear.items)
+      assert.same({ missing = 3, found = 3 }, store.gear.late)
+      assert.same({ missing = 3, found = 3 }, noted("late")[2])
+      -- The fold itself is the read's: every lot of the item, links or not.
+      assert.equal(3, GC.ForeverFold.Decode(store.fold.items[15211]).lots)
+    end)
+
+    it("gives up on late links after GEAR_LATE_SECONDS and when the auction house closes", function()
+      scanned()
+      local ticks = 0
+      while #timers > 0 do
+        local t = table.remove(timers, 1)
+        if t.s == 1 then ticks = ticks + 1 end
+        t.fn()
+      end
+      assert.equal(GC.ForeverScan.C.GEAR_LATE_SECONDS, ticks)
+      assert.same({ missing = 3, found = 0 }, store.gear.late)
+      assert.same({ [15211] = "1930:0:0:12729" }, store.gear.items)
+      -- Closed: the pass ends there, with what it found, and reads nothing more.
+      store, timers, notes, now = {}, {}, {}, now + GC.ForeverScan.C.COOLDOWN_SECONDS
+      local s = scanned()
+      links[3] = MAGIC
+      table.remove(timers, 1).fn()
+      s:OnAuctionHouseClosed()
+      assert.same({ missing = 3, found = 1 }, store.gear.late)
+      assert.equal("1918:0:0:12917 1930:0:0:12729", store.gear.items[15211])
+      local before = reads
+      runAll()
+      assert.equal(before, reads)
+      -- At logout too (a /reload right after the scan): what was found is kept.
+      store, timers, notes, now = {}, {}, {}, now + GC.ForeverScan.C.COOLDOWN_SECONDS
+      links[3] = nil
+      s = scanned()
+      links[4] = POWER
+      table.remove(timers, 1).fn()
+      s:OnLogout()
+      assert.same({ missing = 3, found = 1 }, store.gear.late)
+      assert.equal("819:0:0:12733", store.gear.items[15210])
+      before = reads
+      runAll()                                       -- the second it had asked for finds it over
+      assert.equal(before, reads)
+    end)
+
+    -- The client has a clock (debugprofilestop): there each second's rows are read a frame at a
+    -- time within the read's own budget, a link read and parse being the cost READ_BUDGET_MS is for.
+    it("reads the waiting rows within the read's frame budget, READ_BATCH a second at most", function()
+      local C = GC.ForeverScan.C
+      local ms, loaded, calls = 0, false, 0
+      local s = GC.ForeverScan.New(driver({
+        clock = function() return ms end,
+        rowInfo = function(i)
+          ms, calls = ms + 0.004, calls + 1
+          local r = rows[i + 1]
+          if not r then return nil end
+          return r[1], r[2], r[3], r[4]
+        end,
+        isGearLot = function() return true end,
+        rowLink = function(i)
+          ms = ms + 0.02                             -- a link read and parse costs more
+          if loaded then return (INTELLECT:gsub("15211", tostring(rows[i + 1][1]))) end
+        end,
+      }))
+      s:OnAuctionHouseShow()
+      rows = dump(3000)
+      s:OnReplicateUpdate()
+      local guard = 0
+      while s:State() ~= "idle" do
+        guard = guard + 1
+        assert(guard < 1000, "runaway timers")
+        table.remove(timers, 1).fn()
+      end
+      assert.same({ 1 }, { timers[1].s })            -- the pass's first second, and nothing else
+      loaded = true
+      local perSecond, frames = {}, 0
+      while #timers > 0 do
+        local t = table.remove(timers, 1)
+        if t.s == 1 then perSecond[#perSecond + 1] = 0 end
+        local before, at = calls, ms
+        t.fn()
+        local read = calls - before
+        perSecond[#perSecond] = perSecond[#perSecond] + read
+        if read > 0 then
+          frames = frames + 1
+          assert.is_true(read < C.READ_BATCH)
+          assert.is_true(ms - at <= C.READ_BUDGET_MS + 0.024 * C.READ_CLOCK_EVERY)
+        end
+      end
+      assert.same({ C.READ_BATCH, 3000 - C.READ_BATCH }, perSecond)
+      assert.is_true(frames > #perSecond)            -- the budget cut every second into frames
+      assert.same({ missing = 3000, found = 3000 }, store.gear.late)
+    end)
+
+    it("never adds a late row whose index now holds another item", function()
+      scanned()
+      rows[3] = { 15210, 1, 500, true }              -- the dump under the index changed
+      links[3] = POWER
+      links[5] = INTELLECT
+      table.remove(timers, 1).fn()
+      runAll()
+      assert.is_nil(store.gear.items[15210])
+      assert.same({ missing = 3, found = 1 }, store.gear.late)
+      -- Another scan that starts ends the pass: a new dump's rows are no index of this one's.
+      store, timers, notes, now = {}, {}, {}, now + GC.ForeverScan.C.COOLDOWN_SECONDS
+      local s = scanned()
+      local saved = store.gear
+      rows[#rows + 1] = { 15210, 1, 400, true }       -- a dump of another size: somebody else's new one
+      links = { "item:2589", INTELLECT, MAGIC, POWER, INTELLECT, POWER }
+      s:OnReplicateUpdate()
+      assert.are_not.equal(saved, store.gear)       -- the new read saved its own lots
+      assert.is_nil(store.gear.late)
+      runAll()
+      assert.is_nil(store.gear.late)                -- and the old pass wrote nothing over them
+    end)
   end)
 
   -- Final review M6: gear lots are a narrower question than the fold's own "g" flag -- the
@@ -1059,6 +1236,20 @@ describe("ForeverScan", function()
       assert.is_true(db.foreverScan.introShown)
     end)
 
+    -- The late-link pass's end (Core/ForeverScan.lua's finishLate): the upgrades are built again
+    -- once when it found rows, and nothing else the scan's end does happens again.
+    it("builds the upgrades again once when gear rows loaded late, and not when none did", function()
+      local queued, printed = 0, {}
+      GC.Print = function(m) printed[#printed + 1] = m end
+      local was = GC.ForeverScan._QueueUpgradesUpdate
+      GC.ForeverScan._QueueUpgradesUpdate = function() queued = queued + 1 end
+      finally(function() GC.ForeverScan._QueueUpgradesUpdate = was end)
+      GC.ForeverScan._Notify("late", { missing = 3, found = 2 })
+      GC.ForeverScan._Notify("late", { missing = 3, found = 0 })
+      assert.equal(1, queued)
+      assert.same({}, printed)
+    end)
+
     it("keeps plan 3e's preferences in GoldCapDB.forever, created only in Forever", function()
       assert.is_false(GC.ForeverScan.Init(db, passport(120100, 3, "Silvermoon")))
       assert.is_nil(GC.ForeverScan.Prefs())
@@ -1079,14 +1270,18 @@ describe("ForeverScan", function()
       local gear, fold = GC.ForeverScan.Gear()
       assert.equal(db.foreverScan.gear, gear)
       assert.equal(db.foreverScan.fold, fold)
+      -- A gear table saved before bonus versions (v1) is handed out as it is, and its lots still
+      -- read: each version unknown (Core/ForeverUpgrades.lua says the scan is stale).
+      assert.same({ { unit = 501, suffix = "0", unique = "0" } }, GC.ForeverGear.Decode(gear.items[6125]))
       db.foreverScan.gear.at = 4999                       -- an older scan's lots
       assert.is_nil(GC.ForeverScan.Gear())
       db.foreverScan.gear.at = 5000
       db.foreverScan.fold.realm = "Forever-PvP"           -- another auction house
       assert.is_nil(GC.ForeverScan.Gear())
       db.foreverScan.fold.realm = "Forever"
+      db.foreverScan.gear.late = { missing = 3, found = 2 }
       local text = table.concat(GC.ForeverScan.Summary(6000), "\n")
-      assert.truthy(text:find("own scan: gear lots for 1 items", 1, true))
+      assert.truthy(text:find("own scan: gear lots for 1 items, 2 of 3 rows with no link at the read found later", 1, true))
       GC.ForeverScan.Init(db, passport(120100, 3, "Silvermoon"))
       assert.is_nil(GC.ForeverScan.Gear())
     end)

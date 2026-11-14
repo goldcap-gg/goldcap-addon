@@ -193,19 +193,13 @@ GC.Locales.ukUA = {
   ["Could not read that amount. Type it like 12g 50s."] = "Не вдалося прочитати суму. Введіть так: 12g 50s.",
   ["Don't skip"] = "Не пропускати",
   ["Everything here is bought"] = "Тут усе куплено",
-  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
-    "За вашим скануванням %s тому: у кожному слоті річ, яка дає найбільше за ваше золото, або майже така сама, але дешевша. Враховує лише %s. Змінити: /gc weights.",
-  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
-    "Усе, що на аукціоні краще за ваше спорядження, коштує більше, ніж у вас золота.",
-  ["Slots where the upgrades cost more than you carry: %d."] =
-    "Слотів, де покращення дорожчі за ваше золото: %d.",
-  ["Gear upgrades on the auction house"] = "Покращення спорядження на аукціоні",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap тепер рахує, що випадає зі здобичі, без імен, для шансів випадіння на goldcap.gg. Companion почне це передавати, коли ця частина вийде. Введіть /gc loot off, щоб вимкнути.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ще завантажується предметів: %d. Відкрийте це знову за мить.",
+  ["Reading the auction house's items: %d left."] = "Читаємо предмети аукціону: лишилося %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Підрахунок здобичі вимкнено. Введіть /gc loot clear, щоб видалити записане.",
   ["Loot counting is on."] = "Підрахунок здобичі увімкнено.",
@@ -516,6 +510,16 @@ GC.Locales.ukUA = {
   ["Sell it on the AH"] = "Продайте на аукціоні",
   ["Sell it on the AH (deposit not counted)"] = "Продайте на аукціоні (застава не врахована)",
   ["Sell it to a vendor"] = "Продайте торговцю",
+  -- Tooltip (WoW: Forever): whether a piece is an upgrade for the character looking. The first %s
+  -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
+  ["Upgrade: %s over your %s"] = "Покращення: %s, зараз надягнуто: %s",
+  ["Upgrade: %s, nothing worn there"] = "Покращення: %s, у цьому слоті нічого не надягнуто",
+  ["%s DPS"] = "%s шкоди за секунду",
+  ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "Швидкість з %s до %s",
+  ["You can wear it in %d levels"] = "Можна буде надягнути через %d рів.",
+  ["You can wear it next level"] = "Можна буде надягнути на наступному рівні",
+  ["Not an upgrade for your %s: nothing here you use"] = "Не покращення для вашого класу (%s): тут немає нічого, що ви використовуєте",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продаж виставляє на одну сходинку вище найдешевшої пропозиції, якщо книга ордерів показує таку саму швидкість продажу.",
   ["Sell-through"] = "Викуповуваність",
@@ -665,7 +669,6 @@ GC.Locales.ukUA = {
   ["another purchase is in flight"] = "інша купівля ще не завершилася",
   ["at a vendor"] = "у торговця",
   ["at a vendor · %s each"] = "у торговця · %s за шт.",
-  ["at level %d"] = "з %d рівня",
   ["bought"] = "куплено",
   ["buy %d of %d"] = "купити %d з %d",
   ["buy %d of %d, have %d in bags and bank"] = "купити %d з %d, у сумках і банку %d",
@@ -1984,4 +1987,80 @@ GC.Locales.ukUA = {
     "Якщо ви не обрали строк і група його не задає, товар, що продається рідше разу за виставлення або двічі повернувся непроданим, виставляється на 24 год.",
   ["Came back unsold %d times since its last sale."] = "Повернень без продажу від останнього продажу: %d.",
   ["Came back unsold once since its last sale."] = "Від останнього продажу один раз повернувся непроданим.",
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua).
+  ["Attack power"] = "Сила атаки",
+  ["Attack power, crit and dodge"] = "Сила атаки, крит і ухилення",
+  ["Health while you level"] = "Здоров'я під час прокачування",
+  ["Mana and spell crit"] = "Мана і крит заклинань",
+  ["Health and mana back between fights"] = "Відновлення здоров'я і мани між боями",
+  ["Less damage from hits"] = "Менше шкоди від ударів",
+  ["From Equip lines"] = "З ефектів надягнутих речей",
+  ["Spell damage and healing"] = "Шкода від заклинань і лікування",
+  ["The weapon's damage per second"] = "Шкода зброї за секунду",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Права рука: близько 14 сили атаки. Ліва вдвічі менше. Вогнепальна зброя, лук чи метальна зброя враховуються лише за характеристиками",
+  ["Main hand, about 14 attack power"] = "Права рука: близько 14 сили атаки",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Лук, вогнепальна зброя чи арбалет: близько 14 сили атаки. Зброя ближнього бою майже не враховується",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "Шкода жезла за секунду. Посох чи кинджал враховується лише за характеристиками",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Подоби кота й ведмедя її не використовують, тож вона не враховується",
+  ["%s · level %d"] = "%s · рівень %d",
+  ["Scan %s ago"] = "Сканування %s тому",
+  ["Scan again to read each version's own stats."] = "Проскануйте ще раз, щоб прочитати характеристики кожної версії.",
+  ["Mount at 40"] = "Скакун до 40 рівня",
+  ["Best for my gold (%d)"] = "Найкраще на моє золото (%d)",
+  ["Best for my gold"] = "Найкраще на моє золото",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "Вибір GoldCap: частина найсильнішого набору, який можна купити за ваше золото",
+  ["How HERO works"] = "Як працює HERO",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "Золота рамка: на аукціоні є щось краще для цього слота. Натисніть на слот, щоб побачити варіанти.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ додає річ до списку «Покращення», галочка прибирає її. Зірка позначає вибір GoldCap.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "«Найкраще на моє золото» додає до списку найсильніший набір, який можна купити за ваше золото. Смуга внизу показує ціну списку й залишок золота.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "Відкрийте BUY і купіть список там, на аукціоні. Кнопка «Ваги характеристик» задає, що важливо для вашого класу.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: покращення спорядження для вашого персонажа з аукціону",
+  ["Open BUY"] = "Відкрити BUY",
+  ["Nothing on the auction house fits the gold you carry yet."] =
+    "На аукціоні поки немає нічого, на що вистачить вашого золота.",
+  ["Left after"] = "Залишиться",
+  ["What counts for a %s"] = "%s: що важливо",
+  ["The list changes as you type"] = "Список змінюється, поки ви вводите",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "Сила, спритність, сила атаки й шкода за секунду беруться з вашого персонажа й змінюються, поки він підвищує рівень і вдягається. Змініть число, і ваші значення залишаться до скидання.",
+  ["Sword, mace, fist"] = "Меч, булава, кастет",
+  ["Dagger"] = "Кинджал",
+  ["From the weapon in your main hand. Backstab needs a dagger."] =
+    "За зброєю в правій руці. Для удару в спину потрібен кинджал.",
+  ["Reset to %s"] = "Скинути (%s)",
+  ["Gold for your mount"] = "Золото на скакуна",
+  ["Riding at level 40"] = "Верхова їзда з 40 рівня",
+  ["Gold you carry"] = "Золото при собі",
+  ["Your bags"] = "Ваші сумки",
+  ["Each stack at the better of a vendor and the AH"] = "Кожна стопка за кращою ціною: у торговця чи на аукціоні",
+  ["%d items fetch more on the AH"] = "Предметів, дорожчих на аукціоні: %d",
+  ["%s more than a vendor pays"] = "На %s більше, ніж дасть торговець",
+  ["The upgrade on your list leaves %s toward it."] = "Після покращення зі списку на скакуна залишиться %s.",
+  ["The %d upgrades on your list leave %s toward it."] = "Після покращень зі списку (%d) на скакуна залишиться %s.",
+  ["Riding cost"] = "Ціна верхової їзди",
+  ["%s at the trainer. Type your own after a discount."] = "%s у вчителя. Зі знижкою введіть свою ціну.",
+  ["Share in chat"] = "Поділитися в чаті",
+  ["Upgrades"] = "Покращення",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "Ваги характеристик",
+  ["Click a slot to see what you can buy for it."] =
+    "Натисніть на слот, щоб побачити, що для нього можна купити.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "Те, що тут надягнуто, ще зчитується. Заповниться само собою.",
+  ["You wear %s"] = "Надягнуто: %s",
+  ["Nothing worn here"] = "Тут нічого не надягнуто",
+  ["In your list: %d"] = "У вашому списку: %d",
+  ["Still reading what you wear: the picks may change"] = "Надягнуте ще зчитується: добірка може змінитися",
+  ["List cost"] = "Сума списку",
+  ["Short by %s"] = "Бракує %s",
 }

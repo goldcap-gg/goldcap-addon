@@ -180,6 +180,8 @@ function W.FontString(parent, inherits)
     return lineHeight(s.font[2])
   end
   function f:GetHeight() return s.height or f:GetStringHeight() end
+  -- One line's height at the font's size (SimpleFontStringAPIDocumentation.lua's GetLineHeight).
+  function f:GetLineHeight() return lineHeight(s.font[2]) end
   return f
 end
 
@@ -209,6 +211,10 @@ function W.CreateFrame(kind, _, parent)
   function f:GetAlpha() return s.alpha or 1 end
   function f:EnableMouse(v) s.mouse = v and true or false end
   function f:IsMouseEnabled() return s.mouse == true end
+  -- ScriptRegion's halves of EnableMouse (SimpleScriptRegionAPIDocumentation.lua): hover without
+  -- clicks, or clicks without hover.
+  function f:SetMouseClickEnabled(v) s.mouseClicks = v and true or false end
+  function f:SetMouseMotionEnabled(v) s.mouseMotion = v and true or false end
   -- BackdropTemplate: the backdrop table a frame was given (an edge file and its size) and its colours.
   function f:SetBackdrop(backdrop) s.backdrop = backdrop end
   function f:SetBackdropColor(...) s.backdropColor = { ... } end

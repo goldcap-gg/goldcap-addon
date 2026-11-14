@@ -200,19 +200,14 @@ GC.Locales.deDE = {
   ["Don't skip"] = "Nicht überspringen",
   ["Everything here is bought"] = "Hier ist alles gekauft",
   ["From goldcap.gg: manage it there"] = "Von goldcap.gg: dort verwalten",
-  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
-    "Aus deinem Scan vor %s: pro Platz das Teil, das für dein Gold am meisten bringt, oder ein günstigeres, das fast so gut ist. Zählt nur %s. Ändern mit /gc weights.",
-  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
-    "Alles im Auktionshaus, was deine Ausrüstung schlägt, kostet mehr Gold, als du dabeihast.",
-  ["Slots where the upgrades cost more than you carry: %d."] =
-    "Plätze, deren Upgrades mehr kosten, als du dabeihast: %d.",
-  ["Gear upgrades on the auction house"] = "Ausrüstungs-Upgrades im Auktionshaus",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap zählt jetzt, was bei deiner Beute fällt, ohne Namen, für Dropraten auf goldcap.gg. Der Companion teilt es, sobald dieser Teil erscheint. Tippe /gc loot off, um es zu beenden.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Gegenstände in deinen Taschen, die im Auktionshaus mehr bringen als beim Händler: %d (%s mehr).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Gegenstände, die noch laden: %d. Öffne dies gleich noch einmal.",
+  ["Reading the auction house's items: %d left."] =
+    "Die Gegenstände des Auktionshauses werden gelesen: noch %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Beutezählung ist aus. Tippe /gc loot clear, um das Aufgezeichnete zu entfernen.",
   ["Loot counting is on."] = "Beutezählung ist an.",
@@ -521,6 +516,16 @@ GC.Locales.deDE = {
   ["Sell it on the AH"] = "Beim AH verkaufen",
   ["Sell it on the AH (deposit not counted)"] = "Beim AH verkaufen (Gebühr nicht eingerechnet)",
   ["Sell it to a vendor"] = "Beim Händler verkaufen",
+  -- Tooltip (WoW: Forever): whether a piece is an upgrade for the character looking. The first %s
+  -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
+  ["Upgrade: %s over your %s"] = "Upgrade: %s gegenüber %s",
+  ["Upgrade: %s, nothing worn there"] = "Upgrade: %s, dort ist nichts angelegt",
+  ["%s DPS"] = "%s DPS",
+  ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "Tempo %s auf %s",
+  ["You can wear it in %d levels"] = "Tragbar in %d Stufen",
+  ["You can wear it next level"] = "Tragbar ab der nächsten Stufe",
+  ["Not an upgrade for your %s: nothing here you use"] = "Kein Upgrade für deine Klasse (%s): nichts, was du nutzt",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Der Verkaufen-Tab bietet eine Stufe über dem günstigsten Gebot an, wenn das Orderbuch zeigt, dass es genauso schnell verkauft.",
   ["Sell-through"] = "Abverkaufsquote",
@@ -670,7 +675,6 @@ GC.Locales.deDE = {
   ["another purchase is in flight"] = "ein anderer Kauf läuft noch",
   ["at a vendor"] = "beim Händler",
   ["at a vendor · %s each"] = "beim Händler · %s pro Stück",
-  ["at level %d"] = "ab Stufe %d",
   ["bought"] = "gekauft",
   ["bought %d for %s"] = "%d gekauft für %s",
   ["buy %d of %d"] = "%d von %d kaufen",
@@ -1917,4 +1921,81 @@ GC.Locales.deDE = {
     "Seit dem letzten Verkauf %d-mal unverkauft zurückgekommen.",
   ["Came back unsold once since its last sale."] =
     "Seit dem letzten Verkauf einmal unverkauft zurückgekommen.",
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua).
+  ["Attack power"] = "Angriffskraft",
+  ["Attack power, crit and dodge"] = "Angriffskraft, kritische Treffer und Ausweichen",
+  ["Health while you level"] = "Gesundheit beim Leveln",
+  ["Mana and spell crit"] = "Mana und kritische Zaubertreffer",
+  ["Health and mana back between fights"] = "Gesundheit und Mana regenerieren zwischen Kämpfen",
+  ["Less damage from hits"] = "Weniger Schaden durch Treffer",
+  ["From Equip lines"] = "Aus den Zeilen „Anlegen:“",
+  ["Spell damage and healing"] = "Zauberschaden und Zauberheilung",
+  ["The weapon's damage per second"] = "Der Schaden pro Sekunde der Waffe",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Waffenhand: etwa 14 Angriffskraft. Schildhand die Hälfte. Schusswaffe, Bogen oder Wurfwaffe zählen nur mit ihren Werten",
+  ["Main hand, about 14 attack power"] = "Waffenhand: etwa 14 Angriffskraft",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Bogen, Schusswaffe oder Armbrust: etwa 14 Angriffskraft. Nahkampfwaffen zählen kaum",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "Der Schaden pro Sekunde des Zauberstabs. Ein Stab oder Dolch zählt nur mit seinen Werten",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Katzen- und Bärengestalt kämpfen ohne ihn, daher zählt er nicht",
+  ["%s · level %d"] = "%s · Stufe %d",
+  ["Scan %s ago"] = "Scan vor %s",
+  ["Scan again to read each version's own stats."] = "Scanne erneut, um die Werte jeder Version einzeln zu lesen.",
+  ["Mount at 40"] = "Reittier mit 40",
+  ["Best for my gold (%d)"] = "Das Beste für mein Gold (%d)",
+  ["Best for my gold"] = "Das Beste für mein Gold",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "GoldCaps Wahl: Teil der stärksten Kombination, die du mit deinem Gold bezahlen kannst",
+  ["How HERO works"] = "So funktioniert HERO",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "Ein goldener Rahmen: Das Auktionshaus hat etwas Besseres für diesen Platz. Klicke auf den Platz, um die Auswahl zu sehen.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ setzt ein Teil auf deine Upgrades-Liste, sein Haken nimmt es wieder herunter. Der Stern ist GoldCaps Wahl.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "„Das Beste für mein Gold“ setzt die stärkste Kombination, die dein Gold bezahlt, auf die Liste. Die Leiste zeigt, was die Liste kostet und wie viel Gold bleibt.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "Öffne BUY und kaufe die Liste dort, im Auktionshaus. Unter „Wertgewichte“ legst du fest, was für deine Klasse zählt.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: Ausrüstungs-Upgrades für deinen Charakter aus dem Auktionshaus",
+  ["Open BUY"] = "BUY öffnen",
+  ["Nothing on the auction house fits the gold you carry yet."] =
+    "Im Auktionshaus passt noch nichts zu dem Gold, das du dabeihast.",
+  ["Left after"] = "Danach übrig",
+  ["What counts for a %s"] = "%s: worauf es ankommt",
+  ["The list changes as you type"] = "Die Liste ändert sich beim Tippen",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "Stärke, Beweglichkeit, Angriffskraft und DPS kommen von deinem Charakter und ändern sich, während er aufsteigt und sich ausrüstet. Ändere eine Zahl, dann bleiben deine bis zum Zurücksetzen.",
+  ["Sword, mace, fist"] = "Schwert, Streitkolben, Faustwaffe",
+  ["Dagger"] = "Dolch",
+  ["From the weapon in your main hand. Backstab needs a dagger."] =
+    "Nach der Waffe in deiner Waffenhand. Meucheln braucht einen Dolch.",
+  ["Reset to %s"] = "Zurücksetzen (%s)",
+  ["Gold for your mount"] = "Gold für dein Reittier",
+  ["Riding at level 40"] = "Reiten ab Stufe 40",
+  ["Gold you carry"] = "Gold, das du dabeihast",
+  ["Your bags"] = "Deine Taschen",
+  ["Each stack at the better of a vendor and the AH"] = "Jeder Stapel zum besseren Preis von Händler und AH",
+  ["%d items fetch more on the AH"] = "Gegenstände, die im AH mehr bringen: %d",
+  ["%s more than a vendor pays"] = "%s mehr, als der Händler zahlt",
+  ["The upgrade on your list leaves %s toward it."] = "Mit dem Upgrade auf deiner Liste bleiben %s für das Reittier.",
+  ["The %d upgrades on your list leave %s toward it."] = "Mit den %d Upgrades auf deiner Liste bleiben %s für das Reittier.",
+  ["Riding cost"] = "Reitkosten",
+  ["%s at the trainer. Type your own after a discount."] = "%s beim Lehrer. Trag nach einem Rabatt deinen eigenen Preis ein.",
+  ["Share in chat"] = "Im Chat teilen",
+  ["Upgrades"] = "Upgrades",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "Wertgewichte",
+  ["Click a slot to see what you can buy for it."] =
+    "Klicke auf einen Platz, um zu sehen, was du dafür kaufen kannst.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "Was du hier trägst, wird noch gelesen. Das füllt sich von selbst.",
+  ["You wear %s"] = "Du trägst %s",
+  ["Nothing worn here"] = "Hier ist nichts angelegt",
+  ["In your list: %d"] = "In deiner Liste: %d",
+  ["Still reading what you wear: the picks may change"] =
+    "Deine Ausrüstung wird noch gelesen: die Auswahl kann sich ändern",
+  ["List cost"] = "Liste gesamt",
+  ["Short by %s"] = "Es fehlen %s",
 }

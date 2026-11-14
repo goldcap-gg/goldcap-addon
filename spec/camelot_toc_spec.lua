@@ -99,6 +99,12 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["Core/ForeverDeposits.lua"] = "Core/MailReturns.lua",
     -- What SELL shows of the pace: the duration buttons, the lines, the 24 h mark.
     ["UI/SellPace_Camelot.lua"] = "UI/SoldFrame.lua",
+    -- The HERO tab, with its rail entry: after BUY, the tab whose lists it writes.
+    ["UI/HeroFrame.lua"] = "UI/BuyFrame_Camelot.lua",
+    -- What trainers teach and merchants sell: the store beside the merchant prices, and the file
+    -- that reads both windows beside the other one that reads every merchant.
+    ["Core/ForeverSources.lua"] = "Core/ForeverVendorPrices.lua",
+    ["Services/SourcesClient_Camelot.lua"] = "Services/CraftClient_Camelot.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()
@@ -139,4 +145,28 @@ describe("the AddOns list category", function()
       end
     end)
   end
+end)
+
+-- The rail's tabs (UI/Theme.lua's RAIL_ORDER): the four both games have. A Forever-only tab adds
+-- its own entry from its own file, which only GoldCap_Camelot.toc loads, so retail keeps these.
+describe("the rail's tabs", function()
+  local helper = require("spec.spec_helper")
+
+  it("are DEALS, SELL, SOLD and BUY on retail", function()
+    local GC = helper.loadModule("UI/Theme.lua", {})
+    local keys = {}
+    for i, item in ipairs(GC.Theme.RAIL_ORDER) do keys[i] = item.key end
+    assert.same({ "deals", "sell", "sold", "buy" }, keys)
+  end)
+
+  it("gain HERO at the foot on WoW: Forever, from the tab's own file", function()
+    local GC = helper.loadModule("UI/Theme.lua", {})
+    helper.loadModule("UI/HeroFrame.lua", GC)
+    local keys = {}
+    for i, item in ipairs(GC.Theme.RAIL_ORDER) do keys[i] = item.key end
+    assert.same({ "deals", "sell", "sold", "buy", "hero" }, keys)
+    assert.same({ key = "hero", icon = "hero", label = "HERO" }, GC.Theme.RAIL_ORDER[5])
+    assert.is_not_nil(GC.Kit.Icons.index.hero)
+    assert.equal("Interface\\Icons\\INV_Sword_04", GC.Theme.CLASSIC.icons.hero)
+  end)
 end)

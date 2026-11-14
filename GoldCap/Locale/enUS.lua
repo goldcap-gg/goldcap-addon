@@ -168,14 +168,7 @@ GC.Locales.enUS = {
   ["Don't skip"] = "Don't skip",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Everything else checks out. With more gold on this character, this is a buy.",
   ["Everything here is bought"] = "Everything here is bought",
-  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
-    "From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights.",
-  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
-    "Everything on the auction house that beats your gear costs more than the gold you carry.",
-  ["Slots where the upgrades cost more than you carry: %d."] =
-    "Slots where the upgrades cost more than you carry: %d.",
   ["GOLDCAP"] = "GOLDCAP",
-  ["Gear upgrades on the auction house"] = "Gear upgrades on the auction house",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop.",
   ["GoldCap: checked live. A deal, but you need %s on this character"] = "GoldCap: checked live. A deal, but you need %s on this character",
@@ -184,6 +177,7 @@ GC.Locales.enUS = {
     "Items in your bags that fetch more on the auction house than at a vendor: %d (%s more).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Items still loading: %d. Open this again in a moment.",
+  ["Reading the auction house's items: %d left."] = "Reading the auction house's items: %d left.",
   ["Last post may still go up. Wait a minute"] = "Last post may still go up. Wait a minute",
   ["Level 40 reached: %s to go."] = "Level 40 reached: %s to go.",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
@@ -291,7 +285,6 @@ GC.Locales.enUS = {
   ["already in your bags and bank"] = "already in your bags and bank",
   ["at a vendor"] = "at a vendor",
   ["at a vendor · %s each"] = "at a vendor · %s each",
-  ["at level %d"] = "at level %d",
   ["bought"] = "bought",
   ["buy %d of %d"] = "buy %d of %d",
   ["buy %d of %d, have %d in bags and bank"] = "buy %d of %d, have %d in bags and bank",
@@ -614,6 +607,16 @@ GC.Locales.enUS = {
   ["Sell it on the AH"] = "Sell it on the AH",
   ["Sell it on the AH (deposit not counted)"] = "Sell it on the AH (deposit not counted)",
   ["Sell it to a vendor"] = "Sell it to a vendor",
+  -- Tooltip (WoW: Forever): whether a piece is an upgrade for the character looking. The first %s
+  -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
+  ["Upgrade: %s over your %s"] = "Upgrade: %s over your %s",
+  ["Upgrade: %s, nothing worn there"] = "Upgrade: %s, nothing worn there",
+  ["%s DPS"] = "%s DPS",
+  ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "Speed %s to %s",
+  ["You can wear it in %d levels"] = "You can wear it in %d levels",
+  ["You can wear it next level"] = "You can wear it next level",
+  ["Not an upgrade for your %s: nothing here you use"] = "Not an upgrade for your %s: nothing here you use",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Sell tab posts one rung above the cheapest ask when the book says it sells just as fast.",
   ["Sell-through"] = "Sell-through",
@@ -1901,4 +1904,79 @@ GC.Locales.enUS = {
     "When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h.",
   ["Came back unsold %d times since its last sale."] = "Came back unsold %d times since its last sale.",
   ["Came back unsold once since its last sale."] = "Came back unsold once since its last sale.",
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua).
+  ["Attack power"] = "Attack power",
+  ["Attack power, crit and dodge"] = "Attack power, crit and dodge",
+  ["Health while you level"] = "Health while you level",
+  ["Mana and spell crit"] = "Mana and spell crit",
+  ["Health and mana back between fights"] = "Health and mana back between fights",
+  ["Less damage from hits"] = "Less damage from hits",
+  ["From Equip lines"] = "From Equip lines",
+  ["Spell damage and healing"] = "Spell damage and healing",
+  ["The weapon's damage per second"] = "The weapon's damage per second",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only",
+  ["Main hand, about 14 attack power"] = "Main hand, about 14 attack power",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "The wand's damage per second. A staff or dagger counts for its stats only",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Cat and bear forms do not use it, so it counts for nothing",
+  ["%s · level %d"] = "%s · level %d",
+  ["Scan %s ago"] = "Scan %s ago",
+  ["Scan again to read each version's own stats."] = "Scan again to read each version's own stats.",
+  ["Mount at 40"] = "Mount at 40",
+  ["Best for my gold (%d)"] = "Best for my gold (%d)",
+  ["Best for my gold"] = "Best for my gold",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "GoldCap's pick: part of the strongest mix your gold pays for",
+  ["How HERO works"] = "How HERO works",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "A gold frame: the auction house has something better for that slot. Click the slot to see its choices.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: gear upgrades for your character from the auction house",
+  ["Open BUY"] = "Open BUY",
+  ["Nothing on the auction house fits the gold you carry yet."] =
+    "Nothing on the auction house fits the gold you carry yet.",
+  ["Left after"] = "Left after",
+  ["What counts for a %s"] = "What counts for a %s",
+  ["The list changes as you type"] = "The list changes as you type",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset.",
+  ["Sword, mace, fist"] = "Sword, mace, fist",
+  ["Dagger"] = "Dagger",
+  ["From the weapon in your main hand. Backstab needs a dagger."] =
+    "From the weapon in your main hand. Backstab needs a dagger.",
+  ["Reset to %s"] = "Reset to %s",
+  ["Gold for your mount"] = "Gold for your mount",
+  ["Riding at level 40"] = "Riding at level 40",
+  ["Gold you carry"] = "Gold you carry",
+  ["Your bags"] = "Your bags",
+  ["Each stack at the better of a vendor and the AH"] = "Each stack at the better of a vendor and the AH",
+  ["%d items fetch more on the AH"] = "%d items fetch more on the AH",
+  ["%s more than a vendor pays"] = "%s more than a vendor pays",
+  ["The upgrade on your list leaves %s toward it."] = "The upgrade on your list leaves %s toward it.",
+  ["The %d upgrades on your list leave %s toward it."] = "The %d upgrades on your list leave %s toward it.",
+  ["Riding cost"] = "Riding cost",
+  ["%s at the trainer. Type your own after a discount."] = "%s at the trainer. Type your own after a discount.",
+  ["Share in chat"] = "Share in chat",
+  ["Upgrades"] = "Upgrades",
+  -- The HERO tab as the character sheet (Task 8b): the doll, the slot panel and the bar.
+  ["Stat weights"] = "Stat weights",
+  ["Click a slot to see what you can buy for it."] = "Click a slot to see what you can buy for it.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "Still reading what you wear here. This fills in by itself.",
+  ["You wear %s"] = "You wear %s",
+  ["Nothing worn here"] = "Nothing worn here",
+  ["In your list: %d"] = "In your list: %d",
+  ["Still reading what you wear: the picks may change"] = "Still reading what you wear: the picks may change",
+  ["List cost"] = "List cost",
+  ["Short by %s"] = "Short by %s",
 }

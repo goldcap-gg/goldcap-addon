@@ -190,19 +190,13 @@ GC.Locales.ruRU = {
   ["Could not read that amount. Type it like 12g 50s."] = "Не удалось прочитать сумму. Введите так: 12g 50s.",
   ["Don't skip"] = "Не пропускать",
   ["Everything here is bought"] = "Здесь всё куплено",
-  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
-    "По вашему скану %s назад: в каждом слоте вещь, которая даёт больше всего за ваше золото, или почти такая же, но дешевле. Учитывает только %s. Изменить: /gc weights.",
-  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
-    "Всё, что на аукционе лучше вашей экипировки, стоит больше, чем у вас золота.",
-  ["Slots where the upgrades cost more than you carry: %d."] =
-    "Слотов, где улучшения дороже вашего золота: %d.",
-  ["Gear upgrades on the auction house"] = "Улучшения экипировки на аукционе",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap теперь считает, что выпадает из добычи, без имён, для шансов выпадения на goldcap.gg. Companion начнёт это передавать, когда эта часть выйдет. Введите /gc loot off, чтобы отключить.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Предметов в сумках, которые на аукционе стоят больше, чем у торговца: %d (на %s больше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ещё загружается предметов: %d. Откройте это снова через минуту.",
+  ["Reading the auction house's items: %d left."] = "Читаем предметы аукциона: осталось %d.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Подсчёт добычи выключен. Введите /gc loot clear, чтобы удалить записанное.",
   ["Loot counting is on."] = "Подсчёт добычи включён.",
@@ -507,6 +501,16 @@ GC.Locales.ruRU = {
   ["Sell it on the AH"] = "Продайте на аукционе",
   ["Sell it on the AH (deposit not counted)"] = "Продайте на аукционе (залог не учтён)",
   ["Sell it to a vendor"] = "Продайте торговцу",
+  -- Tooltip (WoW: Forever): whether a piece is an upgrade for the character looking. The first %s
+  -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
+  ["Upgrade: %s over your %s"] = "Улучшение: %s, сейчас надето: %s",
+  ["Upgrade: %s, nothing worn there"] = "Улучшение: %s, в этом слоте ничего не надето",
+  ["%s DPS"] = "%s урона в секунду",
+  ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "Скорость с %s до %s",
+  ["You can wear it in %d levels"] = "Можно будет надеть через %d ур.",
+  ["You can wear it next level"] = "Можно будет надеть на следующем уровне",
+  ["Not an upgrade for your %s: nothing here you use"] = "Не улучшение для вашего класса (%s): здесь нет ничего, что вы используете",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продажа выставляет на одну ступень выше самой дешёвой заявки, если книга ордеров показывает такую же скорость продажи.",
   ["Sell-through"] = "Выкупаемость",
@@ -655,7 +659,6 @@ GC.Locales.ruRU = {
   ["another purchase is in flight"] = "другая покупка ещё не завершена",
   ["at a vendor"] = "у торговца",
   ["at a vendor · %s each"] = "у торговца · %s за шт.",
-  ["at level %d"] = "с %d уровня",
   ["bought"] = "куплено",
   ["buy %d of %d"] = "купить %d из %d",
   ["buy %d of %d, have %d in bags and bank"] = "купить %d из %d, в сумках и банке %d",
@@ -1980,4 +1983,81 @@ GC.Locales.ruRU = {
     "Если вы не выбрали срок и группа его не задаёт, товар, который продаётся реже раза за выставление или дважды вернулся непроданным, выставляется на 24 ч.",
   ["Came back unsold %d times since its last sale."] = "Возвратов без продажи с последней продажи: %d.",
   ["Came back unsold once since its last sale."] = "С последней продажи один раз вернулся непроданным.",
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua).
+  ["Attack power"] = "Сила атаки",
+  ["Attack power, crit and dodge"] = "Сила атаки, крит и уклонение",
+  ["Health while you level"] = "Здоровье при прокачке",
+  ["Mana and spell crit"] = "Мана и крит заклинаний",
+  ["Health and mana back between fights"] = "Восстановление здоровья и маны между боями",
+  ["Less damage from hits"] = "Меньше урона от ударов",
+  ["From Equip lines"] = "Из строк «Если на персонаже:»",
+  ["Spell damage and healing"] = "Урон от заклинаний и магическое лечение",
+  ["The weapon's damage per second"] = "Урон оружия в секунду",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Правая рука: около 14 силы атаки. Левая вдвое меньше. Огнестрельное оружие, лук или метательное оружие учитываются только по характеристикам",
+  ["Main hand, about 14 attack power"] = "Правая рука: около 14 силы атаки",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Лук, огнестрельное оружие или арбалет: около 14 силы атаки. Оружие ближнего боя почти не в счёт",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "Урон жезла в секунду. Посох или кинжал учитывается только по характеристикам",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Облики кошки и медведя его не используют, поэтому он не учитывается",
+  ["%s · level %d"] = "%s · уровень %d",
+  ["Scan %s ago"] = "Скан %s назад",
+  ["Scan again to read each version's own stats."] = "Просканируйте ещё раз, чтобы прочитать характеристики каждой версии.",
+  ["Mount at 40"] = "Ездовое животное к 40",
+  ["Best for my gold (%d)"] = "Лучшее на моё золото (%d)",
+  ["Best for my gold"] = "Лучшее на моё золото",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "Выбор GoldCap: часть самого сильного набора, который можно купить на ваше золото",
+  ["How HERO works"] = "Как работает HERO",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "Золотая рамка: на аукционе есть что-то лучше для этого слота. Нажмите на слот, чтобы увидеть варианты.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ добавляет вещь в список «Улучшения», галочка убирает её. Звезда отмечает выбор GoldCap.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "«Лучшее на моё золото» добавляет в список самый сильный набор, который можно купить на ваше золото. Полоса внизу показывает цену списка и остаток золота.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "Откройте BUY и купите список там, на аукционе. Кнопка «Веса характеристик» задаёт, что важно для вашего класса.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: улучшения снаряжения для вашего персонажа с аукциона",
+  ["Open BUY"] = "Открыть BUY",
+  ["Nothing on the auction house fits the gold you carry yet."] =
+    "На аукционе пока нет ничего, на что хватит вашего золота.",
+  ["Left after"] = "Останется",
+  ["What counts for a %s"] = "%s: что важно",
+  ["The list changes as you type"] = "Список меняется, пока вы вводите",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "Сила, ловкость, сила атаки и урон в секунду берутся у вашего персонажа и меняются, пока он растёт в уровне и одевается. Измените число, и ваши значения сохранятся до сброса.",
+  ["Sword, mace, fist"] = "Меч, дробящее, кистевое",
+  ["Dagger"] = "Кинжал",
+  ["From the weapon in your main hand. Backstab needs a dagger."] =
+    "По оружию в правой руке. «Удар в спину» работает только с кинжалом.",
+  ["Reset to %s"] = "Сбросить (%s)",
+  ["Gold for your mount"] = "Золото на ездовое животное",
+  ["Riding at level 40"] = "Верховая езда с 40 уровня",
+  ["Gold you carry"] = "Золото при себе",
+  ["Your bags"] = "Ваши сумки",
+  ["Each stack at the better of a vendor and the AH"] = "Каждая стопка по лучшей цене: у торговца или на аукционе",
+  ["%d items fetch more on the AH"] = "Предметов дороже на аукционе: %d",
+  ["%s more than a vendor pays"] = "На %s больше, чем даст торговец",
+  ["The upgrade on your list leaves %s toward it."] = "После улучшения из списка на ездовое животное останется %s.",
+  ["The %d upgrades on your list leave %s toward it."] = "После улучшений из списка (%d) на ездовое животное останется %s.",
+  ["Riding cost"] = "Цена верховой езды",
+  ["%s at the trainer. Type your own after a discount."] = "%s у учителя. Со скидкой введите свою цену.",
+  ["Share in chat"] = "Поделиться в чате",
+  ["Upgrades"] = "Улучшения",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "Веса характеристик",
+  ["Click a slot to see what you can buy for it."] =
+    "Нажмите на слот, чтобы увидеть, что для него можно купить.",
+  ["Still reading what you wear here. This fills in by itself."] =
+    "То, что здесь надето, ещё считывается. Заполнится само.",
+  ["You wear %s"] = "Надето: %s",
+  ["Nothing worn here"] = "Здесь ничего не надето",
+  ["In your list: %d"] = "В вашем списке: %d",
+  ["Still reading what you wear: the picks may change"] =
+    "Надетое ещё считывается: подборка может измениться",
+  ["List cost"] = "Сумма списка",
+  ["Short by %s"] = "Не хватает %s",
 }

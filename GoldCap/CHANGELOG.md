@@ -1,5 +1,58 @@
 # GoldCap
 
+## 0.29.0 (2026-11-14)
+
+- WoW: Forever: a new HERO tab in the GoldCap window replaces the /gc upgrades window. It looks
+  like your character sheet: your own slots around your character, and a slot with something
+  better on the auction house has a gold frame. Click one to see its choices: the strongest piece
+  you can wear now, cheaper ones nearly as good (or the next strongest, when the strongest is also
+  the cheapest), and a stronger one you can wear in a level or two. A price you cannot pay yet is
+  red, and a piece you cannot wear yet has a red icon with its level in the corner, as in your bags.
+  The tab explains how it works the first time it opens, and "?" at its top shows that again.
+- WoW: Forever: the "+" beside a piece puts it on your Upgrades list in BUY, one piece per slot,
+  capped 5% over its price, and its check takes it off again. The slot turns green with the price.
+  GoldCap's own picks, the strongest mix the gold you carry pays for, have the auction house's
+  favourite star and a gold frame, and a small star marks their slots on your character. "Best for
+  my gold" puts GoldCap's picks on your list for you to look over. The bar at the bottom says how
+  many pieces are on the list, what they add and cost, and what you have left or how much you are
+  short; "Open BUY" takes you to the list. A piece you have bought from it says Bought.
+- WoW: Forever: each ring slot has its own choices, weighed against the ring on that finger, and
+  GoldCap never picks the same ring for both.
+- WoW: Forever: BUY now buys the exact version the HERO tab picked: "of the Monkey" stays "of the
+  Monkey", even when another version of the item is cheaper.
+- WoW: Forever: each version of an item with a random suffix is now weighed by its own stats. All
+  of them used to count as the plain item, so "of the Eagle" and "of the Owl" looked the same, and
+  a caster version with lower weapon damage could be offered to a rogue.
+- WoW: Forever: a scan now keeps the gear whose details the game had not loaded yet when the scan
+  read it, about a third of the gear on the auction house. It used to be left out of the upgrades.
+- WoW: Forever: pieces you can wear in a level or two are now offered. The "Requires Level" line
+  on their tooltip kept every one of them out.
+- WoW: Forever: one-hand weapons are now offered for the off hand to a character that can
+  dual-wield.
+- WoW: Forever: rogues, warriors and hunters are no longer offered cloth armour, except cloaks.
+- WoW: Forever: weapon damage now counts as much as it does in a fight. A point of weapon DPS in
+  the main hand is worth about 14 attack power and half that in the off hand, and a rogue's or
+  warrior's gun, bow or thrown weapon counts for its stats only, since it is for pulling. With a
+  weapon in each hand your normal swings miss more often, so a two-hander can beat a pair. For a
+  rogue, a slower main hand counts for more, because Sinister Strike adds a full swing, and with
+  Backstab only daggers are offered for the main hand. The tab reads which you use from the weapon
+  in your main hand; switch it under Stat weights.
+- WoW: Forever: each choice now says how much damage per second it adds or costs your character,
+  counted from your own attack power, crit and weapons the way the game counts them. This is for
+  warriors, rogues, paladins, shamans and hunters, and Stamina, Armor and the like show beside it.
+  Their stat weights now come from your character too, unless you set your own.
+- WoW: Forever: a mage's, priest's or warlock's starting stat weights now count the wand's damage,
+  and a staff's or dagger's only for its stats. A druid's count attack power and ignore weapon
+  damage, which its forms do not use. Weights you set yourself stay as they are.
+- WoW: Forever: while the game is still loading items after you log in or reload, the HERO tab
+  shows how many are left and waits, instead of moving its picks around.
+- WoW: Forever: stat weights, the bags' worth on the auction house and the road to your riding
+  mount are now in the HERO tab too. /gc weights, /gc bags and /gc mount still work.
+- WoW: Forever: an item's tooltip now says whether it is an upgrade for the character looking, and
+  by how much, or, for one you can wear in a level or two, when.
+- WoW: Forever: GoldCap now notes what the profession trainers you visit teach and what vendors
+  sell, so GoldCap's leveling routes can say where each recipe is learned.
+
 ## 0.28.1 (2026-11-13)
 
 - WoW: Forever: scanning the auction house no longer makes the game stutter every second or so,

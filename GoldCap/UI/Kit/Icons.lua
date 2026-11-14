@@ -34,5 +34,6 @@ GC.Kit.Icons = {
     pencil = 26,
     bank = 27,
     send = 28,
+    hero = 29,
   },
 }

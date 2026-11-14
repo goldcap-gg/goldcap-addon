@@ -199,18 +199,12 @@ GC.Locales.zhTW = {
   ["Don't skip"] = "不再略過",
   ["Everything here is bought"] = "這裡的都買齊了",
   ["From goldcap.gg: manage it there"] = "來自 goldcap.gg：請在那裡管理",
-  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
-    "來自你 %s 前的掃描：每個欄位顯示你身上的金幣買得起、提升最多的裝備，或幾乎一樣好但更便宜的裝備。只計算 %s。用 /gc weights 修改。",
-  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
-    "拍賣場上比你身上更好的裝備，價格都超過你身上的金幣。",
-  ["Slots where the upgrades cost more than you carry: %d."] =
-    "升級裝備超過你身上金幣的欄位：%d 個。",
-  ["Gear upgrades on the auction house"] = "拍賣場上的裝備升級",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap 現在會統計你拾取的掉落（不含任何名字），用於 goldcap.gg 的掉落率。該部分發布後由 Companion 分享。輸入 /gc loot off 可停止。",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "背包中在拍賣場比賣給商人更值錢的物品：%d 件（多 %s）。",
   ["Items still loading: %d. Open this again in a moment."] = "仍在載入的物品：%d 件。請稍後再打開。",
+  ["Reading the auction house's items: %d left."] = "正在讀取拍賣場的物品：還剩 %d 件。",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "掉落統計已關閉。輸入 /gc loot clear 可刪除已記錄的內容。",
   ["Loot counting is on."] = "掉落統計已開啟。",
@@ -492,6 +486,16 @@ GC.Locales.zhTW = {
   ["Sell it on the AH"] = "在拍賣場出售",
   ["Sell it on the AH (deposit not counted)"] = "在拍賣場出售（未計手續費）",
   ["Sell it to a vendor"] = "賣給商人",
+  -- Tooltip (WoW: Forever): whether a piece is an upgrade for the character looking. The first %s
+  -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
+  ["Upgrade: %s over your %s"] = "升級：%s（對比你的%s）",
+  ["Upgrade: %s, nothing worn there"] = "升級：%s，該部位未裝備物品",
+  ["%s DPS"] = "每秒傷害 %s",
+  ["%s (%s)"] = "%s（%s）",
+  ["Speed %s to %s"] = "速度從 %s 變為 %s",
+  ["You can wear it in %d levels"] = "%d 級後可裝備",
+  ["You can wear it next level"] = "下一級可裝備",
+  ["Not an upgrade for your %s: nothing here you use"] = "對你的%s不是升級：沒有你用得上的屬性",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "當掛單簿顯示賣得一樣快時，出售標籤會掛在最低價上方一級。",
   ["Sell-through"] = "售罄率",
@@ -621,7 +625,6 @@ GC.Locales.zhTW = {
   ["another purchase is in flight"] = "另一筆購買仍在進行中",
   ["at a vendor"] = "商人出售",
   ["at a vendor · %s each"] = "商人出售 · 每個 %s",
-  ["at level %d"] = "%d 級可用",
   ["bought"] = "已購買",
   ["bought %d for %s"] = "已購買 %d 個，花費 %s",
   ["buy %d of %d"] = "購買 %d/%d 個",
@@ -1805,4 +1808,75 @@ GC.Locales.zhTW = {
     "未選擇時長且沒有分組規則時，每次上架賣不出一件、或已兩次未售出退回的物品將上架 24 小時。",
   ["Came back unsold %d times since its last sale."] = "自上次售出後已 %d 次未售出退回。",
   ["Came back unsold once since its last sale."] = "自上次售出後已 1 次未售出退回。",
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua).
+  ["Attack power"] = "攻擊強度",
+  ["Attack power, crit and dodge"] = "攻擊強度、致命一擊和閃躲",
+  ["Health while you level"] = "升級期間的生命力",
+  ["Mana and spell crit"] = "法力和法術致命一擊",
+  ["Health and mana back between fights"] = "戰鬥之間恢復生命力和法力",
+  ["Less damage from hits"] = "減少受到的攻擊傷害",
+  ["From Equip lines"] = "來自「裝備：」效果",
+  ["Spell damage and healing"] = "法術傷害和法術治療",
+  ["The weapon's damage per second"] = "武器的每秒傷害",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "主手：約等於 14 點攻擊強度。副手減半。槍械、弓和投擲武器只計算屬性",
+  ["Main hand, about 14 attack power"] = "主手：約等於 14 點攻擊強度",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "弓、槍械或弩：約等於 14 點攻擊強度。近戰武器幾乎不計",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "魔杖的每秒傷害。法杖或匕首只計算屬性",
+  ["Cat and bear forms do not use it, so it counts for nothing"] = "獵豹形態和熊形態不使用它，所以不計",
+  ["%s · level %d"] = "%s · %d 級",
+  ["Scan %s ago"] = "%s 前掃描",
+  ["Scan again to read each version's own stats."] = "重新掃描以讀取每個版本各自的屬性。",
+  ["Mount at 40"] = "40 級坐騎",
+  ["Best for my gold (%d)"] = "我的金幣能買的最佳（%d 件）",
+  ["Best for my gold"] = "我的金幣能買的最佳",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 推薦：你的金幣買得起的最強組合中的一件",
+  ["How HERO works"] = "HERO 使用說明",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "金色邊框：拍賣場有適合這個部位的更好裝備。點選該部位查看可選裝備。",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+ 把裝備加入你的「裝備升級」清單，勾選標記則把它移出。星號是 GoldCap 的推薦。",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "「我的金幣能買的最佳」會把你的金幣買得起的最強組合加入清單。底部欄顯示清單總價和剩餘金幣。",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "打開 BUY，在拍賣場裡買下清單。「屬性權重」決定哪些屬性對你的職業重要。",
+  ["HERO: gear upgrades for your character from the auction house"] = "HERO：在拍賣場為你的角色找裝備升級",
+  ["Open BUY"] = "打開 BUY",
+  ["Nothing on the auction house fits the gold you carry yet."] =
+    "拍賣場上暫時沒有你身上的金幣買得起的裝備。",
+  ["Left after"] = "購買後剩餘",
+  ["What counts for a %s"] = "%s看重的屬性",
+  ["The list changes as you type"] = "清單隨輸入即時變化",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "力量、敏捷、攻擊強度和每秒傷害來自你的角色，會隨著升級和換裝變化。改動任一數字後，你的數值會一直保留，直到重置。",
+  ["Sword, mace, fist"] = "劍、錘、拳套",
+  ["Dagger"] = "匕首",
+  ["From the weapon in your main hand. Backstab needs a dagger."] =
+    "取決於主手武器。背刺需要匕首。",
+  ["Reset to %s"] = "恢復%s預設值",
+  ["Gold for your mount"] = "為坐騎存金幣",
+  ["Riding at level 40"] = "40 級起可學騎術",
+  ["Gold you carry"] = "身上的金幣",
+  ["Your bags"] = "你的背包",
+  ["Each stack at the better of a vendor and the AH"] = "每組按商人價與拍賣場價中較高者計算",
+  ["%d items fetch more on the AH"] = "在拍賣場更值錢的物品：%d 件",
+  ["%s more than a vendor pays"] = "比賣給商人多 %s",
+  ["The upgrade on your list leaves %s toward it."] = "買下清單中的這件升級後，還剩 %s 用於坐騎。",
+  ["The %d upgrades on your list leave %s toward it."] = "買下清單中的 %d 件升級後，還剩 %s 用於坐騎。",
+  ["Riding cost"] = "坐騎費用",
+  ["%s at the trainer. Type your own after a discount."] = "訓練師處為 %s。有折扣時請填寫你自己的價格。",
+  ["Share in chat"] = "分享到聊天",
+  ["Upgrades"] = "裝備升級",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "屬性權重",
+  ["Click a slot to see what you can buy for it."] = "點選一個部位，查看可以為它購買的裝備。",
+  ["Still reading what you wear here. This fills in by itself."] = "仍在讀取這個部位穿戴的裝備，讀完會自動填入。",
+  ["You wear %s"] = "目前穿戴：%s",
+  ["Nothing worn here"] = "此部位未裝備物品",
+  ["In your list: %d"] = "清單中：%d 件",
+  ["Still reading what you wear: the picks may change"] = "仍在讀取你穿戴的裝備：選擇可能會變",
+  ["List cost"] = "清單總價",
+  ["Short by %s"] = "還差 %s",
 }

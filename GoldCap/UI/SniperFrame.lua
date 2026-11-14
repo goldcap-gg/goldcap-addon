@@ -12053,6 +12053,8 @@ local function setView(v)
   setTabActive(frame.sellTab, v == "sell")
   setTabActive(frame.soldTab, v == "sold")
   setTabActive(frame.buyTab, v == "buy")
+  -- WoW: Forever's HERO (UI/HeroFrame.lua): a rail button and a tab only where that file loaded.
+  if frame.heroTab then setTabActive(frame.heroTab, v == "hero") end
   if v == "sell" then
     if GC.Sell.Show then GC.Sell.Show() end
   elseif GC.Sell.Hide then
@@ -12067,6 +12069,12 @@ local function setView(v)
     if GC.Buy and GC.Buy.Show then GC.Buy.Show() end
   elseif GC.Buy and GC.Buy.Hide then
     GC.Buy.Hide()
+  end
+  -- HERO reads only saved data, like Sold: it neither pauses Auto nor resumes it.
+  if v == "hero" then
+    if GC.Hero and GC.Hero.Show then GC.Hero.Show() end
+  elseif GC.Hero and GC.Hero.Hide then
+    GC.Hero.Hide()
   end
 end
 
@@ -12089,6 +12097,7 @@ function GC.Sniper.RefreshRailActive()
   setTabActive(frame.sellTab, view == "sell")
   setTabActive(frame.soldTab, view == "sold")
   setTabActive(frame.buyTab, view == "buy")
+  if frame.heroTab then setTabActive(frame.heroTab, view == "hero") end
 end
 
 -- ---------------------------------------------------------------------------
@@ -12348,13 +12357,22 @@ local function createFrame()
     if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
     setView("buy")
   end)
+  -- HERO's button exists only where UI/HeroFrame.lua added it to Theme.RAIL_ORDER (WoW: Forever).
+  if rail.buttons.hero then
+    rail.buttons.hero:SetScript("OnClick", function()
+      if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
+      setView("hero")
+    end)
+  end
   f.rail = rail
   f.dealsTab, f.sellTab, f.soldTab = rail.buttons.deals, rail.buttons.sell, rail.buttons.sold
   f.buyTab = rail.buttons.buy
+  f.heroTab = rail.buttons.hero
   setTabActive(f.dealsTab, true) -- Deals is the default view
   setTabActive(f.sellTab, false)
   setTabActive(f.soldTab, false)
   setTabActive(f.buyTab, false)
+  if f.heroTab then setTabActive(f.heroTab, false) end
 
   -- Settings entry lives on the rail now; TitleBar still builds its gear for
   -- other callers, this window just doesn't show two of them.
@@ -12825,6 +12843,18 @@ local function createFrame()
     rowHeight = WIN.ROW_HEIGHT,
   })
 
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua), over the same region as Sold.
+  if GC.Hero and GC.Hero.Attach then
+    GC.Hero.Attach(f, {
+      panelLeft = WIN.CONTENT_LEFT,
+      panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
+      top = row2Y,
+      bottom = scrollBottom,
+      rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
+      rowHeight = WIN.ROW_HEIGHT,
+    })
+  end
+
   -- Sniper v3 §3 sniperTabShown/sniperTabHidden: the Sniper is a standalone floating window,
   -- not an AH-internal tab, so "the player returned to it" is just this window's own
   -- Show/Hide -- no separate tab-selection API to hook.
@@ -12847,6 +12877,7 @@ local function createFrame()
     updateHeaderSortIndicators() -- heading labels can come back blank after a hide, see its comment
     if view == "deals" then f.restampRows() end -- and so can the row cells under them
     if view == "sold" and GC.Sold and GC.Sold.Show then GC.Sold.Show() end -- the same, for Sold
+    if view == "hero" and GC.Hero and GC.Hero.Show then GC.Hero.Show() end -- and for HERO
     if GC.AuctionHouseTab and GC.AuctionHouseTab.OnWindowShown then
       pcall(GC.AuctionHouseTab.OnWindowShown)
     end

@@ -121,4 +121,70 @@ describe("BuyLots", function()
     local lots = L.FromRows({ row(1, 900, 4), row(2, 1000, 2) })
     assert.same({ { unit = 900, qty = 4 }, { unit = 1000, qty = 2 } }, L.AsLevels(lots))
   end)
+
+  -- The HERO plan (13.11): a line may name the versions it buys (bonus keys, Core/BuyRun.lua's
+  -- `version`), and a lot of any other version is never bid on. Links from the HERO probe (P1).
+  describe("a line that names its versions", function()
+    local EAGLE = "|cnIQ2:|Hitem:15210::::::::17:1488:::1:12718::::::|h[Raider Shortsword of the Eagle]|h|r"
+    local OWL = "|cnIQ2:|Hitem:15210::::::::17:1488:::1:12720::::::|h[Raider Shortsword of the Owl]|h|r"
+    local OWL_SEARCHED = "|cnIQ2:|Hitem:15210::::::::17:1488::1:1:12720:1:28:5244:::::|h[Raider Shortsword of the Owl]|h|r"
+    local EAGLE_ONLY = { ["12718"] = true }
+    local function at(id, buyout, link, suffix)
+      return row(id, buyout, 1, { itemLink = link, itemKey = { itemID = 15210, itemLevel = 20, itemSuffix = suffix or 0 } })
+    end
+
+    before_each(function()
+      local GC = helper.loadModule("Core/ForeverGear.lua")
+      L = helper.loadModule("Core/BuyLots.lua", GC).BuyLots
+    end)
+
+    it("reads each row's version from its link", function()
+      local lots = L.FromRows({ at(1, 10, OWL), at(2, 20, OWL_SEARCHED), at(3, 30, EAGLE), at(4, 40, nil) })
+      assert.same({ "12720", "12720", "12718" }, { lots[1].ver, lots[2].ver, lots[3].ver })
+      assert.is_nil(lots[4].ver)
+    end)
+
+    it("never bids on another version of a pinned line, however cheap", function()
+      local lots = L.FromRows({ at(1, 10, OWL), at(2, 20, EAGLE), at(3, 15, nil) })
+      assert.equal(2, L.Next(lots, 1000, nil, 100000, EAGLE_ONLY).auctionID)
+      assert.same({ { buyout = 20, count = 1, over = false } }, L.Groups(lots, 1000, nil, nil, EAGLE_ONLY))
+      assert.same({ { unit = 20, qty = 1 } }, L.AsLevels(lots, nil, EAGLE_ONLY))
+      -- Only the Owl on sale: nothing to buy, and the cap is not what stands in the way.
+      local lot, why = L.Next(L.FromRows({ at(1, 10, OWL) }), 1000, nil, 100000, EAGLE_ONLY)
+      assert.is_nil(lot)
+      assert.equal("none", why)
+    end)
+
+    it("arms an unread browse variant of a pinned line, never bids on its rows unless they match", function()
+      local variants = L.FromVariants({ { itemLevel = 20, itemSuffix = 14301, floor = 400 },
+        { itemLevel = 20, itemSuffix = 14300, floor = 700 }, { itemLevel = 20, itemSuffix = 14302, floor = 300 } })
+      variants[1].ver = "12720"                                   -- its sample link named the Owl
+      -- The Owl's variant is never armed; of the others, not read yet, the cheapest is.
+      local armed = L.Next(variants, 1000, nil, 100000, EAGLE_ONLY)
+      assert.equal(14301, armed.itemSuffix)
+      assert.equal(0, armed.auctionID)
+      -- Its own key answers with the Owl after all: nothing there to bid on...
+      local rows = L.FromRows({ at(5, 410, OWL_SEARCHED, 14301) })
+      assert.is_nil(L.Next(rows, 1000, nil, 100000, EAGLE_ONLY))
+      -- ...and the next variant not read yet is armed in its place.
+      local all = L.Replace(variants, rows, { itemLevel = 20, itemSuffix = 14301 })
+      assert.equal(14300, L.Next(all, 1000, nil, 100000, EAGLE_ONLY).itemSuffix)
+      -- Its rows are the Eagle: that lot is bid on.
+      rows = L.FromRows({ at(6, 690, EAGLE, 14300) })
+      assert.equal(6, L.Next(rows, 1000, nil, 100000, EAGLE_ONLY).auctionID)
+    end)
+
+    it("leaves a line with no version as it was", function()
+      local lots = L.FromRows({ at(1, 10, OWL), at(2, 20, EAGLE), at(3, 15, nil) })
+      local variants = L.FromVariants({ { itemLevel = 20, itemSuffix = 14301, floor = 5 } })
+      variants[1].ver = "12720"
+      for _, list in ipairs({ lots, variants }) do
+        assert.same({ L.Next(list, 1000, nil, 100000) }, { L.Next(list, 1000, nil, 100000, nil) })
+        assert.same(L.Groups(list, 1000), L.Groups(list, 1000, nil, nil, nil))
+        assert.same(L.AsLevels(list), L.AsLevels(list, nil, nil))
+      end
+      assert.equal(1, L.Next(lots, 1000, nil, 100000).auctionID)  -- the cheapest, whatever its version
+      assert.equal(3, #L.AsLevels(lots))
+    end)
+  end)
 end)

@@ -199,18 +199,12 @@ GC.Locales.koKR = {
   ["Don't skip"] = "건너뛰지 않기",
   ["Everything here is bought"] = "여기서는 모두 구매함",
   ["From goldcap.gg: manage it there"] = "goldcap.gg 목록: 거기서 관리하세요",
-  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
-    "%s 전 스캔 기준: 슬롯마다 가진 골드로 살 수 있는 것 중 가장 많이 올려 주는 장비, 또는 거의 같으면서 더 싼 장비입니다. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
-  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
-    "경매장에서 착용 장비보다 나은 것은 모두 가진 골드보다 비쌉니다.",
-  ["Slots where the upgrades cost more than you carry: %d."] =
-    "가진 골드보다 비싼 업그레이드만 있는 슬롯: %d개.",
-  ["Gear upgrades on the auction house"] = "경매장의 장비 업그레이드",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap이 이제 전리품에서 무엇이 나오는지 이름 없이 집계해 goldcap.gg의 드롭 확률에 씁니다. 해당 기능이 출시되면 Companion이 공유합니다. 끄려면 /gc loot off를 입력하세요.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "상인보다 경매장에서 더 비싼 가방 속 아이템: %d개 (%s 더).",
   ["Items still loading: %d. Open this again in a moment."] = "아직 불러오는 아이템: %d개. 잠시 후 다시 여세요.",
+  ["Reading the auction house's items: %d left."] = "경매장 아이템을 읽는 중: %d개 남음.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "전리품 집계가 꺼져 있습니다. 기록된 내용을 지우려면 /gc loot clear를 입력하세요.",
   ["Loot counting is on."] = "전리품 집계가 켜져 있습니다.",
@@ -496,6 +490,16 @@ GC.Locales.koKR = {
   ["Sell it on the AH"] = "경매장에 판매하세요",
   ["Sell it on the AH (deposit not counted)"] = "경매장에 판매하세요 (등록비 미포함)",
   ["Sell it to a vendor"] = "상인에게 파세요",
+  -- Tooltip (WoW: Forever): whether a piece is an upgrade for the character looking. The first %s
+  -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
+  ["Upgrade: %s over your %s"] = "업그레이드: %s (착용 중인 %s 대비)",
+  ["Upgrade: %s, nothing worn there"] = "업그레이드: %s, 해당 부위에 착용한 장비 없음",
+  ["%s DPS"] = "초당 공격력 %s",
+  ["%s (%s)"] = "%s (%s)",
+  ["Speed %s to %s"] = "공격 속도 %s에서 %s로",
+  ["You can wear it in %d levels"] = "%d레벨 후 착용 가능",
+  ["You can wear it next level"] = "다음 레벨에 착용 가능",
+  ["Not an upgrade for your %s: nothing here you use"] = "%s에게는 업그레이드가 아님: 사용하는 능력치가 없습니다",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "매도 탭은 주문서가 같은 속도로 팔린다고 볼 때 최저가보다 한 단계 위에 등록합니다.",
   ["Sell-through"] = "판매 소진율",
@@ -633,7 +637,6 @@ GC.Locales.koKR = {
   ["another purchase is in flight"] = "다른 구매가 진행 중입니다",
   ["at a vendor"] = "상인 판매",
   ["at a vendor · %s each"] = "상인 판매 · 개당 %s",
-  ["at level %d"] = "%d레벨부터",
   ["bought"] = "구매함",
   ["bought %d for %s"] = "%d개를 %s에 구매함",
   ["buy %d of %d"] = "%d/%d개 구매",
@@ -1840,4 +1843,77 @@ GC.Locales.koKR = {
     "기간을 고르지 않았고 그룹 규칙도 없으면, 한 번 등록에 하나도 안 팔릴 물건이나 두 번 팔리지 않고 돌아온 물건은 24시간으로 올립니다.",
   ["Came back unsold %d times since its last sale."] = "마지막 판매 후 %d번 팔리지 않고 돌아왔습니다.",
   ["Came back unsold once since its last sale."] = "마지막 판매 후 한 번 팔리지 않고 돌아왔습니다.",
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua).
+  ["Attack power"] = "전투력",
+  ["Attack power, crit and dodge"] = "전투력, 치명타, 회피",
+  ["Health while you level"] = "레벨업하는 동안 생명력",
+  ["Mana and spell crit"] = "마나와 주문 극대화",
+  ["Health and mana back between fights"] = "전투 사이 생명력과 마나 회복",
+  ["Less damage from hits"] = "받는 공격 피해 감소",
+  ["From Equip lines"] = "착용 효과에서",
+  ["Spell damage and healing"] = "주문 공격력과 주문 치유",
+  ["The weapon's damage per second"] = "무기의 초당 공격력",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "주장비: 전투력 약 14. 보조장비는 절반. 총, 활, 투척 무기는 능력치만 반영됨",
+  ["Main hand, about 14 attack power"] = "주장비: 전투력 약 14",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "활, 총, 석궁: 전투력 약 14. 근접 무기는 거의 반영되지 않음",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "마법봉의 초당 공격력. 지팡이나 단검은 능력치만 반영됨",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "표범 변신과 곰 변신은 무기 공격력을 쓰지 않아 반영되지 않음",
+  ["%s · level %d"] = "%s · %d레벨",
+  ["Scan %s ago"] = "%s 전 스캔",
+  ["Scan again to read each version's own stats."] = "다시 스캔하면 버전마다 고유한 능력치를 읽습니다.",
+  ["Mount at 40"] = "40레벨 탈것",
+  ["Best for my gold (%d)"] = "내 골드에 맞는 최선 (%d개)",
+  ["Best for my gold"] = "내 골드에 맞는 최선",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 추천: 보유 골드로 살 수 있는 가장 강한 조합의 일부",
+  ["How HERO works"] = "HERO 사용법",
+  ["A gold frame: the auction house has something better for that slot. Click the slot to see its choices."] =
+    "금색 테두리: 경매장에 그 부위에 더 좋은 장비가 있습니다. 부위를 클릭하면 선택지를 볼 수 있습니다.",
+  ["+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick."] =
+    "+를 누르면 장비가 업그레이드 목록에 담기고, 체크 표시를 누르면 빠집니다. 별은 GoldCap 추천입니다.",
+  ["Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left."] =
+    "내 골드에 맞는 최선은 보유 골드로 살 수 있는 가장 강한 조합을 목록에 담습니다. 아래 막대에 목록 비용과 남는 골드가 표시됩니다.",
+  ["Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class."] =
+    "BUY를 열어 경매장에서 목록을 구매하세요. 능력치 가중치에서 직업에 중요한 능력치를 정할 수 있습니다.",
+  ["HERO: gear upgrades for your character from the auction house"] =
+    "HERO: 경매장에서 찾는 내 캐릭터의 장비 업그레이드",
+  ["Open BUY"] = "BUY 열기",
+  ["Nothing on the auction house fits the gold you carry yet."] =
+    "아직 경매장에 가진 골드로 살 수 있는 것이 없습니다.",
+  ["Left after"] = "구매 후 잔액",
+  ["What counts for a %s"] = "%s에게 중요한 능력치",
+  ["The list changes as you type"] = "입력하는 대로 목록이 바뀝니다",
+  ["Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset."] =
+    "힘, 민첩성, 전투력, 초당 공격력은 캐릭터에서 가져오며 레벨이 오르고 장비를 갖출수록 바뀝니다. 숫자를 바꾸면 초기화할 때까지 직접 정한 값이 유지됩니다.",
+  ["Sword, mace, fist"] = "도검, 둔기, 장착 무기",
+  ["Dagger"] = "단검",
+  ["From the weapon in your main hand. Backstab needs a dagger."] =
+    "주장비 무기에 따라 정해집니다. 기습은 단검이 필요합니다.",
+  ["Reset to %s"] = "%s 기본값으로 초기화",
+  ["Gold for your mount"] = "탈것을 위한 골드",
+  ["Riding at level 40"] = "40레벨부터 탈것 타기",
+  ["Gold you carry"] = "보유 골드",
+  ["Your bags"] = "내 가방",
+  ["Each stack at the better of a vendor and the AH"] = "묶음마다 상인 판매가와 경매장 가격 중 높은 쪽",
+  ["%d items fetch more on the AH"] = "경매장에서 더 비싼 아이템: %d개",
+  ["%s more than a vendor pays"] = "상인보다 %s 더 받음",
+  ["The upgrade on your list leaves %s toward it."] = "목록의 업그레이드를 사면 탈것 자금으로 %s 남습니다.",
+  ["The %d upgrades on your list leave %s toward it."] = "목록의 업그레이드 %d개를 사면 탈것 자금으로 %s 남습니다.",
+  ["Riding cost"] = "탈것 비용",
+  ["%s at the trainer. Type your own after a discount."] = "기본 비용 %s. 할인을 받았다면 직접 입력하세요.",
+  ["Share in chat"] = "대화창에 공유",
+  ["Upgrades"] = "업그레이드",
+  -- The HERO tab as the character sheet: the doll, the slot panel and the bar.
+  ["Stat weights"] = "능력치 가중치",
+  ["Click a slot to see what you can buy for it."] = "부위를 클릭하면 살 수 있는 장비를 볼 수 있습니다.",
+  ["Still reading what you wear here. This fills in by itself."] = "이 부위의 착용 장비를 아직 읽는 중입니다. 자동으로 채워집니다.",
+  ["You wear %s"] = "착용 중: %s",
+  ["Nothing worn here"] = "착용한 장비 없음",
+  ["In your list: %d"] = "내 목록: %d개",
+  ["Still reading what you wear: the picks may change"] = "착용 장비를 아직 읽는 중: 선택이 바뀔 수 있음",
+  ["List cost"] = "목록 합계",
+  ["Short by %s"] = "%s 부족",
 }

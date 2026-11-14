@@ -135,6 +135,9 @@ local BD = {
   MAX_LOTS = 100,
   -- How many other variants one read may arm when the armed one has sold out from under it.
   MAX_REARMS = 3,
+  -- ...and for a line that names its versions (the HERO tab's): a browse variant not read yet may
+  -- turn out to be another version once its own key answers, and the next one is armed then.
+  MAX_REARMS_PINNED = 8,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -624,6 +627,17 @@ local LIST_DRIVER = setmetatable({
 
 local function runList()
   return (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List()) or {}
+end
+
+--- What this character bought on list `code`, { [itemID] = units }, read and never created (the
+--- list column's LIST_DRIVER): the HERO tab tells a piece bought from one still to buy by it.
+function GC.Buy.BoughtOn(code)
+  local out = {}
+  for itemID, saved in pairs(LIST_DRIVER.progress(code) or {}) do
+    local n = type(saved) == "table" and tonumber(saved.bought) or nil
+    if n and n > 0 then out[itemID] = n end
+  end
+  return out
 end
 local openRunMenu -- defined after cycleRun; the band's picker is the only caller
 local vendorListText -- defined with the rows; the run menu's "Copy vendor list" reads it
@@ -1816,7 +1830,7 @@ end
 judgeLots = function(attempt, line)
   local armed = attempt.phase == "arm"
   local list = (armed and attempt.armLots or attempt.lotList) or {}
-  local lot, why = GC.BuyLots.Next(list, line.cap, line.minIlvl, GetMoney and GetMoney() or nil)
+  local lot, why = GC.BuyLots.Next(list, line.cap, line.minIlvl, GetMoney and GetMoney() or nil, line.version)
   attempt.lot = armed and lot or nil
   attempt.lotWhy = why
   attempt.qty = attempt.lot and 1 or 0
@@ -1855,7 +1869,7 @@ end
 -- price groups): every variant's lots it has seen, and what the rest of the line would cost at
 -- the lot the next press buys.
 local function noteLots(line, attempt, lot)
-  local levels = GC.BuyLots.AsLevels(attempt.lotList, line.minIlvl)
+  local levels = GC.BuyLots.AsLevels(attempt.lotList, line.minIlvl, line.version)
   quotes[line.itemID] = { qty = lot and offered(line) or 0, total = lot and lot.buyout * offered(line) or 0,
     at = time(), capped = attempt.lotWhy == "over", ladder = #levels > 0 and levels or false,
     lots = attempt.lotList }
@@ -1927,6 +1941,7 @@ end
 -- A read's lots in hand: the whole-item read's, which arm the cheapest lot's own key, or the armed
 -- key's, which a press bids on.
 function GC.Buy._SettleRead(attempt, line, lots, sent)
+  GC.Buy._LearnVersions(attempt.itemID, lots)
   if attempt.phase == "arm" then
     attempt.armLots = lots
     attempt.lotList = GC.BuyLots.Replace(attempt.lotList, lots, sent)
@@ -1943,8 +1958,10 @@ function GC.Buy._SettleRead(attempt, line, lots, sent)
     -- own, or bought out by this line's last press. Another variant the whole-item read saw may
     -- still be: it is armed instead (a few times at most per read). With none, a read after a
     -- purchase reads the item whole again on the next tick; any other says what it found.
-    local other = GC.BuyLots.Next(attempt.lotList or {}, line.cap, line.minIlvl, GetMoney and GetMoney() or nil)
-    if other and (attempt.rearms or 0) < BD.MAX_REARMS then
+    local other = GC.BuyLots.Next(attempt.lotList or {}, line.cap, line.minIlvl, GetMoney and GetMoney() or nil,
+      line.version)
+    local rearms = line.version and BD.MAX_REARMS_PINNED or BD.MAX_REARMS
+    if other and (attempt.rearms or 0) < rearms then
       attempt.rearms = (attempt.rearms or 0) + 1
       armLot(attempt, other)
     elseif attempt.afterBuy then
@@ -1963,6 +1980,41 @@ end
 -- read goes on as a whole-item read does: the cheapest variant under the cap is armed, and its own
 -- key's search reads its lots.
 function GC.Buy._ReadByName() return false end
+
+-- The version of a browse variant (a lot GC.BuyLots.FromVariants made, `lot`) of item `itemID`, a
+-- bonus key, or nil when it is not known: a line that names its versions arms only variants of
+-- them (Core/BuyLots.lua). Nil here; WoW: Forever's, the one game that reads by name, is in
+-- UI/BuyFrame_Camelot.lua.
+function GC.Buy._VersionOfKey() return nil end
+
+-- What the session learnt of each key's version from its own rows (GC.Buy._SettleRead): a key whose
+-- rows all carry one version is that version, read back by GC.Buy._KnownVersion. A key seen with
+-- two, or with a row of no version, is none.
+GC.Buy._keyVersions = GC.Buy._keyVersions or {}
+
+-- A field, not a top-level local: this file's local headroom is small (docs/addon/AGENTS.md).
+function GC.Buy._VersionKey(itemID, lot)
+  return ("%d/%d/%d/%d"):format(itemID or 0, lot.itemLevel or 0, lot.itemSuffix or 0, lot.species or 0)
+end
+
+function GC.Buy._LearnVersions(itemID, lots)
+  local seen = {}
+  for _, lot in ipairs(lots or {}) do
+    if lot.auctionID ~= 0 then
+      local key = GC.Buy._VersionKey(itemID, lot)
+      if lot.ver == nil or (seen[key] ~= nil and seen[key] ~= lot.ver) then
+        seen[key] = false
+      elseif seen[key] == nil then
+        seen[key] = lot.ver
+      end
+    end
+  end
+  for key, ver in pairs(seen) do GC.Buy._keyVersions[key] = ver or nil end
+end
+
+function GC.Buy._KnownVersion(itemID, lot)
+  return GC.Buy._keyVersions[GC.Buy._VersionKey(itemID, lot)]
+end
 
 -- One step of that wait, from GC.Buy.Tick: the read goes on once the browse has answered (lots or
 -- none), waits while it cannot go yet, and goes on with no lots when none will go, or once the
@@ -1985,7 +2037,14 @@ function GC.Buy._StepByName(attempt)
   end
   local entry = fresh and GC.Sniper._NamedEntry(id) or nil
   waitNote("quote", "by name", ("item=%s variants=%s"):format(id, entry and #entry.variants or 0))
-  GC.Buy._SettleRead(attempt, line, GC.BuyLots.FromVariants(entry and entry.variants), attempt.key)
+  local lots = GC.BuyLots.FromVariants(entry and entry.variants)
+  -- A line that names its versions knows each variant's right after the browse (HERO probe P3,
+  -- 13.11: the key's sample link answered for all 53 variants then, and was sometimes gone after
+  -- the key's own search): one of another version is never armed.
+  if line.version then
+    for _, lot in ipairs(lots) do lot.ver = GC.Buy._VersionOfKey(id, lot) end
+  end
+  GC.Buy._SettleRead(attempt, line, lots, attempt.key)
   return false
 end
 
@@ -3304,7 +3363,7 @@ local function showLineTooltip(row)
   if buyHere then lots, own = lotsOf(line) end
   local nextLot, why = own and own.lot or nil, nil
   if lots and not nextLot then
-    nextLot, why = GC.BuyLots.Next(lots, line.cap, line.minIlvl, GetMoney and GetMoney() or nil)
+    nextLot, why = GC.BuyLots.Next(lots, line.cap, line.minIlvl, GetMoney and GetMoney() or nil, line.version)
   end
   Theme.ItemTooltipOutside(row, container:GetParent())
   if nextLot and nextLot.link then
@@ -3342,7 +3401,7 @@ local function showLineTooltip(row)
     if lots then
       -- One lot per press: the lots by price (the dock's groups), the dear ones marked, and the one
       -- the next press buys -- never a walk up the book.
-      for _, g in ipairs(GC.BuyLots.Groups(lots, line.cap, line.minIlvl)) do
+      for _, g in ipairs(GC.BuyLots.Groups(lots, line.cap, line.minIlvl, nil, line.version)) do
         local rc = g.over and GC.Kit.Tokens.blizzard.tierSuspect or dim
         GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(g.count, formatAmount(g.buyout))),
           tip(g.over and GC.L["over your cap"] or ""), fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
@@ -4549,7 +4608,8 @@ local function paintDock()
     -- A gear line: its lots by price, from its own read, or the last one still worth drawing.
     local lots, own = lotsOf(line)
     if lots then
-      d.lots = { groups = GC.BuyLots.Groups(lots, line.cap, line.minIlvl), why = own and own.lotWhy or nil }
+      d.lots = { groups = GC.BuyLots.Groups(lots, line.cap, line.minIlvl, nil, line.version),
+        why = own and own.lotWhy or nil }
     end
   else
     local t = current:Totals()

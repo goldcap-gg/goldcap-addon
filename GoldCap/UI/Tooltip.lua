@@ -82,6 +82,17 @@ function GC.Tooltip.TrustedHeadline(v)
   return nil
 end
 
+-- WoW: Forever: whether the item is an upgrade for the character looking (opts.forever.upgrade,
+-- GC.ForeverUpgrades.TooltipVerdict's lines), after the verdict lines. Gear the auction house has
+-- never priced (a quest reward, a bound drop) has no lines for it to follow, and still gets it.
+local function withUpgrade(lines, opts)
+  local upgrade = type(opts.forever) == "table" and opts.forever.upgrade or nil
+  if type(upgrade) ~= "table" or #upgrade == 0 then return lines end
+  lines = lines or {}
+  for _, ln in ipairs(upgrade) do lines[#lines + 1] = ln end
+  return lines
+end
+
 -- opts (optional): { unitCost = <copper per unit still held>, region = <"eu"|"kr"|...>,
 -- origin = <GC.Data.OriginState()>, live = <see liveLine> }. They come from the caller rather
 -- than from `v` because none belongs to the market value: the player's own ledger, which bundled
@@ -90,7 +101,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
   opts = opts or {}
   local scan = v ~= nil and v.source == "scan"
   local live = liveLine(opts.live, scan or type(opts.forever) == "table")
-  if not v then return live and { live } or nil end
+  if not v then return withUpgrade(live and { live } or nil, opts) end
   local lines = {}
   local headline, headlineKind = GC.Tooltip.Headline(v)
   -- An IMPORTED realm item's `mv` is this one realm's own median, and that is not a price:
@@ -108,7 +119,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
   -- Bundled realm items are NOT affected: their `m` comes from item_region_snapshots, a
   -- region-wide median already (see apps/api/src/lib/addonMarketData.ts).
   local realmImport = v.kind == "realm_item" and v.source == "import"
-  if not headline then return live and { live } or nil end
+  if not headline then return withUpgrade(live and { live } or nil, opts) end
   if headlineKind == "region" then
     local ilvl = type(v.refIlvl) == "number" and v.refIlvl > 0 and v.refIlvl or nil
     lines[1] = {
@@ -206,6 +217,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
     elseif verdict == "deposit" then
       lines[#lines + 1] = { kind = "verdict", tone = "warn", text = GC.L["The deposit outweighs the gain and is lost if unsold"] }
     end
+    withUpgrade(lines, opts)
   end
   -- Clamped like the live line's: data stamped ahead of this client's clock is new, not
   -- negatively old.
@@ -251,8 +263,10 @@ local CLASS_RECIPE = 9
 
 -- Draws GoldCap's lines for one item, under `heading` when there is one. Returns nothing; draws
 -- nothing when GoldCap has no figure for the item. `shown` is per tooltip: the Companion nudge,
--- which is about the prices as a whole, is drawn once however many blocks there are.
-local function addBlock(tooltip, itemID, now, heading, shown)
+-- which is about the prices as a whole, is drawn once however many blocks there are. `link`: the
+-- item's own link, for WoW: Forever's upgrade line; nil for a recipe's block and for an auction
+-- house row that stands for every version of an item.
+local function addBlock(tooltip, itemID, now, heading, shown, link)
   -- WoW: Forever: the vendor price and a commodity's deposit, for the verdict line.
   local forever = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
     and GC.ForeverValue and { vendorUnit = GC.ForeverValue.VendorUnit(itemID),
@@ -261,6 +275,9 @@ local function addBlock(tooltip, itemID, now, heading, shown)
   if forever then
     local sales = GC.Data.ForeverSales and GC.Data.ForeverSales(itemID) or nil
     forever.perDay = type(sales) == "table" and sales.perDay or nil
+    -- ...and, for gear, whether it beats what the character looking wears.
+    local upgrades = GC.ForeverUpgrades
+    forever.upgrade = link and upgrades and upgrades.TooltipVerdict and upgrades.TooltipVerdict(link) or nil
   end
   local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
@@ -360,7 +377,7 @@ local function onTooltip(tooltip, data)
   if not itemID and data and type(data.id) == "number" then itemID = data.id end
   if not itemID and tooltip.GetItem then
     local _, shownLink = tooltip:GetItem()
-    if shownLink then itemID = C_Item.GetItemInfoInstant(shownLink) end
+    if shownLink then itemID, link = C_Item.GetItemInfoInstant(shownLink), shownLink end
   end
   if type(itemID) ~= "number" then return end
   -- The tooltip of a Sell row standing for one item level or one pet (UI/Sell/Row.lua): the
@@ -394,9 +411,9 @@ local function onTooltip(tooltip, data)
   if recipeID then
     addBlock(tooltip, recipeID, now, nil, shown)
     local name = link and link:match("|h%[(.-)%]|h") or C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)
-    addBlock(tooltip, itemID, now, (GC.L["Makes %s"]):format(name or ("item " .. itemID)), shown)
+    addBlock(tooltip, itemID, now, (GC.L["Makes %s"]):format(name or ("item " .. itemID)), shown, link)
   else
-    addBlock(tooltip, itemID, now, nil, shown)
+    addBlock(tooltip, itemID, now, nil, shown, link)
   end
   addDisenchant(tooltip, owner, itemID)
 end

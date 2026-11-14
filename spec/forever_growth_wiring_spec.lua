@@ -70,17 +70,24 @@ describe("plan 3e wiring", function()
     assert.truthy(scan:find("GC.ForeverScan._QueueUpgradesUpdate()", bags, true))
   end)
 
-  it("opens the upgrades window only in Forever, and repaints it on item data and a finished scan", function()
+  it("opens the HERO tab only in Forever, and repaints it on item data, gold, gear and a finished scan", function()
     assert.truthy(foreverSlashBlock(init):find(
-      "GC.slashHandlers.upgrades = function() GC.ForeverUpgradesUI.Toggle() end", 1, true))
+      "GC.slashHandlers.upgrades = function() GC.Hero.Open() end", 1, true))
     assert.equal(1, select(2, init:gsub("slashHandlers%.upgrades =", "")))
     local info = assert(init:find('event == "GET_ITEM_INFO_RECEIVED"', 1, true))
-    assert.truthy(init:find("GC.ForeverUpgradesUI.OnItemInfo(itemID)", info, true))
+    assert.truthy(init:find("if GC.Hero then GC.Hero.OnItemInfo(itemID) end", info, true))
+    local money = assert(init:find('event == "PLAYER_MONEY"', 1, true))
+    local gear = assert(init:find('event == "PLAYER_EQUIPMENT_CHANGED"', money, true))
+    assert.truthy(init:sub(money, gear):find("if GC.Hero then GC.Hero.OnChange() end", 1, true))
+    assert.truthy(init:find("if GC.Hero then GC.Hero.OnChange() end", gear, true))
+    -- The old window is gone from both games.
+    assert.is_nil(init:find("ForeverUpgradesUI", 1, true))
     -- The queued update (deferred with C_Timer.After, see the test below) is what repaints an open
-    -- window after a finished scan now, sharing the one Build its chat count also uses -- not a
+    -- tab after a finished scan now, sharing the one Build its chat count also uses -- not a
     -- second, independent RefreshIfShown() call.
     local scan = read("GoldCap/Core/ForeverScan.lua")
     local queue = assert(scan:find("function GC.ForeverScan._QueueUpgradesUpdate()", 1, true))
+    assert.truthy(scan:find("local UI = GC.Hero", queue, true))
     assert.truthy(scan:find("UI.Render(r, time())", queue, true))
   end)
 

@@ -246,14 +246,10 @@ describe("locale layer", function()
       "Mount cost cleared.",
       "Could not read that amount. Type it like 12g 50s.",
       "Road to 40 with GoldCap: %s of %s for my mount (%d%%).",
-      "Gear upgrades on the auction house",
-      "From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights.",
-      "Everything on the auction house that beats your gear costs more than the gold you carry.",
-      "Slots where the upgrades cost more than you carry: %d.",
       "No scan with gear in it yet. Open the auction house and let GoldCap scan it.",
       "Nothing on the auction house beats what you wear at your level.",
-      "at level %d",
       "Items still loading: %d. Open this again in a moment.",
+      "Reading the auction house's items: %d left.",
       "This client does not report item stats, so GoldCap cannot compare gear.",
       "No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5",
       "Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them.",
@@ -560,6 +556,125 @@ describe("locale layer", function()
         assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
       end
     end
+  end)
+
+  -- WoW: Forever's HERO tab (UI/HeroFrame.lua) and the upgrade line in an item's tooltip
+  -- (Core/ForeverUpgrades.lua's TooltipVerdict), owner 2026-11-13.
+  it("carries the HERO tab's keys in all twelve languages", function()
+    local keys = {
+      "Upgrade: %s over your %s",
+      "Upgrade: %s, nothing worn there",
+      "%s DPS",
+      "%s (%s)",
+      "Speed %s to %s",
+      "You can wear it in %d levels",
+      "You can wear it next level",
+      "Not an upgrade for your %s: nothing here you use",
+      "Attack power",
+      "Attack power, crit and dodge",
+      "Health while you level",
+      "Mana and spell crit",
+      "Health and mana back between fights",
+      "Less damage from hits",
+      "From Equip lines",
+      "Spell damage and healing",
+      "The weapon's damage per second",
+      "Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only",
+      "Main hand, about 14 attack power",
+      "The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count",
+      "The wand's damage per second. A staff or dagger counts for its stats only",
+      "Cat and bear forms do not use it, so it counts for nothing",
+      "%s · level %d",
+      "Scan %s ago",
+      "Scan again to read each version's own stats.",
+      "Mount at 40",
+      "Best for my gold (%d)",
+      "Best for my gold",
+      "GoldCap's pick: part of the strongest mix your gold pays for",
+      "Open BUY",
+      -- The guide, "?" and the rail's tooltip.
+      "How HERO works",
+      "A gold frame: the auction house has something better for that slot. Click the slot to see its choices.",
+      "+ puts a piece on your Upgrades list, its check takes it off. The star is GoldCap's pick.",
+      "Best for my gold puts the strongest mix your gold pays for on the list. The bar shows what the list costs and the gold left.",
+      "Open BUY and buy the list there, at the auction house. Stat weights sets what counts for your class.",
+      "HERO: gear upgrades for your character from the auction house",
+      "Got it",
+      "Nothing on the auction house fits the gold you carry yet.",
+      "Left after",
+      "What counts for a %s",
+      "The list changes as you type",
+      "Strength, Agility, Attack Power and DPS come from your character and change as it levels and gears up. Change a number and yours stay until Reset.",
+      "Sword, mace, fist",
+      "Dagger",
+      "From the weapon in your main hand. Backstab needs a dagger.",
+      "Reset to %s",
+      "Gold for your mount",
+      "Riding at level 40",
+      "Gold you carry",
+      "Your bags",
+      "Each stack at the better of a vendor and the AH",
+      "%d items fetch more on the AH",
+      "%s more than a vendor pays",
+      "The upgrade on your list leaves %s toward it.",
+      "The %d upgrades on your list leave %s toward it.",
+      "Riding cost",
+      "%s at the trainer. Type your own after a discount.",
+      "Share in chat",
+      "Upgrades",
+      -- The tab as the character sheet: the doll, the slot panel and the bar.
+      "Stat weights",
+      "Click a slot to see what you can buy for it.",
+      "Still reading what you wear here. This fills in by itself.",
+      "You wear %s",
+      "Nothing worn here",
+      "In your list: %d",
+      "Bought",
+      "Still reading what you wear: the picks may change",
+      "List cost",
+      "Short by %s",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+    end
+  end)
+
+  -- The HERO tab speaks to a French player as tu, as the Sell tab does: its first strings said vous
+  -- ("Vous pourrez le porter", "votre classe") while the doll's said tu.
+  it("speaks tu in every French string the HERO tab shows", function()
+    local fr = helper.loadModule("Locale/Core.lua")
+    helper.loadModule("Locale/frFR.lua", fr)
+    local translations = fr.Locales.frFR
+    local keys = {}
+    for _, path in ipairs({ "GoldCap/UI/HeroFrame.lua", "GoldCap/Core/ForeverUpgrades.lua" }) do
+      local file = assert(io.open(path, "r"))
+      local source = file:read("*a")
+      file:close()
+      for key in source:gmatch('GC%.L%["(.-)"%]') do keys[key] = true end
+    end
+    local checked = 0
+    for key in pairs(keys) do
+      local text = translations[key]
+      if text then
+        checked = checked + 1
+        -- "chez" is a preposition, not a vous imperative.
+        local plain = text:gsub("%f[%w]chez%f[%W]", "")
+        for _, word in ipairs({ "%f[%w]vous%f[%W]", "%f[%w]votre%f[%W]", "%f[%w]vos%f[%W]", "%f[%w]%a+ez%f[%W]" }) do
+          assert.is_nil(plain:find(word), ("frFR %q: %q"):format(key, text))
+        end
+      end
+    end
+    assert.is_true(checked > 40)
   end)
 
   -- The buy drawer's hints name the button by what that button reads in the player's language:
