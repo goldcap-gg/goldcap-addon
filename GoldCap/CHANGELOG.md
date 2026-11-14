@@ -35,14 +35,15 @@
   more, because Sinister Strike adds a full swing, and with Backstab only daggers are offered for
   the main hand. The tab reads which you use from the weapon in your main hand; switch it under
   Stat weights.
-- WoW: Forever: every class's starting stat weights now count the weapon it fights with: a
-  hunter's bow, gun or crossbow, a mage's, priest's or warlock's wand, a shaman's or paladin's main
-  hand, and attack power for shamans and druids. A staff's or dagger's damage no longer counts for
-  a caster, only its stats, and a druid's forms ignore weapon damage. Weights you set yourself stay
-  as they are.
-- WoW: Forever: right after you log in or reload, the game takes a few seconds to hand over the
-  details of what you wear. A slot still waiting for them now says so and fills in by itself; it
-  used to say nothing on the auction house beat what you wear.
+- WoW: Forever: each choice now says how much damage per second it adds or costs your character,
+  counted from your own attack power, crit and weapons as the game counts them, for warriors,
+  rogues, paladins, shamans and hunters; Stamina, Armor and the like still show beside it; stat
+  weights for these come from your character too unless you set your own.
+- WoW: Forever: a mage's, priest's or warlock's starting stat weights now count the wand's damage,
+  and a staff's or dagger's only for its stats. A druid's count attack power and ignore weapon
+  damage, which its forms do not use. Weights you set yourself stay as they are.
+- WoW: Forever: while the game is still loading items after you log in or reload, the HERO tab
+  shows how many are left and waits, instead of moving its picks around.
 - WoW: Forever: stat weights, the bags' worth on the auction house and the road to your riding
   mount are now in the HERO tab too. /gc weights, /gc bags and /gc mount still work.
 - WoW: Forever: an item's tooltip now says whether it is an upgrade for the character looking, and
