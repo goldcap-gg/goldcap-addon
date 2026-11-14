@@ -185,6 +185,17 @@ function GC.ForeverUpgrades.ClassAllows(classFile, classID, subclassID, level)
   return false
 end
 
+-- Whether the class wants a kind of piece it can wear (ClassAllows says whether it can). A rogue, a
+-- warrior or a hunter fights in leather or mail, and cloth (armour subclass 1) is never one of its
+-- choices: the owner's rogue was offered cloth robes "of the Tiger", one as GoldCap's pick, over his
+-- leather tunic (14.11). A cloak is cloth for every class and stays. Paladins, shamans and druids
+-- keep cloth for their caster trees, and the casters wear it.
+local NO_CLOTH = { ROGUE = true, WARRIOR = true, HUNTER = true }
+function GC.ForeverUpgrades.Wants(classFile, equipLoc, classID, subclassID)
+  if classID == 4 and subclassID == 1 and equipLoc ~= "INVTYPE_CLOAK" and NO_CLOTH[classFile] then return false end
+  return true
+end
+
 -- What a point of weapon DPS is worth in each hand, per class (HERO plan, Finding 3), the hand the
 -- class fights with at 1: the off hand swings for half in Classic, and a melee class's ranged
 -- weapon is a pull more than damage, about a seventh. Paladins and shamans swing the main hand and
@@ -616,8 +627,11 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return wornAt(SLOT_OF[group]) or nil
   end
 
-  -- Whether a kind of piece goes in the group at all, before any lot of it is read.
+  -- Whether a kind of piece goes in the group at all, before any lot of it is read: one the class
+  -- wants (Wants), and in the off hand and a Backstab rogue's main hand one that hand takes. Only
+  -- for a candidate: what is worn is weighed against whatever it is.
   local function wanted(group, equipLoc, classID, subclassID)
+    if not GC.ForeverUpgrades.Wants(class, equipLoc, classID, subclassID) then return false end
     if group == "OFFHAND" then
       -- Under a two-hander there is no off hand to fill. I1 (final review): an off-hand WEAPON (not
       -- a shield or a held item) needs dual-wield, which is not a red tooltip line -- ClassAllows

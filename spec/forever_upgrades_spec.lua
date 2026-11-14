@@ -362,9 +362,9 @@ describe("ForeverUpgrades", function()
   end)
 
   it("offers a stronger piece a level or two ahead beside the strongest one usable now", function()
-    items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 22 }
-    items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 18 }
-    items[603] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 21 }   -- ahead, but weaker than 602
+    items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 2, minLevel = 22 }
+    items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 2, minLevel = 18 }
+    items[603] = { loc = "INVTYPE_LEGS", class = 4, sub = 2, minLevel = 21 }   -- ahead, but weaker than 602
     statsOf = { ["item:600"] = STR(5), ["item:602"] = STR(2), ["item:603"] = { ITEM_MOD_STRENGTH_SHORT = 1.5 } }
     local r = U.Build(gear({ [600] = "10:0:0", [602] = "999:0:0", [603] = "1:0:0" }), drv(), W)
     assert.equal(602, r.slots[1].best.itemID)
@@ -742,8 +742,8 @@ describe("ForeverUpgrades", function()
     end)
 
     it("says when a piece is wearable in N levels", function()
-      items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 22 }
-      items[601] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 21 }
+      items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 2, minLevel = 22 }
+      items[601] = { loc = "INVTYPE_LEGS", class = 4, sub = 2, minLevel = 21 }
       items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 4, minLevel = 40 }     -- plate, which a warrior wears from 40
       local silk, linen, plate = link(600, "Silk Pants"), link(601, "Linen Pants"), link(602, "Plate Legguards")
       statsOf[silk], statsOf[linen], statsOf[plate] = STR(5), STR(4), STR(9)
@@ -753,6 +753,25 @@ describe("ForeverUpgrades", function()
         U.TooltipVerdict(linen, quiet(), W))
       assert.same({ say("Upgrade: +9 Strength, nothing worn there"), say("You can wear it in 2 levels", "dim") },
         U.TooltipVerdict(plate, quiet({ level = function() return 38 end }), W))
+    end)
+
+    it("says nothing of a cloth robe to a rogue, a warrior or a hunter, and still weighs a cloak", function()
+      items[4001], items[4003] = { loc = "INVTYPE_ROBE", class = 4, sub = 1 }, { loc = "INVTYPE_CLOAK", class = 4, sub = 1 }
+      local robe, cloak = link(4001, "Aboriginal Robe of the Tiger"), link(4003, "Linen Cloak")
+      statsOf[robe], statsOf[cloak] = STR(9), STR(3)
+      for _, class in ipairs({ "ROGUE", "WARRIOR", "HUNTER" }) do
+        local d = quiet({ classFile = function() return class end })
+        assert.is_nil(U.TooltipVerdict(robe, d, W), class)
+        assert.same({ say("Upgrade: +3 Strength, nothing worn there") }, U.TooltipVerdict(cloak, d, W), class)
+      end
+      assert.same({ say("Upgrade: +9 Strength, nothing worn there") },
+        U.TooltipVerdict(robe, quiet({ classFile = function() return "MAGE" end }), W))
+      -- The robe worn: a leather chest is weighed against it.
+      items[4002] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+      local tunic = link(4002, "Dark Leather Tunic")
+      statsOf[tunic], worn[5] = STR(12), robe
+      assert.same({ say("Upgrade: +3 Strength over your Aboriginal Robe of the Tiger") },
+        U.TooltipVerdict(tunic, quiet({ classFile = function() return "ROGUE" end }), W))
     end)
 
     it("says plainly when a piece holds nothing the class uses", function()
@@ -873,8 +892,8 @@ describe("ForeverUpgrades", function()
   end)
 
   it("never scores a piece the client has not answered for, and asks for it once", function()
-    items[300] = { loc = "INVTYPE_FEET", class = 4, sub = 1, loading = true }   -- no level yet
-    items[301] = { loc = "INVTYPE_FEET", class = 4, sub = 1 }                   -- no stats yet
+    items[300] = { loc = "INVTYPE_FEET", class = 4, sub = 2, loading = true }   -- no level yet
+    items[301] = { loc = "INVTYPE_FEET", class = 4, sub = 2 }                   -- no stats yet
     local r = U.Build(gear({ [300] = "10:0:0", [301] = "20:0:0" }), drv(), W)
     assert.equal(0, #r.slots)
     assert.equal(2, r.loading)
@@ -882,6 +901,47 @@ describe("ForeverUpgrades", function()
     assert.same({ 300, 301 }, requested)
     -- M1 (final review): the exact ids still loading, for the window to filter arrivals against.
     assert.same({ [300] = true, [301] = true }, r.loadingIds)
+  end)
+
+  -- Owner, 14.11: his rogue was offered cloth robes "of the Tiger", one as GoldCap's pick, over his
+  -- leather tunic. A rogue, a warrior and a hunter can wear cloth and never want it; a cloak stays.
+  it("never offers a rogue, a warrior or a hunter cloth, a cloak aside", function()
+    local ROBE, LEATHER, CLOAK = 4001, 4002, 4003
+    items[ROBE] = { loc = "INVTYPE_ROBE", class = 4, sub = 1 }
+    items[LEATHER] = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }
+    items[CLOAK] = { loc = "INVTYPE_CLOAK", class = 4, sub = 1 }
+    statsOf["item:4001"], statsOf["item:4002"], statsOf["item:4003"] = STR(9), STR(5), STR(3)
+    local lots = gear({ [ROBE] = "100:0:0", [LEATHER] = "200:0:0", [CLOAK] = "50:0:0" })
+    local function offered(class, money)
+      local r = U.Build(lots, drv({ classFile = function() return class end, money = money }), W)
+      local out = { CHEST = {}, BACK = {} }
+      for _, sl in ipairs(r.slots) do
+        local into = out[sl.group]
+        if into then
+          into[#into + 1] = sl.best.itemID
+          for _, a in ipairs(sl.alts) do into[#into + 1] = a.itemID end
+        end
+      end
+      return out, r
+    end
+    for _, class in ipairs({ "ROGUE", "WARRIOR", "HUNTER" }) do
+      local out = offered(class)
+      assert.same({ LEATHER }, out.CHEST, class)                    -- the robe scores more, and is no choice
+      assert.same({ CLOAK }, out.BACK, class)
+    end
+    -- Nor GoldCap's pick: the set for the gold carried takes the leather.
+    local _, r = offered("ROGUE", function() return 1000 end)
+    assert.equal(LEATHER, r.set.picks.CHEST.itemID)
+    for _, class in ipairs({ "PALADIN", "SHAMAN", "DRUID", "MAGE" }) do
+      assert.equal(ROBE, offered(class).CHEST[1], class)
+    end
+    -- A robe worn is still what a chest is weighed against.
+    worn[5] = "item:4001"
+    statsOf["item:4002"] = STR(12)
+    local out = offered("ROGUE")
+    assert.same({ LEATHER }, out.CHEST)
+    assert.same({ U.Wants("ROGUE", "INVTYPE_ROBE", 4, 1), U.Wants("ROGUE", "INVTYPE_CLOAK", 4, 1),
+      U.Wants("ROGUE", "INVTYPE_CHEST", 4, 2), U.Wants("SHAMAN", "INVTYPE_CHEST", 4, 1) }, { false, true, true, true })
   end)
 
   it("keeps out what the class cannot use: its armour rules, and a red line on the tooltip", function()
@@ -900,13 +960,13 @@ describe("ForeverUpgrades", function()
   end)
 
   it("offers a piece one or two levels ahead only when nothing usable now qualifies", function()
-    items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 22 }
-    items[601] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 23 }   -- three ahead: never
+    items[600] = { loc = "INVTYPE_LEGS", class = 4, sub = 2, minLevel = 22 }
+    items[601] = { loc = "INVTYPE_LEGS", class = 4, sub = 2, minLevel = 23 }   -- three ahead: never
     statsOf = { ["item:600"] = STR(5), ["item:601"] = STR(9) }
     local r = U.Build(gear({ [600] = "10:0:0", [601] = "5:0:0" }), drv(), W)
     assert.equal(600, r.slots[1].best.itemID)
     assert.equal(22, r.slots[1].best.later)
-    items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 18 }
+    items[602] = { loc = "INVTYPE_LEGS", class = 4, sub = 2, minLevel = 18 }
     statsOf["item:602"] = STR(2)
     r = U.Build(gear({ [600] = "10:0:0", [602] = "999:0:0" }), drv(), W)
     assert.equal(602, r.slots[1].best.itemID)                    -- usable now wins, even dearer
