@@ -1999,7 +1999,9 @@ GC.Locales.ukUA = {
   ["Scan %s ago"] = "Сканування %s тому",
   ["Scan again to read each version's own stats."] = "Проскануйте ще раз, щоб прочитати характеристики кожної версії.",
   ["Mount at 40"] = "Скакун до 40 рівня",
-  ["Buy GoldCap's picks (%d)"] = "Купити добірку GoldCap (%d)",
+  ["Best for my gold (%d)"] = "Найкраще на моє золото (%d)",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "Вибір GoldCap: частина найсильнішого набору, який можна купити за ваше золото",
   ["Open BUY"] = "Відкрити BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "На аукціоні поки немає нічого, на що вистачить вашого золота.",

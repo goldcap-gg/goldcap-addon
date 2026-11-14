@@ -1932,7 +1932,9 @@ GC.Locales.frFR = {
   ["Scan %s ago"] = "Scan d'il y a %s",
   ["Scan again to read each version's own stats."] = "Relance un scan pour lire les caractéristiques propres à chaque version.",
   ["Mount at 40"] = "Monture au niveau 40",
-  ["Buy GoldCap's picks (%d)"] = "Acheter la sélection de GoldCap (%d)",
+  ["Best for my gold (%d)"] = "Le mieux pour mon or (%d)",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "Choix de GoldCap : fait partie de la meilleure combinaison que ton or peut payer",
   ["Open BUY"] = "Ouvrir BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "Rien à l'hôtel des ventes n'est encore à la portée de l'or que tu as.",

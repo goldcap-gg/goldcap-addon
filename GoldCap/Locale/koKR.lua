@@ -1855,7 +1855,8 @@ GC.Locales.koKR = {
   ["Scan %s ago"] = "%s 전 스캔",
   ["Scan again to read each version's own stats."] = "다시 스캔하면 버전마다 고유한 능력치를 읽습니다.",
   ["Mount at 40"] = "40레벨 탈것",
-  ["Buy GoldCap's picks (%d)"] = "GoldCap 추천 구매 (%d개)",
+  ["Best for my gold (%d)"] = "내 골드에 맞는 최선 (%d개)",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 추천: 보유 골드로 살 수 있는 가장 강한 조합의 일부",
   ["Open BUY"] = "BUY 열기",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "아직 경매장에 가진 골드로 살 수 있는 것이 없습니다.",

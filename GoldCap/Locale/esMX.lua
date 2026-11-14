@@ -1931,7 +1931,9 @@ GC.Locales.esMX = {
   ["Scan %s ago"] = "Escaneo de hace %s",
   ["Scan again to read each version's own stats."] = "Vuelve a escanear para leer las estadísticas de cada versión.",
   ["Mount at 40"] = "Montura a nivel 40",
-  ["Buy GoldCap's picks (%d)"] = "Comprar la selección de GoldCap (%d)",
+  ["Best for my gold (%d)"] = "Lo mejor para mi oro (%d)",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "Elección de GoldCap: parte de la combinación más fuerte que puedes pagar con tu oro",
   ["Open BUY"] = "Abrir BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "Aún no hay nada en la casa de subastas al alcance del oro que llevas.",

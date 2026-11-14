@@ -4,8 +4,9 @@ local _, GC = ...
 -- owner approved, "6. v2", 2026-11-13, and the shopping list of 14.11): the player's own paper doll,
 -- each slot showing the piece on the player's list there or what is worn; a panel listing the
 -- selected slot's choices from Core/ForeverUpgrades.lua, each with a "+" that puts it on the list
--- (its check takes it off), GoldCap's own pick starred; and a bar that counts what the list holds,
--- with one button for GoldCap's whole set and one that opens the list in BUY. The list is the
+-- (its check takes it off), GoldCap's own pick starred and framed gold; and a bar that counts what
+-- the list holds, with "Best for my gold", which puts GoldCap's whole set on the list for the player
+-- to look over, and "Open BUY". The list is the
 -- player's Upgrades list in BUY (prefs.heroList), never a copy: what it holds is what the tab shows.
 -- The stat weights and the gold toward a mount open over the slot panel. Only GoldCap_Camelot.toc
 -- loads this file, and it adds its own rail entry as it loads, so retail's rail keeps its four tabs.
@@ -34,7 +35,10 @@ local HD = {
   -- and the next, and its check and price inside its own square. SLOT_MAX is the most DOLL_W holds
   -- with the three hands between the two columns: (DOLL_W - 2 DOLL_PAD - 2 MODEL_GAP - 2 HAND_GAP) / 5.
   DOLL_W = 260, DOLL_PAD = 8, SLOT_GAP = 6, SLOT_MIN = 20, SLOT_MAX = 42, HAND_GAP = 6, MODEL_GAP = 9,
-  RING = 2, GLOW = 3, BADGE = 14, BADGE_GLYPH = 10, PORTRAIT = 64, STAR = 12,
+  RING = 2, GLOW = 3, BADGE = 14, BADGE_GLYPH = 10, PORTRAIT = 64,
+  -- GoldCap's pick: the auction house's favourite star (20 by 18 in its own template) before the
+  -- name of its option, and inside the top right of its doll slot while the list lacks it.
+  STAR_W = 16, STAR_H = 14, STAR_GAP = 4, DOLL_STAR_W = 14, DOLL_STAR_H = 13,
   PAD = 12, HEAD_ICON = 34, LIST_GUTTER = 22, -- the slot panel
   OPT_PAD_X = 8, OPT_PAD_Y = 6, OPT_GAP = 4, BOX = 16, BOX_GLYPH = 12, OPT_ICON = 28, TEXT_MIN = 110,
   BAR_PAD = 8, BAR_TEXT_MIN = 120, BAR_BTN_H = 32, BAR_BTN_W = 96,
@@ -55,9 +59,10 @@ Hero._view = view
 -- The result painted (r), when (now), the panel open ("weights", "mount" or nil), the road to a
 -- mount read this paint, the doll slot selected (sel, an inventory slot; selByHand once the player
 -- clicked one), and the list read this paint: lines (the Upgrades list's own) and bought (what this
--- character bought on it), options[group] each slot's choices as listed, inList[group] the piece the
--- list holds for that slot, listed those in the result's slot order. placed[item string] is the
--- slot the player last put a piece in, this session's: a ring on the list shows on that finger.
+-- character bought on it), options[group] each slot's choices as listed, picks[group] GoldCap's pick
+-- among them, inList[group] the piece the list holds for that slot, listed those in the result's slot
+-- order. placed[item string] is the slot the player last put a piece in, this session's: a ring on
+-- the list shows on that finger.
 local state = { placed = {}, lines = {}, bought = {} }
 Hero._state = state
 -- The repaint rules, moved over from the old window unchanged (Hero.OnItemInfo and below), and the
@@ -238,6 +243,19 @@ local function slotArt(name)
   if type(call) ~= "function" or not name then return nil end
   local ok, _, texture = pcall(call, name)
   return ok and texture or nil
+end
+
+-- GoldCap's pick marked as the auction house marks a favourite: its own star atlas (Forever's
+-- Blizzard_AuctionHouseSharedTemplates.xml, AuctionHouseFavoriteButtonBaseTemplate) in its own
+-- colours; the kit's star in gold on a client without that atlas.
+local FAVORITE = "auctionhouse-icon-favorite"
+local function paintStar(tex)
+  local api = _G.C_Texture
+  if not (api and api.GetAtlasInfo) or api.GetAtlasInfo(FAVORITE) then
+    tex:SetAtlas(FAVORITE)
+  else
+    Theme.SetIcon(tex, "star", Theme.color.gold)
+  end
 end
 
 -- What the character wears in each of the doll's slots (view.worn[inventory slot], a link), read
@@ -421,7 +439,7 @@ local function resolve(r)
   for _, s in ipairs(r.slots or {}) do
     if inList[s.group] then listed[#listed + 1] = inList[s.group] end
   end
-  state.options, state.inList, state.listed = options, inList, listed
+  state.options, state.picks, state.inList, state.listed = options, picks, inList, listed
 end
 
 -- Slot `group` lets its piece `c` go: a unit of it the list still holds for another slot stays there.
@@ -486,13 +504,31 @@ local function openBuy()
   if GC.Sniper and GC.Sniper.ShowView then GC.Sniper.ShowView("buy") end
 end
 
--- GoldCap's whole set on the list, each piece in its own slot in place of what the slot had, then
--- BUY on the list.
+-- Whether GoldCap's pick `c` still waits to go on the list: the list holds nothing of it for its
+-- slot and has not bought it either (a pick bought and not worn yet is not wanted again; its row's
+-- own "+" still buys one more).
+local function pickWaits(c)
+  return c ~= nil and state.inList[c.group] ~= c
+    and GC.ForeverUpgrades.ListState(state.lines, state.bought, c) ~= "bought"
+end
+
+-- How many of GoldCap's picks still wait to go on the list.
+local function picksOff(r)
+  local n = 0
+  for _, c in ipairs(r and r.set and r.set.list or {}) do
+    if pickWaits(c) then n = n + 1 end
+  end
+  return n
+end
+
+-- GoldCap's picks still waiting, on the list, each in its own slot in place of what the slot had.
+-- The tab stays: the player looks it over, takes off what they do not want, and opens BUY from the
+-- bar.
 local function addSet()
   local r = state.r
   for _, c in ipairs(r and r.set and r.set.list or {}) do
     for _, s in ipairs(r.slots or {}) do
-      if s.group == c.group and state.inList[s.group] ~= c then
+      if s.group == c.group and pickWaits(c) then
         addPiece(s, c)
         readList()
         resolve(r)
@@ -500,7 +536,6 @@ local function addSet()
     end
   end
   paint()
-  openBuy()
 end
 
 -- The group a doll slot's choices come from (GC.ForeverUpgrades.GROUPS' slots), or nil for one
@@ -709,6 +744,10 @@ local function newSlot(parent, e)
   b.glyph:SetSize(HD.BADGE_GLYPH, HD.BADGE_GLYPH)
   b.glyph:SetPoint("CENTER", b.badge, "CENTER", 0, 0)
   Theme.SetIcon(b.glyph, "check", GC.Kit.Tokens.color.onGold)
+  b.star = b:CreateTexture(nil, "OVERLAY", nil, 3)
+  b.star:SetSize(HD.DOLL_STAR_W, HD.DOLL_STAR_H)
+  b.star:SetPoint("TOPRIGHT", b, "TOPRIGHT", -1, -1)
+  paintStar(b.star)
   -- The price as the game writes a stack's count over its slot: the condensed heavy face, outlined.
   b.price = b:CreateFontString(nil, "OVERLAY")
   b.price:SetFont(Theme.FONT_HEAD_HEAVY, 10 * Theme.Scale(), "OUTLINE")
@@ -772,7 +811,8 @@ end
 
 -- One slot as this paint sees it: what it shows, its frame, its marks. Its icon wears no quality
 -- edge (KP.PaintIcon without the item's id draws the untinted one): on the doll, green means the
--- piece is on the list, gold that the slot has choices.
+-- piece is on the list, gold that the slot has choices, and the star that GoldCap picks one the list
+-- does not hold yet: the whole mix GoldCap suggests reads on the doll.
 local function paintSlot(b)
   local s = view.at[b.invSlot]
   local c = s and state.inList[s.group] or nil
@@ -790,6 +830,7 @@ local function paintSlot(b)
   b.frameRing:SetColorTexture(ring[1], ring[2], ring[3], ring[4] or 1)
   b.badge:SetShown(c ~= nil)
   b.glyph:SetShown(c ~= nil)
+  b.star:SetShown(s ~= nil and c == nil and pickWaits(state.picks[s.group]))
   if c then put(b.price, GC.Util.FormatGoldCeil(c.unit)) else b.price:Hide() end
   b.glow:SetShown(b.invSlot == state.sel)
 end
@@ -874,11 +915,12 @@ local function markLevel(icon, later)
 end
 
 -- One option of the slot panel, two lines as the auction house lists a lot: its box ("+", or a
--- check on green while the list holds it for this slot) and the piece's icon (a gold star on
--- GoldCap's own pick, marked when it waits for a level, markLevel), then its name with its price at
--- the right, and under them what it adds, across the whole width. The whole row is the click that
--- puts it on the list or takes it off; hover is the engine's HIGHLIGHT layer, a listed row is green
--- as state.
+-- check on green while the list holds it for this slot) and the piece's icon (marked when it waits
+-- for a level, markLevel), then its name with its price at the right, and under them what it adds,
+-- across the whole width. GoldCap's own pick has the auction house's star before its name and a
+-- gold frame; a listed row is green, over the gold. The whole row is the click that puts it on the
+-- list or takes it off (the star takes the hover alone, for its tooltip); hover is the engine's
+-- HIGHLIGHT layer.
 local function newOption(parent)
   local b = CreateFrame("Button", nil, parent)
   b:RegisterForClicks("LeftButtonUp")
@@ -893,6 +935,9 @@ local function newOption(parent)
   b.onWash:SetAllPoints()
   b.onRing = Theme.ShapeTexture(b, "ARTWORK", "control", { green[1], green[2], green[3], 0.85 }, true)
   b.onRing:SetAllPoints()
+  local gold = Theme.color.gold
+  b.pickRing = Theme.ShapeTexture(b, "ARTWORK", "control", { gold[1], gold[2], gold[3], 0.85 }, true)
+  b.pickRing:SetAllPoints()
   b.hover = b:CreateTexture(nil, "HIGHLIGHT")
   Theme.SetShape(b.hover, "control")
   b.hover:SetAllPoints()
@@ -906,10 +951,23 @@ local function newOption(parent)
   b.boxGlyph:SetSize(HD.BOX_GLYPH, HD.BOX_GLYPH)
   b.boxGlyph:SetPoint("CENTER", b.box, "CENTER", 0, 0)
   b.icon = KP.NewIcon(b, HD.OPT_ICON, true)
-  b.star = b:CreateTexture(nil, "OVERLAY", nil, 4)
-  b.star:SetSize(HD.STAR, HD.STAR)
-  b.star:SetPoint("CENTER", b.icon.edge, "TOPLEFT", 2, -2)
-  Theme.SetIcon(b.star, "star", Theme.color.gold)
+  b.star = CreateFrame("Frame", nil, b)
+  b.star:SetSize(HD.STAR_W, HD.STAR_H)
+  if b.star.SetMouseMotionEnabled then
+    b.star:SetMouseMotionEnabled(true)
+    b.star:SetMouseClickEnabled(false)
+  end
+  b.star.tex = b.star:CreateTexture(nil, "OVERLAY")
+  b.star.tex:SetAllPoints()
+  paintStar(b.star.tex)
+  b.star:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
+    GameTooltip:SetText(GC.Util.ClientText(GC.L["GoldCap's pick: part of the strongest mix your gold pays for"]),
+      1, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  b.star:SetScript("OnLeave", hideTip)
   b.name = Theme.Label(b, 13)
   b.name:SetJustifyH("LEFT")
   b.gain = Theme.Label(b, 11)
@@ -943,6 +1001,7 @@ local function paintOption(b, s, c, on, star)
   KP.PaintIcon(b.icon, c.itemID, itemIcon(c.itemID), c.later)
   markLevel(b.icon, c.later)
   b.star:SetShown(star)
+  b.pickRing:SetShown(star and not on)
   put(b.name, nameOf(c))
   setColor(b.name, qualityOf(c.itemID))
   local gains = gainText(c.diffs)
@@ -984,8 +1043,8 @@ end
 -- An option in `shape`: its words wrap, never cut. Answers the height it needs; placeOption puts
 -- it at the list's height.
 local function layoutOption(b, shape)
-  local at = {}
-  local y = wrapTo(b.name, shape.nameW)
+  local at = { nameX = b.star:IsShown() and HD.STAR_W + HD.STAR_GAP or 0 }
+  local y = wrapTo(b.name, shape.nameW - at.nameX)
   if b.gain:IsShown() then
     at.gainY = y + 2
     y = at.gainY + wrapTo(b.gain, shape.full)
@@ -1009,7 +1068,11 @@ local function placeOption(b, shape, h)
   local at = b.at
   local top = HD.OPT_PAD_Y + math.floor((h - 2 * HD.OPT_PAD_Y - at.blockH) / 2)
   b.name:ClearAllPoints()
-  b.name:SetPoint("TOPLEFT", b, "TOPLEFT", shape.textX, -top)
+  b.name:SetPoint("TOPLEFT", b, "TOPLEFT", shape.textX + at.nameX, -top)
+  -- The star on the name's first line, in the room the name moved over for it.
+  local lineH = b.name.GetLineHeight and b.name:GetLineHeight() or heightOf(b.name)
+  b.star:ClearAllPoints()
+  b.star:SetPoint("LEFT", b, "TOPLEFT", shape.textX, -(top + math.floor(lineH / 2 + 0.5)))
   if at.gainY then
     b.gain:ClearAllPoints()
     b.gain:SetPoint("TOPLEFT", b, "TOPLEFT", shape.textX, -(top + at.gainY))
@@ -1146,8 +1209,8 @@ end
 
 -- What the list holds, at the tab's foot, in one band: how many pieces it still buys and what they
 -- add (and that what is worn is still being read), what they cost and what that leaves of the gold
--- carried; a button that puts GoldCap's whole set on the list, and one that opens the list in BUY.
--- The doll shows the pieces themselves.
+-- carried; "Best for my gold", which puts GoldCap's picks the list lacks on it, and "Open BUY". The
+-- doll shows the pieces themselves.
 local function createBar(container)
   local gold, ph = Theme.color.gold, Theme.color.panelHi or Theme.color.panel
   local b = { frame = Theme.Card(container, { ph[1], ph[2], ph[3], 1 }, { gold[1], gold[2], gold[3], 0.35 }) }
@@ -1223,8 +1286,9 @@ local function layoutBar(r, width)
     put(b.left, GC.L["Short by %s"]:format(coins(-left)))
     setColor(b.left, Theme.color.red)
   end
-  label(b.picks, GC.L["Buy GoldCap's picks (%d)"]:format(#picks), HD.BAR_BTN_W)
-  if #picks > 0 then b.picks:Enable() else b.picks:Disable() end
+  local off = picksOff(r)
+  label(b.picks, GC.L["Best for my gold (%d)"]:format(off), HD.BAR_BTN_W)
+  if off > 0 then b.picks:Enable() else b.picks:Disable() end
   label(b.open, GC.L["Open BUY"], HD.BAR_BTN_W)
   if n > 0 then b.open:Enable() else b.open:Disable() end
 

@@ -1995,7 +1995,9 @@ GC.Locales.ruRU = {
   ["Scan %s ago"] = "Скан %s назад",
   ["Scan again to read each version's own stats."] = "Просканируйте ещё раз, чтобы прочитать характеристики каждой версии.",
   ["Mount at 40"] = "Ездовое животное к 40",
-  ["Buy GoldCap's picks (%d)"] = "Купить подборку GoldCap (%d)",
+  ["Best for my gold (%d)"] = "Лучшее на моё золото (%d)",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "Выбор GoldCap: часть самого сильного набора, который можно купить на ваше золото",
   ["Open BUY"] = "Открыть BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "На аукционе пока нет ничего, на что хватит вашего золота.",

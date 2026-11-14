@@ -1819,7 +1819,8 @@ GC.Locales.zhCN = {
   ["Scan %s ago"] = "%s 前扫描",
   ["Scan again to read each version's own stats."] = "重新扫描以读取每个版本各自的属性。",
   ["Mount at 40"] = "40 级坐骑",
-  ["Buy GoldCap's picks (%d)"] = "购买 GoldCap 推荐（%d 件）",
+  ["Best for my gold (%d)"] = "我的金币能买的最佳（%d 件）",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 推荐：你的金币买得起的最强组合中的一件",
   ["Open BUY"] = "打开 BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "拍卖行上暂时没有你身上的金币买得起的装备。",

@@ -1923,7 +1923,9 @@ GC.Locales.ptBR = {
   ["Scan %s ago"] = "Escaneado há %s",
   ["Scan again to read each version's own stats."] = "Escaneie de novo para ler os atributos de cada versão.",
   ["Mount at 40"] = "Montaria no nível 40",
-  ["Buy GoldCap's picks (%d)"] = "Comprar a seleção do GoldCap (%d)",
+  ["Best for my gold (%d)"] = "O melhor para o meu ouro (%d)",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "Escolha do GoldCap: parte da combinação mais forte que o seu ouro paga",
   ["Open BUY"] = "Abrir BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "Ainda não há nada na casa de leilões que caiba no ouro que você tem.",

@@ -1926,7 +1926,9 @@ GC.Locales.itIT = {
   ["Scan %s ago"] = "Scansione di %s fa",
   ["Scan again to read each version's own stats."] = "Scansiona di nuovo per leggere le statistiche di ogni versione.",
   ["Mount at 40"] = "Cavalcatura al livello 40",
-  ["Buy GoldCap's picks (%d)"] = "Compra la selezione di GoldCap (%d)",
+  ["Best for my gold (%d)"] = "Il meglio per il mio oro (%d)",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "Scelta di GoldCap: parte della combinazione più forte che il tuo oro può pagare",
   ["Open BUY"] = "Apri BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "Alla casa d'aste non c'è ancora niente alla portata dell'oro che hai.",

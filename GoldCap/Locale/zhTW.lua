@@ -1820,7 +1820,8 @@ GC.Locales.zhTW = {
   ["Scan %s ago"] = "%s 前掃描",
   ["Scan again to read each version's own stats."] = "重新掃描以讀取每個版本各自的屬性。",
   ["Mount at 40"] = "40 級坐騎",
-  ["Buy GoldCap's picks (%d)"] = "購買 GoldCap 推薦（%d 件）",
+  ["Best for my gold (%d)"] = "我的金幣能買的最佳（%d 件）",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] = "GoldCap 推薦：你的金幣買得起的最強組合中的一件",
   ["Open BUY"] = "打開 BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "拍賣場上暫時沒有你身上的金幣買得起的裝備。",

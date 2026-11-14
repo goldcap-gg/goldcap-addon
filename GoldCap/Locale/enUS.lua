@@ -1916,7 +1916,9 @@ GC.Locales.enUS = {
   ["Scan %s ago"] = "Scan %s ago",
   ["Scan again to read each version's own stats."] = "Scan again to read each version's own stats.",
   ["Mount at 40"] = "Mount at 40",
-  ["Buy GoldCap's picks (%d)"] = "Buy GoldCap's picks (%d)",
+  ["Best for my gold (%d)"] = "Best for my gold (%d)",
+  ["GoldCap's pick: part of the strongest mix your gold pays for"] =
+    "GoldCap's pick: part of the strongest mix your gold pays for",
   ["Open BUY"] = "Open BUY",
   ["Nothing on the auction house fits the gold you carry yet."] =
     "Nothing on the auction house fits the gold you carry yet.",

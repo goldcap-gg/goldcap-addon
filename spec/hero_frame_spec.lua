@@ -10,7 +10,7 @@ local W = require("spec.support.wow_frames")
 -- read through W.state.
 describe("HERO tab", function()
   local GC, H, restore, saved, timers, delays, prefs, result, road, builds, views, toggled, windowShown
-  local selected, tipLink, tipShown, tipOwner, modified, clicked, chat, host, snapshots, wornLinks
+  local selected, tipLink, tipShown, tipOwner, tipText, modified, clicked, chat, host, snapshots, wornLinks
   local units, noModel, modelAnswer, boughtOn
   local KEYS = { "UIParent", "C_Item", "C_Timer", "GameTooltip", "HandleModifiedItemClick", "UnitClass", "UnitLevel",
     "GetMoney", "RAID_CLASS_COLORS", "GetClassAtlas", "C_Texture", "C_PaperDollInfo", "GetInventorySlotInfo",
@@ -83,6 +83,7 @@ describe("HERO tab", function()
 
   local function run() return prefs.heroList and GC.AppRuns.Get(prefs.heroList) or nil end
   local function doll() return H._view.doll end
+  local function HERO_C() return GC.Hero.C end
   local function slotAt(inv) return H._view.doll.slots[inv] end
   local function sp() return H._view.panel end
   local function opt(i) return H._view.panel.rows[i] end
@@ -147,7 +148,7 @@ describe("HERO tab", function()
       return m
     end
     timers, delays, builds, views, toggled, windowShown, snapshots, boughtOn = {}, {}, 0, {}, false, true, 0, {}
-    selected, tipLink, tipShown, tipOwner, modified, clicked, chat = nil, nil, false, nil, false, nil, nil
+    selected, tipLink, tipShown, tipOwner, tipText, modified, clicked, chat = nil, nil, false, nil, nil, false, nil, nil
     wornLinks = { [5] = "|Hitem:85::::|h[Old Tunic]|h" }
     _G.C_Timer = { After = function(s, fn) delays[#delays + 1] = s; timers[#timers + 1] = fn end }
     _G.UnitClass = function() return "Rogue", "ROGUE", 4 end
@@ -158,7 +159,10 @@ describe("HERO tab", function()
     _G.RED_FONT_COLOR = { r = 1, g = 0.125, b = 0.125 }
     _G.RAID_CLASS_COLORS = { ROGUE = { r = 1, g = 0.96, b = 0.41 }, WARRIOR = { r = 0.78, g = 0.61, b = 0.43 } }
     _G.GetClassAtlas = function(file) return ("classicon-%s"):format(file) end
-    _G.C_Texture = { GetAtlasInfo = function(atlas) return atlas:find("^classicon%-") and {} or nil end }
+    -- The class icons, and the auction house's favourite star (Forever's Blizzard_AuctionHouseUI).
+    _G.C_Texture = { GetAtlasInfo = function(atlas)
+      return (atlas:find("^classicon%-") or atlas == "auctionhouse-icon-favorite") and {} or nil
+    end }
     _G.C_Item = {
       GetItemIconByID = function(id) return 100000 + (tonumber(id) or 0) end,
       GetItemNameByID = function() return nil end,
@@ -167,6 +171,7 @@ describe("HERO tab", function()
     _G.C_PaperDollInfo = { GetInventorySlotInfo = function(name) return 1, "slot:" .. name, false end }
     _G.GameTooltip = {
       SetOwner = function(_, owner) tipOwner = owner end, SetHyperlink = function(_, l) tipLink = l end,
+      SetText = function(_, text) tipText = text end,
       Show = function() tipShown = true end, Hide = function() tipShown = false end,
       IsShown = function() return tipShown end, GetOwner = function() return tipOwner end,
     }
@@ -259,7 +264,8 @@ describe("HERO tab", function()
     assert.equal(my, oy)
     assert.equal(my, gy)
     local green, gold = GC.Theme.color.green, GC.Theme.color.gold
-    -- Nothing on the list yet: a slot with choices shows what is worn there, framed thin and gold.
+    -- Nothing on the list yet: a slot with choices shows what is worn there, framed thin and gold,
+    -- and GoldCap's star inside its top right where GoldCap picks a piece for it.
     local chest, main = slotAt(5), slotAt(16)
     assert.equal(100000 + 85, W.state(chest.icon.icon).file)          -- the tunic worn
     assert.same(rgb(gold), colourOf(chest.frameRing))
@@ -267,8 +273,14 @@ describe("HERO tab", function()
     assert.is_false(shown(chest.price))
     assert.equal("slot:MainHandSlot", W.state(main.icon.icon).file)
     assert.same(rgb(gold), colourOf(main.frameRing))
-    -- The tunic on the list: its icon, a green frame, the check and its price.
+    assert.same({ true, true }, { shown(chest.star), shown(main.star) })
+    assert.equal("auctionhouse-icon-favorite", W.state(chest.star).atlas)
+    local corner = W.state(chest.star).points[1]
+    assert.same({ "TOPRIGHT", chest, "TOPRIGHT" }, { corner[1], corner[2], corner[3] })
+    assert.is_true(corner[4] <= 0 and corner[5] <= 0)                  -- inside the slot's own square
+    -- The tunic on the list: its icon, a green frame, the check and its price, and no star.
     press(opt(1))
+    assert.is_false(shown(chest.star))
     assert.equal(100000 + TUNIC, W.state(chest.icon.icon).file)
     assert.same(rgb(green), colourOf(chest.frameRing))
     assert.is_true(shown(chest.badge))
@@ -298,7 +310,16 @@ describe("HERO tab", function()
     assert.are_not.same(rgb(gold), colourOf(head.frameRing))
     for _, inv in ipairs({ 4, 19, 13, 14, 17, 18 }) do
       assert.is_false(shown(slotAt(inv).badge), inv)
+      assert.is_false(shown(slotAt(inv).star), inv)
     end
+    assert.is_false(shown(head.star))
+    -- A piece of the player's own in the main hand: green, no star; off again, the star is back.
+    press(slotAt(16))
+    press(opt(1))
+    press(opt(3))                                                       -- the hatchet
+    assert.is_false(shown(main.star))
+    press(opt(3))
+    assert.is_true(shown(main.star))
     assert.equal("Click a slot to see what you can buy for it.", textOf(d.hint))
   end)
 
@@ -314,10 +335,34 @@ describe("HERO tab", function()
     assert.same({ "Dark Leather Tunic" }, optsShown())                  -- no row to keep what is worn
     assert.is_nil(opt(1).tags)                                          -- no chips
     assert.is_false(ticked(opt(1)))
-    assert.is_true(shown(opt(1).star))
+    -- GoldCap's pick: the auction house's own favourite star before its name, on the name's line,
+    -- the name moved right of it, nothing over the icon; and a thin gold frame.
+    local row = opt(1)
+    assert.is_true(shown(row.star))
+    assert.equal("auctionhouse-icon-favorite", W.state(row.star.tex).atlas)
+    assert.same({ HERO_C().STAR_W, HERO_C().STAR_H }, { row.star:GetWidth(), row.star:GetHeight() })
+    local star, name, icon = W.state(row.star).points[1], W.state(row.name).points[1], W.state(row.icon.edge).points[1]
+    assert.same({ "LEFT", row, "TOPLEFT" }, { star[1], star[2], star[3] })
+    assert.is_true(star[4] >= icon[4] + HERO_C().OPT_ICON)              -- right of the icon
+    assert.equal(star[4] + HERO_C().STAR_W + HERO_C().STAR_GAP, name[4]) -- the name after it
+    assert.equal(name[5] - math.floor(row.name:GetLineHeight() / 2 + 0.5), star[5])
+    assert.is_true(shown(row.pickRing))
     local gold = GC.Theme.color.gold
-    assert.same({ gold[1], gold[2], gold[3], 1 }, W.state(opt(1).star).vertex)
-    assert.same({ GC.Theme.IconCoords("star") }, W.state(opt(1).star).texCoord)
+    assert.same({ gold[1], gold[2], gold[3], 0.85 }, W.state(row.pickRing).vertex)
+    -- Its hover says what the star means, and the click goes on to the row.
+    assert.is_true(W.state(row.star).mouseMotion)
+    assert.is_false(W.state(row.star).mouseClicks)
+    W.state(row.star).scripts.OnEnter(row.star)
+    assert.equal("GoldCap's pick: part of the strongest mix your gold pays for", tipText)
+    assert.equal(row.star, tipOwner)
+    W.state(row.star).scripts.OnLeave(row.star)
+    assert.is_false(tipShown)
+    -- On the list: green over the gold, the star kept.
+    press(row)
+    assert.is_true(shown(row.onRing))
+    assert.is_false(shown(row.pickRing))
+    assert.is_true(shown(row.star))
+    press(row)
     -- The main hand: the set's pick, the strongest, the others by what they add.
     -- Its list starts at the top, wherever the chest's was scrolled to.
     W.state(H._view.scroll).scroll = 40
@@ -331,6 +376,10 @@ describe("HERO tab", function()
     assert.same({ "Night Watch Shortsword", "Skeletal Club", "Rusty Hatchet", "Bruiser Club" }, optsShown())
     assert.same({ true, false, false, false },
       { shown(opt(1).star), shown(opt(2).star), shown(opt(3).star), shown(opt(4).star) })
+    assert.same({ true, false, false, false },
+      { shown(opt(1).pickRing), shown(opt(2).pickRing), shown(opt(3).pickRing), shown(opt(4).pickRing) })
+    -- A row without the star has its name where the words start.
+    assert.equal(W.state(opt(1).star).points[1][4], W.state(opt(2).name).points[1][4])
     assert.equal("+4 Stamina, +4.4 Damage Per Second", textOf(opt(1).gain))
     assert.equal("7499c", textOf(opt(1).price))
     assert.equal("3990c", textOf(opt(2).price))
@@ -495,7 +544,7 @@ describe("HERO tab", function()
     assert.equal("0c", textOf(b.cost))
     assert.equal("LEFT AFTER", textOf(b.leftHead))
     assert.equal("5973c", textOf(b.left))
-    assert.equal("Buy GoldCap's picks (2)", textOf(b.picks.text))
+    assert.equal("Best for my gold (2)", textOf(b.picks.text))
     assert.is_true(b.picks:IsEnabled())
     assert.equal("Open BUY", textOf(b.open.text))
     assert.is_false(b.open:IsEnabled())                                 -- nothing on the list to open
@@ -530,10 +579,11 @@ describe("HERO tab", function()
     assert.equal(tostring(1589 + math.floor(7499 * 105 / 100)) .. "c", textOf(b.cost))
   end)
 
-  it("Buy GoldCap's picks puts the whole set on the list, each piece in its slot, and opens BUY", function()
+  it("Best for my gold puts GoldCap's picks on the list, each in its slot, and stays for the player to look over", function()
     H.Show()
     press(slotAt(16))
     press(opt(4))                                                       -- the bruiser, the player's own
+    assert.equal("Best for my gold (2)", textOf(bar().picks.text))      -- neither pick on the list yet
     press(bar().picks)
     local list = run()
     -- The bruiser made way for the set's sword; the tunic went on beside it.
@@ -543,13 +593,40 @@ describe("HERO tab", function()
     assert.same({ 1, 1 }, { qOf(TUNIC), qOf(WATCH) })
     assert.equal(math.floor(1589 * 105 / 100), GC.db.runLineCaps[list.code][TUNIC])
     assert.equal(math.floor(7499 * 105 / 100), GC.db.runLineCaps[list.code][WATCH])
-    assert.equal(list.code, selected)
-    assert.equal("buy", views[#views])
     assert.equal(prefs.heroList, list.code)
+    -- The tab stays: the doll green, the bar what the list costs; BUY waits for "Open BUY".
+    assert.same({}, views)
+    assert.is_nil(selected)
+    assert.same(rgb(GC.Theme.color.green), colourOf(slotAt(5).frameRing))
+    assert.same(rgb(GC.Theme.color.green), colourOf(slotAt(16).frameRing))
     assert.equal("In your list: 2", textOf(bar().title))
-    -- Again: the set is on the list already, nothing more goes on.
+    assert.equal("9088c", textOf(bar().cost))
+    -- All of the picks on the list: nothing for it to add.
+    assert.equal("Best for my gold (0)", textOf(bar().picks.text))
+    assert.is_false(bar().picks:IsEnabled())
+    -- One taken off with its check: that one again.
+    press(slotAt(5))
+    press(opt(1))
+    assert.equal("Best for my gold (1)", textOf(bar().picks.text))
+    assert.is_true(bar().picks:IsEnabled())
     press(bar().picks)
     assert.same({ 1, 1 }, { qOf(TUNIC), qOf(WATCH) })
+    press(bar().open)
+    assert.equal(list.code, selected)
+    assert.equal("buy", views[#views])
+    -- Both bought in BUY and not worn yet: the picks are not wanted again, and their stars stay off.
+    boughtOn[list.code] = { [TUNIC] = 1, [WATCH] = 1 }
+    H.RefreshIfShown(true)
+    assert.equal("In your list: 0", textOf(bar().title))
+    assert.equal("Best for my gold (0)", textOf(bar().picks.text))
+    assert.is_false(bar().picks:IsEnabled())
+    assert.same({ false, false }, { shown(slotAt(5).star), shown(slotAt(16).star) })
+    press(bar().picks)
+    assert.same({ 1, 1 }, { qOf(TUNIC), qOf(WATCH) })
+    -- A row's own "+" still buys one more.
+    press(slotAt(5))
+    press(opt(1))
+    assert.equal(2, qOf(TUNIC))
   end)
 
   it("makes a new Upgrades list when the remembered one is gone", function()
@@ -682,6 +759,8 @@ describe("HERO tab", function()
     assert.equal(100000 + 801, W.state(slotAt(11).icon.icon).file)
     assert.equal(100000 + 800, W.state(slotAt(12).icon.icon).file)
     assert.equal("+6 Strength", textOf(bar().sub))
+    assert.is_false(bar().picks:IsEnabled())
+    assert.is_false(shown(slotAt(12).star))
     press(bar().picks)
     assert.same({ { i = 800, q = 1 } }, linesOf())
   end)
@@ -867,7 +946,7 @@ describe("HERO tab", function()
     local b, t = bar(), top()
     assert.equal("Nothing on the auction house fits the gold you carry yet.", textOf(b.title))
     assert.is_false(shown(b.sub))
-    assert.equal("Buy GoldCap's picks (0)", textOf(b.picks.text))
+    assert.equal("Best for my gold (0)", textOf(b.picks.text))
     assert.is_false(b.picks:IsEnabled())
     assert.is_false(b.open:IsEnabled())
     assert.equal("5973c", textOf(b.left))
