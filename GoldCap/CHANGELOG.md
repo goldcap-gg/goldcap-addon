@@ -29,6 +29,7 @@
   on their tooltip kept every one of them out.
 - WoW: Forever: one-hand weapons are now offered for the off hand to a character that can
   dual-wield.
+- WoW: Forever: rogues, warriors and hunters are no longer offered cloth armour, except cloaks.
 - WoW: Forever: weapon damage now counts as much as it does in a fight. A point of weapon DPS in
   the main hand is worth about 14 attack power, half that in the off hand, and a rogue's or
   warrior's gun, bow or thrown weapon about a seventh. For a rogue, a slower main hand counts for
