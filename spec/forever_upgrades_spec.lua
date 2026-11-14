@@ -1040,6 +1040,12 @@ describe("ForeverUpgrades", function()
     -- A mage can equip a dagger (ClassAllows says yes) but can never dual-wield one.
     assert.equal(0, #U.Build(gear({ [1100] = "10:0:0" }),
       drv({ classFile = function() return "MAGE" end, level = function() return 60 end }), W).slots)
+    -- Nor a shaman, on WoW: Forever as in Classic, at any level: an off-hand fist weapon it can use.
+    items[1102] = { loc = "INVTYPE_WEAPONOFFHAND", class = 2, sub = 13 }
+    statsOf["item:1102"] = STR(5)
+    assert.is_true(U.ClassAllows("SHAMAN", 2, 13, 60))
+    assert.equal(0, #U.Build(gear({ [1102] = "10:0:0" }),
+      drv({ classFile = function() return "SHAMAN" end, level = function() return 60 end }), W).slots)
   end)
 
   it("trusts the client's own CanDualWield over the Classic fallback when it answers", function()
@@ -1688,6 +1694,9 @@ describe("ForeverUpgrades", function()
     assert.is_false(U.ClassAllows("PRIEST", 2, 7, 5))        -- one-handed sword
     assert.is_false(U.ClassAllows("WARRIOR", 15, 0, 20))     -- neither armour nor weapon
     assert.is_nil(U.ClassAllows("TINKER", 4, 2, 20))
+    -- WoW: Forever's rogue takes a one-hand axe, never a two-hand one.
+    assert.is_true(U.ClassAllows("ROGUE", 2, 0, 10))
+    assert.is_false(U.ClassAllows("ROGUE", 2, 1, 60))
   end)
 end)
 

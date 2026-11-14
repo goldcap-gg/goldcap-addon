@@ -136,7 +136,8 @@ end
 -- Armour subclass -> the level the class may wear it from (0 misc, 1 cloth, 2 leather, 3 mail, 4
 -- plate, 6 shield). Weapon subclass -> the class can learn it (0/1 axe, 2 bow, 3 gun, 4/5 mace, 6
 -- polearm, 7/8 sword, 10 staff, 13 fist, 15 dagger, 16 thrown, 18 crossbow, 19 wand). A class not
--- listed has no fallback.
+-- listed has no fallback. WoW: Forever lets a rogue use one-hand axes, as Classic does not (Pawn
+-- 2.14.4's ScaleTemplates.lua records it); two-hand axes stay out, as every two-hander does.
 local ARMOR = {
   WARRIOR = { [0] = 1, [1] = 1, [2] = 1, [3] = 1, [4] = 40, [6] = 1 },
   PALADIN = { [0] = 1, [1] = 1, [2] = 1, [3] = 1, [4] = 40, [6] = 1 },
@@ -152,7 +153,7 @@ local WEAPON = {
   WARRIOR = set({ 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18 }),
   PALADIN = set({ 0, 1, 4, 5, 6, 7, 8 }),
   HUNTER = set({ 0, 1, 2, 3, 6, 7, 8, 10, 13, 15, 16, 18 }),
-  ROGUE = set({ 2, 3, 4, 7, 13, 15, 16, 18 }),
+  ROGUE = set({ 0, 2, 3, 4, 7, 13, 15, 16, 18 }),
   DRUID = set({ 4, 5, 10, 13, 15 }),
   SHAMAN = set({ 0, 1, 4, 5, 10, 13, 15 }),
   MAGE = set({ 7, 10, 15, 19 }),
@@ -163,7 +164,8 @@ local WEAPON = {
 -- Final review I1: dual-wield is not a red tooltip line (a mage's off-hand dagger tooltip shows
 -- white), so it must be checked separately from ClassAllows. The client's own CanDualWield() is
 -- authoritative when it exists; the Classic fallback below is only for a client or spec driver
--- that lacks it. Rogues always can; warriors and hunters from level 20; nobody else.
+-- that lacks it. Rogues always can; warriors and hunters from level 20; nobody else, a shaman
+-- neither, on WoW: Forever as in Classic (Pawn 2.14.4 records the same).
 local DUAL_WIELD_FROM = { WARRIOR = 20, HUNTER = 20 }
 local function classCanDualWield(classFile, level)
   if classFile == "ROGUE" then return true end
