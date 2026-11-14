@@ -515,9 +515,10 @@ local function statOf(stats, token)
   return v
 end
 
--- What wearing a piece with `stats` (an `equipLoc`) in `group` (at `speed`) instead of the pieces
--- whose stats are in `off` (the one it replaces; both hands, for a two-hander over a pair; none for
--- an empty slot) changes the model's DPS by: the character's DPS after, less its DPS now, each
+-- What wearing a piece with `stats` (an `equipLoc`) in `group` (at `speed`) instead of what it
+-- replaces changes the model's DPS by, `off` the strength, agility and attack power that comes off
+-- ({ STR, AGI, AP }: the piece worn there's; both hands', for a two-hander over a pair; none for an
+-- empty slot): the character's DPS after, less its DPS now, each
 -- base (1 + crit). After, its attack power, ranged attack power and crit move by what the stats
 -- given and taken off add to each (char's apPer, rapPer, critPer), and the piece swings in its
 -- hand: a two-hander empties the off hand, a shield or a held piece leaves it without a swing, any
@@ -525,10 +526,8 @@ end
 -- two-hander's strength reaches one hand, not the two its per counted (review, 14.11). A main hand
 -- whose speed is not known (speed nil) swings at the worn one's: its speed counts once it is read.
 local function swapDps(model, stats, group, speed, equipLoc, off)
-  local dSTR, dAGI, dAP = statOf(stats, "STR"), statOf(stats, "AGI"), statOf(stats, "AP")
-  for _, st in ipairs(off) do
-    dSTR, dAGI, dAP = dSTR - statOf(st, "STR"), dAGI - statOf(st, "AGI"), dAP - statOf(st, "AP")
-  end
+  local dSTR, dAGI, dAP = statOf(stats, "STR") - off.STR, statOf(stats, "AGI") - off.AGI,
+    statOf(stats, "AP") - off.AP
   local w, ch = model.worn, model.char
   local mh, mhSpeed, oh, r = w.mh, w.mhSpeed, w.oh, w.r
   if group == "MAINHAND" then
@@ -669,11 +668,18 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return dualWield
   end
 
+  -- What a candidate in `group` (an `equipLoc`) is weighed against: what is worn there, or both
+  -- hands for a two-hander while a one-hander is worn (made once). nil while one has not answered.
+  local pairBase
   local function base(group, equipLoc)
     if group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not twoHandWorn then
-      local m, o = wornAt(16), wornAt(17)
-      if not (m and o) then return nil end
-      return { score = m.score + o.score, parts = merged(m.parts, o.parts), link = m.link, pair = { m, o } }
+      if not pairBase then
+        local m, o = wornAt(16), wornAt(17)
+        if not (m and o) then return nil end
+        pairBase = { score = m.score + o.score, parts = merged(m.parts, o.parts), link = m.link,
+          pair = { m, o } }
+      end
+      return pairBase
     end
     return wornAt(SLOT_OF[group]) or nil
   end
@@ -715,11 +721,17 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return nil
   end
 
-  -- The stats of what a candidate takes off: b's, both hands' for a pair.
+  -- What a candidate takes off, b (both hands, for a pair): its strength, agility and attack power
+  -- (swapDps's `off`), and what the stats the model does not count are worth (rest). Once per b.
   local function offOf(b)
-    local off = {}
-    for _, w in ipairs(b.pair or { b }) do off[#off + 1] = w.stats end
-    return off
+    if not b.off then
+      b.off, b.restScore = { STR = 0, AGI = 0, AP = 0 }, 0
+      for _, w in ipairs(b.pair or { b }) do
+        for _, token in ipairs(PER_ORDER) do b.off[token] = b.off[token] + statOf(w.stats, token) end
+        if rest then b.restScore = b.restScore + (Score(w.stats, rest)) end
+      end
+    end
+    return b.off
   end
 
   -- A candidate with `stats` (an `equipLoc`) in `group` (at `speed`) over b, base()'s answer: its
@@ -729,9 +741,8 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
   local function over(stats, group, equipLoc, speed, b)
     local s, p = Score(stats, weights, DpsFactor(class, group, speedIn(group, speed)))
     if not rest then return s, p, s - b.score end
-    local gain = model.K * swapDps(model, stats, group, speed, equipLoc, offOf(b)) + (Score(stats, rest))
-    for _, w in ipairs(b.pair or { b }) do gain = gain - (Score(w.stats, rest)) end
-    return s, p, gain
+    local gain = model.K * swapDps(model, stats, group, speed, equipLoc, offOf(b))
+    return s, p, gain + (Score(stats, rest)) - b.restScore
   end
 
   -- What a candidate adds to the character's DPS over b by the model (swapDps), and the stats the
