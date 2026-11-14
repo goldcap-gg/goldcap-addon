@@ -35,6 +35,11 @@
   more, because Sinister Strike adds a full swing, and with Backstab only daggers are offered for
   the main hand. The tab reads which you use from the weapon in your main hand; switch it under
   Stat weights.
+- WoW: Forever: every class's starting stat weights now count the weapon it fights with: a
+  hunter's bow, gun or crossbow, a mage's, priest's or warlock's wand, a shaman's or paladin's main
+  hand, and attack power for shamans and druids. A staff's or dagger's damage no longer counts for
+  a caster, only its stats, and a druid's forms ignore weapon damage. Weights you set yourself stay
+  as they are.
 - WoW: Forever: right after you log in or reload, the game takes a few seconds to hand over the
   details of what you wear. A slot still waiting for them now says so and fills in by itself; it
   used to say nothing on the auction house beat what you wear.
