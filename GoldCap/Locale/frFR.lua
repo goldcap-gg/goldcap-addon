@@ -1928,6 +1928,13 @@ GC.Locales.frFR = {
   ["The weapon's damage per second"] = "Les dégâts par seconde de l'arme",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Main droite : environ 14 de puissance d'attaque. Main gauche la moitié, arme à feu ou arc un septième",
+  ["Main hand, about 14 attack power"] = "Main droite : environ 14 de puissance d'attaque",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Arc, arme à feu ou arbalète : environ 14 de puissance d'attaque. Les armes de mêlée comptent à peine",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "Les dégâts par seconde de la baguette. Un bâton ou une dague ne compte que pour ses caractéristiques",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Les formes de félin et d'ours ne s'en servent pas, ils ne comptent donc pas",
   ["%s · level %d"] = "%s · niveau %d",
   ["Scan %s ago"] = "Scan d'il y a %s",
   ["Scan again to read each version's own stats."] = "Relance un scan pour lire les caractéristiques propres à chaque version.",

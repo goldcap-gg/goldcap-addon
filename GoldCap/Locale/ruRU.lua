@@ -1991,6 +1991,13 @@ GC.Locales.ruRU = {
   ["The weapon's damage per second"] = "Урон оружия в секунду",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Правая рука: около 14 силы атаки. Левая вдвое меньше, огнестрельное оружие или лук в семь раз меньше",
+  ["Main hand, about 14 attack power"] = "Правая рука: около 14 силы атаки",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Лук, огнестрельное оружие или арбалет: около 14 силы атаки. Оружие ближнего боя почти не в счёт",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "Урон жезла в секунду. Посох или кинжал учитывается только по характеристикам",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Облики кошки и медведя его не используют, поэтому он не учитывается",
   ["%s · level %d"] = "%s · уровень %d",
   ["Scan %s ago"] = "Скан %s назад",
   ["Scan again to read each version's own stats."] = "Просканируйте ещё раз, чтобы прочитать характеристики каждой версии.",

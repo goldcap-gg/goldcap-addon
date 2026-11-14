@@ -1995,6 +1995,13 @@ GC.Locales.ukUA = {
   ["The weapon's damage per second"] = "Шкода зброї за секунду",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Права рука: близько 14 сили атаки. Ліва вдвічі менше, вогнепальна зброя чи лук у сім разів менше",
+  ["Main hand, about 14 attack power"] = "Права рука: близько 14 сили атаки",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Лук, вогнепальна зброя чи арбалет: близько 14 сили атаки. Зброя ближнього бою майже не враховується",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "Шкода жезла за секунду. Посох чи кинджал враховується лише за характеристиками",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Подоби кота й ведмедя її не використовують, тож вона не враховується",
   ["%s · level %d"] = "%s · рівень %d",
   ["Scan %s ago"] = "Сканування %s тому",
   ["Scan again to read each version's own stats."] = "Проскануйте ще раз, щоб прочитати характеристики кожної версії.",

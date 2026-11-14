@@ -115,9 +115,18 @@ local STAT_HINT = {
   INT = "Mana and spell crit", SPI = "Health and mana back between fights", ARMOR = "Less damage from hits",
   AP = "From Equip lines", SP = "Spell damage and healing", DPS = "The weapon's damage per second",
 }
--- @localised-keys: a rogue's or a warrior's weapon DPS, weighed per hand (GC.ForeverUpgrades.HANDS).
+-- @localised-keys: what weapon DPS is to each class, weighed per hand (GC.ForeverUpgrades.HANDS),
+-- under DPS in place of STAT_HINT's.
 local HANDS_HINT = {
-  DPS = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+  ROGUE = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+  WARRIOR = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+  PALADIN = "Main hand, about 14 attack power",
+  SHAMAN = "Main hand, about 14 attack power",
+  HUNTER = "The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count",
+  MAGE = "The wand's damage per second. A staff or dagger counts for its stats only",
+  PRIEST = "The wand's damage per second. A staff or dagger counts for its stats only",
+  WARLOCK = "The wand's damage per second. A staff or dagger counts for its stats only",
+  DRUID = "Cat and bear forms do not use it, so it counts for nothing",
 }
 
 -- Text ------------------------------------------------------------------------------------
@@ -1541,7 +1550,7 @@ end
 
 -- The stats the panel offers: every one the class's defaults name, DPS, and any the player's own
 -- weights hold; all of them for a class with no defaults. The class's strongest primary stat and,
--- for a class whose hands are weighed, DPS lead, framed gold.
+-- for a class whose defaults weigh its weapon's DPS (all but the druid), DPS lead, framed gold.
 local function weightTokens(class, weights)
   local U = GC.ForeverUpgrades
   local defaults = U.DEFAULT_WEIGHTS[class] or {}
@@ -1552,7 +1561,7 @@ local function weightTokens(class, weights)
   end
   local lead = {}
   if top then lead[#lead + 1] = top end
-  if U.HANDS[class] then lead[#lead + 1] = "DPS" end
+  if (defaults.DPS or 0) > 0 then lead[#lead + 1] = "DPS" end
   local out, seen = {}, {}
   local function add(token, isTop)
     if seen[token] then return end
@@ -1669,7 +1678,7 @@ panelPaint.weights = function(p, width)
     KP.PaintIcon(row.icon, nil, STAT_ICON[entry.token])
     local key = U.TOKENS[entry.token][1]
     put(row.name, _G[key] or entry.token)
-    put(row.hint, GC.L[(U.HANDS[class] and HANDS_HINT[entry.token]) or STAT_HINT[entry.token]])
+    put(row.hint, GC.L[(entry.token == "DPS" and HANDS_HINT[class]) or STAT_HINT[entry.token]])
     -- While the player is not typing in it, the box holds the weight in force and is no longer red.
     local box = row.box
     if not (box.box.HasFocus and box.box:HasFocus()) then

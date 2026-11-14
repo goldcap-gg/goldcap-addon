@@ -941,6 +941,32 @@ describe("HERO tab", function()
     assert.same({ "STR", "DPS", "AGI", "STA", "ARMOR", "AP" }, (statsShown(panel("weights"))))
   end)
 
+  -- 14.11: every class's DPS row says what weapon DPS is to that class, and leads where it counts.
+  it("says under DPS what each class's weapon DPS is", function()
+    local HINT = {
+      ROGUE = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+      WARRIOR = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+      PALADIN = "Main hand, about 14 attack power", SHAMAN = "Main hand, about 14 attack power",
+      HUNTER = "The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count",
+      MAGE = "The wand's damage per second. A staff or dagger counts for its stats only",
+      PRIEST = "The wand's damage per second. A staff or dagger counts for its stats only",
+      WARLOCK = "The wand's damage per second. A staff or dagger counts for its stats only",
+      DRUID = "Cat and bear forms do not use it, so it counts for nothing",
+    }
+    H.Show()
+    H.TogglePanel("weights")
+    local p = panel("weights")
+    for class, hint in pairs(HINT) do
+      _G.UnitClass = function() return class, class, 1 end
+      H.RefreshIfShown(true)
+      local dps
+      for _, row in ipairs(p.rows) do if row.token == "DPS" and shown(row.frame) then dps = row end end
+      assert.equal(hint, textOf(dps.hint), class)
+      -- DPS second, after the class's top stat, wherever its defaults weigh it; a druid's further down.
+      assert.equal(class ~= "DRUID", (statsShown(p))[2] == "DPS", class)
+    end
+  end)
+
   it("says what to do when nothing fits the purse, and when the scan is stale", function()
     result.set = { picks = {}, list = {}, cost = 0, left = 5973, diffs = {} }
     result.stale = true

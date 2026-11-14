@@ -1912,6 +1912,13 @@ GC.Locales.enUS = {
   ["The weapon's damage per second"] = "The weapon's damage per second",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+  ["Main hand, about 14 attack power"] = "Main hand, about 14 attack power",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "The wand's damage per second. A staff or dagger counts for its stats only",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Cat and bear forms do not use it, so it counts for nothing",
   ["%s · level %d"] = "%s · level %d",
   ["Scan %s ago"] = "Scan %s ago",
   ["Scan again to read each version's own stats."] = "Scan again to read each version's own stats.",

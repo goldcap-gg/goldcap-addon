@@ -1919,6 +1919,13 @@ GC.Locales.ptBR = {
   ["The weapon's damage per second"] = "O dano por segundo da arma",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Mão principal: cerca de 14 de poder de ataque. Mão secundária a metade, arma de fogo ou arco um sétimo",
+  ["Main hand, about 14 attack power"] = "Mão principal: cerca de 14 de poder de ataque",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Arco, arma de fogo ou besta: cerca de 14 de poder de ataque. Armas corpo a corpo quase não contam",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "O dano por segundo da varinha. Um cajado ou uma adaga conta só pelos atributos",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "As formas de felino e de urso não o usam, então não conta",
   ["%s · level %d"] = "%s · nível %d",
   ["Scan %s ago"] = "Escaneado há %s",
   ["Scan again to read each version's own stats."] = "Escaneie de novo para ler os atributos de cada versão.",

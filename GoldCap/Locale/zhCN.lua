@@ -1815,6 +1815,12 @@ GC.Locales.zhCN = {
   ["The weapon's damage per second"] = "武器的每秒伤害",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "主手：约等于 14 点攻击强度。副手减半，枪械或弓为七分之一",
+  ["Main hand, about 14 attack power"] = "主手：约等于 14 点攻击强度",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "弓、枪械或弩：约等于 14 点攻击强度。近战武器几乎不计",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "魔杖的每秒伤害。法杖或匕首只计算属性",
+  ["Cat and bear forms do not use it, so it counts for nothing"] = "猎豹形态和熊形态不使用它，所以不计",
   ["%s · level %d"] = "%s · %d 级",
   ["Scan %s ago"] = "%s 前扫描",
   ["Scan again to read each version's own stats."] = "重新扫描以读取每个版本各自的属性。",

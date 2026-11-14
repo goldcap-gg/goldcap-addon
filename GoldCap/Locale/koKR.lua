@@ -1851,6 +1851,13 @@ GC.Locales.koKR = {
   ["The weapon's damage per second"] = "무기의 초당 공격력",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "주장비: 전투력 약 14. 보조장비는 절반, 총이나 활은 7분의 1",
+  ["Main hand, about 14 attack power"] = "주장비: 전투력 약 14",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "활, 총, 석궁: 전투력 약 14. 근접 무기는 거의 반영되지 않음",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "마법봉의 초당 공격력. 지팡이나 단검은 능력치만 반영됨",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "표범 변신과 곰 변신은 무기 공격력을 쓰지 않아 반영되지 않음",
   ["%s · level %d"] = "%s · %d레벨",
   ["Scan %s ago"] = "%s 전 스캔",
   ["Scan again to read each version's own stats."] = "다시 스캔하면 버전마다 고유한 능력치를 읽습니다.",

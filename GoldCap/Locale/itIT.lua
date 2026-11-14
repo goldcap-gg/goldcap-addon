@@ -1922,6 +1922,13 @@ GC.Locales.itIT = {
   ["The weapon's damage per second"] = "I danni al secondo dell'arma",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Mano principale: circa 14 di potenza d'attacco. Mano secondaria la metà, arma da fuoco o arco un settimo",
+  ["Main hand, about 14 attack power"] = "Mano principale: circa 14 di potenza d'attacco",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Arco, arma da fuoco o balestra: circa 14 di potenza d'attacco. Le armi da mischia contano poco",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "I danni al secondo della bacchetta. Un bastone o un pugnale conta solo per le sue statistiche",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Le forme di felino e di orso non li usano, quindi non contano",
   ["%s · level %d"] = "%s · livello %d",
   ["Scan %s ago"] = "Scansione di %s fa",
   ["Scan again to read each version's own stats."] = "Scansiona di nuovo per leggere le statistiche di ogni versione.",

@@ -1928,6 +1928,13 @@ GC.Locales.deDE = {
   ["The weapon's damage per second"] = "Der Schaden pro Sekunde der Waffe",
   ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
     "Waffenhand: etwa 14 Angriffskraft. Schildhand die Hälfte, Schusswaffe oder Bogen ein Siebtel",
+  ["Main hand, about 14 attack power"] = "Waffenhand: etwa 14 Angriffskraft",
+  ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
+    "Bogen, Schusswaffe oder Armbrust: etwa 14 Angriffskraft. Nahkampfwaffen zählen kaum",
+  ["The wand's damage per second. A staff or dagger counts for its stats only"] =
+    "Der Schaden pro Sekunde des Zauberstabs. Ein Stab oder Dolch zählt nur mit seinen Werten",
+  ["Cat and bear forms do not use it, so it counts for nothing"] =
+    "Katzen- und Bärengestalt kämpfen ohne ihn, daher zählt er nicht",
   ["%s · level %d"] = "%s · Stufe %d",
   ["Scan %s ago"] = "Scan vor %s",
   ["Scan again to read each version's own stats."] = "Scanne erneut, um die Werte jeder Version einzeln zu lesen.",
