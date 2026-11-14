@@ -50,6 +50,8 @@
   mount are now in the HERO tab too. /gc weights, /gc bags and /gc mount still work.
 - WoW: Forever: an item's tooltip now says whether it is an upgrade for the character looking, and
   by how much, or, for one you can wear in a level or two, when.
+- WoW: Forever: GoldCap now notes what the profession trainers you visit teach and what vendors
+  sell, so GoldCap's leveling routes can say where each recipe is learned.
 
 ## 0.28.1 (2026-11-13)
 

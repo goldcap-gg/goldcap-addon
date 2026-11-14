@@ -101,6 +101,10 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["UI/SellPace_Camelot.lua"] = "UI/SoldFrame.lua",
     -- The HERO tab, with its rail entry: after BUY, the tab whose lists it writes.
     ["UI/HeroFrame.lua"] = "UI/BuyFrame_Camelot.lua",
+    -- What trainers teach and merchants sell: the store beside the merchant prices, and the file
+    -- that reads both windows beside the other one that reads every merchant.
+    ["Core/ForeverSources.lua"] = "Core/ForeverVendorPrices.lua",
+    ["Services/SourcesClient_Camelot.lua"] = "Services/CraftClient_Camelot.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()
