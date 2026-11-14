@@ -1515,6 +1515,33 @@ describe("ForeverUpgrades", function()
         for _, c in ipairs(main.alts) do assert.are_not.equal(2021, c.itemID) end
       end)
 
+      -- The 5% a weapon must beat the worn one by is of what the worn one adds to the character's
+      -- DPS now, the pair's misses counted as in the gain: 5% of its score asked a dual-wielder's
+      -- main hand for 6.25%.
+      it("asks a dual-wielder's weapon for 5% over what the worn one adds, its misses counted", function()
+        local d = pair()
+        items[2081], items[2082] = SWORD, SWORD
+        statsOf["item:2081"], statsOf["item:2082"] = DPS(20 * 1.055), DPS(20 * 1.045)
+        local m = U.ModelFor(d, "WARRIOR")
+        local weights = U.WeightsFor({}, "WARRIOR", m)
+        local function main(id)
+          return bestIn(U.Build(gear({ [id] = "100:0:0" }), d, weights, nil, { model = m }), "MAINHAND")
+        end
+        -- The worn 20 adds 0.8 x 20 x 1.05 = 16.8 DPS: the bar is 5% of 7 x 16.8, 5.88.
+        local better = main(2081)
+        assert.equal(2081, better.itemID)
+        assert.near(1.1 * 0.8 * 1.05, better.dps, 1e-9)
+        assert.near(7 * better.dps, better.gain, 1e-9)                 -- 6.47
+        assert.is_nil(main(2082))                                       -- 0.9 x 0.8 x 1.05 x 7 = 5.29
+        -- An empty slot asks for minGain alone, as before: a point of strength, 7 x 0.18.
+        items[108] = { loc = "INVTYPE_HEAD", class = 4, sub = 3 }
+        statsOf["item:108"] = { ITEM_MOD_STAMINA_SHORT = 3 }
+        local head = bestIn(U.Build(gear({ [108] = "100:0:0" }), d, weights, nil, { model = m }), "HEAD")
+        assert.near(1.5, head.gain, 1e-9)
+        statsOf["item:108"] = { ITEM_MOD_STAMINA_SHORT = 2 }
+        assert.is_nil(bestIn(U.Build(gear({ [108] = "100:0:0" }), d, weights, nil, { model = m }), "HEAD"))
+      end)
+
       -- Review, 14.11: with nothing in the main hand the set put the only sword in the off hand.
       it("offers no off-hand weapon while nothing is in the main hand, nor puts one in the set", function()
         local DIRK = { loc = "INVTYPE_WEAPONOFFHAND", class = 2, sub = 15 }

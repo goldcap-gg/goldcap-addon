@@ -518,25 +518,32 @@ end
 -- What wearing a piece with `stats` (an `equipLoc`) in `group` (at `speed`) instead of what it
 -- replaces changes the model's DPS by, `off` the strength, agility and attack power that comes off
 -- ({ STR, AGI, AP }: the piece worn there's; both hands', for a two-hander over a pair; none for an
--- empty slot): the character's DPS after, less its DPS now, each
--- base (1 + crit). After, its attack power, ranged attack power and crit move by what the stats
--- given and taken off add to each (char's apPer, rapPer, critPer), and the piece swings in its
--- hand: a two-hander empties the off hand, a shield or a held piece leaves it without a swing, any
--- piece not for a hand leaves the weapons as they are. Counted whole, never a point at a time: a
--- two-hander's strength reaches one hand, not the two its per counted (review, 14.11). A main hand
--- whose speed is not known (speed nil) swings at the worn one's: its speed counts once it is read.
+-- empty slot): the character's DPS after, less its DPS now, each base (1 + crit). After, its attack
+-- power, ranged attack power and crit move by what the stats given and taken off add to each
+-- (char's apPer, rapPer, critPer), and the piece swings in its hand: a two-hander empties the off
+-- hand, a shield or a held piece leaves it without a swing, any piece not for a hand leaves the
+-- weapons as they are. Counted whole, never a point at a time: a two-hander's strength reaches one
+-- hand, not the two its per counted (review, 14.11). A main hand whose speed is not known (speed
+-- nil) swings at the worn one's: its speed counts once it is read. stats nil: nothing in its place,
+-- the slot left empty (both hands, with equipLoc INVTYPE_2HWEAPON), a bare main hand still hitting.
+local NOTHING = {}
 local function swapDps(model, stats, group, speed, equipLoc, off)
-  local dSTR, dAGI, dAP = statOf(stats, "STR") - off.STR, statOf(stats, "AGI") - off.AGI,
-    statOf(stats, "AP") - off.AP
+  local put = stats or NOTHING
+  local dSTR, dAGI, dAP = statOf(put, "STR") - off.STR, statOf(put, "AGI") - off.AGI,
+    statOf(put, "AP") - off.AP
   local w, ch = model.worn, model.char
   local mh, mhSpeed, oh, r = w.mh, w.mhSpeed, w.oh, w.r
   if group == "MAINHAND" then
-    mh, mhSpeed = statOf(stats, "DPS"), speed or w.mhSpeed
+    if stats then
+      mh, mhSpeed = statOf(stats, "DPS"), speed or w.mhSpeed
+    else
+      mh, mhSpeed = 0, nil
+    end
     if equipLoc == "INVTYPE_2HWEAPON" then oh = nil end
   elseif group == "OFFHAND" then
-    oh = OFFHAND_WEAPON[equipLoc] and statOf(stats, "DPS") or nil
+    oh = stats and OFFHAND_WEAPON[equipLoc] and statOf(stats, "DPS") or nil
   elseif group == "RANGED" then
-    r = statOf(stats, "DPS")
+    r = stats and statOf(stats, "DPS") or nil
   end
   local ap = ch.ap + dAP + dSTR * ch.apSTR + dAGI * ch.apAGI
   local rap = ch.rap + dAP + dAGI * ch.rapAGI
@@ -713,16 +720,11 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return w and w.speed or nil
   end
 
-  -- The gain over b that makes an upgrade, or nil: a score above nothing, gaining (gain: score less
-  -- b's, unless the caller says) at least MIN_GAIN_SHARE of b's score and minGain.
-  local function beats(score, b, gain)
-    gain = gain or score - b.score
-    if score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then return gain end
-    return nil
-  end
-
   -- What a candidate takes off, b (both hands, for a pair): its strength, agility and attack power
-  -- (swapDps's `off`), and what the stats the model does not count are worth (rest). Once per b.
+  -- (swapDps's `off`), and what the stats the model does not count are worth (rest). With weights
+  -- set from the model, also b's worth on the scale of a gain (worth): K times the DPS it adds now,
+  -- the DPS with it worn less with its slot empty (both hands, for a pair), and those stats' worth.
+  -- Once per b.
   local function offOf(b)
     if not b.off then
       b.off, b.restScore = { STR = 0, AGI = 0, AP = 0 }, 0
@@ -730,8 +732,30 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
         for _, token in ipairs(PER_ORDER) do b.off[token] = b.off[token] + statOf(w.stats, token) end
         if rest then b.restScore = b.restScore + (Score(w.stats, rest)) end
       end
+      if rest then
+        local empty = -swapDps(model, nil, b.pair and "MAINHAND" or b.group, nil,
+          b.pair and "INVTYPE_2HWEAPON" or nil, b.off)
+        b.worth = model.K * empty + b.restScore
+      end
     end
     return b.off
+  end
+
+  -- The gain over b that makes an upgrade, or nil: a score above nothing, gaining (gain: score less
+  -- b's, unless the caller says) at least MIN_GAIN_SHARE of b's worth and minGain. b's worth is its
+  -- score, or with weights set from the model its worth on the gain's scale (offOf). Review, 14.11:
+  -- 5% of the score, which does not count a pair's missed white hits, asked a dual-wielder's weapon
+  -- for 6.25%.
+  local function beats(score, b, gain)
+    gain = gain or score - b.score
+    local worth = b.score
+    if rest then
+      offOf(b)
+      worth = b.worth
+    end
+    local bar = math.max(C.MIN_GAIN_SHARE * worth, minGain)
+    if score > 0 and gain > 0 and gain >= bar then return gain end
+    return nil
   end
 
   -- A candidate with `stats` (an `equipLoc`) in `group` (at `speed`) over b, base()'s answer: its
