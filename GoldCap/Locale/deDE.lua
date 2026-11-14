@@ -1930,8 +1930,8 @@ GC.Locales.deDE = {
   ["From Equip lines"] = "Aus den Zeilen „Anlegen:“",
   ["Spell damage and healing"] = "Zauberschaden und Zauberheilung",
   ["The weapon's damage per second"] = "Der Schaden pro Sekunde der Waffe",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "Waffenhand: etwa 14 Angriffskraft. Schildhand die Hälfte, Schusswaffe oder Bogen ein Siebtel",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Waffenhand: etwa 14 Angriffskraft. Schildhand die Hälfte. Schusswaffe, Bogen oder Wurfwaffe zählen nur mit ihren Werten",
   ["Main hand, about 14 attack power"] = "Waffenhand: etwa 14 Angriffskraft",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "Bogen, Schusswaffe oder Armbrust: etwa 14 Angriffskraft. Nahkampfwaffen zählen kaum",

@@ -1852,8 +1852,8 @@ GC.Locales.koKR = {
   ["From Equip lines"] = "착용 효과에서",
   ["Spell damage and healing"] = "주문 공격력과 주문 치유",
   ["The weapon's damage per second"] = "무기의 초당 공격력",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "주장비: 전투력 약 14. 보조장비는 절반, 총이나 활은 7분의 1",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "주장비: 전투력 약 14. 보조장비는 절반. 총, 활, 투척 무기는 능력치만 반영됨",
   ["Main hand, about 14 attack power"] = "주장비: 전투력 약 14",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "활, 총, 석궁: 전투력 약 14. 근접 무기는 거의 반영되지 않음",

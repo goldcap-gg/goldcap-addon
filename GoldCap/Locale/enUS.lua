@@ -1913,8 +1913,8 @@ GC.Locales.enUS = {
   ["From Equip lines"] = "From Equip lines",
   ["Spell damage and healing"] = "Spell damage and healing",
   ["The weapon's damage per second"] = "The weapon's damage per second",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only",
   ["Main hand, about 14 attack power"] = "Main hand, about 14 attack power",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count",

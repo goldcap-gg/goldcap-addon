@@ -974,15 +974,15 @@ describe("HERO tab", function()
       .. " Change a number and yours stay until Reset."
     assert.equal(note, textOf(p.derived))
     assert.is_true(shown(p.derived))
-    assert.same({ "0.92", "0.77", "0.85", "7.35", "0.4", "0.01" }, { W.state(p.boxes.AGI.box).text,
+    assert.same({ "0.85", "0.77", "0.77", "7.35", "0.4", "0.01" }, { W.state(p.boxes.AGI.box).text,
       W.state(p.boxes.STR.box).text, W.state(p.boxes.AP.box).text, W.state(p.boxes.DPS.box).text,
       W.state(p.boxes.STA.box).text, W.state(p.boxes.ARMOR.box).text })
     -- A number typed: the whole table saved as the boxes showed it, and the boxes the player's now.
     typeInto(p.boxes.STA.box, "0.5")
-    assert.same({ AGI = 0.92, STR = 0.77, AP = 0.85, DPS = 7.35, STA = 0.5, ARMOR = 0.01 }, prefs.weights.ROGUE)
+    assert.same({ AGI = 0.85, STR = 0.77, AP = 0.77, DPS = 7.35, STA = 0.5, ARMOR = 0.01 }, prefs.weights.ROGUE)
     H.RefreshIfShown(true)
     assert.is_false(shown(p.derived))
-    assert.equal("0.92", W.state(p.boxes.AGI.box).text)
+    assert.equal("0.85", W.state(p.boxes.AGI.box).text)
     -- Reset: from the character again.
     press(p.secondary)
     assert.is_nil(prefs.weights.ROGUE)
@@ -1005,9 +1005,9 @@ describe("HERO tab", function()
     press(top().weights)
     local p = panel("weights")
     assert.is_true(shown(p.derived))
-    assert.equal("0.92", W.state(p.boxes.AGI.box).text)
+    assert.equal("0.85", W.state(p.boxes.AGI.box).text)
     typeInto(p.boxes.STA.box, "0.5")
-    assert.same({ AGI = 0.92, STR = 0.77, AP = 0.85, DPS = 7.35, STA = 0.5, ARMOR = 0.01 }, prefs.weights.ROGUE)
+    assert.same({ AGI = 0.85, STR = 0.77, AP = 0.77, DPS = 7.35, STA = 0.5, ARMOR = 0.01 }, prefs.weights.ROGUE)
   end)
 
   it("switches a rogue between Sinister Strike and Backstab and rebuilds", function()
@@ -1035,8 +1035,8 @@ describe("HERO tab", function()
   -- 14.11: every class's DPS row says what weapon DPS is to that class, and leads where it counts.
   it("says under DPS what each class's weapon DPS is", function()
     local HINT = {
-      ROGUE = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
-      WARRIOR = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+      ROGUE = "Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only",
+      WARRIOR = "Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only",
       PALADIN = "Main hand, about 14 attack power", SHAMAN = "Main hand, about 14 attack power",
       HUNTER = "The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count",
       MAGE = "The wand's damage per second. A staff or dagger counts for its stats only",

@@ -1992,8 +1992,8 @@ GC.Locales.ruRU = {
   ["From Equip lines"] = "Из строк «Если на персонаже:»",
   ["Spell damage and healing"] = "Урон от заклинаний и магическое лечение",
   ["The weapon's damage per second"] = "Урон оружия в секунду",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "Правая рука: около 14 силы атаки. Левая вдвое меньше, огнестрельное оружие или лук в семь раз меньше",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Правая рука: около 14 силы атаки. Левая вдвое меньше. Огнестрельное оружие, лук или метательное оружие учитываются только по характеристикам",
   ["Main hand, about 14 attack power"] = "Правая рука: около 14 силы атаки",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "Лук, огнестрельное оружие или арбалет: около 14 силы атаки. Оружие ближнего боя почти не в счёт",

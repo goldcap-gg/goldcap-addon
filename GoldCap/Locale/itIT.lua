@@ -1924,8 +1924,8 @@ GC.Locales.itIT = {
   ["From Equip lines"] = "Dagli effetti dell'equipaggiamento indossato",
   ["Spell damage and healing"] = "Danni e cure degli incantesimi",
   ["The weapon's damage per second"] = "I danni al secondo dell'arma",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "Mano principale: circa 14 di potenza d'attacco. Mano secondaria la metà, arma da fuoco o arco un settimo",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Mano principale: circa 14 di potenza d'attacco. Mano secondaria la metà. Un'arma da fuoco, un arco o un'arma da lancio conta solo per le sue statistiche",
   ["Main hand, about 14 attack power"] = "Mano principale: circa 14 di potenza d'attacco",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "Arco, arma da fuoco o balestra: circa 14 di potenza d'attacco. Le armi da mischia contano poco",

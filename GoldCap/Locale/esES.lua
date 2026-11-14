@@ -1927,8 +1927,8 @@ GC.Locales.esES = {
   ["From Equip lines"] = "De las líneas «Equipar:»",
   ["Spell damage and healing"] = "Daño y sanación con hechizos",
   ["The weapon's damage per second"] = "El daño por segundo del arma",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "Mano principal: unos 14 de poder de ataque. Mano secundaria la mitad, arma de fuego o arco un séptimo",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Mano principal: unos 14 de poder de ataque. Mano secundaria la mitad. Un arma de fuego, arco o arma arrojadiza cuenta solo por sus estadísticas",
   ["Main hand, about 14 attack power"] = "Mano principal: unos 14 de poder de ataque",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "Arco, arma de fuego o ballesta: unos 14 de poder de ataque. Las armas cuerpo a cuerpo apenas cuentan",

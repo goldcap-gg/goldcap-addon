@@ -1816,8 +1816,8 @@ GC.Locales.zhCN = {
   ["From Equip lines"] = "来自“装备：”效果",
   ["Spell damage and healing"] = "法术伤害和法术治疗",
   ["The weapon's damage per second"] = "武器的每秒伤害",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "主手：约等于 14 点攻击强度。副手减半，枪械或弓为七分之一",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "主手：约等于 14 点攻击强度。副手减半。枪械、弓和投掷武器只计算属性",
   ["Main hand, about 14 attack power"] = "主手：约等于 14 点攻击强度",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "弓、枪械或弩：约等于 14 点攻击强度。近战武器几乎不计",

@@ -197,15 +197,16 @@ function GC.ForeverUpgrades.Wants(classFile, equipLoc, classID, subclassID)
 end
 
 -- What a point of weapon DPS is worth in each hand, per class (HERO plan, Finding 3), the hand the
--- class fights with at 1: the off hand swings for half in Classic, and a melee class's ranged
--- weapon is a pull more than damage, about a seventh. Paladins and shamans swing the main hand and
--- shoot nothing (their off hand is a shield or a held piece); a hunter fights with the bow, gun or
--- crossbow, its melee weapon a tenth of that; a mage's, priest's or warlock's weapon DPS is the
--- wand's, a staff's or a dagger's counting for its stats alone; a druid's forms fight without the
--- weapon. A class or a group not listed counts as 1.
+-- class fights with at 1: the off hand swings for half in Classic. A rogue's or warrior's bow, gun,
+-- crossbow or thrown weapon only pulls, so its damage counts for nothing and the piece for its
+-- stats alone, as GearQuest Forever weighs it (its score.py, 14.11; a seventh until then).
+-- Paladins and shamans swing the main hand and shoot nothing (their off hand is a shield or a held
+-- piece); a hunter fights with the bow, gun or crossbow, its melee weapon a tenth of that; a mage's,
+-- priest's or warlock's weapon DPS is the wand's, a staff's or a dagger's counting for its stats
+-- alone; a druid's forms fight without the weapon. A class or a group not listed counts as 1.
 GC.ForeverUpgrades.HANDS = {
-  ROGUE = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 1 / 7 },
-  WARRIOR = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 1 / 7 },
+  ROGUE = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 0 },
+  WARRIOR = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 0 },
   PALADIN = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 0 },
   SHAMAN = { MAINHAND = 1, OFFHAND = 0.5, RANGED = 0 },
   HUNTER = { MAINHAND = 0.1, OFFHAND = 0.05, RANGED = 1 },

@@ -1817,8 +1817,8 @@ GC.Locales.zhTW = {
   ["From Equip lines"] = "來自「裝備：」效果",
   ["Spell damage and healing"] = "法術傷害和法術治療",
   ["The weapon's damage per second"] = "武器的每秒傷害",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "主手：約等於 14 點攻擊強度。副手減半，槍械或弓為七分之一",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "主手：約等於 14 點攻擊強度。副手減半。槍械、弓和投擲武器只計算屬性",
   ["Main hand, about 14 attack power"] = "主手：約等於 14 點攻擊強度",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "弓、槍械或弩：約等於 14 點攻擊強度。近戰武器幾乎不計",

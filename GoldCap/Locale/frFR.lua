@@ -1930,8 +1930,8 @@ GC.Locales.frFR = {
   ["From Equip lines"] = "Des lignes « Equipé : »",
   ["Spell damage and healing"] = "Dégâts et soins des sorts",
   ["The weapon's damage per second"] = "Les dégâts par seconde de l'arme",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "Main droite : environ 14 de puissance d'attaque. Main gauche la moitié, arme à feu ou arc un septième",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Main droite : environ 14 de puissance d'attaque. Main gauche la moitié. Une arme à feu, un arc ou une arme de jet ne compte que pour ses caractéristiques",
   ["Main hand, about 14 attack power"] = "Main droite : environ 14 de puissance d'attaque",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "Arc, arme à feu ou arbalète : environ 14 de puissance d'attaque. Les armes de mêlée comptent à peine",

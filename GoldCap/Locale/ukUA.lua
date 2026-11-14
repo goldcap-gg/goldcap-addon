@@ -1996,8 +1996,8 @@ GC.Locales.ukUA = {
   ["From Equip lines"] = "З ефектів надягнутих речей",
   ["Spell damage and healing"] = "Шкода від заклинань і лікування",
   ["The weapon's damage per second"] = "Шкода зброї за секунду",
-  ["Main hand, about 14 attack power. Off hand half, gun or bow a seventh"] =
-    "Права рука: близько 14 сили атаки. Ліва вдвічі менше, вогнепальна зброя чи лук у сім разів менше",
+  ["Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only"] =
+    "Права рука: близько 14 сили атаки. Ліва вдвічі менше. Вогнепальна зброя, лук чи метальна зброя враховуються лише за характеристиками",
   ["Main hand, about 14 attack power"] = "Права рука: близько 14 сили атаки",
   ["The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count"] =
     "Лук, вогнепальна зброя чи арбалет: близько 14 сили атаки. Зброя ближнього бою майже не враховується",

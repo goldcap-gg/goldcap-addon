@@ -121,8 +121,8 @@ local STAT_HINT = {
 -- @localised-keys: what weapon DPS is to each class, weighed per hand (GC.ForeverUpgrades.HANDS),
 -- under DPS in place of STAT_HINT's.
 local HANDS_HINT = {
-  ROGUE = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
-  WARRIOR = "Main hand, about 14 attack power. Off hand half, gun or bow a seventh",
+  ROGUE = "Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only",
+  WARRIOR = "Main hand, about 14 attack power. Off hand half. A gun, bow or thrown weapon counts for its stats only",
   PALADIN = "Main hand, about 14 attack power",
   SHAMAN = "Main hand, about 14 attack power",
   HUNTER = "The bow, gun or crossbow: about 14 attack power. Melee weapons hardly count",
