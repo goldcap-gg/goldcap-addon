@@ -519,6 +519,8 @@ GC.Locales.itIT = {
   -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
   ["Upgrade: %s over your %s"] = "Miglioramento: %s rispetto a %s",
   ["Upgrade: %s, nothing worn there"] = "Miglioramento: %s, lì non indossi nulla",
+  ["%s DPS"] = "%s DPS",
+  ["%s (%s)"] = "%s (%s)",
   ["You can wear it in %d levels"] = "Potrai indossarlo tra %d livelli",
   ["You can wear it next level"] = "Potrai indossarlo al prossimo livello",
   ["Not an upgrade for your %s: nothing here you use"] = "Non è un miglioramento per la tua classe (%s): niente che usi",

@@ -48,6 +48,32 @@ describe("ForeverUpgrades", function()
     return d
   end
 
+  -- The owner's level 17 rogue (14.11) as the DPS model reads it: a dagger in each hand, the Fine
+  -- Leather Tunic and Prospector's Mitts worn, and on the auction house the Feral Harness of Power
+  -- and Rigid Gloves of Power. char: what the driver's char() answers.
+  local MAIN, OFF, TUNIC, HARNESS, MITTS, RIGID = 2001, 2002, 3001, 3002, 3101, 3102
+  local LOTS = { [HARNESS] = "900:0:0", [RIGID] = "500:0:0" }
+  local CHAR = { ap = 100, rap = 50, crit = 0.05, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
+    critPer = { AGI = 0.0005 } }
+  local function dressRogue(char, mainDps, mainSpeed, offDps, offSpeed)
+    local DAGGER = { loc = "INVTYPE_WEAPON", class = 2, sub = 15 }
+    local CHEST, HANDS = { loc = "INVTYPE_CHEST", class = 4, sub = 2 }, { loc = "INVTYPE_HAND", class = 4, sub = 2 }
+    items[MAIN], items[OFF], items[TUNIC], items[HARNESS], items[MITTS], items[RIGID] =
+      DAGGER, DAGGER, CHEST, CHEST, HANDS, HANDS
+    worn[16], worn[17], worn[5], worn[10] = "item:2001", "item:2002", "item:3001", "item:3101"
+    statsOf["item:2001"], statsOf["item:2002"] = DPS(mainDps), DPS(offDps)
+    speedOf[MAIN], speedOf[OFF] = mainSpeed, offSpeed
+    statsOf["item:3001"] = { ITEM_MOD_AGILITY_SHORT = 4, ITEM_MOD_STAMINA_SHORT = 3, RESISTANCE0_NAME = 73 }
+    statsOf["item:3002"] = { RESISTANCE0_NAME = 81, ITEM_MOD_ATTACK_POWER_SHORT = 14 }
+    statsOf["item:3101"] = { ITEM_MOD_STRENGTH_SHORT = 3, ITEM_MOD_AGILITY_SHORT = 2, RESISTANCE0_NAME = 47 }
+    statsOf["item:3102"] = { RESISTANCE0_NAME = 50, ITEM_MOD_ATTACK_POWER_SHORT = 10 }
+    return rogue({ char = function() return char end, level = function() return 17 end })
+  end
+  local function bestIn(r, group)
+    for _, s in ipairs(r.slots) do if s.group == group then return s.best end end
+    return nil
+  end
+
   before_each(function()
     GC = helper.loadModule("Core/ForeverGear.lua")
     helper.loadModule("Core/ForeverUpgrades.lua", GC)
@@ -614,6 +640,8 @@ describe("ForeverUpgrades", function()
       return ("|cff1eff00|Hitem:%d%s|h[%s]|h|r"):format(id, tail, name)
     end
     local function say(text, tone) return { kind = "verdict", tone = tone or "good", text = text } end
+    -- A loss as the line writes it: in the client's red, its own fallback here.
+    local function red(text) return GC.Util.Colored({ 1, 0.1, 0.1 }, text) end
     -- The spec's driver with no tooltip to read: a read inside a tooltip fails the spec.
     local function quiet(over)
       local d = drv(over)
@@ -628,7 +656,8 @@ describe("ForeverUpgrades", function()
       worn[1] = old
       statsOf[old] = { ITEM_MOD_STRENGTH_SHORT = 5, ITEM_MOD_STAMINA_SHORT = 3 }
       statsOf[new] = { ITEM_MOD_STRENGTH_SHORT = 8, ITEM_MOD_STAMINA_SHORT = 1 }
-      assert.same({ say("Upgrade: +3 Strength, -2 Stamina over your Old Cap") }, U.TooltipVerdict(new, quiet(), W))
+      assert.same({ say("Upgrade: +3 Strength, " .. red("-2 Stamina") .. " over your Old Cap") },
+        U.TooltipVerdict(new, quiet(), W))
       worn[1] = nil
       assert.same({ say("Upgrade: +8 Strength, +1 Stamina, nothing worn there") }, U.TooltipVerdict(new, quiet(), W))
       -- A ring beats the weaker of the two worn, and the stronger worn ring itself says nothing.
@@ -683,7 +712,7 @@ describe("ForeverUpgrades", function()
       local main, shield, great = link(910, "Short Sword"), link(911, "Buckler"), link(701, "Claymore")
       worn[16], worn[17] = main, shield
       statsOf[main], statsOf[shield], statsOf[great] = STR(6), { ITEM_MOD_STAMINA_SHORT = 8 }, STR(12)
-      assert.same({ say("Upgrade: +6 Strength, -8 Stamina over your Short Sword and Buckler") },
+      assert.same({ say("Upgrade: +6 Strength, " .. red("-8 Stamina") .. " over your Short Sword and Buckler") },
         U.TooltipVerdict(great, quiet(), W))
       statsOf[great] = STR(10.5)                                   -- 0.5 over both: under MIN_GAIN_POINTS
       assert.is_nil(U.TooltipVerdict(great, quiet(), W))
@@ -774,6 +803,35 @@ describe("ForeverUpgrades", function()
       statsOf[cutlass] = DPS(10)
       assert.same({ say("Upgrade: +1.20 Speed over your Hook Dagger") }, U.TooltipVerdict(cutlass, d, R, { style = "sinister" }))
       assert.equal(0, reads)
+    end)
+
+    -- The tooltip and the HERO tab say the same DPS, the worn main hand at the speed Build read.
+    it("says what a piece adds to the character's DPS, the stats that make it in brackets, each loss red", function()
+      local names = { ITEM_MOD_AGILITY_SHORT = "Agility", ITEM_MOD_ATTACK_POWER_SHORT = "Attack Power",
+        RESISTANCE0_NAME = "Armor" }
+      local old = {}
+      for k, v in pairs(names) do old[k], _G[k] = _G[k], v end
+      finally(function() for k in pairs(names) do _G[k] = old[k] end end)
+      local d = dressRogue(CHAR, 8, 1.8, 6, 1.7)
+      local m = U.ModelFor(d, "ROGUE", true)
+      local weights = U.WeightsFor({}, "ROGUE", m)
+      local chest = bestIn(U.Build(gear(LOTS), d, weights, nil, { model = m }), "CHEST")
+      d.usable = function() error("a tooltip read inside a tooltip") end
+      local harness, vest, tunic = link(HARNESS, "Feral Harness of Power"), link(3003, "Sturdy Vest"),
+        link(TUNIC, "Fine Leather Tunic")
+      items[3003] = items[TUNIC]
+      worn[5], statsOf[tunic], statsOf[harness] = tunic, statsOf["item:3001"], statsOf["item:3002"]
+      statsOf[vest] = { ITEM_MOD_STAMINA_SHORT = 20, RESISTANCE0_NAME = 80 }
+      local tip = { model = U.ModelFor(d, "ROGUE", false) }
+      assert.same({ say("Upgrade: " .. U.DpsFigure(chest.dps) .. " DPS (" .. red("-4 Agility") .. ", +14 Attack Power), "
+        .. red("-3 Stamina") .. ", +8 Armor over your Fine Leather Tunic") }, U.TooltipVerdict(harness, d, weights, tip))
+      assert.equal("+1.2", (U.DpsFigure(chest.dps)))
+      -- A piece that costs DPS and wins on the rest: the figure red too.
+      assert.same({ say("Upgrade: " .. red("-0.5 DPS") .. " (" .. red("-4 Agility") .. "), +17 Stamina, +7 Armor"
+        .. " over your Fine Leather Tunic") }, U.TooltipVerdict(vest, d, weights, tip))
+      -- Without a model, as before.
+      assert.same({ say("Upgrade: " .. red("-4 Agility") .. ", " .. red("-3 Stamina") .. ", +8 Armor, +14 Attack Power"
+        .. " over your Fine Leather Tunic") }, U.TooltipVerdict(harness, d, weights))
     end)
   end)
 
@@ -1100,6 +1158,156 @@ describe("ForeverUpgrades", function()
     assert.near(3, r.slots[1].best.gain, 1e-9)
   end)
 
+  describe("the character's DPS", function()
+    -- Owner, 14.11: "Feral Harness of Power: -4 Agility, -3 Stamina, +8 Armor, +14 Attack Power" left
+    -- him adding up stats. Each choice now says what it adds to the character's DPS, counted from
+    -- its own numbers as the game counts them, and ranks by it.
+    it("counts a rogue's DPS from its attack power, crit and daggers, and ranks each choice by it", function()
+      local d = dressRogue(CHAR, 8, 1.8, 6, 1.7)
+      local m = U.ModelFor(d, "ROGUE", true)
+      assert.equal(7, m.K)
+      assert.near(0.120907, m.per.AP, 1e-5)
+      assert.near(0.110192, m.per.STR, 1e-5)
+      assert.near(0.131786, m.per.AGI, 1e-5)
+      assert.near(21.758556, m.base, 1e-5)
+      assert.near(1.05 * U.DpsFactor("ROGUE", "OFFHAND"), m.weapon("OFFHAND"), 1e-9)
+      -- The weights in force: K times what a point adds, weapon DPS at K (1 + crit), the rest as set.
+      local weights, derived = U.WeightsFor({}, "ROGUE", m)
+      assert.is_true(derived)
+      assert.near(7 * m.per.AGI, weights.AGI, 1e-9)
+      assert.near(7 * m.per.STR, weights.STR, 1e-9)
+      assert.near(7 * m.per.AP, weights.AP, 1e-9)
+      assert.near(7.35, weights.DPS, 1e-9)
+      assert.same({ 0.4, 0.01 }, { weights.STA, weights.ARMOR })
+      -- Typed into, at the two decimals the window shows.
+      local edit = U.EditWeights({}, "ROGUE", m)
+      assert.same({ AGI = 0.92, STR = 0.77, AP = 0.85, DPS = 7.35, STA = 0.4, ARMOR = 0.01 }, edit)
+      local r = U.Build(gear(LOTS), d, weights, nil, { model = m })
+      local chest, hands = bestIn(r, "CHEST"), bestIn(r, "HANDS")
+      assert.equal(HARNESS, chest.itemID)
+      assert.near(1.165549, chest.dps, 1e-5)                         -- 14 x AP - 4 x AGI
+      assert.near(7 * chest.dps - 0.4 * 3 + 0.01 * 8, chest.gain, 1e-9)
+      assert.equal(RIGID, hands.itemID)
+      assert.near(0.614917, hands.dps, 1e-5)                         -- 10 x AP - 3 x STR - 2 x AGI
+      assert.near(7 * hands.dps + 0.01 * 3, hands.gain, 1e-9)
+      assert.same({ "+1.2", 1 }, { U.DpsFigure(chest.dps) })
+      assert.same({ "0.0", 0 }, { U.DpsFigure(0.049) })
+      assert.same({ "-0.1", -1 }, { U.DpsFigure(-0.05) })
+    end)
+
+    -- The owner's own numbers, read in the client (14.11 13:16): attack power 126, ranged 139, crit
+    -- 14.5565%, a point of strength or agility a point of attack power, a point of agility 0.1515% crit,
+    -- both daggers about 10 DPS at 1.5, nothing in the ranged slot. A point of agility gives the
+    -- ranged 1 too (not read, as the game's rule for a rogue).
+    it("gives the owner's rogue both pieces he doubted as gains, the chest the larger", function()
+      local owner = { ap = 126, rap = 139, crit = 0.145565, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 1 },
+        critPer = { AGI = 0.0015150 } }
+      local d = dressRogue(owner, 10, 1.5, 10, 1.5)
+      local m = U.ModelFor(d, "ROGUE", true)
+      assert.near(0.128134, m.per.AP, 1e-5)
+      assert.near(0.116445, m.per.STR, 1e-5)
+      assert.near(0.171246, m.per.AGI, 1e-5)
+      assert.near(28.456829, m.base, 1e-5)
+      local r = U.Build(gear(LOTS), d, U.WeightsFor({}, "ROGUE", m), nil, { model = m })
+      local chest, hands = bestIn(r, "CHEST"), bestIn(r, "HANDS")
+      assert.near(1.11, chest.dps, 0.005)
+      assert.near(0.59, hands.dps, 0.005)
+      assert.is_true(hands.dps > 0)
+      assert.is_true(chest.dps > hands.dps)
+      assert.is_true(chest.gain > hands.gain)
+    end)
+
+    it("gives a warrior's strength the two attack power the game says it does", function()
+      items[2101], items[105] = { loc = "INVTYPE_2HWEAPON", class = 2, sub = 8 }, { loc = "INVTYPE_HEAD", class = 4, sub = 3 }
+      worn[16], statsOf["item:2101"] = "item:2101", DPS(10)
+      statsOf["item:105"] = STR(3)
+      local d = drv({ char = function()
+        return { ap = 200, rap = 20, crit = 0.05, apPer = { STR = 2, AGI = 0 }, rapPer = { AGI = 1 },
+          critPer = { AGI = 0.0004 } }
+      end })
+      local m = U.ModelFor(d, "WARRIOR")
+      assert.near(0.15, m.per.STR, 1e-9)                              -- 2 x (main hand 1) / 14 x 1.05
+      assert.near(0.0857143, m.per.AP, 1e-6)                          -- (1 + a seventh for the bow) / 14 x 1.05
+      assert.near(0.0205102, m.per.AGI, 1e-6)                         -- crit only: 0.0004 x 24.49
+      assert.near(24.489796, m.base, 1e-5)
+      local r = U.Build(gear({ [105] = "100:0:0" }), d, U.WeightsFor({}, "WARRIOR", m), nil, { model = m })
+      assert.near(0.45, bestIn(r, "HEAD").dps, 1e-9)
+    end)
+
+    it("counts a hunter's agility through its ranged attack power and the bow", function()
+      local BOW = { loc = "INVTYPE_RANGED", class = 2, sub = 2 }
+      items[2201], items[2202], items[106] = BOW, BOW, { loc = "INVTYPE_HEAD", class = 4, sub = 2 }
+      worn[18] = "item:2201"
+      statsOf["item:2201"] = DPS(12)
+      statsOf["item:2202"] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 14, ITEM_MOD_AGILITY_SHORT = 2 }
+      statsOf["item:106"] = { ITEM_MOD_AGILITY_SHORT = 5 }
+      local d = drv({ classFile = function() return "HUNTER" end, char = function()
+        return { ap = 80, rap = 150, crit = 0.06, apPer = { STR = 1, AGI = 1 }, rapPer = { AGI = 2 },
+          critPer = { AGI = 0.0006 } }
+      end })
+      local m = U.ModelFor(d, "HUNTER")
+      assert.equal(5.6, m.K)
+      assert.near(23.285714, m.base, 1e-5)                            -- the bow's 12 and 150 / 14, a melee tenth
+      assert.near(0.1729714, m.per.AGI, 1e-6)                         -- (0.1 + 2 x 1) / 14 x 1.06 + 0.0006 x base
+      assert.near(0.0075714, m.per.STR, 1e-6)                         -- melee only
+      local r = U.Build(gear({ [2202] = "400:0:0", [106] = "100:0:0" }), d, U.WeightsFor({}, "HUNTER", m), nil,
+        { model = m })
+      assert.near(5 * m.per.AGI, bestIn(r, "HEAD").dps, 1e-9)
+      assert.near(2 * 1.06 + 2 * m.per.AGI, bestIn(r, "RANGED").dps, 1e-9)
+    end)
+
+    it("has no model for a mage, a priest, a warlock or a druid, whose choices read as before", function()
+      local char = function() return CHAR end
+      for _, class in ipairs({ "MAGE", "PRIEST", "WARLOCK", "DRUID" }) do
+        assert.is_nil(U.DpsModel(class, CHAR), class)
+        assert.is_nil(U.ModelFor(drv({ classFile = function() return class end, char = char }), class), class)
+      end
+      assert.is_nil(U.DpsModel("ROGUE", nil))
+      assert.is_nil(U.DpsModel("ROGUE", { ap = 100, rap = 50, crit = 0.05, apPer = { STR = 1 }, rapPer = { AGI = 1 },
+        critPer = { AGI = 0.0005 } }))                                -- a number missing
+      items[107] = { loc = "INVTYPE_HEAD", class = 4, sub = 1 }
+      statsOf["item:107"] = { ITEM_MOD_INTELLECT_SHORT = 6, ITEM_MOD_STAMINA_SHORT = 2 }
+      local d = drv({ classFile = function() return "MAGE" end, char = char })
+      local weights, derived = U.WeightsFor({}, "MAGE", U.ModelFor(d, "MAGE"))
+      assert.is_nil(derived)
+      assert.same(U.DEFAULT_WEIGHTS.MAGE, weights)
+      local head = bestIn(U.Build(gear({ [107] = "100:0:0" }), d, weights), "HEAD")
+      assert.is_nil(head.dps)
+      assert.same({ ITEM_MOD_INTELLECT_SHORT = 6, ITEM_MOD_STAMINA_SHORT = 2 }, head.diffs)
+    end)
+
+    it("ranks by the player's own weights when there are some, and still says the true DPS", function()
+      local d = dressRogue(CHAR, 8, 1.8, 6, 1.7)
+      local m = U.ModelFor(d, "ROGUE", true)
+      local own = { AGI = 1, ARMOR = 1 }                              -- no attack power
+      local weights, derived = U.WeightsFor({ weights = { ROGUE = own }, weightsV = 4 }, "ROGUE", m)
+      assert.equal(own, weights)
+      assert.is_nil(derived)
+      local chest = bestIn(U.Build(gear(LOTS), d, weights, nil, { model = m }), "CHEST")
+      assert.equal(4, chest.gain)                                     -- 81 armour over 4 agility and 73
+      assert.near(1.165549, chest.dps, 1e-5)                          -- the 14 attack power counted all the same
+      assert.is_nil(chest.diffs.ITEM_MOD_ATTACK_POWER_SHORT)
+    end)
+
+    it("reads exactly as before when the character's numbers do not answer", function()
+      local function build(char)
+        items, statsOf, worn, speedOf = {}, {}, {}, {}
+        local d = dressRogue(char, 8, 1.8, 6, 1.7)
+        local m = U.ModelFor(d, "ROGUE", true)
+        return m, U.Build(gear(LOTS), d, U.WeightsFor({}, "ROGUE", m), nil, { style = "sinister", model = m })
+      end
+      local m, r = build(nil)
+      assert.is_nil(m)
+      for _, s in ipairs(r.slots) do assert.is_nil(s.best.dps, s.group) end
+      local d = dressRogue(CHAR, 8, 1.8, 6, 1.7)
+      d.char = nil
+      -- Round 7's build: the class's default weights (a copy, summed in the same order), no model.
+      assert.same(U.Build(gear(LOTS), d, U.WeightsFor({}, "ROGUE"), nil, { style = "sinister" }), r)
+      d.char = function() error("no client") end
+      assert.is_nil(U.ModelFor(d, "ROGUE"))
+    end)
+  end)
+
   it("reads a red tooltip line as unusable, and cannot tell without colours or a client", function()
     local function api(lines) return { GetHyperlink = function() return { lines = lines } end } end
     local white, red = { r = 1, g = 1, b = 1 }, { r = 1, g = 0.125, b = 0.125 }
@@ -1217,8 +1425,12 @@ end)
 describe("ForeverUpgrades in the client", function()
   local GC, db, printed, saved
   local INFO = { [101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2, stats = { ITEM_MOD_STRENGTH_SHORT = 8 } } }
+  -- The character sheet's reads (realDriver's char()): none in this suite unless a case puts them.
+  local CHAR_KEYS = { "GetCritChance", "UnitAttackPower", "UnitRangedAttackPower", "UnitStat", "GetAttackPowerForStat",
+    "GetRangedAttackPowerForStat", "GetCritChanceFromStat" }
   local KEYS = { "C_Item", "UnitLevel", "UnitClass", "GetInventoryItemLink", "C_TooltipInfo", "GetItemStats",
     "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_STAMINA_SHORT", "GetMoney", "SPEED" }
+  for _, k in ipairs(CHAR_KEYS) do KEYS[#KEYS + 1] = k end
 
   local function init(interface)
     GC.ForeverScan.Init(db, { passport = function() return { interface = interface, region = 90, realm = "Forever" } end })
@@ -1241,6 +1453,7 @@ describe("ForeverUpgrades in the client", function()
     _G.UnitClass = function() return "Warrior", "WARRIOR", 1 end
     _G.GetInventoryItemLink = function() return nil end
     _G.C_TooltipInfo, _G.GetItemStats, _G.GetMoney = nil, nil, nil
+    for _, k in ipairs(CHAR_KEYS) do _G[k] = nil end
     _G.ITEM_MOD_STRENGTH_SHORT, _G.ITEM_MOD_STAMINA_SHORT = "Strength", "Stamina"
     GC = helper.loadModule("Core/Util.lua")
     for _, f in ipairs({ "Core/Game.lua", "Core/ForeverFold.lua", "Core/ForeverGear.lua", "Core/ForeverScan.lua",
@@ -1469,14 +1682,14 @@ describe("ForeverUpgrades in the client", function()
     assert.same({ STR = 1, DPS = 7 }, db.forever.weights.WARRIOR)   -- the alt's too, in the same pass
     assert.same({ INT = 1, DPS = 2 }, db.forever.weights.MAGE)      -- a mage's 2 was never the old melee one
     assert.same({ STR = 1, DPS = 3 }, db.forever.weights.PALADIN)   -- typed, not the old default
-    assert.equal(3, db.forever.weightsV)
+    assert.equal(4, db.forever.weightsV)
     -- Typed again after the move, a 2 is the player's own.
     db.forever.weights.ROGUE.DPS = 2
     assert.same({ AGI = 1.5, DPS = 2 }, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE"))
     -- A save with no weights of its own is marked done too, so a 2 typed later stays.
     db.forever = {}
     GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE")
-    assert.equal(3, db.forever.weightsV)
+    assert.equal(4, db.forever.weightsV)
     db.forever.weights = { ROGUE = { AGI = 1, DPS = 2 } }
     assert.equal(2, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE").DPS)
   end)
@@ -1496,7 +1709,7 @@ describe("ForeverUpgrades in the client", function()
     assert.same({ INT = 1, DPS = 4.2, AP = 0.3 }, own.SHAMAN)
     assert.same({ INT = 1, AP = 0.3 }, own.DRUID)
     for _, class in ipairs({ "MAGE", "PRIEST", "WARLOCK" }) do assert.same({ INT = 1, DPS = 2 }, own[class], class) end
-    assert.equal(3, db.forever.weightsV)
+    assert.equal(4, db.forever.weightsV)
     -- A save from after the melee move: a melee 2 is the player's own, the others still move.
     db.forever = { weightsV = 2, weights = { ROGUE = { AGI = 1, DPS = 2 }, MAGE = { INT = 1, DPS = 0.5 } } }
     GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "MAGE")
@@ -1513,6 +1726,67 @@ describe("ForeverUpgrades in the client", function()
     -- Once: an old number typed again after the move stays.
     db.forever.weights.HUNTER.DPS = 2
     assert.equal(2, GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "HUNTER").DPS)
+  end)
+
+  -- The owner's level 17 rogue as the client answered a probe (14.11 13:16): crit as a percent, a
+  -- stat's crit as a fraction, attack power with its buffs; the ranged 1 a point of agility is the
+  -- game's rule for a rogue, not read.
+  it("reads the character's own numbers for its DPS, and goes without when one does not answer", function()
+    _G.UnitClass = function() return "Rogue", "ROGUE", 4 end
+    _G.GetCritChance = function() return 14.5565 end
+    _G.UnitAttackPower = function() return 126, 0, 0 end
+    _G.UnitRangedAttackPower = function() return 139, 0, 0 end
+    _G.UnitStat = function(_, i) if i == 1 then return 41, 41 elseif i == 2 then return 71, 71 end end
+    _G.GetAttackPowerForStat = function(_, v) return v end
+    _G.GetRangedAttackPowerForStat = function(_, v) return v end
+    _G.GetCritChanceFromStat = function(i, v) return i == 2 and 0.107565 + (v - 71) * 0.001515 or 0 end
+    init(16001)
+    local r = GC.ForeverUpgrades.Current()
+    local m = r.model
+    assert.near(0.145565, m.crit, 1e-9)
+    -- Nothing worn: the main hand's 126 / 14 and a seventh of the ranged 139 / 14, before crits.
+    assert.near(10.418367, m.base, 1e-5)
+    assert.near(0.0935155, m.per.AP, 1e-6)
+    assert.near(0.0818261, m.per.STR, 1e-6)
+    assert.near(0.0818261 * 8 / 7 + 0.001515 * m.base, m.per.AGI, 1e-6)
+    assert.near(7 * m.per.AGI, r.weights.AGI, 1e-9)
+    assert.near(7 * 1.145565, r.weights.DPS, 1e-9)
+    -- A buff and a debuff count; a client without one of the reads has no model, and the defaults.
+    _G.UnitAttackPower = function() return 126, 30, -10 end
+    assert.near(146 / 14 + 139 / 14 / 7, GC.ForeverUpgrades.Current().model.base, 1e-9)
+    _G.GetRangedAttackPowerForStat = nil
+    r = GC.ForeverUpgrades.Current()
+    assert.is_nil(r.model)
+    assert.same(GC.ForeverUpgrades.DEFAULT_WEIGHTS.ROGUE, r.weights)
+  end)
+
+  -- /gc weights saved the class's whole table, so a table of the defaults was never the player's
+  -- choice: it goes, once, and the class's weights come from the character. An edited one stays.
+  it("lets go of a saved table that only ever held the class's defaults, once, and keeps an edited one", function()
+    init(16001)
+    local defaults = GC.ForeverUpgrades.DEFAULT_WEIGHTS
+    local function copy(t, over)
+      local out = {}
+      for k, v in pairs(t) do out[k] = v end
+      for k, v in pairs(over or {}) do out[k] = v end
+      return out
+    end
+    db.forever = { weightsV = 3, weights = { ROGUE = copy(defaults.ROGUE), MAGE = copy(defaults.MAGE),
+      WARRIOR = copy(defaults.WARRIOR, { STR = 1.2 }), PALADIN = copy(defaults.PALADIN, { SPI = 0.1 }) } }
+    GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE")
+    local own = db.forever.weights
+    assert.is_nil(own.ROGUE)
+    assert.is_nil(own.MAGE)
+    assert.same(copy(defaults.WARRIOR, { STR = 1.2 }), own.WARRIOR)
+    assert.same(copy(defaults.PALADIN, { SPI = 0.1 }), own.PALADIN)    -- a stat more is the player's too
+    assert.equal(4, db.forever.weightsV)
+    -- A save from before the DPS move: the old whole default moves first, then goes.
+    db.forever = { weights = { ROGUE = copy(defaults.ROGUE, { DPS = 2 }) } }
+    GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE")
+    assert.is_nil(db.forever.weights.ROGUE)
+    -- Once: the defaults typed again after it stay.
+    db.forever.weights.ROGUE = copy(defaults.ROGUE)
+    assert.same(copy(defaults.ROGUE), GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), "ROGUE"))
   end)
 
   -- V3: a valid token with nothing after it at all ("/gc weights STR") is a different mistake

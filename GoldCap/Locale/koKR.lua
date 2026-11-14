@@ -494,6 +494,8 @@ GC.Locales.koKR = {
   -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
   ["Upgrade: %s over your %s"] = "업그레이드: %s (착용 중인 %s 대비)",
   ["Upgrade: %s, nothing worn there"] = "업그레이드: %s, 해당 부위에 착용한 장비 없음",
+  ["%s DPS"] = "초당 공격력 %s",
+  ["%s (%s)"] = "%s (%s)",
   ["You can wear it in %d levels"] = "%d레벨 후 착용 가능",
   ["You can wear it next level"] = "다음 레벨에 착용 가능",
   ["Not an upgrade for your %s: nothing here you use"] = "%s에게는 업그레이드가 아님: 사용하는 능력치가 없습니다",

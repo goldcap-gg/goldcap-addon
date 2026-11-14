@@ -490,6 +490,8 @@ GC.Locales.zhTW = {
   -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
   ["Upgrade: %s over your %s"] = "升級：%s（對比你的%s）",
   ["Upgrade: %s, nothing worn there"] = "升級：%s，該部位未裝備物品",
+  ["%s DPS"] = "每秒傷害 %s",
+  ["%s (%s)"] = "%s（%s）",
   ["You can wear it in %d levels"] = "%d 級後可裝備",
   ["You can wear it next level"] = "下一級可裝備",
   ["Not an upgrade for your %s: nothing here you use"] = "對你的%s不是升級：沒有你用得上的屬性",

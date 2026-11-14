@@ -505,6 +505,8 @@ GC.Locales.ruRU = {
   -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
   ["Upgrade: %s over your %s"] = "Улучшение: %s, сейчас надето: %s",
   ["Upgrade: %s, nothing worn there"] = "Улучшение: %s, в этом слоте ничего не надето",
+  ["%s DPS"] = "%s урона в секунду",
+  ["%s (%s)"] = "%s (%s)",
   ["You can wear it in %d levels"] = "Можно будет надеть через %d ур.",
   ["You can wear it next level"] = "Можно будет надеть на следующем уровне",
   ["Not an upgrade for your %s: nothing here you use"] = "Не улучшение для вашего класса (%s): здесь нет ничего, что вы используете",

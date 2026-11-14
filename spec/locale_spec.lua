@@ -564,6 +564,8 @@ describe("locale layer", function()
     local keys = {
       "Upgrade: %s over your %s",
       "Upgrade: %s, nothing worn there",
+      "%s DPS",
+      "%s (%s)",
       "You can wear it in %d levels",
       "You can wear it next level",
       "Not an upgrade for your %s: nothing here you use",

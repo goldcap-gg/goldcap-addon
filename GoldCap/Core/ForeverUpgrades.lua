@@ -46,6 +46,9 @@ local C = {
   -- second, so one lands about every 4.5 s.
   ABILITY_EVERY = { ROGUE = 4.5 },
   REF_SPEED = 2.0,         -- the weapon speed DpsFactor scores at 1: slower counts more, faster less
+  -- The attack power one point of weapon DPS is worth: Camelot's ATTACK_POWER_MAGIC_NUMBER, its
+  -- character sheet's damage from attack power (PaperDollFrameStats.lua).
+  AP_PER_DPS = 14,
 }
 GC.ForeverUpgrades.C = C
 
@@ -275,15 +278,23 @@ local function signed(v)
   return ("%+.1f"):format(v)
 end
 
-function GC.ForeverUpgrades.DiffText(diffs)
+-- What DiffText says, part by part in TOKEN_ORDER: { text = "+3 Strength", loss = the stat goes
+-- down, token }, for a caller that colours a loss or leaves some tokens out.
+function GC.ForeverUpgrades.DiffParts(diffs)
   local parts = {}
   for _, token in ipairs(GC.ForeverUpgrades.TOKEN_ORDER) do
     for _, key in ipairs(GC.ForeverUpgrades.TOKENS[token]) do
       local v = (diffs or {})[key]
-      if v then parts[#parts + 1] = ("%s %s"):format(signed(v), _G[key] or token) end
+      if v then parts[#parts + 1] = { text = ("%s %s"):format(signed(v), _G[key] or token), loss = v < 0, token = token } end
     end
   end
-  return table.concat(parts, ", ")
+  return parts
+end
+
+function GC.ForeverUpgrades.DiffText(diffs)
+  local out = {}
+  for i, part in ipairs(GC.ForeverUpgrades.DiffParts(diffs)) do out[i] = part.text end
+  return table.concat(out, ", ")
 end
 
 local function isRed(c)
@@ -398,13 +409,114 @@ local function merged(a, b)
   return out
 end
 
+-- The character's damage per second, as the game counts it (owner, 14.11: "count DPS" instead of
+-- making the player add up -4 Agility and +14 Attack Power). For the classes that fight with their
+-- weapons; a caster's or a druid's damage is not its weapon's, and it keeps its weights.
+local NO_MODEL = { MAGE = true, PRIEST = true, WARLOCK = true, DRUID = true }
+-- The tokens the model counts: on screen a piece's DPS figure stands for them. PER_ORDER: those it
+-- prices a point of (per), in one order, so each build sums them the same way.
+GC.ForeverUpgrades.MODELLED = { STR = true, AGI = true, AP = true, DPS = true }
+local PER_ORDER = { "STR", "AGI", "AP" }
+
+-- classFile's DPS model from char (the driver's char(): attack power, ranged attack power, crit as a
+-- fraction, and what one more point of a stat adds to each, read from the client) and the weapons
+-- worn ({ MAINHAND = { dps, speed }, OFFHAND = { dps }, RANGED = { dps } }, the off hand only for a
+-- weapon there), or nil for a class above or a char missing a number. Each hand hits for its
+-- weapon's DPS and one more for every AP_PER_DPS attack power, in its DpsFactor, and a crit doubles
+-- a hit:
+--   base   = hMH (dpsMH + ap/14) + hOH (dpsOH + ap/14) + hR (dpsR + rap/14), before crits
+--   per.AP = (hMH + hOH + hR) / 14 (1 + crit): Classic's attack power on gear is melee and ranged
+--   per.STR, per.AGI: the attack power the game says a point gives, in the hands it reaches, and
+--   for agility the crit a point gives times base
+--   weapon(group, speed): a point of weapon DPS in that group, DpsFactor (1 + crit)
+-- K is the class's default DPS weight, the points one DPS is worth on the scale every other weight
+-- sits on (WeightsFor).
+function GC.ForeverUpgrades.DpsModel(classFile, char, worn)
+  if type(char) ~= "table" or NO_MODEL[classFile] then return nil end
+  local defaults, hands = GC.ForeverUpgrades.DEFAULT_WEIGHTS[classFile], GC.ForeverUpgrades.HANDS[classFile]
+  local K = defaults and tonumber(defaults.DPS)
+  if not (hands and K and K > 0) then return nil end
+  local function num(t, k) return type(t) == "table" and type(t[k]) == "number" and t[k] or nil end
+  local ap, rap, c = num(char, "ap"), num(char, "rap"), num(char, "crit")
+  local apSTR, apAGI = num(char.apPer, "STR"), num(char.apPer, "AGI")
+  local rapAGI, critAGI = num(char.rapPer, "AGI"), num(char.critPer, "AGI")
+  if not (ap and rap and c and apSTR and apAGI and rapAGI and critAGI) then return nil end
+  worn = type(worn) == "table" and worn or {}
+  local function dpsAt(group) return num(worn[group], "dps") or 0 end
+  local DpsFactor, M = GC.ForeverUpgrades.DpsFactor, C.AP_PER_DPS
+  local hMH = DpsFactor(classFile, "MAINHAND", num(worn.MAINHAND, "speed"))
+  local hOH = worn.OFFHAND and DpsFactor(classFile, "OFFHAND") or 0
+  local hR = hands.RANGED or 0
+  local base = hMH * (dpsAt("MAINHAND") + ap / M) + hOH * (dpsAt("OFFHAND") + ap / M) + hR * (dpsAt("RANGED") + rap / M)
+  local melee = hMH + hOH
+  return {
+    K = K, crit = c, base = base,
+    per = {
+      AP = (melee + hR) / M * (1 + c),
+      STR = apSTR * melee / M * (1 + c),
+      AGI = (apAGI * melee + rapAGI * hR) / M * (1 + c) + critAGI * base,
+    },
+    weapon = function(group, speed) return DpsFactor(classFile, group, speed) * (1 + c) end,
+  }
+end
+
+-- What a piece's stats add to the model's DPS in `group` (its weapon DPS at `speed` there), and the
+-- stats it counted ({ key = n }, none zero; a weapon DPS its hand does not use is not counted).
+function GC.ForeverUpgrades.DpsOf(model, stats, group, speed)
+  local v, counted = 0, {}
+  if type(stats) ~= "table" then return v, counted end
+  local function add(key, per)
+    local n = stats[key]
+    if type(n) == "number" and n ~= 0 and per ~= 0 then v, counted[key] = v + per * n, n end
+  end
+  for _, token in ipairs(PER_ORDER) do
+    for _, key in ipairs(GC.ForeverUpgrades.TOKENS[token]) do add(key, model.per[token]) end
+  end
+  local w = model.weapon(group, speed)
+  for _, key in ipairs(GC.ForeverUpgrades.TOKENS.DPS) do add(key, w) end
+  return v, counted
+end
+
+-- A change in DPS as the HERO tab and the tooltip write it: signed, to one decimal, and "0.0" for
+-- less than 0.05 either way; and its sign (1, -1 or 0).
+function GC.ForeverUpgrades.DpsFigure(v)
+  if type(v) ~= "number" or math.abs(v) < 0.05 then return "0.0", 0 end
+  return ("%+.1f"):format(v), v > 0 and 1 or -1
+end
+
+-- The model from a driver: its char() and the weapons it wears, the main hand's speed (for a class
+-- whose main hand counts it) as the driver keeps it; `read`: one tooltip read when it keeps none,
+-- never inside a tooltip. nil without char(), for a class with no model, or when char() says nil.
+function GC.ForeverUpgrades.ModelFor(driver, classFile, read)
+  if type(driver) ~= "table" or type(driver.char) ~= "function" or NO_MODEL[classFile] then return nil end
+  local ok, char = pcall(driver.char)
+  if not (ok and type(char) == "table") then return nil end
+  local worn = {}
+  for _, group in ipairs({ "MAINHAND", "OFFHAND", "RANGED" }) do
+    local link = driver.equipped(SLOT_OF[group])
+    local id = itemIdOf(link)
+    if id and (group ~= "OFFHAND" or OFFHAND_WEAPON[(driver.instant(id))]) then
+      local stats = driver.stats(link)
+      local speed
+      if group == "MAINHAND" and C.ABILITY_EVERY[classFile] and type(driver.speed) == "function" then
+        local v = driver.speed(id, read == true)
+        speed = type(v) == "number" and v > 0 and v or nil
+      end
+      worn[group] = { dps = type(stats) == "table" and tonumber(stats.ITEM_MOD_DAMAGE_PER_SECOND_SHORT) or 0,
+        speed = speed }
+    end
+  end
+  return GC.ForeverUpgrades.DpsModel(classFile, char, worn)
+end
+
 -- The character's side of every comparison, for Build and TooltipVerdict alike, so an item's
 -- tooltip never says what the HERO tab does not: what it wears per slot, scored in that slot's
 -- hand; the piece a candidate replaces (the ring on that finger; both hands, for a two-hander while
 -- a one-hander is worn); which kinds of piece a group takes; and how much more a piece must score.
 -- wornSpeed(itemID): the worn main hand's speed, or nil (REF_SPEED). loading: where the ids of
--- worn pieces whose stats have not answered go.
-local function newBench(driver, weights, class, level, style, wornSpeed, loading)
+-- worn pieces whose stats have not answered go. model: the character's DPS model (DpsModel), for
+-- bench.dps, or nil.
+local function newBench(driver, weights, class, level, style, wornSpeed, loading, model)
   local Score, DpsFactor = GC.ForeverUpgrades.Score, GC.ForeverUpgrades.DpsFactor
   local bench = {}
   local topPrimary = 0
@@ -432,7 +544,7 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
           local group = GROUP_AT[slot]
           local speed = group == "MAINHAND" and wornSpeed and wornSpeed(itemIdOf(link)) or nil
           local s, p = Score(stats, weights, DpsFactor(class, group, speed))
-          worn[slot] = { score = s, parts = p, link = link }
+          worn[slot] = { score = s, parts = p, link = link, stats = stats, group = group, speed = speed }
         end
       end
     end
@@ -461,7 +573,7 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     if group == "MAINHAND" and equipLoc == "INVTYPE_2HWEAPON" and not twoHandWorn then
       local m, o = wornAt(16), wornAt(17)
       if not (m and o) then return nil end
-      return { score = m.score + o.score, parts = merged(m.parts, o.parts), link = m.link }
+      return { score = m.score + o.score, parts = merged(m.parts, o.parts), link = m.link, pair = { m, o } }
     end
     return wornAt(SLOT_OF[group]) or nil
   end
@@ -486,7 +598,26 @@ local function newBench(driver, weights, class, level, style, wornSpeed, loading
     return nil
   end
 
-  bench.wornAt, bench.base, bench.wanted, bench.beats = wornAt, base, wanted, beats
+  -- What a piece with `stats` in `group` (at `speed`) adds to the character's DPS over b, base()'s
+  -- answer, by the model; and the stats the model counted, as a diff (Diff). nil without a model,
+  -- and when neither side has a stat the model counts. From the stats themselves, not Score's
+  -- parts: a player's own weights without attack power still see what it adds.
+  local function dps(stats, group, speed, b)
+    if not model then return nil end
+    local DpsOf = GC.ForeverUpgrades.DpsOf
+    local v, mine = DpsOf(model, stats, group, speed)
+    local theirs = {}
+    for _, w in ipairs(b.pair or { b }) do
+      if w.stats then
+        local wv, counted = DpsOf(model, w.stats, w.group, w.speed)
+        v, theirs = v - wv, merged(theirs, counted)
+      end
+    end
+    if next(mine) == nil and next(theirs) == nil then return nil end
+    return v, GC.ForeverUpgrades.Diff(mine, theirs)
+  end
+
+  bench.wornAt, bench.base, bench.wanted, bench.beats, bench.dps = wornAt, base, wanted, beats, dps
   bench.twoHandWorn = twoHandWorn
   return bench
 end
@@ -632,6 +763,7 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   if type(gear) ~= "table" or type(gear.items) ~= "table" then out.noScan = true; return out end
   if type(gear.v) == "number" and gear.v < 2 then out.stale = true end
   local style = type(opts) == "table" and opts.style or nil
+  local model = type(opts) == "table" and opts.model or nil
   local level = tonumber(driver.level()) or 1
   local class = driver.classFile()
   local Score, DpsFactor, loading = GC.ForeverUpgrades.Score, GC.ForeverUpgrades.DpsFactor, {}
@@ -665,9 +797,10 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
 
   -- What the character wears and what each candidate replaces (newBench). The worn main hand's
   -- speed comes first among the build's reads: every main-hand candidate is weighed against it.
+  -- opts.model: the character's DPS model (ModelFor), for each choice's `dps`.
   local bench = newBench(driver, weights, class, level, style, function(id) return speedOfItem(id, true) end,
-    loading)
-  local wornAt, base, wanted, beats = bench.wornAt, bench.base, bench.wanted, bench.beats
+    loading, model)
+  local wornAt, base, wanted, beats, dpsOver = bench.wornAt, bench.base, bench.wanted, bench.beats, bench.dps
 
   -- Usable, per item string and build: one sword is the same piece in either hand. known: the class
   -- armour/weapon table said yes. usable: true only on that "yes" (skipUsable) or a tooltip check
@@ -688,7 +821,9 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
   local money = type(driver.money) == "function" and tonumber(driver.money()) or nil
 
   -- waiting: the groups a piece could not be weighed in because a worn piece there (or the off hand
-  -- under a two-hander's weighing) has not answered: base() has nothing to weigh it by.
+  -- under a two-hander's weighing) has not answered: base() has nothing to weigh it by. dps: what
+  -- the piece adds to the character's DPS over what it replaces (bench.dps), whatever weights
+  -- ranked it; nil without a model or a stat the model counts.
   local byGroup, waiting = {}, {}
   local function consider(group, itemID, equipLoc, lot, str, link, stats, minLevel, speed)
     local b = base(group, equipLoc)
@@ -703,7 +838,8 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, opts)
       table.insert(byGroup[group], { group = group, itemID = itemID, itemString = str, link = link or str,
         unit = lot.unit, gain = gain, diffs = GC.ForeverUpgrades.Diff(parts, b.parts),
         later = minLevel > level and minLevel or nil, overGold = money ~= nil and money < lot.unit,
-        inSet = false, version = lot.bonus, twoHand = equipLoc == "INVTYPE_2HWEAPON" })
+        inSet = false, version = lot.bonus, twoHand = equipLoc == "INVTYPE_2HWEAPON",
+        dps = dpsOver(stats, group, speed, b) })
     end
   end
 
@@ -941,14 +1077,26 @@ end
 -- prefs at the same time; prefs.weightsV says how far that has gone, so a number the player types
 -- later stays. 2: the three melee classes' DPS was 2 until the HERO plan (Finding 3, 13.11). 3
 -- (14.11): the other classes' DPS was the old number below (a druid had none), and a shaman's or a
--- druid's table had no AP.
+-- druid's table had no AP. 4 (14.11): a table equal to its class's defaults in every token goes, after
+-- the moves above: it was never the player's choice, and without it a class with a DPS model takes
+-- its weights from the character (WeightsFor).
 local MELEE_DPS_MOVED = { "WARRIOR", "PALADIN", "ROGUE" }
 local OLD_DPS = { HUNTER = 2, SHAMAN = 1.5, MAGE = 0.5, PRIEST = 0.5, WARLOCK = 0.5 }
 local AP_ADDED = { "SHAMAN", "DRUID" }
+local function sameWeights(a, b)
+  if type(a) ~= "table" or type(b) ~= "table" then return false end
+  for k, v in pairs(a) do
+    if b[k] ~= v then return false end
+  end
+  for k, v in pairs(b) do
+    if a[k] ~= v then return false end
+  end
+  return true
+end
 local function migrateWeights(prefs)
   if type(prefs) ~= "table" then return end
   local v = tonumber(prefs.weightsV) or 0
-  if v >= 3 then return end
+  if v >= 4 then return end
   local saved = type(prefs.weights) == "table" and prefs.weights or {}
   local defaults = GC.ForeverUpgrades.DEFAULT_WEIGHTS
   if v < 2 then
@@ -957,25 +1105,49 @@ local function migrateWeights(prefs)
       if type(own) == "table" and own.DPS == 2 then own.DPS = defaults[class].DPS end
     end
   end
-  for class, old in pairs(OLD_DPS) do
-    local own = saved[class]
-    if type(own) == "table" and own.DPS == old then own.DPS = defaults[class].DPS end
+  if v < 3 then
+    for class, old in pairs(OLD_DPS) do
+      local own = saved[class]
+      if type(own) == "table" and own.DPS == old then own.DPS = defaults[class].DPS end
+    end
+    for _, class in ipairs(AP_ADDED) do
+      local own = saved[class]
+      if type(own) == "table" and own.AP == nil then own.AP = defaults[class].AP end
+    end
   end
-  for _, class in ipairs(AP_ADDED) do
-    local own = saved[class]
-    if type(own) == "table" and own.AP == nil then own.AP = defaults[class].AP end
+  for class, own in pairs(saved) do
+    if sameWeights(own, defaults[class]) then saved[class] = nil end
   end
-  prefs.weightsV = 3
+  prefs.weightsV = 4
 end
 
 -- Stat weights: the player's own for this class, else a copy of the class's default, else none.
-function GC.ForeverUpgrades.WeightsFor(prefs, classFile)
+-- With a DPS model (ModelFor) and no table of the player's own, the class's default with the stats
+-- the model counts set from the character, so a score is K times the DPS a piece adds plus what
+-- the other stats are worth: STR, AGI and AP at K x per, and weapon DPS at K (1 + crit), which
+-- Score puts in its hand's DpsFactor. Second return value: true for those (the window says so).
+function GC.ForeverUpgrades.WeightsFor(prefs, classFile, model)
   migrateWeights(prefs)
   local own = type(prefs) == "table" and type(prefs.weights) == "table" and prefs.weights[classFile] or nil
   if type(own) == "table" then return own end
   local copy = {}
   for k, v in pairs(GC.ForeverUpgrades.DEFAULT_WEIGHTS[classFile] or {}) do copy[k] = v end
-  return copy
+  if type(model) ~= "table" then return copy end
+  for _, token in ipairs(PER_ORDER) do copy[token] = model.K * model.per[token] end
+  copy.DPS = model.K * (1 + model.crit)
+  return copy, true
+end
+
+-- The table a weight the player types goes into (/gc weights and the HERO tab's panel save it whole):
+-- the weights in force, those from the character at the two decimals the panel shows.
+function GC.ForeverUpgrades.EditWeights(prefs, classFile, model)
+  local weights, derived = GC.ForeverUpgrades.WeightsFor(prefs, classFile, model)
+  if not derived then return weights end
+  for token in pairs(GC.ForeverUpgrades.MODELLED) do
+    local w = weights[token]
+    if w then weights[token] = math.floor(w * 100 + 0.5) / 100 end
+  end
+  return weights
 end
 
 -- "STR 2 DPS 0": each token set to its number, 0 removes it. nil and the offending text on a token
@@ -1121,6 +1293,42 @@ local function realDriver(getStats)
       local ok, name = pcall(_G.UnitClass, "player")
       return ok and type(name) == "string" and name or nil
     end,
+    -- The character's numbers for its DPS model (DpsModel), as Camelot's character sheet reads
+    -- them (PaperDollFrameStats.lua): its attack power and ranged attack power with their buffs,
+    -- its crit chance (GetCritChance is a percent, kept as a fraction), and what ten more points of
+    -- strength (1) or agility (2) give at the character's own, a point's worth (GetCritChanceFromStat
+    -- is a fraction already). nil when any of it does not answer: no model, the weights as before.
+    char = function()
+      local function call(fn, ...)
+        if type(fn) ~= "function" then return nil end
+        local ok, a, b, c = pcall(fn, ...)
+        if ok then return a, b, c end
+        return nil
+      end
+      local function total(fn)
+        local base, pos, neg = call(fn, "player")
+        if type(base) ~= "number" then return nil end
+        return base + (tonumber(pos) or 0) + (tonumber(neg) or 0)
+      end
+      local function per(fn, stat)
+        local _, eff = call(_G.UnitStat, "player", stat)
+        if type(eff) ~= "number" then return nil end
+        local now, more = call(fn, stat, eff), call(fn, stat, eff + 10)
+        if type(now) ~= "number" or type(more) ~= "number" then return nil end
+        return (more - now) / 10
+      end
+      local crit = call(_G.GetCritChance)
+      local out = { ap = total(_G.UnitAttackPower), rap = total(_G.UnitRangedAttackPower),
+        crit = type(crit) == "number" and crit / 100 or nil,
+        apPer = { STR = per(_G.GetAttackPowerForStat, 1), AGI = per(_G.GetAttackPowerForStat, 2) },
+        rapPer = { AGI = per(_G.GetRangedAttackPowerForStat, 2) },
+        critPer = { AGI = per(_G.GetCritChanceFromStat, 2) } }
+      if not (out.ap and out.rap and out.crit and out.apPer.STR and out.apPer.AGI and out.rapPer.AGI
+          and out.critPer.AGI) then
+        return nil
+      end
+      return out
+    end,
   }
 end
 
@@ -1135,7 +1343,8 @@ end
 -- own Show/RefreshIfShown, /gc weights, a direct call) keeps the tooltip check exactly as before.
 --
 -- r.style: the rogue's style Build was given (StyleFor), from the main hand it wears unless the
--- player chose one; nil for every other class.
+-- player chose one; nil for every other class. r.model: the character's DPS model (ModelFor), or nil;
+-- its worn main hand's speed read once off the count-only path.
 function GC.ForeverUpgrades.Current(skipUsable)
   if not enabled() then return nil end
   local gear, fold = GC.ForeverScan.Gear()
@@ -1143,12 +1352,21 @@ function GC.ForeverUpgrades.Current(skipUsable)
   local getStats = statsCall()
   if not getStats then return { slots = {}, loading = 0, noStats = true } end
   local class, prefs = classFile(), GC.ForeverScan.Prefs()
-  local weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
   local driver = realDriver(getStats)
+  local model = GC.ForeverUpgrades.ModelFor(driver, class, not skipUsable)
+  local weights = GC.ForeverUpgrades.WeightsFor(prefs, class, model)
   local style = wornStyle(driver, prefs, class)
-  local r = GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, { style = style })
-  r.at, r.weights, r.style = fold.at, weights, style
+  local r = GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable, { style = style, model = model })
+  r.at, r.weights, r.style, r.model = fold.at, weights, style, model
   return r
+end
+
+-- A loss on the game's tooltip, in the client's own red (its "Requires Level" line's): the line
+-- itself is green, and a gain keeps that.
+local function lossRed(text)
+  local c = _G.RED_FONT_COLOR
+  local rgb = type(c) == "table" and type(c.r) == "number" and { c.r, c.g, c.b } or { 1, 0.1, 0.1 }
+  return GC.Util.Colored(rgb, text)
 end
 
 -- An item's tooltip on WoW: Forever (UI/Tooltip.lua, the HERO plan's Task 9): whether the piece is
@@ -1185,7 +1403,9 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
   -- It runs on every item tooltip: the character's weights only once the item is gear.
   if client then
     local class, prefs = classFile(), GC.ForeverScan.Prefs()
-    weights, opts = GC.ForeverUpgrades.WeightsFor(prefs, class), { style = wornStyle(driver, prefs, class) }
+    local model = GC.ForeverUpgrades.ModelFor(driver, class, false)
+    weights = GC.ForeverUpgrades.WeightsFor(prefs, class, model)
+    opts = { style = wornStyle(driver, prefs, class), model = model }
   end
   if type(weights) ~= "table" or next(weights) == nil then return nil end
   local level, class = tonumber(driver.level()) or 1, driver.classFile()
@@ -1224,7 +1444,8 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
 
   local Score, DpsFactor = GC.ForeverUpgrades.Score, GC.ForeverUpgrades.DpsFactor
   local style = type(opts) == "table" and opts.style or nil
-  local bench = newBench(driver, weights, class, level, style, function() return theirs end, {})
+  local model = type(opts) == "table" and opts.model or nil
+  local bench = newBench(driver, weights, class, level, style, function() return theirs end, {}, model)
   local best, goes = nil, false
   for _, g in ipairs(groups) do
     if bench.wanted(g, equipLoc, classID, subclassID) then
@@ -1247,11 +1468,35 @@ function GC.ForeverUpgrades.TooltipVerdict(link, driver, weights, opts)
   end
   if not best or minLevel > level + C.LEVEL_AHEAD then return nil end
 
-  local what = GC.ForeverUpgrades.DiffText(GC.ForeverUpgrades.Diff(best.parts, best.base.parts))
-  if what == "" then
-    -- Nothing changes but the swing: the same stats at a slower speed, both speeds kept (above).
-    if not (mine and theirs and type(_G.SPEED) == "string" and _G.SPEED ~= "") then return nil end
-    what = ("%+.2f %s"):format(mine - theirs, _G.SPEED)
+  -- What changes, each loss in the client's red: with a model, first what the piece adds to the
+  -- character's DPS (Build's `dps`, by the same bench) and the stats that make it in brackets, then
+  -- the others; without one, every stat.
+  local U = GC.ForeverUpgrades
+  local function said(diffs, skip)
+    local out = {}
+    for _, part in ipairs(U.DiffParts(diffs)) do
+      if not (skip and skip[part.token]) then out[#out + 1] = part.loss and lossRed(part.text) or part.text end
+    end
+    return table.concat(out, ", ")
+  end
+  local diff = U.Diff(best.parts, best.base.parts)
+  local dps, counted = bench.dps(stats, best.group, best.group == "MAINHAND" and mine or nil, best.base)
+  local what
+  if dps then
+    local figure, sign = U.DpsFigure(dps)
+    what = GC.L["%s DPS"]:format(figure)
+    if sign < 0 then what = lossRed(what) end
+    local inside = said(counted)
+    if inside ~= "" then what = GC.L["%s (%s)"]:format(what, inside) end
+    local rest = said(diff, U.MODELLED)
+    if rest ~= "" then what = what .. ", " .. rest end
+  else
+    what = said(diff)
+    if what == "" then
+      -- Nothing changes but the swing: the same stats at a slower speed, both speeds kept (above).
+      if not (mine and theirs and type(_G.SPEED) == "string" and _G.SPEED ~= "") then return nil end
+      what = ("%+.2f %s"):format(mine - theirs, _G.SPEED)
+    end
   end
   -- The worn piece by its own name, both hands' for a two-hander over a one-hander and what the
   -- off hand holds. One the client names nowhere yet goes by its slot's name, never as nothing.
@@ -1405,10 +1650,13 @@ function GC.ForeverUpgrades.SlashWeights(rest)
   local class = classFile()
   if not prefs or not class then return end
   rest = type(rest) == "string" and rest or ""
-  local weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
+  -- The weights in force, those from the character as the panel shows them (EditWeights).
+  local getStats = statsCall()
+  local model = getStats and GC.ForeverUpgrades.ModelFor(realDriver(getStats), class, false) or nil
+  local weights = GC.ForeverUpgrades.EditWeights(prefs, class, model)
   if rest:lower() == "reset" then
     if type(prefs.weights) == "table" then prefs.weights[class] = nil end
-    weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
+    weights = GC.ForeverUpgrades.EditWeights(prefs, class, model)
   elseif rest ~= "" then
     local new, bad, reason = GC.ForeverUpgrades.ApplyWeights(weights, rest)
     if not new then

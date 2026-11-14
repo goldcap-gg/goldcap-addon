@@ -514,6 +514,8 @@ GC.Locales.ukUA = {
   -- is what changes ("+3 Agility, -1 Stamina"), the second the worn piece's name.
   ["Upgrade: %s over your %s"] = "Покращення: %s, зараз надягнуто: %s",
   ["Upgrade: %s, nothing worn there"] = "Покращення: %s, у цьому слоті нічого не надягнуто",
+  ["%s DPS"] = "%s шкоди за секунду",
+  ["%s (%s)"] = "%s (%s)",
   ["You can wear it in %d levels"] = "Можна буде надягнути через %d рів.",
   ["You can wear it next level"] = "Можна буде надягнути на наступному рівні",
   ["Not an upgrade for your %s: nothing here you use"] = "Не покращення для вашого класу (%s): тут немає нічого, що ви використовуєте",
