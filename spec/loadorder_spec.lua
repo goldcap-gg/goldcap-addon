@@ -352,7 +352,7 @@ describe("TOC load order", function()
         assert.truthy(shown[command], command)
       end
       assert.equal(retail, shown.disenchant == true)
-      assert.equal(retail, shown.minimap == true)
+      assert.is_true(shown.minimap == true) -- the minimap button is on both games
       assert.equal(retail, shown.route == true)
       for _, diagnostic in ipairs({ "forever", "sell", "board", "purchase", "taint", "buy", "buywait", "craft", "sellstate" }) do
         assert.falsy(shown[diagnostic], diagnostic)
