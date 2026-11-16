@@ -1,4 +1,4 @@
-local _ = ...
+local _, GC = ...
 
 -- DIAG ONLY. This file exists on the diag/deals-gear-check branch and never merges. WoW: Forever
 -- only. One question: how long does one round of browsing all gear take, and does a browse row
@@ -30,6 +30,12 @@ local function vendorOf(itemID)
   return ok and sell or nil
 end
 
+local function keyOf(row)
+  local key = type(row) == "table" and row.itemKey or nil
+  if type(key) ~= "table" then return "?" end
+  return ("%s/%s/%s"):format(tostring(key.itemID), tostring(key.itemLevel or 0), tostring(key.itemSuffix or 0))
+end
+
 local function finish(why)
   if not run then return end
   run.stops = why
@@ -49,7 +55,7 @@ end
 local function send()
   local r = run
   r.class = CLASSES[r.classAt]
-  r.pages, r.passStart, r.sent, r.asked = 0, GetTime(), true, GetTime()
+  r.pages, r.passStart, r.sent, r.asked, r.firstKey = 0, GetTime(), true, GetTime(), nil
   local order = Enum.AuctionHouseSortOrder
   C_AuctionHouse.SendBrowseQuery({ searchString = "", filters = {},
     itemClassFilters = { { classID = r.class } },
@@ -61,6 +67,13 @@ local function closePass()
   local r = run
   local rows = C_AuctionHouse.GetBrowseResults() or {}
   local suffixed, unknown, under = 0, 0, 0
+  -- Another sender's answer in the list (GoldCap's own pass writes the same buffer): the list no
+  -- longer starts with the row this class's first page started with.
+  local foreign = r.firstKey ~= nil and (#rows == 0 or keyOf(rows[1]) ~= r.firstKey)
+  local unsorted = 0
+  for i = 2, #rows do
+    if (rows[i].minPrice or 0) < (rows[i - 1].minPrice or 0) then unsorted = unsorted + 1 end
+  end
   for i = 1, #rows do
     local row = rows[i]
     local key = row.itemKey
@@ -79,8 +92,9 @@ local function closePass()
       end
     end
   end
-  r.rounds[#r.rounds + 1] = ("c%d rows=%d pages=%d %.1fs suffixed=%d unknownVendor=%d under=%d")
-    :format(r.class, #rows, r.pages, GetTime() - r.passStart, suffixed, unknown, under)
+  r.rounds[#r.rounds + 1] = ("c%d rows=%d pages=%d %.1fs suffixed=%d unknownVendor=%d under=%d unsorted=%d%s")
+    :format(r.class, #rows, r.pages, GetTime() - r.passStart, suffixed, unknown, under, unsorted,
+      foreign and " FOREIGN" or "")
   r.sent = false
   r.classAt = r.classAt + 1
   if r.classAt > #CLASSES then
@@ -96,6 +110,10 @@ local function onResults()
   local r = run
   if not r or not r.sent then return end
   r.pages = r.pages + 1
+  if r.pages == 1 then
+    local list = C_AuctionHouse.GetBrowseResults() or {}
+    r.firstKey = list[1] and keyOf(list[1]) or nil
+  end
   if r.pages == 1 and #r.head < 2 then
     local rows = C_AuctionHouse.GetBrowseResults() or {}
     local first = {}
@@ -149,6 +167,9 @@ SlashCmdList["GCLOOP"] = function()
   if not (_G.AuctionHouseFrame and AuctionHouseFrame:IsShown()) then
     return say("open the auction house first")
   end
+  -- GoldCap stands aside only for a search made on Blizzard's own Buy tab with its window away.
+  local tab = GC and GC.AuctionHouseTab
+  if tab and tab.NotePlayerBrowse then pcall(tab.NotePlayerBrowse) end
   run = { t0 = GetTime(), round = 0, classAt = 1, rounds = {}, under = {}, head = {}, seen = {}, wantSend = true }
   say(("browsing all gear, %d rounds or %d s at most. /gcloop stops it."):format(MAX_ROUNDS, MAX_SECONDS))
 end
