@@ -11,6 +11,8 @@
 - BUY: a click on a suggested item or on a Recent chip under the box at the top now works while a
   list is open. The suggestions used to close the moment the mouse button went down, so nothing
   could be added from them and a Recent chip did nothing.
+- BUY: an item you add by hand is now that many more to buy, even when you already hold some. It
+  used to land under Bought at once when your bags already had enough.
 
 ## 0.29.0 (2026-11-14)
 
