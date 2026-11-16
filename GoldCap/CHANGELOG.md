@@ -13,6 +13,8 @@
   could be added from them and a Recent chip did nothing.
 - BUY: an item you add by hand is now that many more to buy, even when you already hold some. It
   used to land under Bought at once when your bags already had enough.
+- SOLD on WoW: Forever: the Road to 40 tile's tooltip is now a short table (gold you carry, your
+  bags, riding cost) with the forecast under it, instead of one long sentence.
 
 ## 0.29.0 (2026-11-14)
 
