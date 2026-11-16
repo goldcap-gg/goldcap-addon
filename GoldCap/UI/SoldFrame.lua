@@ -1065,19 +1065,30 @@ local function createTile(parent)
   tile.bar.fill = Theme.SlicedTexture(tile.bar, "ARTWORK", Theme.MEDIA .. "bar.png", Theme.color.gold, 2)
   tile.bar.fill:SetPoint("TOPLEFT")
   tile.bar.fill:SetPoint("BOTTOMLEFT")
-  -- The Road to 40 tile's forecast is the chat sentences /gc mount prints, on hover: the tile
-  -- itself stays three lines.
+  -- The Road to 40 tile on hover: its sums as a short table, a label and an amount a row, then the
+  -- forecast sentence. /gc mount's chat sentence with four amounts in it wrapped to three lines of
+  -- coins here and could not be read (owner, 2026-11-16).
   tile.frame:EnableMouse(true)
   tile.frame:SetScript("OnEnter", function(self)
     local s = tile.road
     if not (GameTooltip and s and GC.ForeverRoad and GC.ForeverRoad.Lines) then return end
+    local tip, coin = GC.Util.ClientText, GC.Util.CoinText
+    local title, body, dim, white, green = B.tipTitle, B.tipBody, B.text3, COLOR.white, Theme.color.green
+    local function pair(left, right, rc)
+      GameTooltip:AddDoubleLine(tip(left), tip(right), dim[1], dim[2], dim[3], rc[1], rc[2], rc[3])
+    end
     GameTooltip:SetOwner(self, Theme.TooltipAnchor and Theme.TooltipAnchor(self) or "ANCHOR_RIGHT")
-    for i, text in ipairs(GC.ForeverRoad.Lines(s)) do
-      if i == 1 then
-        GameTooltip:AddLine(GC.Util.ClientText(text), B.tipTitle[1], B.tipTitle[2], B.tipTitle[3], true)
-      else
-        GameTooltip:AddLine(GC.Util.ClientText(text), B.tipBody[1], B.tipBody[2], B.tipBody[3], true)
-      end
+    GameTooltip:SetText(tip(GC.L["ROAD TO 40"]), title[1], title[2], title[3])
+    pair(GC.L["Gold you carry"], coin(s.money or 0), white)
+    pair(GC.L["Your bags"], coin(s.bags or 0), white)
+    if type(s.cost) == "number" and s.cost > 0 then pair(GC.L["Riding cost"], coin(s.cost), white) end
+    if (s.gainItems or 0) > 0 and (s.gain or 0) > 0 then
+      pair(GC.L["%d items fetch more on the AH"]:format(s.gainItems), "+" .. coin(s.gain), green)
+    end
+    local forecast = GC.ForeverRoad.Lines(s)[2]
+    if forecast then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(tip(forecast), body[1], body[2], body[3], true)
     end
     GameTooltip:Show()
   end)
