@@ -124,6 +124,18 @@ describe("ForeverGearLoop", function()
       assert.equal(11, variants[2].itemLevel)
     end)
 
+    it("keeps every key with lots of an item the board already shows, under the vendor price or not", function()
+      vendor = { [2140] = 300 }
+      local loop = L.New({ vendorFor = function(id) return vendor[id] end,
+        known = function() return true end, listed = function(id) return id == 2140 end })
+      loop:BeginRound(100)
+      local under = loop:Fold({ row(2140, 11, 14315, 400, 121), row(2140, 11, 14300, 350, 13), row(4000, 5, 0, 9, 1) })
+      assert.same({}, under)
+      assert.equal(2, #loop:Variants(2140))
+      assert.is_nil(loop:Variants(4000))
+      assert.is_not_nil(loop:Tracked()[2140])
+    end)
+
     it("cut short answers nothing", function()
       vendor = { [2140] = 401 }
       local loop = new()

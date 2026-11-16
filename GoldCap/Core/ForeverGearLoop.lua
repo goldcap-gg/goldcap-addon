@@ -46,6 +46,7 @@ end
 --- One round's bookkeeping. `driver`:
 ---   vendorFor(itemID)  what a vendor pays for one, from the kept answers only; nil when none is kept
 ---   known(itemID)      whether an answer about the item is kept (a kept "no vendor price" included)
+---   listed(itemID)     whether the board already shows a row of the item (optional)
 function L.New(driver)
   local obj = {}
   local round = nil      -- { startedAt, rows, pages, under = { [itemID] = { variants } }, asked }
@@ -53,7 +54,7 @@ function L.New(driver)
   local asked = {}       -- itemID -> true: the client was asked about it this session
 
   function obj:BeginRound(now)
-    round = { startedAt = now, rows = 0, pages = 0, under = {}, underCount = 0, unknown = 0, hits = 0 }
+    round = { startedAt = now, rows = 0, pages = 0, under = {}, keys = {}, underCount = 0, unknown = 0, hits = 0 }
   end
 
   function obj:InRound() return round ~= nil end
@@ -75,16 +76,28 @@ function L.New(driver)
         local unit, qty = row.minPrice, row.totalQuantity
         if whole(unit) and whole(qty) then
           local vendor = driver.vendorFor(itemID)
+          local isUnder = whole(vendor) and unit < vendor
+          -- Every key with lots of an item the board shows, or is about to, is kept for its Check.
+          local keys = round.keys[itemID]
+          if not keys and (isUnder or (driver.listed and driver.listed(itemID))) then
+            keys = {}
+            round.keys[itemID] = keys
+          end
+          local variant
+          if keys then
+            variant = { itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0,
+              battlePetSpeciesID = key.battlePetSpeciesID or 0, floor = unit, qty = qty, vendor = vendor }
+            keys[#keys + 1] = variant
+          end
           if whole(vendor) then
-            if unit < vendor then
+            if isUnder then
               local seen = round.under[itemID]
               if not seen then
                 seen = {}
                 round.under[itemID] = seen
                 round.underCount = round.underCount + 1
               end
-              seen[#seen + 1] = { itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0,
-                battlePetSpeciesID = key.battlePetSpeciesID or 0, floor = unit, qty = qty, vendor = vendor }
+              seen[#seen + 1] = variant
               under[#under + 1] = { itemID = itemID, key = key, unit = unit, qty = qty, vendor = vendor }
             end
           elseif not driver.known(itemID) then
@@ -100,10 +113,16 @@ function L.New(driver)
     return under, ask
   end
 
-  --- The keys of an item this round saw under the vendor price, shaped as a browse by the item's
-  --- name leaves them (UI/SniperFrame.lua's GC.Sniper._named): the Check searches the cheapest.
+  --- The keys with lots this round has read of an item the board shows, shaped as a browse by the
+  --- item's name leaves them (UI/SniperFrame.lua's GC.Sniper._named): the Check searches the
+  --- cheapest. For an item under the vendor price, from its first such key on.
   function obj:Variants(itemID)
-    return round and round.under[itemID] or nil
+    return round and round.keys[itemID] or nil
+  end
+
+  --- Every item the round keeps keys of, with them.
+  function obj:Tracked()
+    return round and round.keys or {}
   end
 
   --- The round read both classes whole. Answers its figures, with `under`: the items it saw under

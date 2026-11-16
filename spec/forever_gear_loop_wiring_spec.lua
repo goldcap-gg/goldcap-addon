@@ -92,6 +92,7 @@ describe("Forever gear loop wiring", function()
       _IsOrphanAnswer = function() return false end,
       _CheckNow = function(deal) checked[#checked + 1] = deal; return true end,
       OnForeverFold = function() state.repaints = (state.repaints or 0) + 1 end,
+      _SendNaming = function(itemID, attempt) state.named = { itemID, attempt }; return "sent" end,
       _TrySendKeysBatch = function() batches = batches + 1; return true end,
       _TrySendCapBatch = function() batches = batches + 1; return true end,
       -- Retail's own answers, which the file replaces.
@@ -276,6 +277,30 @@ describe("Forever gear loop wiring", function()
     answer({ row(1, 5, 0, 10, 1) }, true, true)
     assert.is_true(S._TrySendCapBatch())
     assert.equal(1, batches)
+  end)
+
+  it("holds a background browse by an item's name while a class is read; the player's own Check goes", function()
+    advance(2.25)
+    assert.equal("wait", S._SendNaming(2140))
+    assert.is_nil(state.named)
+    local attempt = {}
+    assert.equal("sent", S._SendNaming(2140, attempt))
+    assert.same({ 2140, attempt }, state.named)
+    answer({ row(1, 5, 0, 10, 1) }, true, true)
+    assert.equal("sent", S._SendNaming(3021)) -- between two classes
+  end)
+
+  it("names every key of an item the board already shows, once its class is read whole", function()
+    vendor[2140] = 300
+    state.fold.items[2140] = "250,1,250,;0x1|0,0,1" -- the scan's row: 250 under a vendor's 300
+    assert.is_not_nil(GC.ForeverDeals.Rows()[1])
+    advance(2.25)
+    answer({ row(2140, 11, 14315, 400, 121) }, false, true)
+    assert.is_nil(S._named[2140]) -- a class half read says nothing of the item's cheapest key
+    turn()
+    answer({ row(2140, 11, 14300, 350, 13) }, true)
+    local key = GC.KeyPoll.VariantKeyFor(S._named[2140].entry, 0)
+    assert.equal(14300, key.itemSuffix)
   end)
 
   it("a round held between its classes waits, and is not started over for a short hold", function()

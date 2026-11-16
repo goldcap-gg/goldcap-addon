@@ -746,8 +746,6 @@ function GC.ForeverDeals.Live(itemID, unit, qty, vendor, now, settled)
     { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins })
   if not row then return nil end
   live[itemID] = l
-  -- What a Check or a buy said of the scan's row of this item was about another lot.
-  dropped[itemID], bought[itemID] = nil, nil
   unlist(itemID)
   cache.rows[#cache.rows + 1] = row
   cache.byItem[itemID] = row
@@ -768,6 +766,11 @@ function GC.ForeverDeals.LiveKeep(seen)
     end
   end
   return gone
+end
+
+-- Whether the board shows a row of the item, of either kind. Reads the last build, never builds.
+function GC.ForeverDeals.Listed(itemID)
+  return cache.byItem[itemID] ~= nil
 end
 
 -- The live row of an item, while the board shows one.

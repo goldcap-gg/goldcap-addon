@@ -41,8 +41,14 @@ end
 local rounds = Loop.New({
   vendorFor = function(itemID) return GC.ForeverValue.VendorUnit(itemID, false) end,
   known = function(itemID) return GC.ForeverValue.Known(itemID) end,
+  listed = function(itemID) return GC.ForeverDeals.Listed(itemID) end,
 })
 G.rounds = rounds
+
+-- An item's keys, left where a browse by its name leaves them (GC.Sniper._named).
+local function nameFrom(itemID, variants)
+  S._named[itemID] = { at = GetTime(), entry = { itemID = itemID, variants = variants } }
+end
 
 -- A lot under the vendor price goes to the board. True when it is a new row there (or its price
 -- moved): that one waits for its Check, and rings.
@@ -82,9 +88,9 @@ local function onRows(tail)
   local fresh = false
   for i = 1, #under do
     local u = under[i]
-    -- The keys the round saw under the vendor price, left where a browse by the item's name leaves
-    -- them: the Check searches the cheapest, with no browse of its own over this one.
-    S._named[u.itemID] = { at = GetTime(), entry = { itemID = u.itemID, variants = rounds:Variants(u.itemID) } }
+    -- Its keys so far, this one the cheapest of them, go to the Check at once: it searches that
+    -- key, with no browse of its own over this one.
+    nameFrom(u.itemID, rounds:Variants(u.itemID))
     local key = u.key
     if take(u.itemID, { floor = u.unit, qty = u.qty, vendor = u.vendor, itemLevel = key.itemLevel,
         itemSuffix = key.itemSuffix }) then
@@ -117,6 +123,9 @@ end
 
 local function classDone()
   G.active, G.sent, G.outAt, G.stopping = nil, false, nil, false
+  -- The class is read whole: every key of each of its items the board shows is known, so their
+  -- Checks, the fold's rows' too, search the cheapest key with no browse by name of their own.
+  for itemID, variants in pairs(rounds:Tracked()) do nameFrom(itemID, variants) end
   G.classAt = G.classAt + 1
   if G.classAt > #Loop.C.CLASSES then
     G.classAt = 1
@@ -309,6 +318,18 @@ for _, name in ipairs({ "_TrySendKeysBatch", "_TrySendCapBatch" }) do
       if G.active then return false end
       return send(...)
     end
+  end
+end
+
+-- A browse by an item's name that no Check of the player's waits on (the background walk's, a
+-- hover's) waits while a class is read, as it does for a paging pass, and goes between two
+-- classes: sent between two pages it would end every round the board has rows for. The player's
+-- own Check carries its attempt and goes; the round ends for it (below).
+local sendNaming = S._SendNaming
+if type(sendNaming) == "function" then
+  S._SendNaming = function(itemID, attempt)
+    if G.active and not attempt then return "wait" end
+    return sendNaming(itemID, attempt)
   end
 end
 
