@@ -1,7 +1,9 @@
 local _, GC = ...
 
--- GoldCap's own round button on the minimap's edge (retail only; the owner, 2026-10-27 00:30: the
--- Disenchant entry above the bags blended in, and he asked for a button of GoldCap's by the minimap).
+-- GoldCap's own round button on the minimap's edge (the owner, 2026-10-27 00:30: the Disenchant
+-- entry above the bags blended in, and he asked for a button of GoldCap's by the minimap; on
+-- WoW: Forever since 2026-11-16, where there is no Disenchant window and the button is the deals
+-- board's alone: every Disenchant read below answers nothing there).
 -- It replaces that entry. A left click opens a menu: the deals board (what the addon compartment's
 -- entry opens, which stays as it is), Disenchant for an enchanter, and Hide this button; a left drag
 -- moves it round the minimap's edge. For a character that knows Disenchant it counts, in a gold pill,
@@ -209,7 +211,10 @@ function MB.Build()
   b:SetSize(SIZE, SIZE)
   b:SetFrameStrata("MEDIUM")
   b:SetFrameLevel(8)
-  b:RegisterForClicks("LeftButtonUp")
+  -- Where the Disenchant window is not loaded (WoW: Forever) the menu would offer the deals board
+  -- alone: a left click opens it straight, and the menu, with Hide, is the right click's.
+  b.direct = GC.DisenchantFrame == nil
+  if b.direct then b:RegisterForClicks("LeftButtonUp", "RightButtonUp") else b:RegisterForClicks("LeftButtonUp") end
   b:RegisterForDrag("LeftButton")
   b.back = b:CreateTexture(nil, "BACKGROUND")
   b.back:SetTexture(MINIMAP .. "UI-Minimap-Background")
@@ -239,7 +244,10 @@ function MB.Build()
   b.count:SetTextColor(K.onGold[1], K.onGold[2], K.onGold[3], 1)
   b.pill:Hide()
   b.count:Hide()
-  b:SetScript("OnClick", openMenu)
+  b:SetScript("OnClick", function(self, mouse)
+    if self.direct and mouse ~= "RightButton" then return GC.Sniper.Toggle() end
+    openMenu(self)
+  end)
   b:SetScript("OnDragStart", onDragStart)
   b:SetScript("OnDragStop", onDragStop)
   b:SetScript("OnEnter", showTip)
