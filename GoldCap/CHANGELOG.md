@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.30.0 (unreleased)
+
+- WoW: Forever: with AUTO on and the ITEMS board open, GoldCap now keeps looking through all the
+  weapons and armor on the auction house between scans, about every 20 seconds. A piece listed
+  under what a vendor pays for it appears on the board within one such round, already checked, with
+  a sound, and leaves once it is gone. Until now these rows came only from the scan, once in 15
+  minutes, and a piece worth buying was usually sold before its row could be checked. Buying is
+  still your click in the buy window.
+
 ## 0.29.0 (2026-11-14)
 
 - WoW: Forever: a new HERO tab in the GoldCap window replaces the /gc upgrades window. It looks

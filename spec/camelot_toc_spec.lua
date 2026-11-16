@@ -105,6 +105,10 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     -- that reads both windows beside the other one that reads every merchant.
     ["Core/ForeverSources.lua"] = "Core/ForeverVendorPrices.lua",
     ["Services/SourcesClient_Camelot.lua"] = "Services/CraftClient_Camelot.lua",
+    -- The browse of all gear between scans: its rules beside the board it feeds, and the file that
+    -- asks the auction house after the Deals Check it hands its finds to.
+    ["Core/ForeverGearLoop.lua"] = "Core/ForeverDeals.lua",
+    ["UI/SniperGearLoop_Camelot.lua"] = "UI/SniperFrame_Camelot.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()
