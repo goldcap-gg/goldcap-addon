@@ -12,7 +12,11 @@ local _ = ...
 --            cheapest buyout among them and its place, and `gate`: whether row 1 alone has a
 --            buyout and a quantity, which is what the Check looks at first;
 --   browse   every C_AuctionHouse.SendBrowseQuery with a search string, and the keys its answer
---            listed for that name with their cheapest price and quantity.
+--            listed for that name with their cheapest price and quantity;
+--   dump     once per item answered: the rows of the full scan's dump (C_AuctionHouse's replicate
+--            list, read a few thousand a frame) that are this item, how many there are, how many
+--            carry a sale status other than 0, and every row cheaper than the search's cheapest
+--            buyout as "buyout/count/minBid/bidAmount/highBidder/owner/saleStatus/timeLeft".
 
 local CAP = 80
 local ROWS_KEPT = 15
@@ -68,6 +72,41 @@ local function vendorOf(itemID)
   return ok and sell or nil
 end
 
+-- The dump rows of one item, read DUMP_STEP a frame so the client does not hitch.
+local DUMP_STEP = 4000
+local dumped = {}
+
+local function walkDump(itemID, under)
+  if dumped[itemID] then return end
+  dumped[itemID] = true
+  local ah = _G.C_AuctionHouse
+  if type(ah.GetNumReplicateItems) ~= "function" then return end
+  local total = ah.GetNumReplicateItems() or 0
+  local out = { what = "dump", item = itemID, total = total, under = under, n = 0, sold = 0, cheap = {} }
+  local i = 0
+  local function step()
+    local stop = math.min(total, i + DUMP_STEP)
+    while i < stop do
+      local ok, _, _, count, _, _, _, _, minBid, _, buyout, bidAmount, highBidder, _, owner, _, saleStatus, id =
+        pcall(ah.GetReplicateItemInfo, i)
+      if ok and id == itemID then
+        out.n = out.n + 1
+        if saleStatus ~= nil and saleStatus ~= 0 then out.sold = out.sold + 1 end
+        local unit = (type(buyout) == "number" and type(count) == "number" and count > 0) and buyout / count or nil
+        if #out.cheap < 12 and (not under or (unit and unit > 0 and unit < under) or (saleStatus ~= nil and saleStatus ~= 0)) then
+          local okT, left = pcall(ah.GetReplicateItemTimeLeft, i)
+          out.cheap[#out.cheap + 1] = ("%s/%s/%s/%s/%s/%s/%s/%s"):format(tostring(buyout), tostring(count),
+            tostring(minBid), tostring(bidAmount), tostring(highBidder), tostring(owner), tostring(saleStatus),
+            okT and tostring(left) or "?")
+        end
+      end
+      i = i + 1
+    end
+    if i < total then C_Timer.After(0, step) else note(out) end
+  end
+  step()
+end
+
 local function onAnswer(key)
   local ah = _G.C_AuctionHouse
   if type(ah) ~= "table" or type(key) ~= "table" then return end
@@ -97,6 +136,7 @@ local function onAnswer(key)
   local full = ah.HasFullItemSearchResults and ah.HasFullItemSearchResults(key)
   note({ what = "answer", key = keyText(key), n = n, full = tostring(full), vendor = vendorOf(key.itemID),
     gate = gate, noBuyout = noBuyout, cheapest = cheapest, cheapestAt = cheapestAt, rows = rows })
+  pcall(walkDump, key.itemID, cheapest)
 end
 
 local browseName = nil
