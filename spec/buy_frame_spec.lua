@@ -1318,6 +1318,14 @@ describe("BuyFrame", function()
     -- chip or a match included, and the drop was put away right there: the press never became a
     -- click (probe, WoW: Forever 2026-11-16: ten chips hidden and the keyboard lost at one stamp,
     -- and no click on any of them in four tries).
+    it("an item added in the box is that many more to buy, whatever the bags already hold", function()
+      stubItemCount({ [2589] = { all = 97, carried = 97 } })
+      enter("2589 x5")
+      local line = GC.Buy.CurrentRun():Lines()[1]
+      assert.equal(5, line.buy)
+      assert.is_false(line.done)
+    end)
+
     it("keeps the drop while the pointer is on it, so a press on a chip or a match becomes a click", function()
       local add = GC.Buy._view.add
       enter("2589 x20") -- a list is on screen: the drop lies over its cards

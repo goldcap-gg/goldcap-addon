@@ -477,7 +477,9 @@ function GC.BuyAddBox.AddItems(bar, items, missed)
   local made = not own and GC.AppRuns.NewList() or nil
   local code = own and stored.code or (made and made.code)
   local lines = {}
-  for i, item in ipairs(items) do lines[i] = { i = item.itemID, q = item.qty or 1 } end
+  for i, item in ipairs(items) do
+    lines[i] = { i = item.itemID, q = item.qty or 1, h = GC.Buy.HaveOf and GC.Buy.HaveOf(item.itemID) or nil }
+  end
   if not (code and GC.AppRuns.AddLines(code, lines)) then return false end
   for _, item in ipairs(items) do remember({ i = item.itemID, q = item.qty or 1, n = itemName(item.itemID) }) end
   local label = GC.AppRuns.Label(GC.AppRuns.Get(code))

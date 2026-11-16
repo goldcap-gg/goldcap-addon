@@ -581,6 +581,10 @@ local function usualRef(itemID)
   return ref
 end
 
+--- What the character holds of an item now (bags, bank, mail): what a line added by hand is
+--- counted from (Core/AppRuns.lua's `h`).
+function GC.Buy.HaveOf(itemID) return haveOf(itemID) end
+
 local DRIVER = {
   now = function() return time() end,
   haveOf = haveOf,

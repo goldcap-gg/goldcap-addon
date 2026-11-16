@@ -134,6 +134,25 @@ describe("BuyRun progress across sessions", function()
     GC = {}
     helper.loadModule("Core/BuyRun.lua", GC)
   end)
+  -- The owner, WoW: Forever 2026-11-16: 5 Instant Poison added by hand with 97 in the bags went
+  -- straight under Bought.
+  it("counts a line added by hand from what was held when it was added", function()
+    local held = 97
+    local r = GC.BuyRun.New({ code = "game-1", updatedAt = 1, lines = { { i = 6947, q = 5, h = 97 } } },
+      { now = function() return 1000 end, haveOf = function() return held end,
+        usualUnit = function() return 100 end, capPct = function() return 130 end })
+    r:Refresh()
+    local line = r:Lines()[1]
+    assert.equal(5, line.buy)
+    assert.is_false(line.done)
+    held = 102 -- five more arrived
+    r:Refresh()
+    assert.is_true(r:Lines()[1].done)
+    held = 40 -- the stock was used: never a negative count
+    r:Refresh()
+    assert.equal(0, r:Lines()[1].have)
+  end)
+
   local function newRun(progress)
     return GC.BuyRun.New({ code = "abcd2345", name = "Cooking", updatedAt = 1, lines = {
       { i = 5, q = 210, v = false, n = "Plant Protein" },

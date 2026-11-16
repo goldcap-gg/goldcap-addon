@@ -114,7 +114,10 @@ function GC.BuyRun.New(run, driver)
         -- only what it bought: the bags, the bank and the mail can hold another version of the
         -- item, or the very piece the tab weighed the line against, and either read as done a line
         -- nothing was bought for. Every line without versions counts what is held, as always.
-        have = version and 0 or driver.haveOf(src.i), bought = state.bought, spent = state.spent,
+        -- A line the player added by hand asks for more than was held then (`h`, Core/AppRuns.lua):
+        -- 5 Instant Poison added with 97 in the bags is 5 to buy, not a line done before it began.
+        have = version and 0 or math.max(driver.haveOf(src.i) - (num(src.h) or 0), 0),
+        bought = state.bought, spent = state.spent,
         vendor = src.v == true,
         lineUsual = num(src.u), vendorUnit = num(src.vu),
         -- Hour-of-day (UTC) this item is usually cheapest, and by what percent. Passed through

@@ -214,7 +214,8 @@ function S.AddToList(id, code, qty)
     made = GC.AppRuns.NewList()
     code = made and made.code
   end
-  if not (code and GC.AppRuns.AddLines(code, { { i = row.itemID, q = qty } })) then return false end
+  if not (code and GC.AppRuns.AddLines(code, { { i = row.itemID, q = qty,
+      h = GC.Buy.HaveOf and GC.Buy.HaveOf(row.itemID) or nil } })) then return false end
   if type(GC.db) == "table" then
     GC.db.buyRecents = GC.BuyRecents.Push(GC.db.buyRecents, { i = row.itemID, q = qty, n = row.name })
   end

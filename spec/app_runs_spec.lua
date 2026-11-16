@@ -691,6 +691,21 @@ describe("AppRuns", function()
 
     -- The HERO plan (13.11): a line may name the versions of the item it buys (bonus keys); a line
     -- with none buys any, as every line always has. Lines are still one per item.
+    it("keeps what was held when a line was added by hand, and what covered an older line", function()
+      local run = GC.AppRuns.NewList()
+      GC.AppRuns.AddLines(run.code, { { i = 6947, q = 5, h = 97 }, { i = 2589, q = 5 } })
+      assert.equal(97, run.lines[1].h)
+      -- More of it: the line still counts from where it began.
+      GC.AppRuns.AddLines(run.code, { { i = 6947, q = 5, h = 102 } })
+      assert.equal(10, run.lines[1].q)
+      assert.equal(97, run.lines[1].h)
+      -- More of a line that never said: the 5 it asked for stay covered, the rest held is stock.
+      GC.AppRuns.AddLines(run.code, { { i = 2589, q = 5, h = 20 } })
+      assert.equal(15, run.lines[2].h)
+      GC.AppRuns.AddLines(run.code, { { i = 4306, q = 5, h = -1 } })
+      assert.is_nil(run.lines[3].h)
+    end)
+
     it("keeps a line's versions and joins them when one item is merged twice", function()
       local run = GC.AppRuns.NewList(nil, { { i = 15210, q = 1, ver = "12721" }, { i = 15210, q = 1, ver = "12718" },
         { i = 15211, q = 1, ver = "12729" }, { i = 15211, q = 1 } })
