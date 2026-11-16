@@ -166,6 +166,7 @@ UI/BuyLists.lua
 UI/BuyAddBox.lua
 UI/BuySearch.lua
 UI/BuyVendorPanel.lua
+UI/MinimapButton.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua
 UI/CraftQueueView.lua

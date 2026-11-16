@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 local W = require("spec.support.wow_frames")
 
--- UI/MinimapButton.lua (retail only): GoldCap's own round button on the minimap's edge (the owner,
+-- UI/MinimapButton.lua: GoldCap's own round button on the minimap's edge (the owner,
 -- 2026-10-27 00:30: the entry above the bags blended in). Its look is Blizzard's own round map
 -- button's (Blizzard_WorldMapTemplates.xml, WorldMapTrackingOptionsButtonTemplate), it moves round
 -- the edge by a left drag and keeps the angle in GC.db.minimap, a left click opens a menu, and for an
@@ -186,6 +186,19 @@ describe("GoldCap minimap button", function()
     knows = false
     click()
     assert.same({ "title:GoldCap", "button:Deals board", "divider:nil", "button:Hide this button" }, entries())
+  end)
+
+  -- WoW: Forever loads no Disenchant window: the button is the deals board's alone.
+  it("without the Disenchant window opens the deals board on a left click and its menu on a right click", function()
+    GC.DisenchantFrame = nil
+    login()
+    local b = button()
+    W.state(b).scripts.OnClick(b, "LeftButton")
+    assert.same({ "deals" }, toggled)
+    W.state(b).scripts.OnClick(b, "RightButton")
+    assert.same({ "title:GoldCap", "button:Deals board", "divider:nil", "button:Hide this button" }, entries())
+    W.state(b).scripts.OnEnter(b)
+    assert.is_false(b.pill:IsShown())
   end)
 
   it("hides on Hide this button, says how to bring it back, and /gc minimap shows or hides it", function()
