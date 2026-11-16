@@ -8,6 +8,9 @@
   a sound, and leaves once it is gone. Until now these rows came only from the scan, once in 15
   minutes, and a piece worth buying was usually sold before its row could be checked. Buying is
   still your click in the buy window.
+- BUY: a click on a suggested item or on a Recent chip under the box at the top now works while a
+  list is open. The suggestions used to close the moment the mouse button went down, so nothing
+  could be added from them and a Recent chip did nothing.
 
 ## 0.29.0 (2026-11-14)
 
