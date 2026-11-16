@@ -91,6 +91,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["UI/CraftPanel_Camelot.lua"] = "UI/CraftQueueView.lua",
     ["UI/BuyFrame_Camelot.lua"] = "UI/BuyFrame.lua",
     ["UI/SniperFrame_Camelot.lua"] = "UI/SniperFrame.lua",
+    -- The names of the scan's items, for the BUY box with the auction house closed.
+    ["Core/ForeverNames.lua"] = "Core/ForeverDeals.lua",
     -- Sales to a merchant, read off the buyback list: beside the merchant purchases it mirrors.
     ["Core/VendorSales.lua"] = "Core/VendorBuys.lua",
     -- The sale pace SELL posts by, beside the unsold rounds it is read with.

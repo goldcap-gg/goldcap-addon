@@ -75,6 +75,7 @@ Core/ForeverGear.lua
 Core/ForeverScan.lua
 Core/ForeverValue.lua
 Core/ForeverDeals.lua
+Core/ForeverNames.lua
 Core/ForeverRoad.lua
 Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
