@@ -762,6 +762,17 @@ local function build(sniperFrame)
     columns.left[#columns.left + 1] = vendor
   end
 
+  -- TOOLTIP (WoW: Forever): what GoldCap adds under an item that is no part of Deals, Sell or
+  -- Buy: the disenchant value and its materials (Core/ForeverDisenchant.lua), a switch each
+  -- (owner, 2026-11-16). Under WHAT COUNTS, the left column's only other card there.
+  local tooltipCard
+  if isForeverClient() then
+    tooltipCard = card(content, GC.L["TOOLTIPS"], 2)
+    tooltipCard:SetPoint("TOPLEFT", whatCounts, "BOTTOMLEFT", 0, -12)
+    tooltipCard:SetPoint("RIGHT", content, "CENTER", -7, 0)
+    columns.left[#columns.left + 1] = tooltipCard
+  end
+
   -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning the scroll child's
   -- CENTER+7 to its right edge.
   -- Three rows on retail: the cancel threshold (row 3, below) is retail only, like the groups
@@ -1047,6 +1058,13 @@ local function build(sniperFrame)
   if isForeverClient() then
     toggleRow(posting, 3, GC.L["Post slow sellers for 24 h"], "foreverSlowSellers24h",
       GC.L["When you pick no duration and no group sets one, an item that sells under one per post, or came back unsold twice, goes up for 24 h."], true)
+  end
+
+  if tooltipCard then
+    toggleRow(tooltipCard, 1, GC.L["Disenchant value"], "tipDisenchant",
+      GC.L["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."], true)
+    toggleRow(tooltipCard, 2, GC.L["Disenchant materials"], "tipDisenchantMats",
+      GC.L["Under the disenchant value: each material with how many, its price and its chance."], true)
   end
 
   -- The board no longer has a HOT tier -- it rings on SAFE -- so the toggle follows.

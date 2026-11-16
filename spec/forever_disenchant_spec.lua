@@ -93,6 +93,11 @@ describe("ForeverDisenchant", function()
       { kind = "text", left = "  |T132858:0|t Strange Dust ×2-3 · 88c", right = "20%" },
       { kind = "text", left = "  #10978 ×1 · no price yet", right = "5%" },
     }, D.Lines({ itemID = 3021, quality = 2, itemLevel = 18, classID = 2, equipLoc = "INVTYPE_RANGED" }, driver))
+    local item = { itemID = 3021, quality = 2, itemLevel = 18, classID = 2, equipLoc = "INVTYPE_RANGED" }
+    -- Settings > TOOLTIP: the value alone, or nothing.
+    assert.same({ { kind = "text", left = "Disenchant", right = "~539c" } }, D.Lines(item, driver, { mats = false }))
+    assert.is_nil(D.Lines(item, driver, { value = false }))
+    assert.equal(4, #D.Lines(item, driver, {}))
     assert.equal("99.5%", D.Lines({ itemID = 1, quality = 3, itemLevel = 60, classID = 4,
       equipLoc = "INVTYPE_CHEST" }, driver)[2].right)
     assert.is_nil(D.Lines({ itemID = 2589, quality = 1, itemLevel = 5, classID = 7, equipLoc = "" }, driver))

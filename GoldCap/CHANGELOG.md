@@ -21,6 +21,7 @@
 - WoW: Forever: the tooltip of green, blue and purple gear now says what it disenchants into: each
   material with how many, its price and its chance, and what one disenchant is worth on average at
   your scan's prices. The chances are the classic ones; gear above item level 65 has no line yet.
+  Settings has a new TOOLTIPS card to turn the value or the materials off.
 - WoW: Forever: GoldCap now has its button by the minimap. Left click opens GoldCap, drag moves
   it, right click has Hide; `/gc minimap` brings it back.
 

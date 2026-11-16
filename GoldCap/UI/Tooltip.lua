@@ -271,6 +271,8 @@ function GC.Tooltip._ForeverDisenchant(item, itemID)
   if not (D and D.Lines and C_Item and C_Item.GetItemInfo) then return nil end
   local ok, _, _, quality, itemLevel, _, _, _, _, equipLoc, _, _, classID = pcall(C_Item.GetItemInfo, item)
   if not ok or type(quality) ~= "number" or type(itemLevel) ~= "number" then return nil end
+  -- Settings > TOOLTIP: each on until the player turns it off.
+  local prefs = GC.db and GC.db.settings and GC.db.settings.sniper or {}
   return D.Lines({ itemID = itemID, quality = quality, itemLevel = itemLevel, classID = classID, equipLoc = equipLoc }, {
     priceOf = function(id)
       local copper = GC.Tooltip.Headline(GC.Data.GetItemValue(id))
@@ -285,7 +287,7 @@ function GC.Tooltip._ForeverDisenchant(item, itemID)
       return got and icon or nil
     end,
     coin = GC.Util.CoinText,
-  })
+  }, { value = prefs.tipDisenchant, mats = prefs.tipDisenchantMats })
 end
 
 -- Enum.ItemClass.Recipe, the same on both games; a literal, as in Core/ForeverScan.lua's class checks.

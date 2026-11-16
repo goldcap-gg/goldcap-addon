@@ -1979,4 +1979,9 @@ GC.Locales.enUS = {
   ["Still reading what you wear: the picks may change"] = "Still reading what you wear: the picks may change",
   ["List cost"] = "List cost",
   ["Short by %s"] = "Short by %s",
+  ["TOOLTIPS"] = "TOOLTIPS",
+  ["Disenchant value"] = "Disenchant value",
+  ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices.",
+  ["Disenchant materials"] = "Disenchant materials",
+  ["Under the disenchant value: each material with how many, its price and its chance."] = "Under the disenchant value: each material with how many, its price and its chance.",
 }

@@ -1991,4 +1991,9 @@ GC.Locales.itIT = {
     "Ciò che indossi è ancora in lettura: la selezione può cambiare",
   ["List cost"] = "Totale della lista",
   ["Short by %s"] = "Ti mancano %s",
+  ["TOOLTIPS"] = "TOOLTIP",
+  ["Disenchant value"] = "Valore del disincantamento",
+  ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Sotto l'equipaggiamento, nel tooltip dell'oggetto: quanto vale in media un disincantamento ai prezzi della tua scansione.",
+  ["Disenchant materials"] = "Materiali del disincantamento",
+  ["Under the disenchant value: each material with how many, its price and its chance."] = "Sotto il valore del disincantamento: ogni materiale con quantità, prezzo e probabilità.",
 }

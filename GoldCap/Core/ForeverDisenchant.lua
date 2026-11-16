@@ -140,14 +140,17 @@ end
 --- cast is worth on average, then a line a material: its icon and name, how many, a unit's price,
 --- and its chance. Nil for an item that is not disenchanted or that the table has no row for.
 --- `item`: { itemID, quality, itemLevel, classID, equipLoc }. `driver`: priceOf(itemID),
---- nameOf(itemID), iconOf(itemID) (each may answer nil), coin(copper).
-function D.Lines(item, driver)
+--- nameOf(itemID), iconOf(itemID) (each may answer nil), coin(copper). `show` (optional):
+--- { value = false } leaves the lines out altogether, { mats = false } the materials' lines.
+function D.Lines(item, driver, show)
+  if show and show.value == false then return nil end
   if type(item) ~= "table" or not D.Can(item.itemID, item.quality, item.classID, item.equipLoc) then return nil end
   local results = D.Results(item.quality, item.itemLevel, item.classID == WEAPON)
   if not results then return nil end
   local total = D.Value(results, driver.priceOf)
   local lines = { { kind = "text", left = GC.L["Disenchant"],
     right = total and ("~" .. driver.coin(total)) or GC.L["no price yet"] } }
+  if show and show.mats == false then return lines end
   for _, m in ipairs(results) do
     local icon = driver.iconOf(m.itemID)
     local name = driver.nameOf(m.itemID) or ("#" .. m.itemID)
