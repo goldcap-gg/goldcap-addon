@@ -366,9 +366,15 @@ describe("SoldFrame", function()
         assert.equal("82g 10s of 90g", visibleText(tile.small:GetText()))
         assert.is_true(tile.bar:IsShown())
         assert.near(0.912, tile.progress, 0.001)
-        -- The forecast is on hover, as the chat sentences /gc mount prints.
+        -- On hover: a label and an amount a row, then the forecast sentence.
         tile.frame.scripts.OnEnter(tile.frame)
-        assert.same({ "Road to 40: ...", "At your pace you reach it at level 12." }, tooltip.lines)
+        assert.equal("ROAD TO 40", tooltip.title)
+        local shown = {}
+        for i, text in ipairs(tooltip.lines) do
+          shown[i] = text:gsub("|TInterface\\MoneyFrame\\UI%-(%a)%a+Icon[%d:]*|t", function(c) return c:lower() end)
+        end
+        assert.same({ "Gold you carry | 47g 18s", "Your bags | 34g 92s", "Riding cost | 90g", " ",
+          "At your pace you reach it at level 12." }, shown)
       end)
 
       it("asks for the riding cost before one is set", function()
