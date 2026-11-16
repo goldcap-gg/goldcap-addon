@@ -15,6 +15,11 @@
   used to land under Bought at once when your bags already had enough.
 - SOLD on WoW: Forever: the Road to 40 tile's tooltip is now a short table (gold you carry, your
   bags, riding cost) with the forecast under it, instead of one long sentence.
+- BUY on WoW: Forever: typing a name now finds items that were on the auction house in your last
+  scan, even with the auction house closed and none in your bags. GoldCap learns the names in the
+  background during the first minutes after a scan.
+- WoW: Forever: GoldCap now has its button by the minimap. Left click opens GoldCap, drag moves
+  it, right click has Hide; `/gc minimap` brings it back.
 
 ## 0.29.0 (2026-11-14)
 
