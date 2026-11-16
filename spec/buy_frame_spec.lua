@@ -1314,6 +1314,38 @@ describe("BuyFrame", function()
       assert.is_false(add.chips[1]:IsShown())
     end)
 
+    -- The client takes the keyboard from the box the moment the mouse goes down anywhere else, a
+    -- chip or a match included, and the drop was put away right there: the press never became a
+    -- click (probe, WoW: Forever 2026-11-16: ten chips hidden and the keyboard lost at one stamp,
+    -- and no click on any of them in four tries).
+    it("keeps the drop while the pointer is on it, so a press on a chip or a match becomes a click", function()
+      local add = GC.Buy._view.add
+      enter("2589 x20") -- a list is on screen: the drop lies over its cards
+      enter("wool")
+      add.box:ClearFocus()
+      add.box.scripts.OnEditFocusLost(add.box)
+      assert.is_false(add.recentCaption:IsShown())
+      add.box:SetFocus()
+      add.box.scripts.OnEditFocusGained(add.box)
+      assert.is_true(add.chips[1]:IsShown())
+      local over = true
+      add.pop.IsMouseOver = function() return over end
+      add.box:ClearFocus() -- the mouse went down on a chip
+      add.box.scripts.OnEditFocusLost(add.box)
+      assert.is_true(add.pop:IsShown())
+      assert.is_true(add.chips[1]:IsShown())
+      add.chips[1].scripts.OnClick(add.chips[1])
+      assert.equal("wool", add.box:GetText())
+      -- Off the drop with the keyboard elsewhere, it is put away again.
+      add.box:ClearFocus()
+      add.box.scripts.OnEditFocusLost(add.box)
+      assert.is_true(add.pop:IsShown())
+      over = false
+      add.pop.scripts.OnUpdate(add.pop, 0.1)
+      assert.is_false(add.pop:IsShown())
+      assert.is_false(add.chips[1]:IsShown())
+    end)
+
     it("takes a line off the player's list from its menu, and keeps the list", function()
       enter(LINEN)
       local code = GC.Buy.CurrentRun():Code()
