@@ -1318,6 +1318,17 @@ describe("BuyFrame", function()
     -- chip or a match included, and the drop was put away right there: the press never became a
     -- click (probe, WoW: Forever 2026-11-16: ten chips hidden and the keyboard lost at one stamp,
     -- and no click on any of them in four tries).
+    it("offers an item the last WoW: Forever scan saw on sale, by its kept name", function()
+      GC.ForeverNames = { Each = function(add) add(4604, "Forest Mushroom Cap") end }
+      local add = GC.Buy._view.add
+      add.box:SetFocus()
+      add.box.scripts.OnEditFocusGained(add.box)
+      add.box:SetText("forest")
+      add.box.scripts.OnTextChanged(add.box, true)
+      enter("forest")
+      assert.equal(4604, add.matches[1].itemID)
+    end)
+
     it("an item added in the box is that many more to buy, whatever the bags already hold", function()
       stubItemCount({ [2589] = { all = 97, carried = 97 } })
       enter("2589 x5")

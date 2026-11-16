@@ -75,7 +75,12 @@ Core/ForeverGear.lua
 Core/ForeverScan.lua
 Core/ForeverValue.lua
 Core/ForeverDeals.lua
+<<<<<<< HEAD
 Core/ForeverGearLoop.lua
+||||||| e273926b
+=======
+Core/ForeverNames.lua
+>>>>>>> fix/buy-add-clicks
 Core/ForeverRoad.lua
 Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
