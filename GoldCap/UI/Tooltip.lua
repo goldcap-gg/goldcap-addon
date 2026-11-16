@@ -85,11 +85,16 @@ end
 -- WoW: Forever: whether the item is an upgrade for the character looking (opts.forever.upgrade,
 -- GC.ForeverUpgrades.TooltipVerdict's lines), after the verdict lines. Gear the auction house has
 -- never priced (a quest reward, a bound drop) has no lines for it to follow, and still gets it.
+-- Before it, for gear: what it disenchants into and what that is worth (opts.forever.disenchant,
+-- GC.ForeverDisenchant.Lines' lines).
 local function withUpgrade(lines, opts)
-  local upgrade = type(opts.forever) == "table" and opts.forever.upgrade or nil
-  if type(upgrade) ~= "table" or #upgrade == 0 then return lines end
-  lines = lines or {}
-  for _, ln in ipairs(upgrade) do lines[#lines + 1] = ln end
+  local fv = type(opts.forever) == "table" and opts.forever or nil
+  for _, more in ipairs({ fv and fv.disenchant or false, fv and fv.upgrade or false }) do
+    if type(more) == "table" and #more > 0 then
+      lines = lines or {}
+      for _, ln in ipairs(more) do lines[#lines + 1] = ln end
+    end
+  end
   return lines
 end
 
@@ -258,6 +263,31 @@ function GC.Tooltip.BuildLines(v, now, opts)
   return lines
 end
 
+-- WoW: Forever: the disenchant lines of an item (Core/ForeverDisenchant.lua), from what the client
+-- has loaded of it; nil until it has, for anything that is not gear, and where the module is not
+-- loaded (retail). The materials are priced as every item is (GC.Data.GetItemValue).
+function GC.Tooltip._ForeverDisenchant(item, itemID)
+  local D = GC.ForeverDisenchant
+  if not (D and D.Lines and C_Item and C_Item.GetItemInfo) then return nil end
+  local ok, _, _, quality, itemLevel, _, _, _, _, equipLoc, _, _, classID = pcall(C_Item.GetItemInfo, item)
+  if not ok or type(quality) ~= "number" or type(itemLevel) ~= "number" then return nil end
+  return D.Lines({ itemID = itemID, quality = quality, itemLevel = itemLevel, classID = classID, equipLoc = equipLoc }, {
+    priceOf = function(id)
+      local copper = GC.Tooltip.Headline(GC.Data.GetItemValue(id))
+      return copper
+    end,
+    nameOf = function(id)
+      local got, name = pcall(C_Item.GetItemNameByID, id)
+      return got and type(name) == "string" and name ~= "" and name or nil
+    end,
+    iconOf = function(id)
+      local got, icon = pcall(C_Item.GetItemIconByID, id)
+      return got and icon or nil
+    end,
+    coin = GC.Util.CoinText,
+  })
+end
+
 -- Enum.ItemClass.Recipe, the same on both games; a literal, as in Core/ForeverScan.lua's class checks.
 local CLASS_RECIPE = 9
 
@@ -278,6 +308,7 @@ local function addBlock(tooltip, itemID, now, heading, shown, link)
     -- ...and, for gear, whether it beats what the character looking wears.
     local upgrades = GC.ForeverUpgrades
     forever.upgrade = link and upgrades and upgrades.TooltipVerdict and upgrades.TooltipVerdict(link) or nil
+    forever.disenchant = GC.Tooltip._ForeverDisenchant(link or itemID, itemID)
   end
   local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor

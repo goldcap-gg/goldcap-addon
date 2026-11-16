@@ -625,6 +625,10 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
     assert.equal(at[UP[1].text] + 1, at[UP[2].text])
     assert.equal(at[UP[2].text] + 1, at["Source"])
     assert.same(UP, GC.Tooltip.BuildLines(nil, 1000, { forever = { upgrade = UP } }))
+    -- Gear's disenchant lines come before it, with or without a price for the item itself.
+    local DE = { { kind = "text", left = "Disenchant", right = "~5s" } }
+    assert.same({ DE[1], UP[1], UP[2] }, GC.Tooltip.BuildLines(nil, 1000, { forever = { upgrade = UP, disenchant = DE } }))
+    assert.same(DE, GC.Tooltip.BuildLines(nil, 1000, { forever = { disenchant = DE } }))
     local live = GC.Tooltip.BuildLines(nil, 1000, { forever = { upgrade = UP }, live = { floor = 15, qty = 2, age = 0 } })
     assert.equal("Cheapest", live[1].left)
     assert.same({ UP[1], UP[2] }, { live[2], live[3] })

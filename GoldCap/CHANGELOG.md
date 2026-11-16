@@ -18,6 +18,9 @@
 - BUY on WoW: Forever: typing a name now finds items that were on the auction house in your last
   scan, even with the auction house closed and none in your bags. GoldCap learns the names in the
   background during the first minutes after a scan.
+- WoW: Forever: the tooltip of green, blue and purple gear now says what it disenchants into: each
+  material with how many, its price and its chance, and what one disenchant is worth on average at
+  your scan's prices. The chances are the classic ones; gear above item level 65 has no line yet.
 - WoW: Forever: GoldCap now has its button by the minimap. Left click opens GoldCap, drag moves
   it, right click has Hide; `/gc minimap` brings it back.
 
