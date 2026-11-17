@@ -24,6 +24,14 @@
   Settings has a new TOOLTIPS card to turn the value or the materials off.
 - WoW: Forever: GoldCap now has its button by the minimap. Left click opens GoldCap, drag moves
   it, right click has Hide; `/gc minimap` brings it back.
+- WoW: Forever: SCAN no longer gets stuck on "SCANNING…" after you search the auction house's
+  own Buy list yourself. Pressing SCAN (or typing /gc scan) now takes that list back for the scan,
+  as it already did on retail, and the scan starts at once.
+- WoW: Forever: a full scan's prices now reach the Deals board as soon as the scan has read them,
+  even while your own search or a buy page is open. They used to arrive three minutes late.
+- WoW: Forever: when a scan has to wait because a buy page or another auction house tab is open,
+  the status line says so ("Scan starts when you leave that tab: click Buy or GoldCap") in place
+  of a count of seconds, and SCAN is free to press again when the wait is over.
 
 ## 0.29.0 (2026-11-14)
 

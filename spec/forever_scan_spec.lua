@@ -511,6 +511,113 @@ describe("ForeverScan", function()
     assert.equal(saved, #notes)
   end)
 
+  -- A player, 2026-11-17 (0.29.0, and 0.28.1 the same): SCAN after a search of their own on the
+  -- auction house's Buy list. The pass the scan armed could not start behind that search, the scan
+  -- stopped waiting for it after BROWSE_WAIT_SECONDS and went idle, and the pass stayed armed: SCAN
+  -- read SCANNING with no count beside it and every press answered "full scan already in
+  -- progress", until the auction house closed. The wait and the pass now end together.
+  describe("when the wait for its browse pass runs out", function()
+    it("gives the pass up, and keeps what the pass had seen", function()
+      d.browseAnswer = "started"
+      local s
+      local stopped = 0
+      s = GC.ForeverScan.New(driver({
+        -- UI/SniperFrame.lua's GC.Sniper.StopBrowsePass: the pass's own Abort answers the scan.
+        stopBrowse = function()
+          stopped = stopped + 1
+          s:OnBrowsePassAbandoned({ [2589] = { floor = 64, qty = 5814 } })
+        end,
+      }))
+      store.requestedAt = now - 60               -- inside the throttle: SCAN browses
+      s:OnAuctionHouseShow()
+      assert.equal("cooldown", s:Request("button"))
+      assert.equal("browsing", s:State())
+      runAll()                                   -- BROWSE_WAIT_SECONDS, and no pass ended
+      assert.equal(1, stopped)
+      assert.is_false(s:IsBusy())
+      assert.equal(64, GC.ForeverFold.Decode(store.fold.items[2589]).min)
+      local dones = 0
+      for _, n in ipairs(notes) do if n[1] == "done" then dones = dones + 1 end end
+      assert.equal(1, dones)                     -- saved once, by the pass's end
+      assert.is_true(noted("done")[2].givenUp)
+    end)
+
+    it("saves what it has when no pass was left to give up", function()
+      d.browseAnswer = "running"
+      local stopped = 0
+      local s = GC.ForeverScan.New(driver({ stopBrowse = function() stopped = stopped + 1 end }))
+      s:OnAuctionHouseShow()
+      rows = { { 2589, 20, 1340, true } }
+      runAll()
+      assert.equal(1, stopped)
+      assert.is_false(s:IsBusy())
+      assert.equal("replicate", store.fold.source)
+      assert.is_true(noted("done")[2].givenUp)
+    end)
+  end)
+
+  -- The same report: past the throttle the list was read in seconds, and sat unsaved for the
+  -- whole BROWSE_WAIT_SECONDS behind a pass the player's own search held back, the board still on
+  -- prices half an hour old. A list read to the end is every price there is (commit's `whole`):
+  -- it is saved at once, without the pass.
+  describe("when the player's own use of the auction house holds a browse pass back", function()
+    it("saves a list read to the end at once, without the pass", function()
+      d.browseAnswer = "started"
+      local s = GC.ForeverScan.New(driver({ browseHeld = function() return true end }))
+      s:OnAuctionHouseShow()
+      rows = dump(2 * GC.ForeverScan.C.SUSPECT_CAP + 1)
+      runRead(s)
+      assert.is_nil(d.browse)                    -- no pass was asked for
+      assert.is_false(s:IsBusy())
+      assert.is_nil(store.fold.partial)
+      assert.equal("replicate", store.fold.source)
+      assert.equal(50, store.fold.itemCount)
+      assert.is_nil(noted("done")[2].givenUp)
+    end)
+
+    it("ends a pass an earlier stage of the list armed", function()
+      d.browseAnswer = "started"
+      local stopped = 0
+      local s = GC.ForeverScan.New(driver({
+        browseHeld = function() return true end,
+        stopBrowse = function() stopped = stopped + 1 end,
+      }))
+      s:OnAuctionHouseShow()
+      rows = dump(2 * GC.ForeverScan.C.SUSPECT_CAP)   -- the first stage, cut: its wide pass is armed
+      runRead(s)
+      assert.equal("wide", d.browse)
+      assert.equal("browsing", s:State())
+      rows = dump(60000 + 1)                     -- the rest lands while that pass waits
+      s:OnReplicateUpdate()
+      runRead(s)
+      assert.equal(1, stopped)
+      assert.is_false(s:IsBusy())
+      assert.is_nil(store.fold.partial)
+      assert.equal(60001, store.fold.rows)
+    end)
+
+    it("still waits for the pass after a list that was cut: the pass is the scan then", function()
+      d.browseAnswer = "started"
+      local s = GC.ForeverScan.New(driver({ browseHeld = function() return true end }))
+      s:OnAuctionHouseShow()
+      rows = dump(2 * GC.ForeverScan.C.SUSPECT_CAP)
+      runRead(s)
+      assert.equal("wide", d.browse)
+      assert.equal("browsing", s:State())
+      assert.is_nil(store.fold)
+    end)
+
+    it("asks for the pass as before when nothing holds it", function()
+      d.browseAnswer = "started"
+      local s = GC.ForeverScan.New(driver({ browseHeld = function() return false end }))
+      s:OnAuctionHouseShow()
+      rows = dump(2 * GC.ForeverScan.C.SUSPECT_CAP + 1)
+      runRead(s)
+      assert.equal("classes", d.browse)
+      assert.equal("browsing", s:State())
+    end)
+  end)
+
   -- The client hands the dump over in stages, each with its own REPLICATE_ITEM_LIST_UPDATE (owner,
   -- 2026-09-30: 2048 rows, then 54139). A later stage that landed while the scan browsed after the
   -- first one was dropped, and the scan saved the cut first stage alone.

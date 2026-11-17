@@ -2109,15 +2109,31 @@ end
 -- purchase step in its window) is read first.
 function GC.Sniper._ScanLine()
   if not frame then return end
-  local running = GC.ForeverScan and GC.ForeverScan.Running
-  if not running then return end
-  local state, since = running()
-  if state ~= "waiting" and state ~= "browsing" then return end
   if dialog and dialog.IsShown and dialog:IsShown() then return end
+  local text = GC.Sniper._ScanLineText()
+  if text then setStatus(text) end
+end
+
+-- The words of that line, nil when the scan has none to say. While the scan's browse pass is armed
+-- and the auction house shows a pane that holds it back (the player's own buy page, Sell, Auctions,
+-- another addon's tab: UI/AuctionHouseTab.lua), the line says what the pass waits for, as retail's
+-- SCAN does (onFullScanClick): a count of seconds there read as a scan at work for three minutes
+-- with nothing sent (a player, 2026-11-17).
+function GC.Sniper._ScanLineText()
+  local running = GC.ForeverScan and GC.ForeverScan.Running
+  if not running then return nil end
+  local state, since = running()
+  if state ~= "waiting" and state ~= "browsing" then return nil end
+  if state == "browsing" and GC.Sniper._bookPass:PendingStart() then
+    local tab = GC.AuctionHouseTab
+    if tab and ((tab.PlayerIsBuying and tab.PlayerIsBuying()) or (tab.PlayerIsAside and tab.PlayerIsAside())) then
+      return GC.L["Scan starts when you leave that tab: click Buy or GoldCap"]
+    end
+  end
   local text = GC.L["Scanning the auction house…"]
   local words = type(since) == "number" and GC.Util.FormatElapsedWords(math.max(0, time() - since))
   if words then text = text .. " " .. words end
-  setStatus(GC.Sniper._ScanWords(text))
+  return GC.Sniper._ScanWords(text)
 end
 
 -- A line of the full scan as the status line shows it: with the one thing the player can get wrong
@@ -4883,6 +4899,17 @@ refreshSessionText = function()
   GC.Sniper._LayoutBoardRow()
 end
 
+-- WoW: Forever's press of SCAN, less its words (onFullScanClick): true when a scan already runs
+-- and the press starts none. The player asked for the list to be replaced, so their own search on
+-- Blizzard's Buy pane stops holding the scan's browse pass, as on retail below, and first: a pass
+-- already waiting behind that search goes out on the next tick. Without it the pass never started,
+-- and SCAN stood on SCANNING until the auction house closed (a player, 2026-11-17).
+function GC.Sniper._ForeverScanPress()
+  local tab = GC.AuctionHouseTab
+  if tab and tab.ReleaseBrowseList then tab.ReleaseBrowseList() end
+  return GC.Sniper.ScanActive() or GC.ForeverScan.Request("button") == "busy"
+end
+
 local function onFullScanClick()
   if not frame then return end
   if not GC.Sniper.scanner then
@@ -4897,7 +4924,7 @@ local function onFullScanClick()
   -- scan runs -- the one on opening the auction house, Auto's pass -- starts nothing: the label
   -- already says "Scanning...", and a second scan on top printed a second summary block.
   if isForever() and GC.ForeverScan and GC.ForeverScan.Request then
-    if GC.Sniper.ScanActive() or GC.ForeverScan.Request("button") == "busy" then
+    if GC.Sniper._ForeverScanPress() then
       frame.status:SetText(GC.L["full scan already in progress"])
     end
     refreshScanButton()
@@ -4948,6 +4975,24 @@ function GC.Sniper.StartBrowsePass(kind)
   startFullScan(kind)
   refreshScanButton()
   return "started"
+end
+
+-- The Forever scan no longer needs the pass it asked for (Core/ForeverScan.lua's endBrowse): a pass
+-- still out is given up the way the player's own search gives one up (GC.Sniper._OnPlayerBrowse).
+-- Its Abort tells the scan what it saw, and Auto hears its pass is over and starts a fresh one
+-- once it may. Nothing out, nothing done.
+function GC.Sniper.StopBrowsePass()
+  if not GC.Sniper._bookPass:IsPaging() then return end
+  abortFullScan()
+  feedAuto("scanFinished")
+end
+
+-- Whether the player's own use of the auction house holds a browse pass back right now: what the
+-- arbiter's passWants asks (GC.Sniper.OnThrottleReady). Fails open, as those detectors do.
+function GC.Sniper.BrowseHeld()
+  local tab = GC.AuctionHouseTab
+  if tab and tab.PlayerIsBusy and tab.PlayerIsBusy() then return true end
+  return GC.Sniper._BrowseOwned()
 end
 
 -- The Forever scan's progress on the toolbar's status line.
