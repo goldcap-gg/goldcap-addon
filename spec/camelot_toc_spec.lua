@@ -80,8 +80,6 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- The Disenchant window beside the bags: retail only, as the Hoard it is drawn with.
   RETAIL_ONLY["UI/DisenchantFrame.lua"] = true
   RETAIL_ONLY["UI/DisenchantMarks.lua"] = true
-  -- GoldCap's button on the minimap, which counts what is worth disenchanting: retail only for now.
-  RETAIL_ONLY["UI/MinimapButton.lua"] = true
 
   -- WoW: Forever's own files, each loaded right after the file whose functions it replaces where
   -- Forever differs (or, for a pure module, beside the files that use it). Retail never loads them.
@@ -91,6 +89,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["UI/CraftPanel_Camelot.lua"] = "UI/CraftQueueView.lua",
     ["UI/BuyFrame_Camelot.lua"] = "UI/BuyFrame.lua",
     ["UI/SniperFrame_Camelot.lua"] = "UI/SniperFrame.lua",
+    -- The names of the scan's items, for the BUY box with the auction house closed: beside the scan.
+    ["Core/ForeverNames.lua"] = "Core/ForeverScan.lua",
     -- Sales to a merchant, read off the buyback list: beside the merchant purchases it mirrors.
     ["Core/VendorSales.lua"] = "Core/VendorBuys.lua",
     -- The sale pace SELL posts by, beside the unsold rounds it is read with.
@@ -105,6 +105,12 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     -- that reads both windows beside the other one that reads every merchant.
     ["Core/ForeverSources.lua"] = "Core/ForeverVendorPrices.lua",
     ["Services/SourcesClient_Camelot.lua"] = "Services/CraftClient_Camelot.lua",
+    -- The browse of all gear between scans: its rules beside the board it feeds, and the file that
+    -- asks the auction house after the Deals Check it hands its finds to.
+    ["Core/ForeverGearLoop.lua"] = "Core/ForeverDeals.lua",
+    ["UI/SniperGearLoop_Camelot.lua"] = "UI/SniperFrame_Camelot.lua",
+    -- What gear disenchants into, for the tooltip: with the other Forever value rules.
+    ["Core/ForeverDisenchant.lua"] = "Core/ForeverGearLoop.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()

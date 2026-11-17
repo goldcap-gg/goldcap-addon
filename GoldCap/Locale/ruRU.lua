@@ -2060,4 +2060,9 @@ GC.Locales.ruRU = {
     "Надетое ещё считывается: подборка может измениться",
   ["List cost"] = "Сумма списка",
   ["Short by %s"] = "Не хватает %s",
+  ["TOOLTIPS"] = "ПОДСКАЗКА",
+  ["Disenchant value"] = "Цена распыления",
+  ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Под снаряжением в подсказке предмета: сколько в среднем даёт одно распыление по ценам вашего скана.",
+  ["Disenchant materials"] = "Материалы распыления",
+  ["Under the disenchant value: each material with how many, its price and its chance."] = "Под ценой распыления: каждый материал, его количество, цена и шанс.",
 }

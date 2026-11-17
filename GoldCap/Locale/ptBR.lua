@@ -1988,4 +1988,9 @@ GC.Locales.ptBR = {
     "O que você usa ainda está sendo lido: a seleção pode mudar",
   ["List cost"] = "Total da lista",
   ["Short by %s"] = "Faltam %s",
+  ["TOOLTIPS"] = "DICA DO ITEM",
+  ["Disenchant value"] = "Valor ao desencantar",
+  ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Abaixo do equipamento, na dica do item: quanto vale em média um desencantamento aos preços do seu escaneamento.",
+  ["Disenchant materials"] = "Materiais ao desencantar",
+  ["Under the disenchant value: each material with how many, its price and its chance."] = "Abaixo do valor ao desencantar: cada material com a quantidade, o preço e a chance.",
 }

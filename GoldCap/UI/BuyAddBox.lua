@@ -249,7 +249,15 @@ local function paint(bar)
   -- from the cards under it, so once the box lets go of the keyboard it keeps only what is news:
   -- what an add just did, and the items a shift-click is still collecting.
   local listed = (GC.Buy.CurrentRun and GC.Buy.CurrentRun()) ~= nil
-  local quiet = listed and not focused
+  -- Not while the pointer is on the drop. The client takes the keyboard from the box the moment
+  -- the mouse goes down anywhere else, a chip or a match included: put away right then, the drop
+  -- was gone before the press became a click, and nothing under the well could be clicked at all
+  -- with a list on screen (probe, WoW: Forever 2026-11-16). The drop's own OnUpdate puts it away
+  -- once the pointer has left it (GC.BuyAddBox.Create).
+  local pop = bar.pop
+  local over = pop ~= nil and pop.IsMouseOver ~= nil and pop:IsShown() and pop:IsMouseOver() or false
+  bar.held = listed and not focused and over
+  local quiet = listed and not focused and not over
   if text ~= "" or focused then bar.hint:Hide() else bar.hint:Show() end
   -- The well's edge: gold while it has the keyboard, the glass's own otherwise.
   local gc, edge = Theme.color.gold, GC.Kit.Tokens.color.windowBorder
@@ -469,7 +477,9 @@ function GC.BuyAddBox.AddItems(bar, items, missed)
   local made = not own and GC.AppRuns.NewList() or nil
   local code = own and stored.code or (made and made.code)
   local lines = {}
-  for i, item in ipairs(items) do lines[i] = { i = item.itemID, q = item.qty or 1 } end
+  for i, item in ipairs(items) do
+    lines[i] = { i = item.itemID, q = item.qty or 1, h = GC.Buy.HaveOf and GC.Buy.HaveOf(item.itemID) or nil }
+  end
   if not (code and GC.AppRuns.AddLines(code, lines)) then return false end
   for _, item in ipairs(items) do remember({ i = item.itemID, q = item.qty or 1, n = itemName(item.itemID) }) end
   local label = GC.AppRuns.Label(GC.AppRuns.Get(code))
@@ -722,6 +732,14 @@ function GC.BuyAddBox.Create(parent)
     GC.BuyAddBox.Update(bar)
   end)
   button:SetScript("OnClick", function() GC.BuyAddBox.Submit(bar) end)
+  -- Kept open under the pointer with the keyboard elsewhere (paint's `held`): put away once the
+  -- pointer has left it.
+  pop:SetScript("OnUpdate", function(self)
+    if bar.held and not self:IsMouseOver() then
+      paint(bar)
+      relayout()
+    end
+  end)
   clear:SetScript("OnClick", function()
     if type(GC.db) == "table" then GC.db.buyRecents = {} end
     paint(bar)

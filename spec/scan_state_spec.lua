@@ -365,14 +365,96 @@ describe("one scan state for the toolbar", function()
     end)
   end)
 
-  it("a click on SCAN while a scan runs starts nothing (Forever)", function()
-    local f = assert(io.open("GoldCap/UI/SniperFrame.lua"))
-    local src = f:read("*a")
-    f:close()
-    local click = src:sub((src:find("local function onFullScanClick()", 1, true)))
-    local guard = assert(click:find("GC.Sniper.ScanActive() or GC.ForeverScan.Request(\"button\")", 1, true))
-    -- Short-circuits: Request is only reached when nothing runs.
-    assert.is_true(guard < click:find("startFullScan()", 1, true))
+  -- A player, 2026-11-17 (0.29.0, and 0.28.1 the same): a search of their own on the auction
+  -- house's Buy list, then SCAN. On retail that press hands the list back to GoldCap; on Forever it
+  -- did not, so the pass the scan armed never started. The scan stopped waiting for it after three
+  -- minutes, the pass stayed armed, and SCAN read SCANNING with nothing running and no count beside
+  -- it, answering every press with "full scan already in progress" until the auction house closed.
+  describe("SCAN and the player's own use of the auction house (Forever)", function()
+    it("a press takes the Buy list back from the player's own search, then asks for the scan", function()
+      local GC = loadSniper()
+      local order = {}
+      GC.AuctionHouseTab = { ReleaseBrowseList = function() order[#order + 1] = "release" end }
+      GC.ForeverScan.Request = function(reason) order[#order + 1] = "request " .. reason; return "started" end
+      assert.is_false(GC.Sniper._ForeverScanPress())
+      assert.same({ "release", "request button" }, order)
+    end)
+
+    it("a press while a scan runs starts nothing, and still takes the list back", function()
+      local GC = loadSniper()
+      local order = {}
+      GC.AuctionHouseTab = { ReleaseBrowseList = function() order[#order + 1] = "release" end }
+      GC.ForeverScan.Request = function() order[#order + 1] = "request"; return "started" end
+      GC.Sniper._bookPass:Start("wide")          -- armed, and waiting behind that search
+      assert.is_true(GC.Sniper._ForeverScanPress())
+      assert.same({ "release" }, order)
+    end)
+
+    it("a press the scanner refuses as busy says a scan runs", function()
+      local GC = loadSniper()
+      GC.ForeverScan.Request = function() return "busy" end
+      assert.is_true(GC.Sniper._ForeverScanPress())
+    end)
+
+    it("the click goes through that press, ahead of retail's own pass", function()
+      local f = assert(io.open("GoldCap/UI/SniperFrame.lua"))
+      local src = f:read("*a")
+      f:close()
+      local click = src:sub((src:find("local function onFullScanClick()", 1, true)))
+      local press = assert(click:find("GC.Sniper._ForeverScanPress()", 1, true))
+      assert.is_true(press < click:find("startFullScan()", 1, true))
+    end)
+
+    it("ends a pass that is out when the scan stops waiting for it, and tells the scan", function()
+      local GC = loadSniper()
+      local told = {}
+      GC.ForeverScan.OnBrowsePassAbandoned = function(book) told[#told + 1] = type(book) end
+      GC.Sniper._bookPass:Start("wide")
+      assert.is_true(GC.Sniper.ScanActive())
+      GC.Sniper.StopBrowsePass()
+      assert.is_false(GC.Sniper.ScanActive())
+      assert.same({ "table" }, told)
+      GC.Sniper.StopBrowsePass()                 -- nothing is out: nothing to end
+      assert.same({ "table" }, told)
+    end)
+
+    it("knows when the player's own use of the auction house holds a pass back", function()
+      local GC = loadSniper()
+      assert.is_false(GC.Sniper.BrowseHeld())    -- no tab to ask: fails open
+      local busy, owned = false, false
+      GC.AuctionHouseTab = { PlayerIsBusy = function() return busy end,
+        PlayerOwnsBrowseList = function() return owned end }
+      assert.is_false(GC.Sniper.BrowseHeld())
+      busy = true
+      assert.is_true(GC.Sniper.BrowseHeld())
+      busy, owned = false, true
+      assert.is_true(GC.Sniper.BrowseHeld())
+    end)
+
+    it("says what a held pass waits for on the status line, in place of the count", function()
+      local GC = loadSniper()
+      GC.Util = { FormatElapsedWords = function(n) return n .. "s" end }
+      _G.time = function() return 1012 end
+      GC.ForeverScan.Running = function() return "browsing", 1000 end
+      local buying, aside = false, false
+      GC.AuctionHouseTab = { PlayerIsBuying = function() return buying end,
+        PlayerIsAside = function() return aside end }
+      GC.Sniper._bookPass:Start("wide")          -- armed, not sent
+      local count = "Scanning the auction house… 12s · do not close the auction house"
+      local waits = "Scan starts when you leave that tab: click Buy or GoldCap"
+      assert.equal(count, GC.Sniper._ScanLineText())
+      buying = true                              -- the player's own buy page is up
+      assert.equal(waits, GC.Sniper._ScanLineText())
+      buying, aside = false, true                -- Sell, Auctions or another addon's tab
+      assert.equal(waits, GC.Sniper._ScanLineText())
+      GC.Sniper._bookPass.PendingStart = function() return false end -- the pass went out
+      assert.equal(count, GC.Sniper._ScanLineText())
+      GC.ForeverScan.Running = function() return "waiting", 1000 end
+      assert.equal(count, GC.Sniper._ScanLineText())
+      GC.ForeverScan.Running = function() return "reading", 1000 end
+      assert.is_nil(GC.Sniper._ScanLineText())
+      _G.time = os.time
+    end)
   end)
 
   it("widens the verdict column only in Forever", function()

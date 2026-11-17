@@ -140,6 +140,10 @@ local function copyLine(raw)
     mk = raw.mk == true or nil,
     -- The versions of the item the line buys (joinVer above); absent, any.
     ver = copyVer(raw.ver),
+    -- What the character held of the item when the player added the line by hand (the BUY box,
+    -- the auction house search): the line asks for `q` MORE than that. Absent on every list that
+    -- is a shopping list for something (the site's, a craft queue's), where what is held counts.
+    h = (num(raw.h) and raw.h >= 0) and math.floor(raw.h) or nil,
   }
 end
 
@@ -727,6 +731,9 @@ function GC.AppRuns.AddLines(code, lines)
   for _, line in ipairs(added) do
     local have = byItem[line.i]
     if have then
+      -- More of a line that never said what was held: what covered it until now still does, and
+      -- the rest of what is held is the player's own stock, which the units added are not for.
+      if line.h and not have.h then have.h = math.max(line.h - have.q, 0) end
       have.q = have.q + line.q
       have.ver = joinVer(have.ver, line.ver)
     else

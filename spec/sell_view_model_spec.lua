@@ -330,6 +330,68 @@ describe("Sell view model", function()
       })))
     end)
 
+    -- A player and the owner, 2026-11-17: the list read as sorted by nothing. Its key was the
+    -- last quote times everything in the bags, a figure no row shows; the row shows what one
+    -- click fetches, at the price it posts at (UI/Sell/Row.lua's YOU GET). The caller hands that
+    -- figure in, and the list goes by it.
+    describe("by the figure its row shows", function()
+      local function shownFrom(figures)
+        return function(position) return figures[position.positionKey] end
+      end
+
+      it("puts the row that fetches most first, whatever the stock's quote times its count", function()
+        -- Two scales quoted at 6s 19c, one of them posted: 5s 88c on the row, 12s 38c by the old key.
+        assert.same({ "pattern", "cloth", "scale" }, keys(GC.SellViewModel.Order({
+          { positionKey = "scale", bagQty = 2, freshMarketUnit = 619 },
+          { positionKey = "cloth", bagQty = 6, freshMarketUnit = 198 },
+          { positionKey = "pattern", bagQty = 1, freshMarketUnit = 1400 },
+        }, shownFrom({ scale = 588, cloth = 1128, pattern = 1330 }))))
+      end)
+
+      it("reads the owner's eight rows in falling order of YOU GET", function()
+        -- Each row's last quote and bag count, and beside it what the row showed.
+        assert.same({ "kit", "rune", "wallet", "gall", "linen", "dagger", "potion", "stone" },
+          keys(GC.SellViewModel.Order({
+            { positionKey = "kit", bagQty = 29, displayMarketUnit = 650 },
+            { positionKey = "rune", bagQty = 10, displayMarketUnit = 1049 },
+            { positionKey = "wallet", bagQty = 2, displayMarketUnit = 1084 },
+            { positionKey = "gall", bagQty = 1, displayMarketUnit = 498 },
+            { positionKey = "potion", bagQty = 1, displayMarketUnit = 459 },
+            { positionKey = "dagger", bagQty = 1, displayMarketUnit = 410 },
+            { positionKey = "linen", bagQty = 17, displayMarketUnit = 24 },
+            { positionKey = "stone", bagQty = 3, displayMarketUnit = 60 },
+          }, shownFrom({ kit = 17907, rune = 9965, wallet = 1425, gall = 473, potion = 361, dagger = 380,
+            linen = 403, stone = 196 }))))
+      end)
+
+      it("counts a row that shows a figure as priced, with no quote behind it", function()
+        -- WoW: Forever prices a row from the scan before any search of its own has answered.
+        assert.same({ "scanned", "quoted", "bare" }, keys(GC.SellViewModel.Order({
+          { positionKey = "bare", bagQty = 1 },
+          { positionKey = "quoted", bagQty = 1, displayMarketUnit = 100 },
+          { positionKey = "scanned", bagQty = 1 },
+        }, shownFrom({ scanned = 500 }))))
+      end)
+
+      it("keeps the old key for a row that shows no figure", function()
+        assert.same({ "big", "small" }, keys(GC.SellViewModel.Order({
+          { positionKey = "small", bagQty = 1, freshMarketUnit = 100 },
+          { positionKey = "big", bagQty = 50, freshMarketUnit = 100 },
+        }, shownFrom({}))))
+      end)
+
+      it("goes by it on the post deck only", function()
+        local asked = 0
+        local chips = { shownOf = function() asked = asked + 1 return 1 end }
+        local bags = { positionKey = "bags", bagQty = 1 }
+        local lot = { positionKey = "lot", listedQty = 1, listedValue = 5 }
+        GC.SellViewModel.Deck({ bags, lot }, "listed", chips)
+        assert.equal(0, asked)
+        GC.SellViewModel.Deck({ bags, lot }, "post", chips)
+        assert.is_true(asked > 0)
+      end)
+    end)
+
     it("keeps listed rows in place but sinks stockless ghosts below them", function()
       -- Ties still fall back to the incoming order (a re-render must not reshuffle rows
       -- under the cursor) -- but a position with nothing in the bags AND nothing listed is

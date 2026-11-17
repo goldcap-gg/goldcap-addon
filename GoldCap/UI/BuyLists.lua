@@ -181,7 +181,8 @@ end
 --- Every name GoldCap already knows for an item, as add(itemID, name) -- an item may come more than
 --- once, under one name or several: every stored list's lines (their own name and the client's),
 --- the bags and the bank as far as the client has it, the item names the site asked about, the
---- ledger's purchases and sales, and what GoldCap recorded buying. The client resolves almost no
+--- ledger's purchases and sales, what GoldCap recorded buying, and on WoW: Forever what the last
+--- full scan saw on sale. The client resolves almost no
 --- typed names itself (the BUY 2.0 probe: C_Item.GetItemInfoInstant answered 0 of 15 in retail).
 function GC.BuyLists.KnownNames(add)
   local db = type(GC.db) == "table" and GC.db or {}
@@ -213,6 +214,9 @@ function GC.BuyLists.KnownNames(add)
   for _, batch in ipairs(type(db.acquisitions) == "table" and db.acquisitions or {}) do
     if type(batch) == "table" then addStored(batch.itemID, batch.itemName) end
   end
+  -- WoW: Forever: the names of what the last full scan saw on sale (Core/ForeverNames.lua), already
+  -- the client's own. Not loaded on retail.
+  if GC.ForeverNames and GC.ForeverNames.Each then GC.ForeverNames.Each(add) end
 end
 
 --- Turns a name into an item the way an import needs it: one item exactly, or nothing. The names

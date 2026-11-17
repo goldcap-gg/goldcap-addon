@@ -1,5 +1,41 @@
 # GoldCap
 
+## 0.30.0 (2026-11-17)
+
+- WoW: Forever: with AUTO on and the ITEMS board open, GoldCap now keeps looking through all the
+  weapons and armor on the auction house between scans, about every 20 seconds. A piece listed
+  under what a vendor pays for it appears on the board within one such round, already checked, with
+  a sound, and leaves once it is gone. Until now these rows came only from the scan, once in 15
+  minutes, and a piece worth buying was usually sold before its row could be checked. Buying is
+  still your click in the buy window.
+- BUY: a click on a suggested item or on a Recent chip under the box at the top now works while a
+  list is open. The suggestions used to close the moment the mouse button went down, so nothing
+  could be added from them and a Recent chip did nothing.
+- BUY: an item you add by hand is now that many more to buy, even when you already hold some. It
+  used to land under Bought at once when your bags already had enough.
+- SOLD on WoW: Forever: the Road to 40 tile's tooltip is now a short table (gold you carry, your
+  bags, riding cost) with the forecast under it, instead of one long sentence.
+- BUY on WoW: Forever: typing a name now finds items that were on the auction house in your last
+  scan, even with the auction house closed and none in your bags. GoldCap learns the names in the
+  background during the first minutes after a scan.
+- WoW: Forever: the tooltip of green, blue and purple gear now says what it disenchants into: each
+  material with how many, its price and its chance, and what one disenchant is worth on average at
+  your scan's prices. The chances are the classic ones; gear above item level 65 has no line yet.
+  Settings has a new TOOLTIPS card to turn the value or the materials off.
+- WoW: Forever: GoldCap now has its button by the minimap. Left click opens GoldCap, drag moves
+  it, right click has Hide; `/gc minimap` brings it back.
+- WoW: Forever: SCAN no longer gets stuck on "SCANNING…" after you search the auction house's
+  own Buy list yourself. Pressing SCAN (or typing /gc scan) now takes that list back for the scan,
+  as it already did on retail, and the scan starts at once.
+- WoW: Forever: a full scan's prices now reach the Deals board as soon as the scan has read them,
+  even while your own search or a buy page is open. They used to arrive three minutes late.
+- WoW: Forever: when a scan has to wait because a buy page or another auction house tab is open,
+  the status line says so ("Scan starts when you leave that tab: click Buy or GoldCap") in place
+  of a count of seconds, and SCAN is free to press again when the wait is over.
+- SELL: the list is now ordered by the YOU GET figure on each row, highest first: what one click
+  of POST brings in. It used to go by the last price seen times everything in your bags, a number
+  no row shows, so the order looked random.
+
 ## 0.29.0 (2026-11-14)
 
 - WoW: Forever: a new HERO tab in the GoldCap window replaces the /gc upgrades window. It looks

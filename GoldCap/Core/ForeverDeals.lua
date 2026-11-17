@@ -81,6 +81,8 @@ local C = {
   -- A market row's resale is a bet, so less than a vendor row's half -- but 5% left a new
   -- character's wallet buying nothing at all ("needs 2g" on a 10s lot; owner, 2026-11-06).
   MARKET_CAPITAL_SHARE = 0.25,
+  -- A live row (below) whose Check found the lot gone is not put back at that price for this long.
+  LIVE_REFUSED_SECONDS = 120,
 }
 GC.ForeverDeals.C = C
 
@@ -399,6 +401,12 @@ local awaited, arrived = {}, false
 -- a count kept on the old row was lost: the next rebuild showed the whole row again, at its whole
 -- profit (review, 2026-11-07).
 local bought = {}
+-- live: gear the browse between scans saw under the vendor price (Core/ForeverGearLoop.lua), per
+-- item: { unit, qty, vendor, at }. Its row is on the Items board whatever the fold says of the
+-- item, through every rebuild, until a round no longer sees the lot or its Check finds it gone.
+-- refused: the price a live row's Check found nothing at, and when: the same lot is not put back
+-- for LIVE_REFUSED_SECONDS, a different price is news at once.
+local live, refused = {}, {}
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
@@ -442,6 +450,23 @@ local function shrink(row, taken)
   row.capTotal = math.floor(row.capTotal * share + 0.5)
   row.profit = math.floor(row.profit * share + 0.5)
   row.estProfit = row.profit
+end
+
+-- A live sighting as a board row: one lot at `unit`, a "vendor" lead like the fold's (WATCH,
+-- "Check", never buyable by itself), admitted by the minimum profit of one buy. An Items-board buy
+-- is one lot, so the row is one unit whatever `qty` says is up at that price or above.
+function GC.ForeverDeals._LiveRow(itemID, l, admit)
+  local row = belowVendor(itemID, { ladder = { { l.unit, 1 } }, qty = l.qty }, l.vendor)
+  if not row or not GC.DealMath.BoardAdmits(row, admit) then return nil end
+  row.isCommodity, row.board, row.live = false, "items", true
+  return row
+end
+
+local function unlist(itemID)
+  cache.byItem[itemID] = nil
+  for i = #cache.rows, 1, -1 do
+    if cache.rows[i].itemID == itemID then table.remove(cache.rows, i) end
+  end
 end
 
 local function rebuild(fold, now)
@@ -502,6 +527,21 @@ local function rebuild(fold, now)
       if taken > 0 then shrink(row, taken) end
       kept[#kept + 1] = row
       byItem[row.itemID] = row
+    end
+  end
+  -- The live rows go over whatever the fold made of their items: a lot seen seconds ago against
+  -- one the scan saw minutes ago.
+  local admit = { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins }
+  for itemID, l in pairs(live) do
+    local row = GC.ForeverDeals._LiveRow(itemID, l, admit)
+    if row then
+      for i = #kept, 1, -1 do
+        if kept[i].itemID == itemID then table.remove(kept, i) end
+      end
+      kept[#kept + 1] = row
+      byItem[itemID] = row
+    else
+      live[itemID] = nil
     end
   end
   -- Ask the client about items whose vendor price it has not loaded, once each: the answer
@@ -642,6 +682,13 @@ end
 function GC.ForeverDeals.Bought(itemID, qty)
   local from = cache.from
   local row = cache.byItem[itemID]
+  -- A live row's lot is bought: the row goes, and the next round puts it back if more are up at
+  -- the price.
+  if live[itemID] then
+    live[itemID] = nil
+    unlist(itemID)
+    return
+  end
   if from == nil or row == nil or type(qty) ~= "number" or qty <= 0 then
     GC.ForeverDeals.Drop(itemID)
     return
@@ -658,13 +705,78 @@ function GC.ForeverDeals.Bought(itemID, qty)
 end
 
 function GC.ForeverDeals.Drop(itemID)
+  local l = live[itemID]
+  if l then
+    refused[itemID] = { unit = l.unit, at = time() }
+    live[itemID] = nil
+  end
   local from = cache.from
   if from == nil then return end
   dropped[itemID] = { at = from.at, entry = from.items[itemID] }
-  cache.byItem[itemID] = nil
-  for i = #cache.rows, 1, -1 do
-    if cache.rows[i].itemID == itemID then table.remove(cache.rows, i) end
+  unlist(itemID)
+end
+
+-- Gear the browse between scans saw listed at `unit`, under the `vendor` price
+-- (UI/SniperGearLoop_Camelot.lua). Answers "new" when the Items board took it as a row or its
+-- price moved, "same" for the lot it already shows, nil when it makes no row: no scan to stand
+-- on, under the minimum profit, or the price a Check just found nothing at.
+-- `settled`: the round has read every key of the item and `unit` is its cheapest. Until then a
+-- dearer key of an item already shown (another suffix, a later page) does not move its row.
+function GC.ForeverDeals.Live(itemID, unit, qty, vendor, now, settled)
+  if not currentFold() then return nil end
+  local function count(n) return type(n) == "number" and n > 0 and n == math.floor(n) end
+  if not (count(itemID) and count(unit) and count(qty) and count(vendor) and unit < vendor) then return nil end
+  now = now or time()
+  local r = refused[itemID]
+  if r then
+    if r.unit == unit and now - r.at < C.LIVE_REFUSED_SECONDS then return nil end
+    refused[itemID] = nil
   end
+  local prior = live[itemID]
+  if prior and prior.unit == unit and prior.vendor == vendor and cache.byItem[itemID]
+      and cache.byItem[itemID].live then
+    prior.qty, prior.at = qty, now
+    cache.byItem[itemID].avail = qty
+    return "same"
+  end
+  if prior and prior.unit < unit and not settled then return nil end
+  local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
+  local l = { unit = unit, qty = qty, vendor = vendor, at = now }
+  local row = GC.ForeverDeals._LiveRow(itemID, l,
+    { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins })
+  if not row then return nil end
+  live[itemID] = l
+  unlist(itemID)
+  cache.rows[#cache.rows + 1] = row
+  cache.byItem[itemID] = row
+  return "new"
+end
+
+-- A round read all gear: a live row of an item not in `seen` (item id -> anything) is of a lot
+-- that is gone. Answers how many rows left the board.
+function GC.ForeverDeals.LiveKeep(seen)
+  local gone = 0
+  for itemID in pairs(live) do
+    if not (type(seen) == "table" and seen[itemID]) then
+      live[itemID] = nil
+      if cache.byItem[itemID] and cache.byItem[itemID].live then
+        unlist(itemID)
+        gone = gone + 1
+      end
+    end
+  end
+  return gone
+end
+
+-- Whether the board shows a row of the item, of either kind. Reads the last build, never builds.
+function GC.ForeverDeals.Listed(itemID)
+  return cache.byItem[itemID] ~= nil
+end
+
+-- The live row of an item, while the board shows one.
+function GC.ForeverDeals.LiveRow(itemID)
+  local row = cache.byItem[itemID]
+  return row and row.live and row or nil
 end
 
 -- Decision 5 of plan 3c (controller ruling 2026-09-26). Wraps GC.SniperDecision.BuyLimits with

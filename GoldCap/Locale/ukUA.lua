@@ -2063,4 +2063,9 @@ GC.Locales.ukUA = {
   ["Still reading what you wear: the picks may change"] = "Надягнуте ще зчитується: добірка може змінитися",
   ["List cost"] = "Сума списку",
   ["Short by %s"] = "Бракує %s",
+  ["TOOLTIPS"] = "ПІДКАЗКА",
+  ["Disenchant value"] = "Ціна розпилення",
+  ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Під спорядженням у підказці предмета: скільки в середньому дає одне розпилення за цінами вашого скану.",
+  ["Disenchant materials"] = "Матеріали розпилення",
+  ["Under the disenchant value: each material with how many, its price and its chance."] = "Під ціною розпилення: кожен матеріал, його кількість, ціна та шанс.",
 }

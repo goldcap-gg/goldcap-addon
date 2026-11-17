@@ -1879,4 +1879,9 @@ GC.Locales.zhTW = {
   ["Still reading what you wear: the picks may change"] = "仍在讀取你穿戴的裝備：選擇可能會變",
   ["List cost"] = "清單總價",
   ["Short by %s"] = "還差 %s",
+  ["TOOLTIPS"] = "滑鼠提示",
+  ["Disenchant value"] = "分解價值",
+  ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "裝備的物品提示下方：依你掃描的價格，分解一次平均值多少。",
+  ["Disenchant materials"] = "分解材料",
+  ["Under the disenchant value: each material with how many, its price and its chance."] = "分解價值下方：每種材料的數量、價格與機率。",
 }

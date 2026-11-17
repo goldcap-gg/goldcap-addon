@@ -1998,4 +1998,9 @@ GC.Locales.frFR = {
     "Ce que tu portes est encore en lecture : la sélection peut changer",
   ["List cost"] = "Total de la liste",
   ["Short by %s"] = "Il te manque %s",
+  ["TOOLTIPS"] = "INFOBULLE",
+  ["Disenchant value"] = "Valeur au désenchantement",
+  ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Sous l'équipement, dans l'infobulle de l'objet : ce que vaut en moyenne un désenchantement aux prix de ton scan.",
+  ["Disenchant materials"] = "Matériaux du désenchantement",
+  ["Under the disenchant value: each material with how many, its price and its chance."] = "Sous la valeur au désenchantement : chaque matériau avec sa quantité, son prix et sa chance.",
 }

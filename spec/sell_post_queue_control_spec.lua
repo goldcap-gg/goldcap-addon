@@ -342,6 +342,18 @@ describe("Sell tab, the posting queue control", function()
     assert.equal("×5 in bags · then Eternium Ore", container.dockSub.text)
   end)
 
+  -- A player and the owner, 2026-11-17: the list went by the last quote times everything in the
+  -- bags, a figure no row shows. One Post asked to list a single ore fetches less than the five
+  -- widgets, so the widgets' row comes first, and the dock, which walks the list, names them.
+  it("orders the list by what each row says a click fetches", function()
+    GC.SellState.quantityOverrides["commodity:23427"] = 1
+    GC.QuoteCache.Set(quotes(), 23427, 1000, 1000)
+    GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
+    ready()
+    -- By the old key the ore led the list: 246 of it at its quote against five widgets at theirs.
+    assert.equal("Widget", container.queueLabel.text)
+  end)
+
   it("puts the item whose row is clicked in the dock, whatever the queue's order", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     GC.QuoteCache.Set(quotes(), 99001, 700, 1000)

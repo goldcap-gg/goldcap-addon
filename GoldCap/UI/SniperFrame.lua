@@ -2109,15 +2109,31 @@ end
 -- purchase step in its window) is read first.
 function GC.Sniper._ScanLine()
   if not frame then return end
-  local running = GC.ForeverScan and GC.ForeverScan.Running
-  if not running then return end
-  local state, since = running()
-  if state ~= "waiting" and state ~= "browsing" then return end
   if dialog and dialog.IsShown and dialog:IsShown() then return end
+  local text = GC.Sniper._ScanLineText()
+  if text then setStatus(text) end
+end
+
+-- The words of that line, nil when the scan has none to say. While the scan's browse pass is armed
+-- and the auction house shows a pane that holds it back (the player's own buy page, Sell, Auctions,
+-- another addon's tab: UI/AuctionHouseTab.lua), the line says what the pass waits for, as retail's
+-- SCAN does (onFullScanClick): a count of seconds there read as a scan at work for three minutes
+-- with nothing sent (a player, 2026-11-17).
+function GC.Sniper._ScanLineText()
+  local running = GC.ForeverScan and GC.ForeverScan.Running
+  if not running then return nil end
+  local state, since = running()
+  if state ~= "waiting" and state ~= "browsing" then return nil end
+  if state == "browsing" and GC.Sniper._bookPass:PendingStart() then
+    local tab = GC.AuctionHouseTab
+    if tab and ((tab.PlayerIsBuying and tab.PlayerIsBuying()) or (tab.PlayerIsAside and tab.PlayerIsAside())) then
+      return GC.L["Scan starts when you leave that tab: click Buy or GoldCap"]
+    end
+  end
   local text = GC.L["Scanning the auction house…"]
   local words = type(since) == "number" and GC.Util.FormatElapsedWords(math.max(0, time() - since))
   if words then text = text .. " " .. words end
-  setStatus(GC.Sniper._ScanWords(text))
+  return GC.Sniper._ScanWords(text)
 end
 
 -- A line of the full scan as the status line shows it: with the one thing the player can get wrong
@@ -4883,6 +4899,17 @@ refreshSessionText = function()
   GC.Sniper._LayoutBoardRow()
 end
 
+-- WoW: Forever's press of SCAN, less its words (onFullScanClick): true when a scan already runs
+-- and the press starts none. The player asked for the list to be replaced, so their own search on
+-- Blizzard's Buy pane stops holding the scan's browse pass, as on retail below, and first: a pass
+-- already waiting behind that search goes out on the next tick. Without it the pass never started,
+-- and SCAN stood on SCANNING until the auction house closed (a player, 2026-11-17).
+function GC.Sniper._ForeverScanPress()
+  local tab = GC.AuctionHouseTab
+  if tab and tab.ReleaseBrowseList then tab.ReleaseBrowseList() end
+  return GC.Sniper.ScanActive() or GC.ForeverScan.Request("button") == "busy"
+end
+
 local function onFullScanClick()
   if not frame then return end
   if not GC.Sniper.scanner then
@@ -4897,7 +4924,7 @@ local function onFullScanClick()
   -- scan runs -- the one on opening the auction house, Auto's pass -- starts nothing: the label
   -- already says "Scanning...", and a second scan on top printed a second summary block.
   if isForever() and GC.ForeverScan and GC.ForeverScan.Request then
-    if GC.Sniper.ScanActive() or GC.ForeverScan.Request("button") == "busy" then
+    if GC.Sniper._ForeverScanPress() then
       frame.status:SetText(GC.L["full scan already in progress"])
     end
     refreshScanButton()
@@ -4948,6 +4975,24 @@ function GC.Sniper.StartBrowsePass(kind)
   startFullScan(kind)
   refreshScanButton()
   return "started"
+end
+
+-- The Forever scan no longer needs the pass it asked for (Core/ForeverScan.lua's endBrowse): a pass
+-- still out is given up the way the player's own search gives one up (GC.Sniper._OnPlayerBrowse).
+-- Its Abort tells the scan what it saw, and Auto hears its pass is over and starts a fresh one
+-- once it may. Nothing out, nothing done.
+function GC.Sniper.StopBrowsePass()
+  if not GC.Sniper._bookPass:IsPaging() then return end
+  abortFullScan()
+  feedAuto("scanFinished")
+end
+
+-- Whether the player's own use of the auction house holds a browse pass back right now: what the
+-- arbiter's passWants asks (GC.Sniper.OnThrottleReady). Fails open, as those detectors do.
+function GC.Sniper.BrowseHeld()
+  local tab = GC.AuctionHouseTab
+  if tab and tab.PlayerIsBusy and tab.PlayerIsBusy() then return true end
+  return GC.Sniper._BrowseOwned()
 end
 
 -- The Forever scan's progress on the toolbar's status line.
@@ -7350,6 +7395,10 @@ local function maybeStartPrewarm(deal, auto)
   return true
 end
 
+-- A live Check of a row something has just found, the background walk's own way: no dialog, no
+-- purchase call. Whether a query went out. (WoW: Forever's gear loop, UI/SniperGearLoop_Camelot.lua.)
+function GC.Sniper._CheckNow(deal) return maybeStartPrewarm(deal, true) == true end
+
 -- A row's hover pre-warm (its OnEnter). Caps fixes 4a, round 2: one refused only because a keys
 -- batch was out is owed, and asked again on the first arbiter turn after the batch is gone
 -- (GC.Sniper.OnThrottleReady calls this with no row) -- if the pointer is still on that row.
@@ -8126,6 +8175,7 @@ function GC.Sniper.OnBrowseResults()
   -- The BUY tab's search, once no keys batch has claimed the answer (nothing of ours sends one
   -- over the other): its own answer, or the late one of a request it gave up.
   if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end
+  if GC.Sniper._GearBrowse() then return end -- WoW: Forever's gear loop's own page
   if not GC.Sniper._bookPass:IsPaging() then return end -- not our scan; ignore a manual Blizzard AH browse
   -- A pass that has not sent its query yet has no page to receive: whatever this event
   -- carries (a keys answer written off as lost, the player's own browse) is not ours.
@@ -8144,6 +8194,7 @@ function GC.Sniper.OnBrowseResultsAdded(added)
   if GC.Sniper._FoldKeysBatch() then return end
   if GC.Sniper._TakeNaming() then return end
   if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end -- see OnBrowseResults
+  if GC.Sniper._GearBrowse(added) then return end
   if not GC.Sniper._bookPass:IsPaging() then return end
   if GC.Sniper._bookPass:PendingStart() then return end -- see OnBrowseResults
   if GC.Sniper._keysOrphan and GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
@@ -8426,6 +8477,22 @@ function GC.Sniper._TickKeys()
   if GC.Sell and GC.Sell.Tick then GC.Sell.Tick() end
 end
 
+-- WoW: Forever's browse of all gear between scans (UI/SniperGearLoop_Camelot.lua, which replaces
+-- these two). Nothing on retail: no turn is ever taken, no browse answer is ever its own.
+function GC.Sniper._GearTurn() return false end
+function GC.Sniper._GearBrowse() return false end
+
+-- Whether Auto is on with the Deals board on screen and nothing holding it but the Items board
+-- itself (GC.Sniper._SetBoard pauses Auto's own pass there). Asked by that gear loop.
+function GC.Sniper._AutoOnItems()
+  if not ahOpen or view ~= "deals" or not (frame and frame:IsShown()) then return false end
+  if not autoScan or autoScan:State() == "OFF" or GC.Sniper._Board() ~= "items" then return false end
+  for reason in pairs(autoScan:PauseReasons()) do
+    if reason ~= "items" then return false end
+  end
+  return true
+end
+
 function GC.Sniper.OnThrottleReady()
   -- 1. A parked Check requery always wins outright: a player is waiting on it, and it has
   -- already stopped the loop as a courtesy besides.
@@ -8628,6 +8695,10 @@ function GC.Sniper.OnThrottleReady()
   -- own answer, deletes every realm row the batch had asked about. The batch is capped at
   -- LIM.KEYS_TIMEOUT_SECONDS, so this can never hold the pass for long. (passWants itself is
   -- asked above the drill step, which needs the same answer for its fair share.)
+  -- WoW: Forever's gear loop takes the pass's place in this alternation while the pass is idle
+  -- (it never runs beside one); a no-op on retail.
+  if GC.Sniper._GearTurn(playerBusy) then return end
+
   if passWants and GC.Sniper._slotTurn ~= "tail" then
     if GC.Sniper._bookPass:OnThrottleReady() then
       GC.Sniper._NotePassSlot(drillStoodAside)
@@ -8685,6 +8756,8 @@ function GC.Sniper.OnThrottleReady()
     GC.Sniper._slotTurn = "tail"
     return
   end
+  -- ...or the gear loop's, when the tail had nothing to ask.
+  if GC.Sniper._GearTurn(playerBusy, true) then return end
   trace("arbiter: slot unused (passWants=" .. tostring(passWants) .. ")")
 end
 
