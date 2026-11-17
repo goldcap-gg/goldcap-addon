@@ -47,6 +47,72 @@ describe("WoW: Forever scan wiring", function()
     assert.is_number(db.foreverScan.requestedAt)
   end)
 
+  -- A player, 2026-11-17: the scan stopped waiting for a browse pass that could not start behind
+  -- their own search, and the pass stayed armed (spec/forever_scan_spec.lua). The real driver hands
+  -- the scan's two questions about that pass to the window (UI/SniperFrame.lua).
+  describe("with the real client driver, the scan's browse pass", function()
+    it("is ended through GC.Sniper.StopBrowsePass when the wait for it runs out", function()
+      load(16001)
+      local stopped = 0
+      GC.Sniper = {
+        StartBrowsePass = function() return "started" end,
+        StopBrowsePass = function() stopped = stopped + 1 end,
+      }
+      assert.is_true(GC.ForeverScan.Init({ foreverScan = { requestedAt = os.time() - 60 } }))
+      GC.ForeverScan.OnAuctionHouseShow()
+      assert.equal("cooldown", GC.ForeverScan.Request("button"))
+      assert.is_true(GC.ForeverScan.IsBusy())
+      for _, t in ipairs(timers) do
+        if t.s == GC.ForeverScan.C.BROWSE_WAIT_SECONDS then t.fn() end
+      end
+      assert.equal(1, stopped)
+      assert.is_false(GC.ForeverScan.IsBusy())
+    end)
+
+    it("is not asked for after a whole list while GC.Sniper.BrowseHeld says the player holds it back", function()
+      load(16001)
+      saved.C_Item = _G.C_Item
+      _G.C_Item = { GetItemInfoInstant = function(itemID) return itemID, "Trade Goods", "Cloth", "", 0, 7, 5 end }
+      local lots = { { 2589, 20, 1340 }, { 2589, 5, 350 }, { 2592, 1, 5000 } }
+      _G.C_AuctionHouse.GetNumReplicateItems = function() return #lots end
+      -- C_AuctionHouse.GetReplicateItemInfo's eighteen values: the count is the third, the buyout
+      -- the tenth, the item the seventeenth, hasAllInfo the last.
+      _G.C_AuctionHouse.GetReplicateItemInfo = function(i)
+        local lot = lots[i + 1]
+        return "name", 134400, lot[2], 1, true, 1, "", 1, 1, lot[3], 0, nil, nil, nil, nil, 0, lot[1], true
+      end
+      local asked = 0
+      GC.Sniper = {
+        BrowseHeld = function() return true end,
+        StartBrowsePass = function() asked = asked + 1; return "started" end,
+      }
+      local db = {}
+      assert.is_true(GC.ForeverScan.Init(db))
+      GC.ForeverScan.OnAuctionHouseShow()
+      table.remove(timers, 1).fn()               -- the first poll finds the list
+      assert.equal(0, asked)
+      assert.is_false(GC.ForeverScan.IsBusy())
+      assert.equal(3, db.foreverScan.fold.rows)
+      assert.is_nil(db.foreverScan.fold.partial)
+    end)
+  end)
+
+  -- A list saved the moment it is read (the player's own pane holds the pass back) ends inside
+  -- the second its last "reading the auction house" line holds the status line for, and the
+  -- readout the scan's end writes was dropped behind that hold: "... do not close the auction
+  -- house" stood there after the scan was over. The read's last line holds nothing.
+  it("lets go of the status line with the read's last progress line", function()
+    load(16001)
+    local holds = {}
+    GC.Sniper = {
+      _ScanWords = function(text) return text end,
+      SetScanStatus = function(_, hold) holds[#holds + 1] = hold end,
+    }
+    GC.ForeverScan._Notify("progress", 2000, 2500)
+    GC.ForeverScan._Notify("progress", 2500, 2500)
+    assert.same({ 1, 0 }, holds)
+  end)
+
   describe("post-scan chat block", function()
     local folds
     local function done(rows, partial)
@@ -269,6 +335,13 @@ describe("WoW: Forever scan wiring", function()
       local bags = init:find("GC.slashHandlers.bags", 1, true)
       assert.truthy(bags)
       assert.truthy(init:sub(bags - 300, bags):find("IsForever", 1, true))
+    end)
+
+    -- "The same as SCAN on the Deals tab": the command takes the Buy list back from the player's
+    -- own search too, and starts nothing while a scan runs.
+    it("runs /gc scan through the Deals tab's own press of SCAN", function()
+      local slash = assert(init:find("GC.slashHandlers.scan =", 1, true))
+      assert.truthy(init:sub(slash, slash + 200):find("GC.Sniper._ForeverScanPress()", 1, true))
     end)
 
     it("builds the post queue with the Sell tab's own WoW: Forever options", function()

@@ -1275,7 +1275,10 @@ GC.slashHandlers.forever = function() GC.ForeverCheck.Run() end
 -- WoW: Forever only: scan now (the same as SCAN on the Deals tab), and the bag totals the scan
 -- itself already prints (Core/ForeverValue.lua's PrintBags). Neither is in the help line.
 if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
-  GC.slashHandlers.scan = function() GC.ForeverScan.Request("button") end
+  -- Through the tab's own press (UI/SniperFrame.lua): the Buy list goes back to GoldCap first.
+  GC.slashHandlers.scan = function()
+    if GC.Sniper._ForeverScanPress() then GC.Print(GC.L["full scan already in progress"]) end
+  end
   GC.slashHandlers.bags = function() GC.ForeverValue.PrintBags() end
   -- Plan 3e: Road to 40 -- set, clear or share the riding cost, or print the road.
   GC.slashHandlers.mount = function(rest) GC.ForeverRoad.Slash(rest) end

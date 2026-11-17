@@ -385,6 +385,15 @@ function GC.ForeverScan.New(driver)
     saveStep()
   end
 
+  -- The pass this scan waits for, or one an earlier stage of its list armed, ends with the scan's
+  -- need of it (driver.stopBrowse, UI/SniperFrame.lua's GC.Sniper.StopBrowsePass). Left out, a pass
+  -- that could not start held SCAN on SCANNING with nothing running, and every press of it
+  -- answered "full scan already in progress" until the auction house closed (a player,
+  -- 2026-11-17). A pass that was out answers through OnBrowsePassAbandoned.
+  local function endBrowse()
+    if driver.stopBrowse then driver.stopBrowse() end
+  end
+
   local function toBrowse(kind)
     local answer = driver.startBrowse(kind)
     note("browse pass", kind, tostring(answer))
@@ -393,6 +402,10 @@ function GC.ForeverScan.New(driver)
     token = token + 1
     local t = token
     driver.after(C.BROWSE_WAIT_SECONDS, function()
+      if token ~= t or state ~= "browsing" then return end
+      -- The wait and the pass end together, by the one path that gives a pass up: its end saves
+      -- what it saw (OnBrowsePassAbandoned). Still browsing after it: no pass was out to end.
+      endBrowse()
       if token == t and state == "browsing" then
         acc.partial, acc.givenUp = true, true
         commit()
@@ -417,6 +430,18 @@ function GC.ForeverScan.New(driver)
   local function afterRead()
     if acc.dumpRows % C.SUSPECT_CAP == 0 then acc.partial, acc.cut = true, true end
     note("read", acc.dumpRows, acc.cut and "cut" or nil)
+    -- A list read to the end is every price there is (save's `whole`), and its "classes" pass adds
+    -- next to nothing. While the player's own use of the auction house holds that pass back
+    -- (driver.browseHeld: their search on the Buy list, a buy page, another tab) the list is
+    -- saved now: it used to wait out BROWSE_WAIT_SECONDS behind a pass that could not start, the
+    -- board on the last scan's prices all the while (a player, 2026-11-17). A cut list still
+    -- waits: its "wide" pass is the scan.
+    if not acc.partial and driver.browseHeld and driver.browseHeld() then
+      note("browse pass", "classes", "held")
+      endBrowse()
+      commit()
+      return
+    end
     if not toBrowse(acc.partial and "wide" or "classes") then commit() end
   end
 
@@ -747,7 +772,11 @@ local function notify(kind, a, b)
     if type(a) == "table" and (a.found or 0) > 0 then GC.ForeverScan._QueueUpgradesUpdate() end
   elseif kind == "progress" then
     if GC.Sniper and GC.Sniper.SetScanStatus then
-      GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b))), 1)
+      -- Each line holds the status line for a second, against the board's other writers; the
+      -- read's last one holds nothing, so what the scan says next lands: a list saved at once
+      -- (afterRead) ended inside that second, and its readout was dropped behind the hold.
+      GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b))),
+        (tonumber(a) or 0) < (tonumber(b) or 0) and 1 or 0)
     end
   elseif kind == "done" then
     local timer = _G.C_Timer
@@ -827,6 +856,14 @@ local function realDriver()
     end,
     startBrowse = function(kind)
       return GC.Sniper and GC.Sniper.StartBrowsePass and GC.Sniper.StartBrowsePass(kind) or nil
+    end,
+    -- The pass ends with the scan's need of it (endBrowse above).
+    stopBrowse = function()
+      if GC.Sniper and GC.Sniper.StopBrowsePass then GC.Sniper.StopBrowsePass() end
+    end,
+    -- Whether the player's own use of the auction house holds a pass back right now (afterRead).
+    browseHeld = function()
+      return GC.Sniper ~= nil and GC.Sniper.BrowseHeld ~= nil and GC.Sniper.BrowseHeld() == true
     end,
     store = function() return GC.ForeverScan.Store() end,
     passport = function()
