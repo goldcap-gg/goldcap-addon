@@ -654,8 +654,8 @@ local function renderRows()
     -- Deck ends in SellViewModel.Order itself, so there is no second ordering pass here the
     -- way the old single-filter path needed one.
     -- ...and the group the GROUPS row picked (UI/Sell/Toolbar.lua), as POST's queue is narrowed.
-    filtered = GC.SellViewModel.Deck(S.positions, S.filterMode,
-      { ready = UI.chips.ready, noCost = UI.chips.nocost, inGroup = S.group and GC.Sell.InPickedGroup or nil })
+    filtered = GC.SellViewModel.Deck(S.positions, S.filterMode, { ready = UI.chips.ready, noCost = UI.chips.nocost,
+      inGroup = S.group and GC.Sell.InPickedGroup or nil, shownOf = ROW.postNet })
     -- Deck ends in Order, which is the right answer for a list being BUILT and the wrong one
     -- for a list already on screen: the pricing walk answers one item at a time, and every
     -- answer re-ranked a row out from under the cursor.

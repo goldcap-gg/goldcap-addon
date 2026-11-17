@@ -32,6 +32,9 @@
 - WoW: Forever: when a scan has to wait because a buy page or another auction house tab is open,
   the status line says so ("Scan starts when you leave that tab: click Buy or GoldCap") in place
   of a count of seconds, and SCAN is free to press again when the wait is over.
+- SELL: the list is now ordered by the YOU GET figure on each row, highest first: what one click
+  of POST brings in. It used to go by the last price seen times everything in your bags, a number
+  no row shows, so the order looked random.
 
 ## 0.29.0 (2026-11-14)
 

@@ -104,6 +104,17 @@ end
 
 -- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
 -- posting deck keeps its plain count beside the bags'.
+-- What a row of the post deck shows under YOU GET: what one click of its Post fetches after the
+-- auction house's 5%, at the price it posts at and over what that click lists (the largest stack
+-- of a normal item, a commodity's whole pool, fewer when the seller asked for fewer). nil with no
+-- price to post at. The cell reads it (Row.PaintPosition) and the deck is ordered by it
+-- (UI/Sell/List.lua, GC.SellViewModel.Order), so the figure on a row and the row's place agree.
+function ROW.postNet(position)
+  local unit = effectivePostUnit(position)
+  if not unit then return nil end
+  return GC.SellPositions.Net((postQuantity(position)), unit)
+end
+
 function ROW.listedText(position, listedQty, onListed)
   local lots = #(position.ownedLots or {})
   if not onListed or lots == 0 then return (GC.L["×%d listed"]):format(listedQty) end
@@ -669,8 +680,9 @@ function Row.PaintPosition(row, entry, ctx)
   -- sum quoted a figure four fifths of which stayed in the bags. Fewer, when the seller asked
   -- one Post for fewer (the panel's "how many").
   -- After the auction house's 5%, as the totals under the list add it up: what the mail brings.
-  local grossQty = onListedDeck and listedQty or postQuantity(p)
-  local net = rowUnit and GC.SellPositions.Net(grossQty, rowUnit) or nil
+  local net
+  if onListedDeck then net = rowUnit and GC.SellPositions.Net(listedQty, rowUnit) or nil
+  else net = ROW.postNet(p) end
   row.cells.gross:SetText(net and formatCell(net) or "-")
   setColor(row.cells.gross, net and Theme.color.fg or Theme.color.fgDim)
   row.cells.price:SetText(rowUnit and formatCell(rowUnit) or "-")

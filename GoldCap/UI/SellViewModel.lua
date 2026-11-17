@@ -102,8 +102,10 @@ end
 
 --- Positions for one deck, in reading order.
 -- @param deck string  "post" (default) or "listed"
--- @param chips table   optional { ready = boolean, noCost = boolean, inGroup = function(positionKey) },
---   `inGroup` the group the GROUPS row picked (GC.Sell.InPickedGroup), nil with none picked
+-- @param chips table   optional { ready = boolean, noCost = boolean, inGroup = function(positionKey),
+--   shownOf = function(position) }, `inGroup` the group the GROUPS row picked
+--   (GC.Sell.InPickedGroup), nil with none picked; `shownOf` the figure a row of the post deck
+--   shows under YOU GET (UI/Sell/Row.lua's ROW.postNet), which that deck is ordered by (Order)
 function GC.SellViewModel.Deck(positions, deck, chips)
   chips = type(chips) == "table" and chips or {}
   local belongs = deck == "listed" and onListedDeck or onPostDeck
@@ -121,7 +123,9 @@ function GC.SellViewModel.Deck(positions, deck, chips)
     if include and chips.inGroup and not chips.inGroup(position.positionKey) then include = false end
     if include then picked[#picked + 1] = position end
   end
-  return GC.SellViewModel.Order and GC.SellViewModel.Order(picked) or picked
+  -- The listed deck's YOU GET is what the lots up fetch, not what a Post would: its order stays.
+  local shownOf = deck ~= "listed" and chips.shownOf or nil
+  return GC.SellViewModel.Order and GC.SellViewModel.Order(picked, shownOf) or picked
 end
 
 -- Reading order, not storage order. SellPositions.Build sorts by scope and
@@ -136,9 +140,17 @@ end
 -- Deliberately only three ranks. Sorting the remainder by how much is listed or
 -- how recently it sold is a preference, not an answer, and every reshuffle of
 -- rows a player is not acting on costs them their place on the screen.
-local function rankOf(position)
+--
+-- The value is the figure the row shows under YOU GET (`shown`, the caller's shownOf): what one
+-- click fetches, at the price it posts at. It was the last quote times everything in the bags,
+-- which no row shows: two scales quoted at 6s 19c stood over a pattern that fetched 13s 30c with
+-- 5s 88c on their own row, one of the two being all a click lists, and the list read as sorted
+-- by nothing (a player and the owner, 2026-11-17). A row with a figure and no quote behind it is
+-- priced all the same: WoW: Forever prices one from the scan before any search of its own has
+-- answered. One with no figure keeps the old value.
+local function rankOf(position, shown)
   local inBags = type(position.bagQty) == "number" and position.bagQty > 0
-  if inBags then return (position.freshMarketUnit or position.displayMarketUnit) and 0 or 1 end
+  if inBags then return (shown or position.freshMarketUnit or position.displayMarketUnit) and 0 or 1 end
   -- Listed rows above stockless ghosts: a position with nothing in the bags AND nothing
   -- listed is pure bookkeeping -- its stock is in the mail, the bank, or on another
   -- character -- and sitting between live listings it read as a broken row.
@@ -146,18 +158,21 @@ local function rankOf(position)
   return listed and 2 or 3
 end
 
-local function weightOf(position)
+local function weightOf(position, shown)
+  if shown then return shown end
   local unit = position.freshMarketUnit or position.displayMarketUnit
   local qty = (type(position.bagQty) == "number" and position.bagQty or 0)
   if unit and qty > 0 then return unit * qty end
   return 0
 end
 
-function GC.SellViewModel.Order(positions)
+function GC.SellViewModel.Order(positions, shownOf)
   local ordered, rank, weight = {}, {}, {}
   for index, position in ipairs(positions or {}) do
     ordered[index] = position
-    rank[position], weight[position] = rankOf(position), weightOf(position)
+    local shown = shownOf and shownOf(position) or nil
+    if type(shown) ~= "number" then shown = nil end
+    rank[position], weight[position] = rankOf(position, shown), weightOf(position, shown)
   end
   -- Ties fall back to the incoming order, which Build already made stable, so a
   -- re-render never reshuffles rows under the cursor.
