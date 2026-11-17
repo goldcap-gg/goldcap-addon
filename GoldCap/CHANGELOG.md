@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.30.0 (unreleased)
+## 0.30.0 (2026-11-17)
 
 - WoW: Forever: with AUTO on and the ITEMS board open, GoldCap now keeps looking through all the
   weapons and armor on the auction house between scans, about every 20 seconds. A piece listed
