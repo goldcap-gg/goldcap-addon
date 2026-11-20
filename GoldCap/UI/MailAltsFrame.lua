@@ -854,7 +854,7 @@ local function showIconTip(hit)
   tooltip:AddLine(GC.Util.ClientText(("%s ×%d"):format(U.itemName(item), item.count)), KB.text1[1], KB.text1[2], KB.text1[3])
   local why = item.why == "bound" and GC.L["Bound to you: a mail cannot take it."]
     or item.why == "refund" and GC.L["Can still be refunded: a mail would end that, so it stays."] or nil
-  if why then tooltip:AddLine(GC.Util.ClientText(why), KB.text2[1], KB.text2[2], KB.text2[3], true) end
+  if why then tooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(why)), KB.text2[1], KB.text2[2], KB.text2[3], true) end
   tooltip:Show()
 end
 

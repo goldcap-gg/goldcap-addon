@@ -360,7 +360,7 @@ describe("Sell tab, the cancel queue control", function()
       assert.equal("NOTHING TO CANCEL", container.cancelButton.label)
       local lines = {}
       _G.GameTooltip = { SetOwner = function() end, Show = function() end,
-        AddLine = function(_, text) lines[#lines + 1] = text end }
+        AddLine = function(_, text) lines[#lines + 1] = (text:gsub("\n", " ")) end }
       container.cancelHeldBackHit.scripts.OnEnter(container.cancelHeldBackHit)
       _G.GameTooltip = nil
       assert.matches("the deposit a cancel loses may be more than relisting wins back. Hold",

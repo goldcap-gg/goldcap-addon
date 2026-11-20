@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.30.1 (2026-11-20)
+
+- Long GoldCap lines in tooltips now break onto several lines. In WoW: Forever the "Buy at or
+  under ..." note on a Sniper row ran as one line across the whole screen and pushed the right-hand
+  column of other addons' tooltip lines far away from their labels.
+
 ## 0.30.0 (2026-11-17)
 
 - WoW: Forever: with AUTO on and the ITEMS board open, GoldCap now keeps looking through all the

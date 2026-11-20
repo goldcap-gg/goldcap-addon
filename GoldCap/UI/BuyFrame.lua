@@ -3379,26 +3379,26 @@ local function showLineTooltip(row)
   local bags, bank, mail = haveSplit(line.itemID)
   if offered(line) > 0 then
     local have = bags + bank
-    GameTooltip:AddLine(tip(have > 0
+    GameTooltip:AddLine(GC.Util.WrapText(tip(have > 0
       and (GC.L["buy %d of %d, have %d in bags and bank"]):format(offered(line), line.need, have)
-      or (GC.L["buy %d of %d"]):format(offered(line), line.need)), dim[1], dim[2], dim[3], true)
+      or (GC.L["buy %d of %d"]):format(offered(line), line.need))), dim[1], dim[2], dim[3], true)
   end
   -- HAVE counts the banks and the mailbox as well as the bags, so a line covered by three hundred
   -- of them owes the player where they are. Only when the bank or the mailbox actually holds some.
   if mail > 0 then
-    GameTooltip:AddLine(tip((GC.L["in bags %d · in bank %d · in the mailbox %d"]):format(bags, bank, mail)),
+    GameTooltip:AddLine(GC.Util.WrapText(tip((GC.L["in bags %d · in bank %d · in the mailbox %d"]):format(bags, bank, mail))),
       dim[1], dim[2], dim[3], true)
   elseif bank > 0 then
-    GameTooltip:AddLine(tip((GC.L["in bags %d · in bank %d"]):format(bags, bank)), dim[1], dim[2], dim[3], true)
+    GameTooltip:AddLine(GC.Util.WrapText(tip((GC.L["in bags %d · in bank %d"]):format(bags, bank))), dim[1], dim[2], dim[3], true)
   end
   if (line.bought or 0) > 0 then
-    GameTooltip:AddLine(tip((GC.L["bought %d for %s"]):format(line.bought, formatAmount(line.spent or 0))),
+    GameTooltip:AddLine(GC.Util.WrapText(tip((GC.L["bought %d for %s"]):format(line.bought, formatAmount(line.spent or 0)))),
       dim[1], dim[2], dim[3], true)
   end
   if line.vendor then
     local muted = GC.Kit.Tokens.blizzard.text2
-    GameTooltip:AddLine(tip(line.vendorUnit and (GC.L["a vendor sells it for %s each"]):format(formatAmount(line.vendorUnit))
-      or GC.L["a vendor sells it"]), muted[1], muted[2], muted[3], true)
+    GameTooltip:AddLine(GC.Util.WrapText(tip(line.vendorUnit and (GC.L["a vendor sells it for %s each"]):format(formatAmount(line.vendorUnit))
+      or GC.L["a vendor sells it"])), muted[1], muted[2], muted[3], true)
   end
   if buyHere then
     local read = readOf(line)
@@ -3416,8 +3416,8 @@ local function showLineTooltip(row)
           gold[1], gold[2], gold[3], gold[1], gold[2], gold[3])
       elseif why == "nocap" or why == "wallet" then
         local sc = GC.Kit.Tokens.blizzard.tierSuspect
-        GameTooltip:AddLine(tip(why == "nocap" and GC.L["no cap for this item. Right-click the line to set one"]
-          or GC.L["not enough gold"]), sc[1], sc[2], sc[3], true)
+        GameTooltip:AddLine(GC.Util.WrapText(tip(why == "nocap" and GC.L["no cap for this item. Right-click the line to set one"]
+          or GC.L["not enough gold"])), sc[1], sc[2], sc[3], true)
       elseif why == "none" then
         GameTooltip:AddLine(tip(GC.L["nothing on offer"]), dim[1], dim[2], dim[3])
       end
@@ -3460,14 +3460,14 @@ local function showLineTooltip(row)
   -- Not on a vendor line -- the auction house's cheap hour is noise next to a fixed price -- and
   -- not on a done line, which nobody is about to act on.
   local cheap = not line.vendor and not line.done and cheapHourText(line)
-  if cheap then GameTooltip:AddLine(tip(cheap), dim[1], dim[2], dim[3], true) end
+  if cheap then GameTooltip:AddLine(GC.Util.WrapText(tip(cheap)), dim[1], dim[2], dim[3], true) end
   -- Where a merged line's NEED came from: a reagent the run already asked for grows the row it has
   -- rather than getting a second one, and a NEED that grew with no explanation cannot be checked.
   if line.forCraft then
     for parentID, qty in pairs(line.forCraft) do
       local parentLine = lineFor(parentID)
-      GameTooltip:AddLine(tip((GC.L["includes %d for crafting %s"]):format(
-        qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID)))), dim[1], dim[2], dim[3], true)
+      GameTooltip:AddLine(GC.Util.WrapText(tip((GC.L["includes %d for crafting %s"]):format(
+        qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID))))), dim[1], dim[2], dim[3], true)
     end
   end
   -- Craft it or buy it: two numbers about this region's prices now, and never a promise about
@@ -3481,21 +3481,21 @@ local function showLineTooltip(row)
       parts[#parts + 1] = (GC.L["%d× %s"]):format(
         reagent.qty, lineName({ itemID = reagent.itemID, name = reagent.name }))
     end
-    GameTooltip:AddLine(tip((GC.L["craft it: %s = %s each"]):format(
-      table.concat(parts, " + "), formatAmount(compare.unit))), cc[1], cc[2], cc[3], true)
+    GameTooltip:AddLine(GC.Util.WrapText(tip((GC.L["craft it: %s = %s each"]):format(
+      table.concat(parts, " + "), formatAmount(compare.unit)))), cc[1], cc[2], cc[3], true)
     -- The hint names what the right-click would DO, which is the opposite thing on a line that is
     -- already split -- and nothing on a line the list's route crafts itself, which has no split.
     if line.kind == "craft" and not line.make then
-      GameTooltip:AddLine(tip((GC.L["vs %s at the auction house · right-click to buy it whole"])
-        :format(formatAmount(compare.ahUnit))), cc[1], cc[2], cc[3], true)
+      GameTooltip:AddLine(GC.Util.WrapText(tip((GC.L["vs %s at the auction house · right-click to buy it whole"])
+        :format(formatAmount(compare.ahUnit)))), cc[1], cc[2], cc[3], true)
     elseif not line.make then
-      GameTooltip:AddLine(tip((GC.L["vs %s at the auction house · right-click to split"])
-        :format(formatAmount(compare.ahUnit))), cc[1], cc[2], cc[3], true)
+      GameTooltip:AddLine(GC.Util.WrapText(tip((GC.L["vs %s at the auction house · right-click to split"])
+        :format(formatAmount(compare.ahUnit)))), cc[1], cc[2], cc[3], true)
     end
   end
   -- What the row's right-click offers, on a line whose cap it can change (Task 11's menu).
   if not line.done and not line.vendor and line.kind ~= "craft" and not alert then
-    GameTooltip:AddLine(tip(GC.L["right-click to skip or change the cap"]), dim[1], dim[2], dim[3], true)
+    GameTooltip:AddLine(GC.Util.WrapText(tip(GC.L["right-click to skip or change the cap"])), dim[1], dim[2], dim[3], true)
   end
   GameTooltip:Show()
 end

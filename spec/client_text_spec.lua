@@ -156,6 +156,12 @@ local function judgeArg(file, a, b, nested)
     local rest = m:sub(#name + 1)
     return rest:match("^%s*%b()$") ~= nil
   end
+  -- GC.Util.WrapText only adds line breaks: what it wraps is judged in its place.
+  if isCallOf("GC.Util.WrapText") then
+    local open = a + m:find("(", 1, true) - 1
+    local x, y = trimSpan(file.masked, { open + 1, b - 1 })
+    return judgeArg(file, x, y, nested)
+  end
   for _, name in ipairs(file.wrappers) do
     if isCallOf(name) then return nil end
   end

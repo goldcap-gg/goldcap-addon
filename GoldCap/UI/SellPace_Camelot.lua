@@ -195,6 +195,6 @@ function UI.fmt.paceTooltip(position)
   if not GameTooltip then return end
   local body = GC.Kit.Tokens.blizzard.tipBody -- the game's tooltip, so the game's colours in every skin
   for _, text in ipairs({ paceSentence(position) or "", returnsSentence(position) or "" }) do
-    if text ~= "" then GameTooltip:AddLine(GC.Util.ClientText(text), body[1], body[2], body[3], true) end
+    if text ~= "" then GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(text)), body[1], body[2], body[3], true) end
   end
 end

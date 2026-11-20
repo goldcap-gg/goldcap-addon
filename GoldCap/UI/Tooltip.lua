@@ -329,7 +329,7 @@ local function addBlock(tooltip, itemID, now, heading, shown, link)
     elseif ln.kind == "live" then
       tooltip:AddDoubleLine(tip(ln.left), tip(GC.Util.CoinText(ln.copper) .. " · " .. ln.detail), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], B.tipWhite[1], B.tipWhite[2], B.tipWhite[3])
     elseif ln.kind == "hint" then
-      if not shown.hint then tooltip:AddLine(tip(ln.text), B.tipHint[1], B.tipHint[2], B.tipHint[3], true) end
+      if not shown.hint then tooltip:AddLine(GC.Util.WrapText(tip(ln.text)), B.tipHint[1], B.tipHint[2], B.tipHint[3], true) end
       shown.hint = true
     elseif ln.kind == "verdict" then
       local c = B[VERDICT_COLOR[ln.tone] or VERDICT_COLOR.dim]
@@ -426,8 +426,8 @@ local function onTooltip(tooltip, data)
   if type(owner) == "table" and owner.goldcapOwnLines then return end
   local variant = type(owner) == "table" and owner.goldcapVariant or nil
   if variant then
-    tooltip:AddLine(GC.Util.ClientText(variant == "pet" and GC.L["no market figure for caged pets"]
-      or GC.L["no market figure for this item level"]), B.tipHint[1], B.tipHint[2], B.tipHint[3], true)
+    tooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(variant == "pet" and GC.L["no market figure for caged pets"]
+      or GC.L["no market figure for this item level"])), B.tipHint[1], B.tipHint[2], B.tipHint[3], true)
     return
   end
   local now = time()

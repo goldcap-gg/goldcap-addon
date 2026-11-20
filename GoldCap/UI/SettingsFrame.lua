@@ -561,7 +561,7 @@ local function build(sniperFrame)
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       local tip = GC.Util.ClientText
       GameTooltip:AddLine(tip(labelText))
-      GameTooltip:AddLine(tip(sentence), B.tipWhite[1], B.tipWhite[2], B.tipWhite[3], true)
+      GameTooltip:AddLine(GC.Util.WrapText(tip(sentence)), B.tipWhite[1], B.tipWhite[2], B.tipWhite[3], true)
       GameTooltip:AddLine(tip(defaultLineText), B.text3[1], B.text3[2], B.text3[3])
       GameTooltip:Show()
     end

@@ -531,7 +531,7 @@ describe("Sell widget geometry and manual cost", function()
       local _, container = topRows(GC, { lots("COMPLETE") }, "listed")
       local lines = {}
       _G.GameTooltip = { SetOwner = function() end, Show = function() end, Hide = function() end,
-        AddLine = function(_, text) lines[#lines + 1] = text end }
+        AddLine = function(_, text) lines[#lines + 1] = (text:gsub("\n", " ")) end }
       container.summaryHits.total.scripts.OnEnter(container.summaryHits.total)
       assert.same({ "PROCEEDS", "What your lots bring in if they all sell, after the auction house's 5% cut." }, lines)
       lines = {}

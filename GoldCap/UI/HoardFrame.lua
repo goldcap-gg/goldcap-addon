@@ -676,7 +676,7 @@ local function showMoveTip(button)
   GC.Theme.ItemTooltipOutside(button, frame)
   tooltip:AddLine(GC.Util.ClientText(button.tipTitle), KB.goldText[1], KB.goldText[2], KB.goldText[3])
   if button.tipNote then
-    tooltip:AddLine(GC.Util.ClientText(button.tipNote), KB.text1[1], KB.text1[2], KB.text1[3], true)
+    tooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(button.tipNote)), KB.text1[1], KB.text1[2], KB.text1[3], true)
   end
   if button.stopping then return tooltip:Show() end
   if button.tipLines then
@@ -686,7 +686,7 @@ local function showMoveTip(button)
   local stacks = button.stacks or {}
   local stack = stacks[1]
   if stack then
-    tooltip:AddLine(GC.Util.ClientText(GC.L["%s ×%d (%d left)"]:format(itemName(stack), stack.count, #stacks)),
+    tooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(GC.L["%s ×%d (%d left)"]:format(itemName(stack), stack.count, #stacks))),
       KB.text1[1], KB.text1[2], KB.text1[3], true)
   else
     tooltip:AddLine(GC.Util.ClientText(GC.L["Nothing to move"]), KB.text3[1], KB.text3[2], KB.text3[3])
