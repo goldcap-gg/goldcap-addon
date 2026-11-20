@@ -523,7 +523,7 @@ local function build(sniperFrame)
     local function onEnter(self)
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       GameTooltip:AddLine(labelText)
-      GameTooltip:AddLine(sentence, 1, 1, 1, true)
+      GameTooltip:AddLine(GC.Util.WrapText(sentence), 1, 1, 1, true)
       GameTooltip:AddLine(defaultLineText, Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       GameTooltip:Show()
     end

@@ -10275,18 +10275,18 @@ createRow = function(parent, index)
     local capNote = GC.Sniper._CapNote(self.deal)
     if capNote then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(capNote, 0.25, 0.85, 0.25, true)
+      GameTooltip:AddLine(GC.Util.WrapText(capNote), 0.25, 0.85, 0.25, true)
     elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
         GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)
       elseif verdict.needsGold then
-        GameTooltip:AddLine((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
-          :format(GC.Util.FormatGoldCeil(verdict.needsGold)), 0.83, 0.64, 0.22, true)
+        GameTooltip:AddLine(GC.Util.WrapText((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
+          :format(GC.Util.FormatGoldCeil(verdict.needsGold))), 0.83, 0.64, 0.22, true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.
-        GameTooltip:AddLine((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
-          GC.BoardRows.Reason(verdict) or GC.L["live verification required"]), 1, 0.82, 0)
+        GameTooltip:AddLine(GC.Util.WrapText((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
+          GC.BoardRows.Reason(verdict) or GC.L["live verification required"])), 1, 0.82, 0, true)
       end
     elseif not self.deal.pinPlaceholder then
       -- Saying nothing here read as approval. The row already shows a tier, a discount and a
@@ -10298,8 +10298,8 @@ createRow = function(parent, index)
       GameTooltip:AddLine(GC.L["GoldCap: not checked against the live auction house yet"], 0.7, 0.7, 0.7)
     end
     if self.deal.forever then
-      GameTooltip:AddLine(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
-        self.deal.estProfit), self.deal.forever == "market" and 0.83 or 0.25,
+      GameTooltip:AddLine(GC.Util.WrapText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling,
+        self.deal.refUnit, self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
         self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
     end
     -- Sniper phase 2: a realm row's price is measured against the region, not against a
@@ -10649,7 +10649,7 @@ local function createHeaderRow(f)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(tooltipLines[1], 1, 0.82, 0)
         for i = 2, #tooltipLines do
-          GameTooltip:AddLine(tooltipLines[i], 1, 1, 1, true)
+          GameTooltip:AddLine(GC.Util.WrapText(tooltipLines[i]), 1, 1, 1, true)
         end
         GameTooltip:Show()
       end)
@@ -10898,7 +10898,7 @@ local function createFrame()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."],
       1, 1, 1, 1, true)
-    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
+    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.WrapText(line), 1, 0.82, 0, true) end
     GameTooltip:Show()
   end)
   autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
