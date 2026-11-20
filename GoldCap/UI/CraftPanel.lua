@@ -311,7 +311,7 @@ local function rowTip(frame, data)
   local hint = data.unlearned and GC.L["Not learned yet. Click to see the recipe."]
     or GC.L["Click to open the recipe. Right-click to queue it."]
   tip:AddLine(" ")
-  tip:AddLine(GC.Util.ClientText(hint), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], true)
+  tip:AddLine(GC.Util.WrapText(GC.Util.ClientText(hint)), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3], true)
   tip:Show()
 end
 

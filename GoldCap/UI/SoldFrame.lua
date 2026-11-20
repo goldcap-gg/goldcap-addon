@@ -1088,7 +1088,7 @@ local function createTile(parent)
     local forecast = GC.ForeverRoad.Lines(s)[2]
     if forecast then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(tip(forecast), body[1], body[2], body[3], true)
+      GameTooltip:AddLine(GC.Util.WrapText(tip(forecast)), body[1], body[2], body[3], true)
     end
     GameTooltip:Show()
   end)

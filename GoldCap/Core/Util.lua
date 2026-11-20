@@ -499,6 +499,49 @@ function GC.Util.ClientText(text)
   return GC.Util.TriangleText(text)
 end
 
+-- Breaks a long tooltip sentence into lines of at most `width` visible characters (default 60),
+-- at spaces only. GameTooltip:AddLine's wrap flag did not hold the width on WoW: Forever: a
+-- Sniper row's "Buy at or under ..." note stretched the item tooltip across the whole screen,
+-- and every right-aligned line from other addons went with it. Escapes (|c...|r, |T...|t,
+-- |A...|a) take no width except a texture's ~2, and a coin string's "1<silver> 83<copper>"
+-- never splits between its coins. Text with no spaces (zhCN) is left as it is.
+local function visibleLength(word)
+  local s = word:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    :gsub("|T.-|t", "\2\2"):gsub("|A.-|a", "\2\2")
+  local n = 0
+  for i = 1, #s do
+    local b = s:byte(i)
+    if b < 0x80 or b >= 0xC0 then n = n + 1 end
+  end
+  return n
+end
+
+function GC.Util.WrapText(text, width)
+  if type(text) ~= "string" then return text end
+  width = width or 60
+  local out = {}
+  for paragraph in (text .. "\n"):gmatch("(.-)\n") do
+    local indent = paragraph:match("^ *")
+    local lines, line, len = {}, nil, #indent
+    local glued = paragraph:gsub("|t (%d)", "|t\1%1")
+    for raw in glued:gmatch("[^ ]+") do
+      local word = raw:gsub("\1", " ")
+      local wlen = visibleLength(word)
+      if line and len + 1 + wlen > width then
+        lines[#lines + 1] = line
+        line, len = word, wlen
+      elseif line then
+        line, len = line .. " " .. word, len + 1 + wlen
+      else
+        line, len = indent .. word, len + wlen
+      end
+    end
+    lines[#lines + 1] = line or paragraph
+    out[#out + 1] = table.concat(lines, "\n")
+  end
+  return table.concat(out, "\n")
+end
+
 -- The Sold tab's tooltips were written against this name; one implementation, two names.
 GC.Util.TooltipText = GC.Util.ClientText
 

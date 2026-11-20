@@ -228,9 +228,9 @@ end
 function fmt.ruleTooltip(position)
   local rule = position and position.rule
   if not (GameTooltip and rule and rule.name) then return end
-  GameTooltip:AddLine(GC.Util.ClientText((GC.L["Group you follow: %s"]):format(rule.name)), B.tipTitle[1], B.tipTitle[2], B.tipTitle[3], true)
+  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText((GC.L["Group you follow: %s"]):format(rule.name))), B.tipTitle[1], B.tipTitle[2], B.tipTitle[3], true)
   local words = GC.GroupRules and GC.GroupRules.Describe and GC.GroupRules.Describe(rule)
-  if words then GameTooltip:AddLine(GC.Util.ClientText(words), B.tipBody[1], B.tipBody[2], B.tipBody[3], true) end
+  if words then GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(words)), B.tipBody[1], B.tipBody[2], B.tipBody[3], true) end
 end
 
 -- What a price makes over what one cost once the auction house has taken its 5%, as the row's

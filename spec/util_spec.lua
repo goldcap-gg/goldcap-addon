@@ -9,6 +9,37 @@ describe("Util", function()
 
   -- One guarded client call (the code review, 2026-10-27: six files carried a copy): its first
   -- answer, false kept as false; nil when the function is missing or raises.
+  describe("WrapText", function()
+    local SILVER = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t"
+    local COPPER = "|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t"
+
+    it("breaks the Forever note into lines no wider than the limit", function()
+      local text = "Buy at or under 1" .. SILVER .. " 83" .. COPPER .. ": the AH value, what the cheapest"
+        .. " tenth of the units listed ask, is 1" .. SILVER .. " 83" .. COPPER .. ". Resale speed is"
+        .. " unknown, so this is riskier than a vendor deal."
+      local wrapped = GC.Util.WrapText(text, 40)
+      assert.is_truthy(wrapped:find("\n"))
+      for line in (wrapped .. "\n"):gmatch("(.-)\n") do
+        local visible = line:gsub("|T.-|t", "xx")
+        assert.is_true(#visible <= 40, line)
+      end
+      -- A coin string is never cut between its coins, and no word is lost.
+      assert.is_truthy(wrapped:find("1" .. SILVER .. " 83" .. COPPER, 1, true))
+      assert.equal(text, (wrapped:gsub("\n", " ")))
+    end)
+
+    it("leaves short text, colour codes and existing breaks alone", function()
+      assert.equal("short", GC.Util.WrapText("short"))
+      assert.equal("|cffff0000red|r one\n  two", GC.Util.WrapText("|cffff0000red|r one\n  two", 10))
+      assert.equal("", GC.Util.WrapText(""))
+      assert.equal(nil, GC.Util.WrapText(nil))
+    end)
+
+    it("keeps a line's leading indent on its first line", function()
+      assert.equal("  aaa bbb\nccc", GC.Util.WrapText("  aaa bbb ccc", 9))
+    end)
+  end)
+
   describe("Ask", function()
     it("answers a call's first value, and nil for a missing or failing function", function()
       local U = GC.Util

@@ -542,7 +542,7 @@ function S._ShowTip(owner)
     GameTooltip:SetItemByID(row.itemID)
   end
   GameTooltip:AddLine(" ")
-  GameTooltip:AddLine(tip(GC.L["Click to buy it here. Right-click to add it to a list."]), dim[1], dim[2], dim[3], true)
+  GameTooltip:AddLine(GC.Util.WrapText(tip(GC.L["Click to buy it here. Right-click to add it to a list."])), dim[1], dim[2], dim[3], true)
   GameTooltip:Show()
 end
 

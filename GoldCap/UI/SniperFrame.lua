@@ -1823,10 +1823,10 @@ function GC.Sniper._RareTooltip(row, draw)
   local standing, sales = GC.ItemsBoard.RareLines(entry)
   local dim = GC.Kit.Tokens.blizzard.text3
   GameTooltip:AddLine(" ")
-  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Rare find: seldom sold, so GoldCap puts no price on it"]),
+  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(GC.L["Rare find: seldom sold, so GoldCap puts no price on it"])),
     GC.Kit.Tokens.blizzard.gold[1], GC.Kit.Tokens.blizzard.gold[2], GC.Kit.Tokens.blizzard.gold[3], true)
-  GameTooltip:AddLine(GC.Util.ClientText(standing), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
-  GameTooltip:AddLine(GC.Util.ClientText(sales), dim[1], dim[2], dim[3], true)
+  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(standing)), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
+  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(sales)), dim[1], dim[2], dim[3], true)
   GC.Sniper._TryOnHint(entry.itemID)
   GameTooltip:Show()
 end
@@ -11817,14 +11817,14 @@ createRow = function(parent, index)
     local capNote = GC.Sniper._CapNote(self.deal)
     if capNote then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.Util.ClientText(capNote), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true)
+      GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(capNote)), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true)
     elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
         GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live, safe to buy"]), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3])
       elseif verdict.needsGold then
-        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: checked live. A deal, but you need %s on this character"])
-          :format(GC.Util.FormatGoldCeil(verdict.needsGold))), GC.Kit.Tokens.blizzard.tipAmber[1], GC.Kit.Tokens.blizzard.tipAmber[2], GC.Kit.Tokens.blizzard.tipAmber[3], true)
+        GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText((GC.L["GoldCap: checked live. A deal, but you need %s on this character"])
+          :format(GC.Util.FormatGoldCeil(verdict.needsGold)))), GC.Kit.Tokens.blizzard.tipAmber[1], GC.Kit.Tokens.blizzard.tipAmber[2], GC.Kit.Tokens.blizzard.tipAmber[3], true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.
         GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: %s. %s"]):format(verdict.status or "refused",
@@ -11843,12 +11843,12 @@ createRow = function(parent, index)
       -- A row measured against a followed group's usual price has no AH value for the note to name:
       -- the group's sentence stands in for it.
       if self.deal.refSource ~= "group" then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling,
-          self.deal.refUnit, self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
+        GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling,
+          self.deal.refUnit, self.deal.estProfit))), self.deal.forever == "market" and 0.83 or 0.25,
           self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
       end
       local groupNote = GC.Sniper._GroupNote(self.deal)
-      if groupNote then GameTooltip:AddLine(GC.Util.ClientText(groupNote), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true) end
+      if groupNote then GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(groupNote)), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true) end
     end
     -- A realm row priced against the region says nothing more about it here: the verdict line
     -- above says it is a realm item, and GoldCap's price block under the item names the region's
@@ -11866,7 +11866,7 @@ createRow = function(parent, index)
     local details = GC.Sniper._RowDetails(self.deal)
     if #details > 0 then GameTooltip:AddLine(" ") end
     for _, detail in ipairs(details) do
-      GameTooltip:AddLine(GC.Util.ClientText(detail.text), detail.color[1], detail.color[2], detail.color[3], true)
+      GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(detail.text)), detail.color[1], detail.color[2], detail.color[3], true)
     end
     -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
     -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
@@ -12254,7 +12254,7 @@ local function createHeaderRow(f)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(GC.Util.ClientText(tooltipLines[1]), 1, 0.82, 0)
         for i = 2, #tooltipLines do
-          GameTooltip:AddLine(GC.Util.ClientText(tooltipLines[i]), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
+          GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(tooltipLines[i])), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
         end
         GameTooltip:Show()
       end)
@@ -12530,7 +12530,7 @@ local function createFrame()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(GC.Util.ClientText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."]),
       1, 1, 1, 1, true)
-    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.ClientText(line), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3], true) end
+    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(line)), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3], true) end
     GameTooltip:Show()
   end)
   autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -12558,8 +12558,8 @@ local function createFrame()
   verifyBtn:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(GC.Util.ClientText(GC.L["Background check"]), 1, 1, 1)
-    GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
-      :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS)), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
+    GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
+      :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS))), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
 
     local list = renderList()
     local checked, newest = 0, nil

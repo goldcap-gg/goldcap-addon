@@ -558,7 +558,7 @@ local function explain(frame, title, body)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:AddLine(GC.Util.ClientText(title), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
-    for _, line in ipairs(body) do GameTooltip:AddLine(GC.Util.ClientText(line), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true) end
+    for _, line in ipairs(body) do GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(line)), GC.Kit.Tokens.blizzard.tipBody[1], GC.Kit.Tokens.blizzard.tipBody[2], GC.Kit.Tokens.blizzard.tipBody[3], true) end
     GameTooltip:Show()
   end)
   frame[hook](frame, "OnLeave", function()
