@@ -52,6 +52,7 @@ Core/MailReturns.lua
 Core/MailClassify.lua
 Core/MailStock.lua
 Core/SoldView.lua
+Core/SoldReceipt.lua
 Core/QuoteCache.lua
 Core/Flips.lua
 Core/BagStock.lua

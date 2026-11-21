@@ -54,6 +54,7 @@ Core/Ledger.lua
 Core/MailReturns.lua
 Core/ForeverDeposits.lua
 Core/SoldView.lua
+Core/SoldReceipt.lua
 Core/QuoteCache.lua
 Core/Flips.lua
 Core/BagStock.lua
