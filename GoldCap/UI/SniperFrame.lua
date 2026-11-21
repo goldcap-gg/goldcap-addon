@@ -93,18 +93,14 @@ WIN.RAIL_W = Theme.RAIL_W                     -- left navigation rail (Theme.Rai
 WIN.CONTENT_LEFT = WIN.RAIL_W + Theme.pad.m   -- content starts right of the rail
 WIN.CONTENT_RIGHT_GUTTER = 32
 
--- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) shifts the deals list aside
--- only when the window is wide enough to fit both without crushing the item column below its
--- own declared min (COLUMNS.item.min = 180) -- below this floor the panel overlays instead
--- (see applyPanelInset in createFrame). Derived, not guessed: contentWidth = window width -
--- WIN.CONTENT_LEFT(88) - WIN.CONTENT_RIGHT_GUTTER(32) - inset(DG.WIDTH(320) + Theme.pad.m(12)
--- = 332); with both optional columns dropped the fixed-column budget is 356 (fixedColumnBudget
--- above: tier 48 + disc 56 + unit 76 + profit 84 + buy 52 = 316, plus 5 * Theme.pad.s(8) = 40),
--- so item = contentWidth - 356, and item >= 180 needs contentWidth >= 536, i.e. window width >=
--- 88 + 32 + 332 + 356 + 180 = 988 -- rounded up to 990. The docked-in-the-AH host is 792px wide
--- (AuctionHouseFrame's own 806px, minus the dock's 7px inset on each side), well under this
--- floor, so it always keeps the overlay.
-WIN.PANEL_SHIFT_MIN = 990
+-- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) always shifts the deals list
+-- aside while it is open: it used to lie over the list on any window under 990px, the docked
+-- auction house always, and covered the list's price column (owner, 2026-11-21). The list
+-- narrows instead, and drops its least important columns to keep the item readable
+-- (computeHidden's `open` drops, WIN.PANEL_ITEM_MIN). The Buy column is never one of them: the
+-- row's own left click acts through that button, and a hidden one would leave the rows of an
+-- open panel unclickable.
+WIN.PANEL_ITEM_MIN = 120
 
 WIN.TIER_W = 80          -- the verdict column on retail
 WIN.FOREVER_TIER_W = 112 -- and on WoW: Forever, whose verdicts are words (see createFrame)
@@ -1210,6 +1206,10 @@ local OPTIONAL_KEYS, DROP_THRESHOLDS = {}, { 180, 150 }
 for _, col in ipairs(COLUMNS) do
   if col.optional then OPTIONAL_KEYS[#OPTIONAL_KEYS + 1] = col.key end
 end
+-- While the check panel is open, in this order, once the optional ones are gone: the discount
+-- (the profit beside it says more), the verdict word (the open panel says it in full), the unit
+-- price (the panel's ladder lists it). See WIN.PANEL_ITEM_MIN.
+local PANEL_DROP_KEYS = { "disc", "tier", "unit" }
 
 -- Fixed pixel budget (every VISIBLE fixed column's width, plus one Theme.pad.s gap per visible
 -- fixed column -- anchorColumns puts exactly one gap in front of each: the outer name-to-
@@ -1228,7 +1228,7 @@ local function fixedColumnBudget(hidden)
   return sum + visible * Theme.pad.s
 end
 
-local function computeHidden(containerWidth)
+local function computeHidden(containerWidth, panelOpen)
   local hidden = {}
   for i, key in ipairs(OPTIONAL_KEYS) do
     local itemWidth = containerWidth - fixedColumnBudget(hidden)
@@ -1236,12 +1236,17 @@ local function computeHidden(containerWidth)
       hidden[key] = true
     end
   end
+  if panelOpen then
+    for _, key in ipairs(PANEL_DROP_KEYS) do
+      if containerWidth - fixedColumnBudget(hidden) < WIN.PANEL_ITEM_MIN then hidden[key] = true end
+    end
+  end
   return hidden
 end
 
 local function sameHidden(a, b)
-  for _, key in ipairs(OPTIONAL_KEYS) do
-    if (not a[key]) ~= (not b[key]) then return false end
+  for _, col in ipairs(COLUMNS) do
+    if (not a[col.key]) ~= (not b[col.key]) then return false end
   end
   return true
 end
@@ -1912,9 +1917,9 @@ local createRow, layoutRow, layoutHeaderRow
 -- width changes. Recomputes `hiddenColumns` from scratch (see computeHidden) and only touches
 -- widgets when the drop STATE actually changed, so a resize that doesn't cross a threshold
 -- costs nothing beyond the cheap sameHidden comparison.
-local function applyColumnVisibility(containerWidth)
+local function applyColumnVisibility(containerWidth, panelOpen)
   if not layoutHeaderRow then return end -- header not built yet (see M7 comment above)
-  local newHidden = computeHidden(containerWidth)
+  local newHidden = computeHidden(containerWidth, panelOpen)
   if sameHidden(newHidden, hiddenColumns) then return end
   hiddenColumns = newHidden
   layoutHeaderRow()
@@ -10414,10 +10419,9 @@ CH.HEADER = 16      -- column header row height
 -- (measured in the 2026-08-24 screenshot: logo top ~= 59px, portrait bottom ~= 70px at 1x);
 -- 28 clears it with margin. Passed to rail.SetTopInset in SetDocked below.
 CH.DOCK_RAIL_INSET = 28
--- One strata up from whatever the window itself is in. The check drawer overlays the deals
--- list on any window narrower than WIN.PANEL_SHIFT_MIN -- which the docked auction house
--- always is -- and it is an OPAQUE sheet precisely so the rows underneath do not ghost
--- through it. A texture cannot cross a strata boundary, so "opaque" only holds while the
+-- One strata up from whatever the window itself is in. The check drawer shifts the deals list
+-- aside (applyPanelInset), but it slides in over the rows and is an OPAQUE sheet precisely so
+-- the rows underneath do not ghost through it. A texture cannot cross a strata boundary, so "opaque" only holds while the
 -- drawer is in a HIGHER strata than the rows; land the two in the SAME strata and the fight
 -- is decided by frame level instead, which a scroll child can win. That is exactly what
 -- docking started doing: GC.Sniper.SetDocked adopts the auction house's own strata for the
@@ -11443,11 +11447,7 @@ end
 -- Two sheets can lie over the list, and only one of them hides a row. The settings sheet
 -- (UI/SettingsFrame.lua) covers the whole content area, every row entire, at every width, so
 -- while it is up no row is on screen; the ticker picks the ring up once it closes. The check
--- drawer does not count: below WIN.PANEL_SHIFT_MIN it lies over the list rather than pushing it
--- aside, but it covers exactly the rightmost 288 px of a row (320 wide, flush with the window's
--- right edge, where the row stops 32 px short), so the item stays in view, and its verdict chip
--- with it -- only just clipped at the narrowest width a window can be resized to
--- (WIN.RESIZE_MIN_WIDTH). A field, not a local: this chunk sits near Lua's 200-local ceiling.
+-- drawer does not count: it pushes the list aside rather than lying over it (applyPanelInset). A field, not a local: this chunk sits near Lua's 200-local ceiling.
 function GC.Sniper._RowOnScreen(row)
   if not row:IsVisible() then return false end
   if GC.SettingsUI and GC.SettingsUI.IsShown and GC.SettingsUI.IsShown() then return false end
@@ -12802,15 +12802,15 @@ local function createFrame()
   -- directly, so the derived contentWidth here is exactly the header's width too -- one number
   -- feeds the responsive column-drop decision (applyColumnVisibility) for both.
   --
-  -- The check panel shifts the list aside only when there is room for both (>= WIN.PANEL_
-  -- SHIFT_MIN, 990 wide); narrower windows -- the docked AH is ~805 -- get an opaque overlay
-  -- instead (see createDialog's sheet alpha). One function owns every right-edge anchor
+  -- The check panel always shifts the list aside while it is open, and the list drops columns to
+  -- fit (computeHidden, WIN.PANEL_ITEM_MIN): it used to overlay any window under 990px and cover
+  -- the list's numbers. One function owns every right-edge anchor
   -- (scroll's BOTTOMRIGHT, f.headerRow's TOPRIGHT, verifyBtn's TOPRIGHT) plus the derived
   -- content width, so they can never drift apart -- called from here on every resize, and from
   -- createDialog's OnShow/OnHide whenever the sheet itself appears or disappears.
   local function applyPanelInset(open)
     local w = f:GetWidth() or 0
-    local inset = (open and w >= WIN.PANEL_SHIFT_MIN) and (DG.WIDTH + Theme.pad.m) or 0
+    local inset = open and (DG.WIDTH + Theme.pad.m) or 0
     f.panelInset = inset
     local right = -(WIN.CONTENT_RIGHT_GUTTER + inset)
     scroll:ClearAllPoints()
@@ -12823,15 +12823,15 @@ local function createFrame()
     verifyBtn:SetPoint("TOPRIGHT", right, row2Y)
     local contentWidth = math.max(w - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - inset, 1)
     content:SetWidth(contentWidth)
-    applyColumnVisibility(contentWidth)
+    applyColumnVisibility(contentWidth, inset > 0)
   end
   f.applyPanelInset = applyPanelInset
 
   -- OnSizeChanged now fully delegates to applyPanelInset (above), which supersedes what this
   -- handler used to do inline (compute contentWidth off `w` alone, content:SetWidth it,
   -- applyColumnVisibility it) -- passing the dialog's live open/shown state re-evaluates the
-  -- inset on every resize too, so dragging the window across WIN.PANEL_SHIFT_MIN while the
-  -- panel is open re-flows the list instead of leaving it stuck at whichever side it started on.
+  -- inset on every resize too, so dragging the window while the panel is open re-flows the list
+  -- and its column drops instead of leaving them at whichever width it started on.
   f:SetScript("OnSizeChanged", function(_, w)
     if not w or w <= 0 then return end
     applyPanelInset(dialog ~= nil and dialog:IsShown())

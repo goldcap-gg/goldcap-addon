@@ -340,7 +340,7 @@ describe("Sniper row repaint skip", function()
 
   -- Fix 1 (check-panel-deals-list, task 4): a watching row's Buy button must stay inert across
   -- ANY column re-layout, not just survive the setRowDeal call that first hid it. Opening the
-  -- check panel at >= WIN.PANEL_SHIFT_MIN drives applyColumnVisibility, which re-runs layoutRow
+  -- check panel opening drives applyColumnVisibility, which re-runs layoutRow
   -- (and therefore anchorColumns) over every pooled row -- and anchorColumns unconditionally
   -- cell:Show()s every VISIBLE fixed column, "buy" included, since "buy" is a fixed column, never
   -- one of the responsive optional ones computeHidden ever drops. Before this fix that re-Show
@@ -364,7 +364,7 @@ describe("Sniper row repaint skip", function()
     assert.is_false(row.buy.shown)
 
     -- Simulates applyColumnVisibility's re-layout pass over every pooled row (e.g. triggered by
-    -- the check panel opening/closing at WIN.PANEL_SHIFT_MIN).
+    -- the check panel opening/closing).
     ctx.layoutRow(row)
 
     assert.is_false(row.buy.shown,
