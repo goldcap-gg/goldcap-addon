@@ -1004,6 +1004,7 @@ GC.Locales.ruRU = {
   ["If it must sell now, a copper under the next listing at %s: %s."] = "Если продавать сразу, на медяк дешевле следующего лота, по %s: %s.",
   ["STRESS EXIT"] = "СРОЧНАЯ ПРОДАЖА",
   ["SESSION %s · SAFE %s · BUYS %d"] = "СЕССИЯ %s · НАВЕРНЯКА %s · ПОКУПОК %d",
+  ["ALL ON GOLDCAP.GG"] = "ВСЁ НА GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "покупать до %s, торговец платит %s",
   ["buy at %s or less, AH value %s"] = "покупать до %s, цена на аукционе %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1121,8 +1122,6 @@ GC.Locales.ruRU = {
   ["No sales match “%s” in these %d days."] = "Нет продаж по запросу «%s» за эти %d дней.",
   ["No sales today."] = "Сегодня продаж нет.",
   ["No sales in these %d days."] = "За эти %d дней продаж нет.",
-  ["SEARCH 30 DAYS"] = "ИСКАТЬ ЗА 30 ДНЕЙ",
-  ["SHOW 30 DAYS"] = "ПОКАЗАТЬ 30 ДНЕЙ",
   -- Strings that had stayed English here: the BUY tab, the Sell decks and chips, the Deals boards, imports and chat lines.
   ["  %s · need %d · have %d · buy %d · %s"] = "  %s · нужно %d · есть %d · купить %d · %s",
   [" · watching"] = " · отслеживается",

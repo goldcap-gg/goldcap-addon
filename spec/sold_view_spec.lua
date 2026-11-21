@@ -196,7 +196,7 @@ describe("SoldView", function()
     for _, case in ipairs({
       { period = "today", back = 0 },
       { period = "7d", back = 6 },
-      { period = "30d", back = 29 },
+      { period = "30d", back = 6 },          -- gone: seven days at most, the rest is goldcap.gg's
       { period = "nonsense", back = 6 },
     }) do
       it(("starts %s at local midnight %d days back"):format(case.period, case.back), function()

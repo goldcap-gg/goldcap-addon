@@ -1018,6 +1018,7 @@ GC.Locales.ukUA = {
   ["If it must sell now, a copper under the next listing at %s: %s."] = "Якщо продавати одразу, на мідяк дешевше наступного лоту, по %s: %s.",
   ["STRESS EXIT"] = "ТЕРМІНОВИЙ ПРОДАЖ",
   ["SESSION %s · SAFE %s · BUYS %d"] = "СЕСІЯ %s · НАПЕВНО %s · ПОКУПОК %d",
+  ["ALL ON GOLDCAP.GG"] = "УСЕ НА GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "купувати до %s, торговець платить %s",
   ["buy at %s or less, AH value %s"] = "купувати до %s, ціна на аукціоні %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1135,8 +1136,6 @@ GC.Locales.ukUA = {
   ["No sales match “%s” in these %d days."] = "Немає продажів за запитом «%s» за ці %d днів.",
   ["No sales today."] = "Сьогодні продажів немає.",
   ["No sales in these %d days."] = "За ці %d днів продажів немає.",
-  ["SEARCH 30 DAYS"] = "ШУКАТИ ЗА 30 ДНІВ",
-  ["SHOW 30 DAYS"] = "ПОКАЗАТИ 30 ДНІВ",
   -- Strings that had stayed English here: the BUY tab, the Sell decks and chips, the Deals boards, imports and chat lines.
   ["  %s · need %d · have %d · buy %d · %s"] = "  %s · треба %d · є %d · купити %d · %s",
   [" · watching"] = " · відстежується",

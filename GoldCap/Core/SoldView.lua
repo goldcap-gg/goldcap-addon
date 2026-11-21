@@ -18,8 +18,10 @@ local V = GC.SoldView
 -- The auction house keeps 5% of a sale. Used only where a sale did not record its own cut.
 V.CUT_RATE = 0.05
 
-V.PERIODS = { "today", "7d", "30d" }
-V.PERIOD_DAYS = { today = 1, ["7d"] = 7, ["30d"] = 30 }
+-- Seven days at most: the whole history, and the profit over it, are goldcap.gg's (its ledger is
+-- the paid Pro feature), and SOLD links there instead of keeping a 30-day view (owner, 2026-11-21).
+V.PERIODS = { "today", "7d" }
+V.PERIOD_DAYS = { today = 1, ["7d"] = 7 }
 V.DEFAULT_PERIOD = "7d"
 
 --- The cut a sale paid and whether it was estimated: the recorded figure when there is one,

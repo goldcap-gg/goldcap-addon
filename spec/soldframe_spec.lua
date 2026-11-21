@@ -87,6 +87,8 @@ describe("SoldFrame", function()
     function r:SetAutoFocus() end
     function r:HasFocus() return false end
     function r:ClearFocus() end
+    function r:SetFocus() end
+    function r:HighlightText() end
     return r
   end
 
@@ -333,15 +335,15 @@ describe("SoldFrame", function()
       GC.AppLedger.GetSummary = function()
         return summary({ totals = { proceeds = 95, spent = 0, pending = 0, salesCount = 324, realized = 25 },
           sales = { { name = "Recent", qty = 1, total = 100, cut = 5, at = NOW - 3600 },
-            { name = "Old", qty = 1, total = 100, cut = 5, at = NOW - 20 * 86400 } } })
+            { name = "Old", qty = 1, total = 100, cut = 5, at = NOW - 3 * 86400 } } })
       end
-      -- Seven days start after the oldest listed sale: every sale in them is on the list.
+      -- Seven days reach past the oldest listed sale, and the server holds 322 sales it did not list.
       show()
-      assert.equal("1 sale, after the cut", view().cards[1].sub:GetText())
-      -- Thirty reach past it, and the server holds 322 sales it did not list.
-      GC.Sold._state.period = "30d"
-      GC.Sold.RefreshIfShown()
       assert.equal("2 here · all on goldcap.gg", view().cards[1].sub:GetText())
+      -- Today starts after it: every sale in it is on the list.
+      GC.Sold._state.period = "today"
+      GC.Sold.RefreshIfShown()
+      assert.equal("1 sale, after the cut", view().cards[1].sub:GetText())
     end)
 
     it("dash the profit when no cost is known", function()
@@ -521,8 +523,18 @@ describe("SoldFrame", function()
       assert.is_nil(saleRow("Wool Cloth"))
       chips.today.scripts.OnClick(chips.today)
       assert.is_nil(saleRow("Льняная ткань"))
-      chips["30d"].scripts.OnClick(chips["30d"])
-      assert.truthy(saleRow("Wool Cloth"))
+      -- Seven days at most: past them is goldcap.gg's ledger, a link to copy.
+      assert.is_nil(chips["30d"])
+      assert.equal("ALL ON GOLDCAP.GG", head.site.text:GetText())
+      assert.is_false(head.siteWell:IsShown())
+      head.site.scripts.OnClick(head.site)
+      assert.is_true(head.siteWell:IsShown())               -- where the search box sits
+      assert.equal("https://goldcap.gg/ledger", head.siteBox:GetText())
+      head.siteBox:SetText("typed over")
+      head.siteBox.scripts.OnTextChanged(head.siteBox)
+      assert.equal("https://goldcap.gg/ledger", head.siteBox:GetText())   -- the link stays the link
+      head.siteClose.scripts.OnClick(head.siteClose)
+      assert.is_false(head.siteWell:IsShown())
     end)
 
     it("keeps the search box hidden until the search button reveals it, and closing it clears it", function()
@@ -569,17 +581,16 @@ describe("SoldFrame", function()
       assert.truthy(saleRow("Linen Cloth"))
     end)
 
-    it("says when a search finds nothing, and offers the whole 30 days", function()
+    it("says when a search finds nothing, and points past seven days to goldcap.gg", function()
       show()
       search("wool")
       local empty = view().empty
       assert.is_true(empty.frame:IsShown())
       assert.equal("No sales match “wool” in these 7 days.", empty.message:GetText())
-      assert.equal("SEARCH 30 DAYS", empty.button.text:GetText())
+      assert.equal("ALL ON GOLDCAP.GG", empty.button.text:GetText())
       empty.button.scripts.OnClick(empty.button)
-      assert.equal("30d", GC.Sold._state.period)
-      assert.truthy(saleRow("Wool Cloth"))
-      assert.is_false(empty.frame:IsShown())
+      assert.is_true(view().head.siteWell:IsShown())
+      assert.equal("7d", GC.Sold._state.period)
     end)
   end)
 
