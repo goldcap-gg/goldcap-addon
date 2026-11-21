@@ -599,6 +599,19 @@ describe("SoldFrame", function()
       assert.equal("sold, the money is in your mail, 14 × 75c", tooltip.lines[2])
     end)
 
+    it("takes an uncached name's icon from the names the Forever scan kept", function()
+      _G.C_Item = { GetItemIconByID = function(id) return id == 4278 and 4444 or nil end,
+        GetItemInfoInstant = function() return nil end, GetItemInfo = function() return nil end }
+      GC.ForeverNames = { Each = function(add) add(4278, "Pitchblende"); add(5, "Other") end }
+      GC.Ledger.GetEntries = function() return { sale({ itemName = "Pitchblende", key = "p" }) } end
+      show()
+      local row = saleRow("Pitchblende")
+      assert.equal(4444, row.icon.texture)
+      row.scripts.OnEnter(row)
+      assert.is_nil(tooltip.itemID)                          -- the icon only: the id is not exact
+      GC.ForeverNames = nil
+    end)
+
     it("finds a mail sale's item among the character's own listings, and only an unambiguous one", function()
       _G.C_Item = { GetItemIconByID = function(id) return id * 10 end, GetItemQualityByID = function() return 1 end }
       GC.Acquisitions.GetActivities = function()

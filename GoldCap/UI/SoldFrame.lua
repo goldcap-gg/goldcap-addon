@@ -213,7 +213,7 @@ end
 -- name could describe the other rank. Only an exact id (the sale's own, the position its
 -- profit was matched to, or the one item the character listed under that name) opens the
 -- item's tooltip.
-local byName = {}
+local byName, unnamed = {}, {}
 local function lookupName(name)
   local api = _G.C_Item
   if type(name) ~= "string" or name == "" or not api then return nil end
@@ -226,6 +226,18 @@ local function lookupName(name)
   if api.GetItemInfo then
     local ok, _, _, q, _, _, _, _, _, _, tex = pcall(api.GetItemInfo, name)
     if ok then quality, icon = q, icon or tex end
+  end
+  -- WoW: Forever: a name the client has not cached left a blank grey square (Relic Coffer Key,
+  -- Pitchblende, owner's screenshot, 2026-11-21). The names the last scan saw (Core/ForeverNames.lua)
+  -- give the item's id, and an icon by id needs no cache. The icon only: the id is still not exact.
+  if not icon and not unnamed[name] and api.GetItemIconByID and GC.ForeverNames and GC.ForeverNames.Each then
+    local id
+    GC.ForeverNames.Each(function(itemID, known) if known == name then id = itemID end end)
+    unnamed[name] = id == nil or nil
+    if id then
+      local ok, tex = pcall(api.GetItemIconByID, id)
+      if ok then icon = tex end
+    end
   end
   if not icon and quality == nil then return nil end
   byName[name] = { icon = icon, quality = quality }

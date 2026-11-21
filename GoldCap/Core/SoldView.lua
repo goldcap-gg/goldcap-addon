@@ -269,7 +269,9 @@ function V.Money(copper, group, full)
   local parts = {}
   if gold then parts[#parts + 1] = gold end
   if full then
-    if s > 0 then parts[#parts + 1] = s .. "s" end
+    -- A zero silver between gold and copper is still written: "1g 62c" read as a sum that had
+    -- lost its silver (43 x 2s 34c = 1g 0s 62c on the SOLD tooltip, owner's screenshot, 2026-11-21).
+    if s > 0 or (gold and c > 0) then parts[#parts + 1] = s .. "s" end
     if c > 0 or #parts == 0 then parts[#parts + 1] = c .. "c" end
     return table.concat(parts, " ")
   end

@@ -262,6 +262,8 @@ describe("SoldView", function()
       assert.equal("10s 50c", V.Money(1050, nil, true))
       assert.equal("0c", V.Money(0, nil, true))
       assert.equal("5g", V.Money(50000, nil, true))
+      assert.equal("1g 0s 62c", V.Money(10062, nil, true))
+      assert.equal("2g 0s 5c", V.Money(20005, nil, true))
     end)
 
     it("groups the gold with the client's own separator when given one", function()
