@@ -282,6 +282,16 @@ describe("ForeverDeposits", function()
       assert.equal(T + 60, posts()[501].goneAt)
     end)
 
+    it("keeps a part-sold lot listed, whichever of its two rows comes first", function()
+      -- One auctionID, two rows: 5 sold (status 1) and 10 still listed (owner's read, 2026-11-21).
+      D.RecordPost(501, pin(), CTX, T)
+      D.RecordPost(502, pin(), CTX, T)
+      D.OnOwnedRoster({ { auctionID = 501, status = 1 }, { auctionID = 501, status = 0 },
+        { auctionID = 502, status = 0 }, { auctionID = 502, status = 1 } }, CTX, T + 60, {})
+      assert.is_nil(posts()[501].goneAt)
+      assert.is_nil(posts()[502].goneAt)
+    end)
+
     it("leaves a lot whose cancel is on its way, a cancelled one and another character's", function()
       D.RecordPost(501, pin(), CTX, T)
       D.RecordPost(502, pin(), CTX, T)
