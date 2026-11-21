@@ -255,7 +255,7 @@ function M.OnEvent()
   if not GC.db then return end
   local me = {
     name = read(UnitName, "player"),
-    realm = read(GetNormalizedRealmName),
+    realm = GC.Game and GC.Game.NormalizedRealmName() or read(GetNormalizedRealmName),
     class = read(function() return (select(2, UnitClass("player"))) end),
     level = read(UnitLevel, "player"),
     faction = read(UnitFactionGroup, "player"),

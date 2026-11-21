@@ -868,10 +868,11 @@ local function realDriver()
     store = function() return GC.ForeverScan.Store() end,
     passport = function()
       local p = GC.Game and GC.Game.Passport and GC.Game.Passport() or {}
-      local okR, realm = pcall(GetRealmName)
+      -- GetRealmName() answers "" on Forever's 1.60.1.71037 (Core/Game.lua RealmName).
+      local realm = GC.Game and GC.Game.RealmName and GC.Game.RealmName() or nil
       local okF, faction = pcall(UnitFactionGroup, "player")
       return { interface = p.interface, build = p.build, region = p.regionId,
-        realm = okR and type(realm) == "string" and realm ~= "" and realm or nil,
+        realm = realm,
         faction = okF and type(faction) == "string" and faction or nil,
         ruleset = nil } -- no API names the ruleset yet (spec §Facts); nil, never a guess
     end,

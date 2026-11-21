@@ -1167,6 +1167,16 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" then
     if GC.BankRoute then GC.BankRoute.OnTabSlotsChanged() end
   elseif event == "PLAYER_ENTERING_WORLD" then
+    -- Rows written while the client named no realm ("Name-", Core/Game.lua) go back under the
+    -- character's realm as soon as it is known. Once a session; the GUID is there by now.
+    if GC.Game and GC.db and not GC.Game._repaired then
+      local realm = GC.Game.RealmName()
+      if realm then
+        GC.Game._repaired = true
+        local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or {}
+        pcall(GC.Game.RepairRealmless, GC.db, UnitName("player"), realm, context.region)
+      end
+    end
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.
     if GC.ItemNames and GC.db then GC.ItemNames.OnEnteringWorld(GC.db, GC.db.imported) end

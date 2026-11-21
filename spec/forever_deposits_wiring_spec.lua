@@ -115,6 +115,7 @@ describe("lost deposits on WoW: Forever, wired", function()
           TooltipAnchor = function() return "ANCHOR_RIGHT" end,
         },
         Game = { Passport = function() return passport end,
+          RealmName = function() return _G.GetRealmName and _G.GetRealmName() or nil end,
           IsForever = function(p) return p.interface >= 16000 and p.interface <= 16999 end },
         Data = { GetItemValue = function() return nil end,
           ForeverSales = function(itemID)

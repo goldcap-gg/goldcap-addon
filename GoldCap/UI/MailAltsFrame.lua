@@ -172,7 +172,7 @@ end
 -- This character as Core/Alts.lua keys it ({ name, realm, faction, full }), or nil while the client
 -- has not told its name and realm.
 local function meNow()
-  local name, realm = ask(UnitName, "player"), ask(GetNormalizedRealmName)
+  local name, realm = ask(UnitName, "player"), GC.Game.NormalizedRealmName()
   if type(name) ~= "string" or name == "" or type(realm) ~= "string" or realm == "" then return nil end
   return { name = name, realm = realm, faction = ask(UnitFactionGroup, "player"), full = name .. "-" .. realm }
 end

@@ -84,6 +84,13 @@ function helper.loadModule(relPath, GC)
     local utilChunk = assert(loadfile("GoldCap/Core/Util.lua"))
     utilChunk("GoldCap", GC)
   end
+  -- Core/Game.lua loads right after Util in both TOCs, and the realm name every module reads
+  -- comes through it (GC.Game.RealmName). Same reasoning as the locale above.
+  if relPath ~= "Core/Game.lua" and relPath ~= "Core/Util.lua" and relPath ~= "Locale/Core.lua"
+      and GC.Game == nil then
+    local gameChunk = assert(loadfile("GoldCap/Core/Game.lua"))
+    gameChunk("GoldCap", GC)
+  end
   -- Core/PurchaseCall.lua loads before every UI file in both TOCs; the purchase clicks in
   -- UI/SniperFrame.lua and UI/BuyFrame.lua go through it. Same reasoning as the locale above.
   if relPath:match("^UI/") and GC.PurchaseCall == nil then

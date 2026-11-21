@@ -51,3 +51,70 @@ describe("Client passport", function()
     assert.is_false(GC.Game.IsForever(nil))
   end)
 end)
+
+-- WoW: Forever 1.60.1.71037 answers GetRealmName() with "" (owner's save and a player's report,
+-- 2026-11-21): scans stopped uploading and cost batches keyed "Name-Realm" stopped matching.
+describe("Realm name", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Game.lua")
+  end)
+
+  local function api(live, db, guid)
+    return {
+      GetRealmName = function() return live end,
+      GetNormalizedRealmName = function() return nil end,
+      UnitGUID = function() return guid or "Player-6949-00C1ADCA" end,
+      UnitName = function() return "Meolys" end,
+      db = function() return db end,
+    }
+  end
+
+  it("takes the live answer and remembers it for the server", function()
+    local db = {}
+    assert.equal("Realm 7", GC.Game.RealmName(api("Realm 7", db)))
+    assert.same({ ["6949"] = "Realm 7" }, db.realmByServer)
+    -- Then the client stops answering: the remembered name, on this server only.
+    assert.equal("Realm 7", GC.Game.RealmName(api("", db)))
+    assert.is_nil(GC.Game.RealmName(api("", db, "Player-7000-00000001")))
+  end)
+
+  it("finds the realm this character's own rows were written with", function()
+    local db = { ledger = { { char = "Meolys-Realm 7" }, { char = "Meolys-" }, { char = "Other-Realm 9" } } }
+    assert.equal("Realm 7", GC.Game.RealmName(api("", db)))
+    assert.equal("Realm 7", db.realmByServer["6949"])
+  end)
+
+  it("says nothing when the history names two realms, or none", function()
+    assert.is_nil(GC.Game.RealmName(api("", { a = { { char = "Meolys-A" }, { character = "Meolys-B" } } })))
+    GC.Game._historyMissed = {}
+    assert.is_nil(GC.Game.RealmName(api(nil, { a = { { char = "Meolys-" } } })))
+  end)
+
+  it("normalizes the fallback as the client does", function()
+    assert.equal("CAMWOWEU5Realm7PvE", GC.Game.NormalizedRealmName(api("CAMWOW EU5 Realm 7 PvE", {})))
+  end)
+
+  it("puts realmless rows and keys back under the realm, this region only", function()
+    local db = {
+      ledger = { { char = "Meolys-", region = "eu" }, { char = "Meolys-", region = "us" }, { char = "Meolys-R" } },
+      batches = { { character = "Meolys-", region = "eu" } },
+      craft = { chars = { ["Meolys-"] = { new = 1 }, ["Meolys-R"] = { old = 1, new = 0 } } },
+      buyProgress = { ["Meolys-"] = { x = 2 } },
+      streaks = { ["Meolys-eu"] = { s = 1 } },
+    }
+    assert.equal(5, GC.Game.RepairRealmless(db, "Meolys", "R", "eu"))
+    assert.equal("Meolys-R", db.ledger[1].char)
+    assert.equal("Meolys-", db.ledger[2].char)               -- another region's row is someone else
+    assert.equal("Meolys-R", db.batches[1].character)
+    assert.same({ ["Meolys-R"] = { old = 1, new = 1 } }, db.craft.chars)   -- the realmless side wins
+    assert.same({ ["Meolys-R"] = { x = 2 } }, db.buyProgress)
+    assert.same({ ["Meolys-Reu"] = { s = 1 } }, db.streaks)
+  end)
+
+  it("reads the server from a player GUID", function()
+    assert.equal("6949", GC.Game.ServerId("Player-6949-00C1ADCA"))
+    assert.is_nil(GC.Game.ServerId("Creature-0-1"))
+  end)
+end)
