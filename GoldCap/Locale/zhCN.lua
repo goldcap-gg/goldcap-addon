@@ -1893,7 +1893,6 @@ GC.Locales.zhCN = {
   ["%d h ago"] = "%d 小时前",
   ["%d of %d sold · %d left"] = "已售 %d / %d · 剩余 %d",
   ["%d listed · none sold yet"] = "在售 %d · 尚未售出",
-  ["%s cheaper ahead of you"] = "前面有 %s 个更便宜",
   ["SOLD SO FAR"] = "已售出",
   ["nothing yet"] = "暂无",
   ["one sale"] = "1 笔售出",

@@ -1894,7 +1894,6 @@ GC.Locales.zhTW = {
   ["%d h ago"] = "%d 小時前",
   ["%d of %d sold · %d left"] = "已售 %d / %d · 剩餘 %d",
   ["%d listed · none sold yet"] = "在售 %d · 尚未售出",
-  ["%s cheaper ahead of you"] = "前面有 %s 個更便宜",
   ["SOLD SO FAR"] = "已售出",
   ["nothing yet"] = "暫無",
   ["one sale"] = "1 筆售出",

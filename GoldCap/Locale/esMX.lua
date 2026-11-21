@@ -2012,7 +2012,6 @@ GC.Locales.esMX = {
   ["%d h ago"] = "hace %d h",
   ["%d of %d sold · %d left"] = "%d de %d vendidos · quedan %d",
   ["%d listed · none sold yet"] = "%d publicados · aún no se vende nada",
-  ["%s cheaper ahead of you"] = "%s más baratos adelante de ti",
   ["SOLD SO FAR"] = "YA VENDIDO",
   ["nothing yet"] = "nada aún",
   ["one sale"] = "una venta",

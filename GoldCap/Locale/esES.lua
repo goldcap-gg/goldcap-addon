@@ -2010,7 +2010,6 @@ GC.Locales.esES = {
   ["%d h ago"] = "hace %d h",
   ["%d of %d sold · %d left"] = "%d de %d vendidos · quedan %d",
   ["%d listed · none sold yet"] = "%d publicados · aún no se ha vendido nada",
-  ["%s cheaper ahead of you"] = "%s más baratos por delante",
   ["SOLD SO FAR"] = "YA VENDIDO",
   ["nothing yet"] = "nada aún",
   ["one sale"] = "una venta",

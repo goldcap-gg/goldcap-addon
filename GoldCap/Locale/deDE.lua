@@ -2011,7 +2011,6 @@ GC.Locales.deDE = {
   ["%d h ago"] = "vor %d Std.",
   ["%d of %d sold · %d left"] = "%d von %d verkauft · %d übrig",
   ["%d listed · none sold yet"] = "%d eingestellt · noch nichts verkauft",
-  ["%s cheaper ahead of you"] = "%s günstiger vor dir",
   ["SOLD SO FAR"] = "BISHER VERKAUFT",
   ["nothing yet"] = "noch nichts",
   ["one sale"] = "ein Verkauf",

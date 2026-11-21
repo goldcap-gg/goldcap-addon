@@ -1994,7 +1994,6 @@ GC.Locales.enUS = {
   ["%d h ago"] = "%d h ago",
   ["%d of %d sold · %d left"] = "%d of %d sold · %d left",
   ["%d listed · none sold yet"] = "%d listed · none sold yet",
-  ["%s cheaper ahead of you"] = "%s cheaper ahead of you",
   ["SOLD SO FAR"] = "SOLD SO FAR",
   ["nothing yet"] = "nothing yet",
   ["one sale"] = "one sale",

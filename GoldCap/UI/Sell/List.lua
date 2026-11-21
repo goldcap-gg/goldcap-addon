@@ -356,11 +356,10 @@ function FIT.need(key, deck)
     for columnKey, word in pairs(words) do
       FIT.cache[columnKey] = FIT.width(9, GC.L[word])
     end
-    -- TO POST's stand line. MY LOTS writes its standing on the stock line (UI/Sell/Sold.lua) and
-    -- keeps only the marks here. "%s under you" was MY LOTS' line, and TO POST's price column has
-    -- always been as wide as it: still measured, so that column keeps the width it had.
+    -- The stand line under the price, on both decks. "%s under you" was MY LOTS' old line, and
+    -- TO POST's price column has always been as wide as it: still measured, so it keeps its width.
     local count = "99.9k"
-    local stand = deck == "listed" and 0 or math.max(FIT.width(10, GC.L["first in line"]),
+    local stand = math.max(FIT.width(10, GC.L["first in line"]),
       FIT.width(10, (GC.L["%s ahead"]):format(count)),
       FIT.width(10, (GC.L["%s+ ahead"]):format(count)),
       FIT.width(10, (GC.L["%s under you"]):format(count)))
