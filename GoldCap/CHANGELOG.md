@@ -1,5 +1,25 @@
 # GoldCap
 
+## 0.31.0 (2026-11-21)
+
+- SELL, MY LOTS: a lot that has partly sold no longer disappears. It shows how many of it sold and
+  how many are left, and a sold-out lot stays until you take the gold from the mail.
+- SELL, MY LOTS: under each lot's price it now says where the lot stands, "271 ahead" or "first in
+  line", as TO POST does. A lot behind many cheaper prices used to show only grey marks.
+- DEALS: a market deal shows two figures. The big one is what the buy makes sold at the auction
+  house value; under it, the stress exit: what it makes if you sell right away, a copper under the
+  next listing. The old single figure was the stress exit alone, so it looked far too small. The
+  PROFIT column and the session line at the bottom show the same two figures.
+- DEALS: the GoldCap lines in a row's tooltip are now a small card under the tooltip: the verdict,
+  one big number and a price scale, instead of several lines of text.
+- DEALS: the check panel on the right says its verdict once, shows the cheapest listings with your
+  limit marked, and lights only the levels the buy actually takes. It no longer covers the list.
+- SOLD: a click on a sale opens a short receipt in the list instead of a long tooltip, where you
+  can also type what you paid. Money now reads "1g 0s 62c" instead of "1g 62c".
+- SOLD shows today and the last 7 days. Your whole sales history and its profit are on
+  goldcap.gg: the ALL ON GOLDCAP.GG button gives you the link to copy.
+- WoW: Forever: items whose names were not cached yet now show their icons on SOLD.
+
 ## 0.30.1 (2026-11-20)
 
 - Long GoldCap lines in tooltips now break onto several lines. In WoW: Forever the "Buy at or
