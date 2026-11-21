@@ -4,7 +4,7 @@
 
 - WoW: Forever: a character GoldCap never saw with its realm name (one made or first played after
   the latest client patch) now gets its scans to goldcap.gg too. The scan carries the server number
-  from the game, and goldcap.gg names the realm from it. Needs the latest GoldCap Companion.
+  from the game, and goldcap.gg names the realm from it. Needs GoldCap Companion 1.23.0 or later.
 
 ## 0.31.1 (2026-11-21)
 
