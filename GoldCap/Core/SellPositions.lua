@@ -151,6 +151,7 @@ end
 -- WoW: Forever, 2026-11-06). Left out, it is gone from the roster, which is what the site
 -- already reads as "no longer listed"; nothing reads a sold row.
 local AUCTION_SOLD = 1
+GC.SellPositions.AUCTION_SOLD = AUCTION_SOLD
 
 function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
   local lots = {}

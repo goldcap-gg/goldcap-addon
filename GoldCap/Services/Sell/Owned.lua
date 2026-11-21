@@ -162,7 +162,12 @@ function GC.Sell.OnOwnedAuctions(answered)
   do
     local live, returned = {}, false
     for _, auction in ipairs(auctions) do
-      local lot = GC.Sell.cancelledLots[auction.auctionID]
+      -- A sold row is no listing, so a cancel says nothing about it: a part-sold lot keeps its sold
+      -- part under the same auctionID after its remainder is cancelled (one auctionID, two rows:
+      -- NormalizeOwnedLots). Held to the cancel, that row read as the lot still listed, and fifteen
+      -- seconds on the tab said "the cancel did not go through" about a cancel that had.
+      local sold = auction.status == GC.SellPositions.AUCTION_SOLD
+      local lot = not sold and GC.Sell.cancelledLots[auction.auctionID] or nil
       if lot and not lot.confirmed and time() - lot.at > GC.Sell.CANCEL_SENT_WAIT then
         GC.Sell.cancelledLots[auction.auctionID], lot, returned = nil, nil, true
       end

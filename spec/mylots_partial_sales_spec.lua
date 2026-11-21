@@ -156,6 +156,32 @@ describe("MY LOTS with a part-sold lot", function()
     assert.equal(4, #shownRows("position"))
   end)
 
+  -- The audit's one find: the cancels on their way (GC.Sell.cancelledLots) are keyed by auctionID,
+  -- and a part-sold lot's sold row keeps that ID after its remainder is cancelled. Read as the lot
+  -- still listed, it set the tab saying the cancel had failed.
+  it("does not take a cancelled remainder's sold row for the lot still listed", function()
+    local said = {}
+    GC.SellView.status = function(text) said[#said + 1] = text end
+    GC.Sell.cancelledLots[198344858] = { at = 100000 - GC.Sell.CANCEL_SENT_WAIT - 5 }
+    OWNED = { partSold()[1] }
+    readRoster()
+    assert.is_table(GC.Sell.cancelledLots[198344858])
+    for _, text in ipairs(said) do
+      assert.not_equal("The cancel did not go through: the lot is still listed", text)
+    end
+    assert.equal(0, #GC.SellState.ownedLots)
+  end)
+
+  it("still brings back a lot whose cancel did not go through", function()
+    local said = {}
+    GC.SellView.status = function(text) said[#said + 1] = text end
+    GC.Sell.cancelledLots[198344858] = { at = 100000 - GC.Sell.CANCEL_SENT_WAIT - 5 }
+    readRoster()
+    assert.is_nil(GC.Sell.cancelledLots[198344858])
+    assert.equal(1, #GC.SellState.ownedLots)
+    assert.equal("The cancel did not go through: the lot is still listed", said[1])
+  end)
+
   it("does not count a fully sold lot as a live one", function()
     OWNED = { partSold()[1] }
     readRoster()
