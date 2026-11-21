@@ -1029,6 +1029,12 @@ GC.Locales.ptBR = {
     "Abaixo NPC",
   ["Under market"] =
     "Sob mercado",
+  ["stress exit, %s each"] = "saída de emergência, %s cada",
+  ["sold at the AH value, %s"] = "vendido pelo valor no leilão, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "Vendidos pelo valor no leilão de %s, os %d rendem %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "Se precisar vender já, um cobre abaixo do próximo anúncio a %s: %s.",
+  ["STRESS EXIT"] = "SAÍDA DE EMERGÊNCIA",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "SESSÃO %s · SEGURO %s · COMPRAS %d",
   ["buy at %s or less, vendor pays %s"] = "compre por %s ou menos, o vendedor paga %s",
   ["buy at %s or less, AH value %s"] = "compre por %s ou menos, valor no leilão %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

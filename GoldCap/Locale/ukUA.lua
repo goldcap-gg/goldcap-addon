@@ -1012,6 +1012,12 @@ GC.Locales.ukUA = {
     "Нижче НПС",
   ["Under market"] =
     "Під ринком",
+  ["stress exit, %s each"] = "терміновий продаж, %s за шт.",
+  ["sold at the AH value, %s"] = "за ціною аукціону, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "За ціною аукціону %s ці %d принесуть %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "Якщо продавати одразу, на мідяк дешевше наступного лоту, по %s: %s.",
+  ["STRESS EXIT"] = "ТЕРМІНОВИЙ ПРОДАЖ",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "СЕСІЯ %s · НАПЕВНО %s · ПОКУПОК %d",
   ["buy at %s or less, vendor pays %s"] = "купувати до %s, торговець платить %s",
   ["buy at %s or less, AH value %s"] = "купувати до %s, ціна на аукціоні %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

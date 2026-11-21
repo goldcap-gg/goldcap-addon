@@ -981,6 +981,12 @@ GC.Locales.koKR = {
     "상인가 이하",
   ["Under market"] =
     "시세 이하",
+  ["stress exit, %s each"] = "급처분, 개당 %s",
+  ["sold at the AH value, %s"] = "경매장 가치로 판매, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "경매장 가치 %s에 팔면 %d개로 %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "지금 팔아야 한다면 다음 매물보다 1동 싸게 %s: %s.",
+  ["STRESS EXIT"] = "급처분",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "세션 %s · 확정 %s · 구매 %d",
   ["buy at %s or less, vendor pays %s"] = "%s 이하에 구매, 상인 매입가 %s",
   ["buy at %s or less, AH value %s"] = "%s 이하에 구매, 경매장 가치 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

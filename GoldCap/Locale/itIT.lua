@@ -1033,6 +1033,12 @@ GC.Locales.itIT = {
     "Sotto PNG",
   ["Under market"] =
     "Sotto merc.",
+  ["stress exit, %s each"] = "uscita d'emergenza, %s l'uno",
+  ["sold at the AH value, %s"] = "venduto al valore d'asta, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "Venduti al valore d'asta di %s, i %d rendono %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "Se va venduto subito, un rame sotto la prossima inserzione a %s: %s.",
+  ["STRESS EXIT"] = "USCITA D'EMERGENZA",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "SESSIONE %s · SICURO %s · ACQUISTI %d",
   ["buy at %s or less, vendor pays %s"] = "compra a %s o meno, il mercante paga %s",
   ["buy at %s or less, AH value %s"] = "compra a %s o meno, valore all'asta %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

@@ -1034,6 +1034,12 @@ GC.Locales.frFR = {
     "Sous PNJ",
   ["Under market"] =
     "Sous marché",
+  ["stress exit, %s each"] = "sortie d'urgence, %s l'unité",
+  ["sold at the AH value, %s"] = "vendu à la valeur HdV, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "Vendus à la valeur HdV de %s, les %d rapportent %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "S'il faut vendre tout de suite, un cuivre sous l'annonce suivante à %s : %s.",
+  ["STRESS EXIT"] = "SORTIE D'URGENCE",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "SESSION %s · SÛR %s · ACHATS %d",
   ["buy at %s or less, vendor pays %s"] = "acheter à %s ou moins, le marchand paie %s",
   ["buy at %s or less, AH value %s"] = "acheter à %s ou moins, valeur HdV %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
