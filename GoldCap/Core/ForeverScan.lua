@@ -875,7 +875,7 @@ local function realDriver()
         realm = realm,
         -- The server number in the player's GUID: goldcap.gg names the realm from it when the
         -- client names none and GoldCap never saw it (a character first played after the patch).
-        server = GC.Game and GC.Game.ServerId and GC.Game.ServerId((select(2, pcall(UnitGUID, "player")))) or nil,
+        server = GC.Game and GC.Game.ServerId and GC.Game.ServerId((select(2, pcall(_G.UnitGUID, "player")))) or nil,
         faction = okF and type(faction) == "string" and faction or nil,
         ruleset = nil } -- no API names the ruleset yet (spec §Facts); nil, never a guess
     end,
