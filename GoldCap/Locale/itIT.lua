@@ -2000,7 +2000,6 @@ GC.Locales.itIT = {
   ["%d h ago"] = "%d h fa",
   ["%d of %d sold · %d left"] = "%d su %d venduti · ne restano %d",
   ["%d listed · none sold yet"] = "%d in vendita · ancora nessuna vendita",
-  ["%s cheaper ahead of you"] = "%s più economici davanti a te",
   ["SOLD SO FAR"] = "GIÀ VENDUTO",
   ["nothing yet"] = "ancora niente",
   ["one sale"] = "una vendita",

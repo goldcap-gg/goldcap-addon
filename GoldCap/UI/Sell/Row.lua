@@ -468,9 +468,6 @@ function Row.PaintPosition(row, entry, ctx)
     stockParts[#stockParts + 1] =
       (GC.L["paid %s each"]):format(moneyHex() .. formatCell(paidUnit) .. "|r")
   end
-  -- MY LOTS: where the lot stands, "first in line" or "92 cheaper ahead of you".
-  local standingText = onListed and listedQty > 0 and UI.Sold.StandingText(p, listedQty) or nil
-  if standingText then stockParts[#stockParts + 1] = standingText end
   -- The quality pip goes in the label rather than beside it: this row and
   -- the Sniper's deal row anchor their cells completely differently, and an
   -- inline atlas escape needs no layout in either. Empty for the vast
@@ -712,19 +709,23 @@ function Row.PaintPosition(row, entry, ctx)
   local standing = rowUnit and GC.SellViewModel.Standing
     and GC.SellViewModel.Standing(p, rowUnit) or nil
   local lit = onListedDeck and Theme.color.watch or Theme.color.gold
+  -- Past the last mark the last one lights: a lot behind more levels than there are marks read
+  -- as five grey ticks and nothing (owner's MY LOTS, 2026-11-21).
+  local litSlot = standing and math.min(standing.slot, #row.standMarks) or nil
   for slot, mark in ipairs(row.standMarks) do
     if not standing then
       -- No book, no marks: five grey ticks beside nothing read as a broken widget.
       mark:SetColorTexture(1, 1, 1, 0) -- untinted
-    elseif slot == standing.slot then
+    elseif slot == litSlot then
       mark:SetColorTexture(lit[1], lit[2], lit[3], 1)
     else
       local ink = GC.Kit.Tokens.color.ink
-      mark:SetColorTexture(ink[1], ink[2], ink[3], slot < standing.slot and 0.32 or 0.10)
+      mark:SetColorTexture(ink[1], ink[2], ink[3], slot < litSlot and 0.32 or 0.10)
     end
   end
-  -- MY LOTS says it in words on the stock line (UI/Sell/Sold.lua's StandingText): the marks stay.
-  if not standing or onListedDeck then
+  -- The words under the marks, on both decks, as DEALS has them (owner, 2026-11-21: MY LOTS showed
+  -- only the marks, its count up on the stock line).
+  if not standing then
     row.priceStand:SetText("")
   elseif standing.ahead == 0 then
     row.priceStand:SetText(GC.L["first in line"])

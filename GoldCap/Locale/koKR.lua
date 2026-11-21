@@ -1925,7 +1925,6 @@ GC.Locales.koKR = {
   ["%d h ago"] = "%d시간 전",
   ["%d of %d sold · %d left"] = "%d/%d 판매 · %d 남음",
   ["%d listed · none sold yet"] = "%d개 등록 · 아직 판매 없음",
-  ["%s cheaper ahead of you"] = "더 싼 물량 %s개가 앞에 있음",
   ["SOLD SO FAR"] = "지금까지 판매",
   ["nothing yet"] = "아직 없음",
   ["one sale"] = "판매 1건",

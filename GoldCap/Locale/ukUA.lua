@@ -2072,7 +2072,6 @@ GC.Locales.ukUA = {
   ["%d h ago"] = "%d год тому",
   ["%d of %d sold · %d left"] = "продано %d з %d · залишилось %d",
   ["%d listed · none sold yet"] = "виставлено %d · поки нічого не продано",
-  ["%s cheaper ahead of you"] = "%s дешевше перед тобою",
   ["SOLD SO FAR"] = "УЖЕ ПРОДАНО",
   ["nothing yet"] = "поки нічого",
   ["one sale"] = "один продаж",

@@ -79,19 +79,6 @@ local function ensure(row)
   row.soldChip:SetPoint("RIGHT", row.cells.sold, "RIGHT", 0, 0)
 end
 
---- MY LOTS' standing of a lot, for its stock line (Row.PaintPosition): "first in line" in green, or
--- "92 cheaper ahead of you" in amber, from where its average price stands in the live book
--- (GC.SellViewModel.Standing, the marks under the price). The row's own Cancel lot is how it is
--- reposted when the cancel queue finds it worth it. nil with no book.
-function Sold.StandingText(position, listedQty)
-  if not (type(position.listedValue) == "number" and listedQty > 0 and GC.SellViewModel.Standing) then return nil end
-  local standing = GC.SellViewModel.Standing(position, math.floor(position.listedValue / listedQty))
-  if not standing then return nil end
-  if standing.ahead == 0 then return GC.Sell._InlineColor(green(), GC.L["first in line"]) end
-  return GC.Sell._InlineColor(Theme.color.amber or Theme.color.gold, (GC.L["%s cheaper ahead of you"]):format(
-    GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
-end
-
 -- `share` 0..1 lit, or nil for no ring; `done` puts the check mark on (sold out).
 local function paintRing(row, share, done)
   local ring = row.soldRing

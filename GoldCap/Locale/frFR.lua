@@ -2007,7 +2007,6 @@ GC.Locales.frFR = {
   ["%d h ago"] = "il y a %d h",
   ["%d of %d sold · %d left"] = "%d sur %d vendus · %d restants",
   ["%d listed · none sold yet"] = "%d en vente · rien de vendu pour l'instant",
-  ["%s cheaper ahead of you"] = "%s moins chers devant toi",
   ["SOLD SO FAR"] = "DÉJÀ VENDU",
   ["nothing yet"] = "rien encore",
   ["one sale"] = "une vente",

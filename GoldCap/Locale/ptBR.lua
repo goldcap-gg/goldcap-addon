@@ -1997,7 +1997,6 @@ GC.Locales.ptBR = {
   ["%d h ago"] = "há %d h",
   ["%d of %d sold · %d left"] = "%d de %d vendidos · restam %d",
   ["%d listed · none sold yet"] = "%d anunciados · nada vendido ainda",
-  ["%s cheaper ahead of you"] = "%s mais baratos na sua frente",
   ["SOLD SO FAR"] = "JÁ VENDIDO",
   ["nothing yet"] = "nada ainda",
   ["one sale"] = "uma venda",

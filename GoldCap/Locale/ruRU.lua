@@ -2069,7 +2069,6 @@ GC.Locales.ruRU = {
   ["%d h ago"] = "%d ч назад",
   ["%d of %d sold · %d left"] = "продано %d из %d · осталось %d",
   ["%d listed · none sold yet"] = "выставлено %d · пока ничего не продано",
-  ["%s cheaper ahead of you"] = "%s дешевле перед тобой",
   ["SOLD SO FAR"] = "УЖЕ ПРОДАНО",
   ["nothing yet"] = "пока ничего",
   ["one sale"] = "одна продажа",
