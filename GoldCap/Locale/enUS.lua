@@ -1044,6 +1044,7 @@ GC.Locales.enUS = {
   -- two empty states. No "≤": the bundled monospace font has no glyph for it.
   ["Below vendor"] = "Below vendor",
   ["Under market"] = "Under market",
+  ["ALL ON GOLDCAP.GG"] = "ALL ON GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "buy at %s or less, vendor pays %s",
   ["buy at %s or less, AH value %s"] = "buy at %s or less, AH value %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1160,8 +1161,6 @@ GC.Locales.enUS = {
   ["No sales match “%s” in these %d days."] = "No sales match “%s” in these %d days.",
   ["No sales today."] = "No sales today.",
   ["No sales in these %d days."] = "No sales in these %d days.",
-  ["SEARCH 30 DAYS"] = "SEARCH 30 DAYS",
-  ["SHOW 30 DAYS"] = "SHOW 30 DAYS",
   -- The quest reward mark (UI/QuestRewardMark.lua).
   ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
     "GoldCap: the reward in the gold frame is worth the most on the auction house (%s).",

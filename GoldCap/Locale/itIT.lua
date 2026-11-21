@@ -1043,6 +1043,7 @@ GC.Locales.itIT = {
     "Sotto PNG",
   ["Under market"] =
     "Sotto merc.",
+  ["ALL ON GOLDCAP.GG"] = "TUTTO SU GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "compra a %s o meno, il mercante paga %s",
   ["buy at %s or less, AH value %s"] = "compra a %s o meno, valore all'asta %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1159,8 +1160,6 @@ GC.Locales.itIT = {
   ["No sales match “%s” in these %d days."] = "Nessuna vendita corrisponde a «%s» in questi %d giorni.",
   ["No sales today."] = "Nessuna vendita oggi.",
   ["No sales in these %d days."] = "Nessuna vendita in questi %d giorni.",
-  ["SEARCH 30 DAYS"] = "CERCA IN 30 GIORNI",
-  ["SHOW 30 DAYS"] = "MOSTRA 30 GIORNI",
   ["▲%d%% over the alert target"] = "▲%d%% sopra l'obiettivo dell'avviso",
   ["▲%d%% over usual"] = "▲%d%% sopra il solito",
   ["▲%d%% over your cap"] = "▲%d%% sopra il tuo tetto",

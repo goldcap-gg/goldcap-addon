@@ -43,6 +43,22 @@ Sold._view = view
 -- `open` is the one sale whose receipt is open, by the sale's identity (saleID), never by the
 -- pooled row that happens to draw it.
 local state = { period = "7d", query = "", open = nil, searchOpen = false }
+
+-- The whole history lives on goldcap.gg. WoW cannot open a URL from an addon, so the link shows in
+-- a box in the header, where the search box sits, selected whole for the copy keys (the welcome
+-- window does the same, GoldCap/UI/WelcomeFrame.lua). No StaticPopup: GoldCap keeps out of them.
+local SITE_URL = "https://goldcap.gg/ledger"
+local render
+local function showSiteLink()
+  state.siteOpen = not state.siteOpen
+  if state.siteOpen then state.searchOpen = false end
+  render()
+  local box = state.siteOpen and view and view.head and view.head.siteBox
+  if box and box.SetFocus then
+    box:SetFocus()
+    box:HighlightText()
+  end
+end
 Sold._state = state
 
 local SD = {
@@ -623,12 +639,39 @@ local function layoutHeader(width)
       setColor(chip.text, Theme.color.fgDim)
     end
   end
+  -- Past seven days: the site.
+  setLabel(h.site, GC.L["ALL ON GOLDCAP.GG"])
+  local siteW = widthOf(h.site.text) + 2 * SD.CHIP_PAD
+  h.site:SetSize(siteW, SD.CHIP_H)
+  h.site:ClearAllPoints()
+  h.site:SetPoint("LEFT", h.group, "LEFT", x, 0)
+  h.site.bg:SetVertexColor(1, 1, 1, 0) -- untinted
+  setColor(h.site.text, Theme.color.goldHi)
+  x = x + siteW + SD.CHIP_GAP
   local groupW = x - SD.CHIP_GAP + SD.GROUP_PAD
   h.group:ClearAllPoints()
   h.group:SetPoint("TOPRIGHT", view.container, "TOPRIGHT", -(SD.CTRL_H + SD.GAP / 2), -(SD.HEAD_H - SD.CTRL_H) / 2)
   h.group:SetSize(groupW, SD.CTRL_H)
 
   local y = SD.HEAD_H
+  -- The goldcap.gg link takes the search box's place while it is open.
+  if state.siteOpen then
+    h.well:Hide()
+    local room = width - titleW - SD.TITLE_GAP - groupW - SD.CTRL_H - SD.GAP
+    local least = hug(h.siteBox.measure) + 2 * SD.SEARCH_PAD + SD.GLYPH + 14
+    h.siteWell:ClearAllPoints()
+    if room >= least then
+      h.siteWell:SetPoint("TOPRIGHT", h.group, "TOPLEFT", -SD.GAP, 0)
+      h.siteWell:SetSize(math.min(math.max(least, SD.SEARCH_W), room), SD.CTRL_H)
+    else
+      h.siteWell:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -(y + SD.GAP / 2))
+      h.siteWell:SetSize(math.min(width, math.max(least, SD.SEARCH_W)), SD.CTRL_H)
+      y = y + SD.GAP / 2 + SD.CTRL_H
+    end
+    h.siteWell:Show()
+    return y + SD.GAP
+  end
+  h.siteWell:Hide()
   local text = h.search:GetText() or ""
   if not (state.searchOpen or text ~= "") then
     h.well:Hide()
@@ -959,10 +1002,10 @@ local function layoutEmpty(m, width, y)
   elseif query ~= "" then
     message = state.period == "today" and GC.L["No sales match “%s” today."]:format(query)
       or GC.L["No sales match “%s” in these %d days."]:format(query, days)
-    button = state.period ~= "30d" and GC.L["SEARCH 30 DAYS"] or nil
+    button = state.period == "today" and GC.L["%d DAYS"]:format(7) or GC.L["ALL ON GOLDCAP.GG"]
   else
     message = state.period == "today" and GC.L["No sales today."] or GC.L["No sales in these %d days."]:format(days)
-    button = state.period ~= "30d" and GC.L["SHOW 30 DAYS"] or nil
+    button = state.period == "today" and GC.L["%d DAYS"]:format(7) or GC.L["ALL ON GOLDCAP.GG"]
   end
   local inner = width - 2 * SD.EMPTY_PAD
   -- The first visit is a welcome, set left under the mail glyph; a period or a search with
@@ -1085,7 +1128,7 @@ local function currentWidth()
   return view.width or 600
 end
 
-local function render()
+function render()
   if not view.container then return end
   local width = currentWidth()
   view.content:SetWidth(width)
@@ -1214,6 +1257,51 @@ local function createHead(parent)
     end)
     h.chips[period] = chip
   end
+  h.site = Theme.Button(h.group, "ghost", "badge")
+  h.site:SetScript("OnClick", showSiteLink)
+  -- The link's siteBox: the URL selected whole on a click, put back if anything types over it.
+  h.siteWell = Theme.Card(parent, COLOR.tile, Theme.color.goldHi, true)
+  h.siteWell:Hide()
+  local siteBox = CreateFrame("EditBox", nil, h.siteWell)
+  siteBox:SetAutoFocus(false)
+  siteBox:SetPoint("TOPLEFT", SD.SEARCH_PAD, -2)
+  siteBox:SetPoint("BOTTOMRIGHT", -(SD.GLYPH + 14), 2)
+  if siteBox.SetFont then
+    siteBox:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
+    siteBox:SetTextColor(Theme.color.goldHi[1], Theme.color.goldHi[2], Theme.color.goldHi[3], 1)
+    if Theme.OnRescale then Theme.OnRescale(function(scale) siteBox:SetFont(Theme.FONT_UI, 11 * scale, "") end) end
+  end
+  siteBox:SetText(SITE_URL)
+  siteBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+  siteBox:SetScript("OnMouseUp", function(self) self:SetFocus() self:HighlightText() end)
+  siteBox:SetScript("OnTextChanged", function(self)
+    if self:GetText() ~= SITE_URL then
+      self:SetText(SITE_URL)
+      self:HighlightText()
+    end
+  end)
+  siteBox:SetScript("OnEscapePressed", function(self)
+    self:ClearFocus()
+    state.siteOpen = false
+    render()
+  end)
+  -- What the siteBox's text needs, measured on a plain string (an EditBox has no string width).
+  siteBox.measure = Theme.Num(h.siteWell, 11)
+  siteBox.measure:SetText(SITE_URL)
+  siteBox.measure:Hide()
+  h.siteBox = siteBox
+  h.siteClose = Theme.Button(h.siteWell, "ghost", "badge")
+  h.siteClose:SetSize(SD.GLYPH + 8, SD.GLYPH + 8)
+  h.siteClose:SetPoint("RIGHT", h.siteWell, "RIGHT", -4, 0)
+  h.siteClose.bg:SetVertexColor(1, 1, 1, 0) -- untinted
+  h.siteClose.glyph = h.siteClose:CreateTexture(nil, "OVERLAY")
+  Theme.SetIcon(h.siteClose.glyph, "close", Theme.color.fgDim)
+  h.siteClose.glyph:SetSize(SD.GLYPH - 2, SD.GLYPH - 2)
+  h.siteClose.glyph:SetPoint("CENTER", h.siteClose, "CENTER", 0, 0)
+  h.siteClose:SetScript("OnClick", function()
+    state.siteOpen = false
+    render()
+  end)
   local dim = Theme.color.fgDim
   -- The search button: a magnifier that reveals the box, and hides it again (clearing it).
   h.find = Theme.Button(parent, "ghost", "badge")
@@ -1264,7 +1352,7 @@ local function createHead(parent)
   end
   h.find:SetScript("OnClick", function()
     if state.searchOpen or (search:GetText() or "") ~= "" then return shut() end
-    state.searchOpen = true
+    state.searchOpen, state.siteOpen = true, false
     render()
     if search.SetFocus then search:SetFocus() end
   end)
@@ -1301,8 +1389,12 @@ local function createEmpty(parent)
   e.button.bg:SetVertexColor(1, 1, 1, 0) -- untinted
   setColor(e.button.text, Theme.color.goldHi)
   e.button:SetScript("OnClick", function()
-    state.period = "30d"
-    render()
+    if state.period == "today" then
+      state.period = "7d"
+      render()
+    else
+      showSiteLink()
+    end
   end)
   e.frame:Hide()
   return e

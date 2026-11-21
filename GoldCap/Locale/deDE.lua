@@ -1043,6 +1043,7 @@ GC.Locales.deDE = {
     "Unter NPC",
   ["Under market"] =
     "Unter Markt",
+  ["ALL ON GOLDCAP.GG"] = "ALLES AUF GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "kaufen bis %s, Händler zahlt %s",
   ["buy at %s or less, AH value %s"] = "kaufen bis %s, AH-Wert %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1160,8 +1161,6 @@ GC.Locales.deDE = {
   ["No sales match “%s” in these %d days."] = "Keine Verkäufe zu „%s“ in diesen %d Tagen.",
   ["No sales today."] = "Heute keine Verkäufe.",
   ["No sales in these %d days."] = "Keine Verkäufe in diesen %d Tagen.",
-  ["SEARCH 30 DAYS"] = "30 TAGE DURCHSUCHEN",
-  ["SHOW 30 DAYS"] = "30 TAGE ZEIGEN",
   ["▲%d%% over the alert target"] = "▲%d%% über dem Alarmziel",
   ["▲%d%% over usual"] = "▲%d%% über üblich",
   ["▲%d%% over your cap"] = "▲%d%% über deinem Deckel",

@@ -1045,6 +1045,7 @@ GC.Locales.esES = {
     "Bajo NPC",
   ["Under market"] =
     "Bajo mercado",
+  ["ALL ON GOLDCAP.GG"] = "TODO EN GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "comprar a %s o menos, el vendedor paga %s",
   ["buy at %s or less, AH value %s"] = "comprar a %s o menos, valor en subasta %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1161,8 +1162,6 @@ GC.Locales.esES = {
   ["No sales match “%s” in these %d days."] = "Ninguna venta coincide con «%s» en estos %d días.",
   ["No sales today."] = "Hoy no hay ventas.",
   ["No sales in these %d days."] = "No hay ventas en estos %d días.",
-  ["SEARCH 30 DAYS"] = "BUSCAR EN 30 DÍAS",
-  ["SHOW 30 DAYS"] = "VER 30 DÍAS",
   ["▲%d%% over the alert target"] = "▲%d%% sobre el objetivo de la alerta",
   ["▲%d%% over usual"] = "▲%d%% sobre lo habitual",
   ["▲%d%% over your cap"] = "▲%d%% sobre tu tope",

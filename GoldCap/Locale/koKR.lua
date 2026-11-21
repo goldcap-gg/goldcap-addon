@@ -989,6 +989,7 @@ GC.Locales.koKR = {
     "상인가 이하",
   ["Under market"] =
     "시세 이하",
+  ["ALL ON GOLDCAP.GG"] = "전체 기록: GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "%s 이하에 구매, 상인 매입가 %s",
   ["buy at %s or less, AH value %s"] = "%s 이하에 구매, 경매장 가치 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1106,8 +1107,6 @@ GC.Locales.koKR = {
   ["No sales match “%s” in these %d days."] = "“%s”: 이 %d일 동안 일치하는 판매가 없습니다.",
   ["No sales today."] = "오늘은 판매가 없습니다.",
   ["No sales in these %d days."] = "이 %d일 동안 판매가 없습니다.",
-  ["SEARCH 30 DAYS"] = "30일 검색",
-  ["SHOW 30 DAYS"] = "30일 보기",
   ["▲%d%% over the alert target"] = "▲알림 목표가보다 %d%% 높음",
   ["▲%d%% over usual"] = "▲평소보다 %d%% 높음",
   ["▲%d%% over your cap"] = "▲내 상한보다 %d%% 높음",

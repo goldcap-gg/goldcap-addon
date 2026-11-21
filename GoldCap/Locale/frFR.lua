@@ -1043,6 +1043,7 @@ GC.Locales.frFR = {
     "Sous PNJ",
   ["Under market"] =
     "Sous marché",
+  ["ALL ON GOLDCAP.GG"] = "TOUT SUR GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "acheter à %s ou moins, le marchand paie %s",
   ["buy at %s or less, AH value %s"] = "acheter à %s ou moins, valeur HdV %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1160,8 +1161,6 @@ GC.Locales.frFR = {
   ["No sales match “%s” in these %d days."] = "Aucune vente ne correspond à « %s » sur ces %d jours.",
   ["No sales today."] = "Aucune vente aujourd'hui.",
   ["No sales in these %d days."] = "Aucune vente sur ces %d jours.",
-  ["SEARCH 30 DAYS"] = "CHERCHER SUR 30 JOURS",
-  ["SHOW 30 DAYS"] = "VOIR 30 JOURS",
   ["▲%d%% over the alert target"] = "▲%d%% au-dessus de la cible de l'alerte",
   ["▲%d%% over usual"] = "▲%d%% au-dessus de l'habituel",
   ["▲%d%% over your cap"] = "▲%d%% au-dessus de ton plafond",

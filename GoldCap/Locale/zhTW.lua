@@ -966,6 +966,7 @@ GC.Locales.zhTW = {
     "低於商人價",
   ["Under market"] =
     "低於市場價",
+  ["ALL ON GOLDCAP.GG"] = "全部記錄：GOLDCAP.GG",
   ["buy at %s or less, vendor pays %s"] = "%s 或更低時買入，商人收購價 %s",
   ["buy at %s or less, AH value %s"] = "%s 或更低時買入，拍賣場價值 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
@@ -1082,8 +1083,6 @@ GC.Locales.zhTW = {
   ["No sales match “%s” in these %d days."] = "「%s」：這 %d 天內沒有符合的銷售。",
   ["No sales today."] = "今天沒有銷售。",
   ["No sales in these %d days."] = "這 %d 天內沒有銷售。",
-  ["SEARCH 30 DAYS"] = "搜尋 30 天",
-  ["SHOW 30 DAYS"] = "顯示 30 天",
   ["▲%d%% over the alert target"] = "▲高於提醒目標價 %d%%",
   ["▲%d%% over usual"] = "▲高於平時 %d%%",
   ["▲%d%% over your cap"] = "▲高於你的上限 %d%%",
