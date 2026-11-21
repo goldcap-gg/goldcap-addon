@@ -6619,6 +6619,22 @@ function GC.Sniper._ForeverLabel(kind)
   return kind == "market" and GC.L["Under market"] or GC.L["Below vendor"]
 end
 
+-- The row tooltip's one Forever line: what to buy at and against what, left, and what the buy
+-- makes, right. The whole sentence (_ForeverNote) ran three lines under the item's own tooltip,
+-- and the owner found the block below the item too long to read (2026-11-21); the inspector
+-- still carries the sentence. A market deal's profit is an estimate, so it reads "~+".
+function GC.Sniper._ForeverTipLine(deal)
+  if not (deal and deal.forever and deal.ceiling and deal.refUnit) then return nil end
+  local text = deal.forever == "market"
+    and GC.L["buy at %s or less, AH value %s"] or GC.L["buy at %s or less, vendor pays %s"]
+  local left = text:format(GC.Util.FormatMoney(deal.ceiling), GC.Util.FormatMoney(deal.refUnit))
+  local right
+  if type(deal.estProfit) == "number" and deal.estProfit > 0 then
+    right = (deal.forever == "market" and "~+" or "+") .. GC.Util.FormatMoney(deal.estProfit)
+  end
+  return left, right
+end
+
 function GC.Sniper._ForeverNote(kind, ceiling, ref, profit)
   local text = kind == "market"
     and GC.L["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."]
@@ -11843,9 +11859,12 @@ createRow = function(parent, index)
       -- A row measured against a followed group's usual price has no AH value for the note to name:
       -- the group's sentence stands in for it.
       if self.deal.refSource ~= "group" then
-        GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling,
-          self.deal.refUnit, self.deal.estProfit))), self.deal.forever == "market" and 0.83 or 0.25,
-          self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
+        local left, right = GC.Sniper._ForeverTipLine(self.deal)
+        if left then
+          local dim, gain = GC.Kit.Tokens.blizzard.tipSoft, GC.Kit.Tokens.blizzard.tipSafe
+          GameTooltip:AddDoubleLine(GC.Util.ClientText(left), GC.Util.ClientText(right or " "), dim[1], dim[2], dim[3],
+            gain[1], gain[2], gain[3])
+        end
       end
       local groupNote = GC.Sniper._GroupNote(self.deal)
       if groupNote then GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(groupNote)), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true) end

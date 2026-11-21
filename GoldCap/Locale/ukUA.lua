@@ -1023,6 +1023,8 @@ GC.Locales.ukUA = {
     "Нижче НПС",
   ["Under market"] =
     "Під ринком",
+  ["buy at %s or less, vendor pays %s"] = "купувати до %s, торговець платить %s",
+  ["buy at %s or less, AH value %s"] = "купувати до %s, ціна на аукціоні %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Купити за %s або менше: торговець платить %s за штуку. Ця покупка приносить %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =

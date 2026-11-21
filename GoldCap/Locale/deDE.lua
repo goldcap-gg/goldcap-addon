@@ -1044,6 +1044,8 @@ GC.Locales.deDE = {
     "Unter NPC",
   ["Under market"] =
     "Unter Markt",
+  ["buy at %s or less, vendor pays %s"] = "kaufen bis %s, Händler zahlt %s",
+  ["buy at %s or less, AH value %s"] = "kaufen bis %s, AH-Wert %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Kaufe für %s oder weniger: Ein Händler zahlt %s pro Stück. Dieser Kauf bringt %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =

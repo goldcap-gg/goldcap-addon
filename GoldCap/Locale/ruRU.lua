@@ -1009,6 +1009,8 @@ GC.Locales.ruRU = {
     "Ниже НПС",
   ["Under market"] =
     "Ниже рынка",
+  ["buy at %s or less, vendor pays %s"] = "покупать до %s, торговец платит %s",
+  ["buy at %s or less, AH value %s"] = "покупать до %s, цена на аукционе %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Купить за %s или меньше: торговец платит %s за штуку. Эта покупка приносит %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
