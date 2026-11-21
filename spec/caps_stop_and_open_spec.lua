@@ -557,10 +557,8 @@ describe("Caps stop-and-open", function()
       assert.same({}, rung[2])
     end)
 
-    -- Fix round 3: below WIN.PANEL_SHIFT_MIN the check drawer lies over the list, but it covers
-    -- exactly the rightmost 288 px of a row (320 wide, flush with the window's right edge; the
-    -- row ends 32 px short of it), and at every width below 990 the item and its verdict chip
-    -- stay in view. A row under the drawer is a row the player can see.
+    -- Fix round 3: the check drawer pushes the list aside (applyPanelInset), so a row beside an
+    -- open drawer is a row the player can see, and it rings.
     it("rings a row the drawer only partly covers, its item and verdict still in view", function()
       local GC, drain = load(false)
       local deal = hit(GC, 42, 1)

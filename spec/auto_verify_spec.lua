@@ -663,6 +663,48 @@ describe("Deals background verification", function()
     assert.equal("ghost", api.rows[1].buy.variant)
   end)
 
+  -- HIDE ITEM, from the item's check panel: the row leaves the board like a refused one, the same
+  -- toggle shows it again, it is counted on its own, and the panel's button brings it back.
+  it("hides an item the player hid, counts it apart from refusals, and shows it again", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100), deal(2, 200) })
+
+    assert.is_true(api.GC.Sniper._ToggleHidden(1))
+    assert.is_true(api.GC.Sniper._ItemHidden(1))
+    local list = api.renderList()
+    assert.equal(1, #list)
+    assert.equal(2, list[1].itemID)
+    assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    assert.equal(1, api.GC.Sniper._hiddenItemCount)
+
+    api.GC.db.settings.sniper.showRefused = true
+    assert.equal(2, #api.renderList())
+    api.GC.db.settings.sniper.showRefused = false
+
+    assert.is_false(api.GC.Sniper._ToggleHidden(1))
+    assert.equal(2, #api.renderList())
+    assert.equal(0, api.GC.Sniper._hiddenItemCount)
+  end)
+
+  -- The check panel's ladder reads the book the check read; the verdict keeps its cheapest levels
+  -- for a panel opened after that book has gone.
+  it("keeps the cheapest levels the check read on its verdict", function()
+    local api = loadSniper(avoid)
+    board(api, { deal(1, 100) })
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.same({ { unitPrice = 100, quantity = 50 } }, api.verdicts[1].levels)
+
+    local kept = api.GC.Sniper._KeepLevels({
+      { unitPrice = 9, quantity = 1 }, { unitPrice = 3, quantity = 2 }, { unitPrice = 5, quantity = 1 },
+      { unitPrice = 1, quantity = 4 }, { unitPrice = 7, quantity = 1 }, { unitPrice = 8, quantity = 1 },
+    })
+    assert.equal(5, #kept)
+    assert.same({ 1, 3, 5, 7, 8 }, { kept[1].unitPrice, kept[2].unitPrice, kept[3].unitPrice,
+      kept[4].unitPrice, kept[5].unitPrice })
+    assert.is_nil(api.GC.Sniper._KeepLevels(nil))
+  end)
+
   it("voids a verdict when the asking price moves", function()
     local api = loadSniper(avoid)
     board(api, { deal(1, 100) })
@@ -1130,22 +1172,17 @@ describe("Deals background verification", function()
   -- An unverified row shows a tier, a discount and a profit, every one of them read off the
   -- imported market snapshot rather than confirmed against the live auction house. The only
   -- thing that separated it from a row a live check HAD approved was the word on the button,
-  -- which is too thin a line for that difference to rest on. Pinned as source text because the
-  -- branch lives in createRow's OnEnter, which needs the whole themed widget tree to reach.
+  -- which is too thin a line for that difference to rest on. The row's tooltip card says it in
+  -- its verdict pill (Core/DealCard.lua).
   it("tells the tooltip when nothing has checked the row yet", function()
-    local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
-    local text = file:read("*a")
-    file:close()
-    local from = assert(text:find("local verdict = verdictFor(self.deal)", 1, true))
-    local to = assert(text:find("if self.deal.pinPlaceholder then", from, true))
-    local branch = text:sub(from, to)
-
-    assert.is_truthy(branch:find("GoldCap: checked live, safe to buy", 1, true))
+    local GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/DealCard.lua", GC)
+    assert.equal("SAFE · LIVE 4s AGO", GC.DealCard.Pill({}, { buyable = true }, 4).text)
     -- The third state, the one that used to render as silence.
-    assert.is_truthy(branch:find("not checked against the live auction house yet", 1, true))
+    assert.equal("NOT CHECKED YET", GC.DealCard.Pill({}, nil).text)
     -- A pin that is not currently a deal has nothing to check, so it must not be told it is
-    -- unchecked -- its own line below says what it actually is.
-    assert.is_truthy(branch:find("elseif not self.deal.pinPlaceholder then", 1, true))
+    -- unchecked -- the card says what it actually is.
+    assert.equal("WATCHING", GC.DealCard.Pill({ pinPlaceholder = true }, nil).text)
   end)
 
   -- Owner report 2026-09-24: a character with no gold watched the board for an hour. Every
@@ -1275,10 +1312,10 @@ describe("Deals background verification", function()
       assert.is_false(primary.enabled)
       -- 5,322g 46s 80c: rounded up, the same figure the board's cell and the tooltip show.
       assert.equal("not enough gold on this character: you need 5323g", status.text)
-      local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local file = assert(io.open("GoldCap/Core/DealCard.lua", "r"))
       local src = file:read("*a")
       file:close()
-      assert.is_truthy(src:find("GC.Util.FormatGoldCeil(verdict.needsGold)", 1, true)) -- the tooltip
+      assert.is_truthy(src:find("GC.Util.FormatGoldCeil(verdict.needsGold)", 1, true)) -- the tooltip card
     end)
 
     -- A row the wallet limit alone held back ranks high on the board, and the walk reaches only

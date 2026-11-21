@@ -293,12 +293,10 @@ end
 -- Enum.ItemClass.Recipe, the same on both games; a literal, as in Core/ForeverScan.lua's class checks.
 local CLASS_RECIPE = 9
 
--- Draws GoldCap's lines for one item, under `heading` when there is one. Returns nothing; draws
--- nothing when GoldCap has no figure for the item. `shown` is per tooltip: the Companion nudge,
--- which is about the prices as a whole, is drawn once however many blocks there are. `link`: the
--- item's own link, for WoW: Forever's upgrade line; nil for a recipe's block and for an auction
--- house row that stands for every version of an item.
-local function addBlock(tooltip, itemID, now, heading, shown, link)
+-- GoldCap's lines for one item (GC.Tooltip.BuildLines), with what the caller would otherwise
+-- gather itself: the Forever verdict's vendor price, deposit, sales, upgrade and disenchant lines.
+-- nil when GoldCap has no figure for the item. A DEALS row's card reads them too (UI/DealCard.lua).
+function GC.Tooltip.ItemLines(itemID, now, link)
   -- WoW: Forever: the vendor price and a commodity's deposit, for the verdict line.
   local forever = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
     and GC.ForeverValue and { vendorUnit = GC.ForeverValue.VendorUnit(itemID),
@@ -312,7 +310,7 @@ local function addBlock(tooltip, itemID, now, heading, shown, link)
     forever.upgrade = link and upgrades and upgrades.TooltipVerdict and upgrades.TooltipVerdict(link) or nil
     forever.disenchant = GC.Tooltip._ForeverDisenchant(link or itemID, itemID)
   end
-  local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
+  return GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,
     region = GC.Data.Region and GC.Data.Region() or nil,
@@ -320,6 +318,15 @@ local function addBlock(tooltip, itemID, now, heading, shown, link)
     live = GC.Sniper and GC.Sniper.LiveFloor and GC.Sniper.LiveFloor(itemID, now) or nil,
     forever = forever,
   })
+end
+
+-- Draws GoldCap's lines for one item, under `heading` when there is one. Returns nothing; draws
+-- nothing when GoldCap has no figure for the item. `shown` is per tooltip: the Companion nudge,
+-- which is about the prices as a whole, is drawn once however many blocks there are. `link`: the
+-- item's own link, for WoW: Forever's upgrade line; nil for a recipe's block and for an auction
+-- house row that stands for every version of an item.
+local function addBlock(tooltip, itemID, now, heading, shown, link)
+  local lines = GC.Tooltip.ItemLines(itemID, now, link)
   if not lines then return end
   local tip = GC.Util.ClientText
   if heading then tooltip:AddLine(tip(heading), B.tipLabel[1], B.tipLabel[2], B.tipLabel[3]) end

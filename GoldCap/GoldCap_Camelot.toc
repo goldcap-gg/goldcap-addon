@@ -108,6 +108,7 @@ Core/GroupRules.lua
 Core/SellRounds.lua
 Core/ForeverPace.lua
 Core/BoardRows.lua
+Core/DealCard.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
 Core/CraftMath.lua
@@ -139,11 +140,13 @@ UI/Theme.lua
 UI/FontPreload.lua
 UI/Kit/Bar.lua
 UI/Tooltip.lua
+UI/DealCard.lua
 UI/QuestRewardMark.lua
 UI/MerchantNote.lua
 UI/ImportDialog.lua
 UI/WelcomeFrame.lua
 UI/VendorListDialog.lua
+UI/SniperInspector.lua
 UI/SniperFrame.lua
 UI/SniperFrame_Camelot.lua
 UI/SniperGearLoop_Camelot.lua

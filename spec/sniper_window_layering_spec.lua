@@ -213,9 +213,8 @@ describe("Sniper window layering", function()
     assert.is_true(shadow:IsShown())
   end)
 
-  -- The check drawer overlays the deals list on any window narrower than WIN.PANEL_SHIFT_MIN,
-  -- which the docked auction house always is, and it is an OPAQUE sheet so the rows do not
-  -- ghost through. A texture cannot cross a strata boundary, so that only holds while the
+  -- The check drawer slides in over the deals list before the list moves aside, and it is an
+  -- OPAQUE sheet so the rows do not ghost through. A texture cannot cross a strata boundary, so that only holds while the
   -- drawer is in a HIGHER strata than the rows -- and docking adopts the host's strata for the
   -- window, which put the two level whenever the host sat where the drawer was pinned.
   -- Reported in-game 2026-08-28 as "видишь просвечивается".
@@ -389,7 +388,7 @@ describe("Sniper window layering", function()
       local drawer = drawerOf(GC)
       drawer.nameText.GetStringHeight = function() return 40 end
       drawer.fitHeader()
-      assert.equal(12 + 40 + 8, drawer.headerH)
+      assert.equal(12 + 40 + 12 + 8, drawer.headerH) -- the name, and the caps line under it
       drawer.nameText.GetStringHeight = function() return 18 end
       drawer.fitHeader()
       assert.equal(12 + 32 + 8, drawer.headerH)

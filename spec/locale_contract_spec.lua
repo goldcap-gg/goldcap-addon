@@ -131,6 +131,9 @@ describe("locale contract", function()
       -- Its one SetText puts a sample in each bundled face, in a frame off screen, so the client
       -- loads the face at login. The player never sees it.
       ["GoldCap/UI/FontPreload.lua"] = true,
+      -- The DEALS row's tooltip card: a widget drawing the model the row hands it, every text
+      -- translated there (GC.Sniper._CardModel, Core/DealCard.lua). Its one literal is the brand.
+      ["GoldCap/UI/DealCard.lua"] = true,
     }
     -- One line of a file that is not exempt: the addon's name, written the same in every language
     -- (Classic's title plate in UI/Kit/Card.lua).

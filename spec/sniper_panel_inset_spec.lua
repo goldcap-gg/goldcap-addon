@@ -112,6 +112,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       GetFrameStrata = function() return "MEDIUM" end,
       GetWidth = function() return 0 end,
       HookScript = function() end,
+      SetParent = function() end,
       IsEnabled = function() return true end,
       SetAlpha = function() end,
       CreateAnimationGroup = function()
@@ -244,7 +245,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
 
   -- 320 (DG.WIDTH) + 12 (Theme.pad.m) = 332 pushed past the 32px scrollbar gutter
   -- (WIN.CONTENT_RIGHT_GUTTER) already reserved -- -(32 + 332) = -364.
-  it("shifts the deals list left by DG.WIDTH + Theme.pad.m when open on a >=990 window", function()
+  it("shifts the deals list left by DG.WIDTH + Theme.pad.m when open on a wide window", function()
     local frame = buildFrame()
     frame.GetWidth = function() return 1000 end
 
@@ -256,53 +257,52 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     assert.are.equal(332, frame.panelInset)
   end)
 
-  -- Below WIN.PANEL_SHIFT_MIN (990) the panel overlays instead of shifting: docked mode (the
-  -- in-game AH host) is 792 wide and must keep the plain -32 gutter anchor.
-  it("keeps the plain gutter anchor when open but narrower than WIN.PANEL_SHIFT_MIN", function()
+  -- The panel used to lie over the list on any window under 990px -- the docked auction house
+  -- always -- and covered its price column (owner, 2026-11-21). It shifts the list at every
+  -- width now; the list drops columns instead (computeHidden).
+  for _, width in ipairs({ 640, 800, 989, 990 }) do
+    it(("shifts the deals list on a %dpx window too"):format(width), function()
+      local frame = buildFrame()
+      frame.GetWidth = function() return width end
+
+      frame.applyPanelInset(true)
+
+      assert.are.equal(-364, lastOffsetX(frame.scroll, "BOTTOMRIGHT"))
+      assert.are.equal(-364, lastOffsetX(frame.headerRow, "TOPRIGHT"))
+      assert.are.equal(332, frame.panelInset)
+    end)
+  end
+
+  -- What the docked window keeps beside an open panel: the item, the unit price, the profit and Buy.
+  -- The discount and the verdict word go first; Buy never does, the row's click acts through it.
+  it("drops the discount and the verdict column for an open panel on a narrow window, never Buy", function()
+    local function upvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then return nil end
+        if name == wanted then return value end
+      end
+    end
     local frame = buildFrame()
-    frame.GetWidth = function() return 800 end
-
+    local apply = upvalue(frame.applyPanelInset, "applyColumnVisibility")
+    local function hidden() return upvalue(apply, "hiddenColumns") end
+    for _, width in ipairs({ 792, 800 }) do -- the docked auction house
+      frame.GetWidth = function() return width end
+      frame.applyPanelInset(true)
+      assert.is_true(hidden().disc)
+      assert.is_true(hidden().tier)
+      assert.is_nil(hidden().unit)
+      assert.is_nil(hidden().profit)
+      assert.is_nil(hidden().buy)
+    end
+    frame.GetWidth = function() return 640 end -- the smallest window: the unit price goes too
     frame.applyPanelInset(true)
+    assert.is_true(hidden().unit)
+    assert.is_nil(hidden().buy)
 
-    assert.are.equal(-32, lastOffsetX(frame.scroll, "BOTTOMRIGHT"))
-    assert.are.equal(-32, lastOffsetX(frame.headerRow, "TOPRIGHT"))
-    assert.are.equal(-32, lastOffsetX(frame.verifyBtn, "TOPRIGHT"))
-    assert.are.equal(0, frame.panelInset)
-  end)
-
-  -- Fix 3 (check-panel-deals-list, task 4): WIN.PANEL_SHIFT_MIN moved from 900 to 990 -- at 900
-  -- the item column landed at 92px, well under its own declared min (180). 990 is derived so
-  -- that even with BOTH optional columns dropped, the item column still clears 180: 88
-  -- (CONTENT_LEFT) + 32 (GUTTER) + 332 (inset) + 356 (fixed columns) + 180 (item min) = 988,
-  -- rounded up. These three widths pin the boundary exactly on either side of that floor.
-  it("keeps the plain gutter anchor at 989, one pixel short of WIN.PANEL_SHIFT_MIN", function()
-    local frame = buildFrame()
-    frame.GetWidth = function() return 989 end
-
-    frame.applyPanelInset(true)
-
-    assert.are.equal(-32, lastOffsetX(frame.scroll, "BOTTOMRIGHT"))
-    assert.are.equal(0, frame.panelInset)
-  end)
-
-  it("shifts the deals list at exactly WIN.PANEL_SHIFT_MIN (990)", function()
-    local frame = buildFrame()
-    frame.GetWidth = function() return 990 end
-
-    frame.applyPanelInset(true)
-
-    assert.are.equal(-364, lastOffsetX(frame.scroll, "BOTTOMRIGHT"))
-    assert.are.equal(332, frame.panelInset)
-  end)
-
-  it("keeps shifting the deals list one pixel past WIN.PANEL_SHIFT_MIN (991)", function()
-    local frame = buildFrame()
-    frame.GetWidth = function() return 991 end
-
-    frame.applyPanelInset(true)
-
-    assert.are.equal(-364, lastOffsetX(frame.scroll, "BOTTOMRIGHT"))
-    assert.are.equal(332, frame.panelInset)
+    frame.applyPanelInset(false)
+    assert.is_nil(hidden().disc)
+    assert.is_nil(hidden().tier)
   end)
 
   it("resets to the plain gutter anchor once the panel closes, even on a wide window", function()
@@ -388,12 +388,11 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     end)
   end)
 
-  -- Check panel v3 (docs/design/2026-08-28-check-panel). The panel is no longer one fixed
-  -- stack: a refusal has no quantity block and a reconciliation line, a purchase has the
-  -- reverse, and the four facts and the ten-row transcript share one slot. All of that is
-  -- arithmetic in layoutBlocks, and arithmetic in a 6,400-line file with no test is how the
-  -- old panel ended up reserving 94px for a figure a refusal never has. This drives the REAL
-  -- createDialog and reads back where each block actually landed.
+  -- The check panel as UI/SniperInspector.lua draws it (owner, 2026-11-21): the hero, the
+  -- cheapest listings and the three tiles, head to tail, and nothing else -- the four facts, the
+  -- reconciliation, the quantity block and the Details transcript are not stacked (the footer's
+  -- stepper is the quantity now). This drives the REAL createDialog and reads back where each
+  -- block landed.
   describe("Check panel block stack (real createDialog)", function()
     local function realDialog(saved)
       local _, GC = buildFrame()
@@ -407,9 +406,6 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       return getUpvalue(openDialog, "createDialog")()
     end
 
-    -- Replaces the four methods layoutBlocks drives on a block frame with recorders. The stub
-    -- frames are per-CreateFrame tables (see stubFrame above), so patching one block cannot
-    -- perturb another.
     local function watch(block)
       local rec = {}
       block.ClearAllPoints = function() end
@@ -424,123 +420,36 @@ describe("Sniper check panel inset (applyPanelInset)", function()
 
     local function watchAll(d)
       return {
-        hero = watch(d.heroBlock), reconcile = watch(d.reconcileBlock),
-        qty = watch(d.qtyBlock), facts = watch(d.factsBlock), grid = watch(d.gridBlock),
+        hero = watch(d.heroBlock), reconcile = watch(d.reconcileBlock), qty = watch(d.qtyBlock),
+        facts = watch(d.factsBlock), grid = watch(d.gridBlock), toggle = watch(d.detailsToggle),
+        ladder = watch(d.ladderBlock), tiles = watch(d.tilesBlock),
       }
     end
 
-    it("stacks the shown blocks head to tail, with nothing overlapping", function()
-      local d = realDialog(false)
-      local rec = watchAll(d)
-      d.layoutBlocks({ reconcile = false, actionable = true })
+    it("stacks the hero, the cheapest listings and the tiles head to tail, and nothing else", function()
+      for _, saved in ipairs({ false, true }) do
+        local d = realDialog(saved)
+        local rec = watchAll(d)
+        d.inspect = { heroH = 90, ladderH = 110, tilesH = 50 }
+        d.layoutBlocks({ reconcile = true, actionable = true })
 
-      -- Every offset is measured DOWN from the dialog's own top, so these are negative and
-      -- each block starts exactly where the one above it ended.
-      assert.is_true(rec.hero.shown)
-      assert.equal(rec.hero.top - rec.hero.height, rec.qty.top)
-      assert.equal(rec.qty.top - rec.qty.height, rec.facts.top)
-      assert.is_false(rec.reconcile.shown) -- skipped, and it costs no space
-      assert.is_false(rec.grid.shown)      -- Details closed: the facts hold the slot
+        assert.equal(-d.headerH, rec.hero.top)
+        assert.equal(90, rec.hero.height)
+        assert.equal(rec.hero.top - rec.hero.height, rec.ladder.top)
+        assert.equal(rec.ladder.top - rec.ladder.height, rec.tiles.top)
+        for _, gone in ipairs({ "reconcile", "qty", "facts", "grid", "toggle" }) do
+          assert.is_false(rec[gone].shown, gone)
+        end
+        assert.equal(rec.tiles.top - 50 - 4, d.evidenceTop)
+      end
     end)
 
-    it("drops the quantity block on a refusal and puts the reconciliation in its place", function()
-      local d = realDialog(false)
-      local rec = watchAll(d)
-      d.layoutBlocks({ reconcile = true, actionable = false })
-
-      assert.is_true(rec.reconcile.shown)
-      assert.is_false(rec.qty.shown)
-      -- Hero, then the reconciliation, then straight on to the facts -- no hole where the
-      -- quantity box would have been.
-      assert.equal(rec.hero.top - rec.hero.height, rec.reconcile.top)
-      assert.equal(rec.reconcile.top - rec.reconcile.height, rec.facts.top)
-      -- A refusal is the SHORTER shape, which is what let the toggle open in the docked drawer.
-      assert.is_true(d.fixedHeightOpen < 550)
-    end)
-
-    -- In game 2026-09-23 the Reason ended in "...": it wraps now, and whatever its sentence
-    -- takes past its own row is the transcript's -- and the fit guard's -- to pay for.
-    it("grows the transcript by what the wrapped Reason needs past its own row", function()
-      local d = realDialog(false)
-      local rec = watchAll(d)
-      d.GetHeight = function() return 10000 end
-      d.applyDetailsState(true)
-      local oneLine, openOneLine = rec.grid.height, d.fixedHeightOpen
-
-      d.reasonText.GetStringHeight = function() return 43.5 end -- three lines' worth
-      d.layoutBlocks({ reconcile = false, actionable = true })
-
-      local DG = getUpvalue(getUpvalue(d.applyDetailsState, "layoutBlocks"), "DG")
-      assert.equal(DG.GRID_H, oneLine) -- one line fits its own row: nothing added
-      assert.equal(DG.GRID_H + 44 - DG.GRID_ROW_H, rec.grid.height)
-      assert.equal(openOneLine + 44 - DG.GRID_ROW_H, d.fixedHeightOpen)
-      assert.equal(d.fixedHeightOpen, d.fixedHeight)
-    end)
-
-    -- Review M1: the fit guard ran on a toggle, a resize and the dialog's creation -- not when a
-    -- longer Reason was stamped, so a three- or four-line one pushed the open transcript down
-    -- into the status line and the Buy button of a docked drawer that has no room to grow.
-    it("closes the transcript quietly when a longer Reason stops it fitting the window", function()
-      local d = realDialog(true)
-      local rec = watchAll(d)
-      d.GetHeight = function() return 10000 end
-      d.applyDetailsState(true)
-      local fits = d.fixedHeightOpen
-      d.GetHeight = function() return fits + 5 end -- the docked drawer: five pixels to spare
-
-      d.reasonText.GetStringHeight = function() return 60 end
-      d.layoutBlocks({ reconcile = false, actionable = true })
-
-      assert.is_false(d.detailsOpen)
-      assert.is_false(rec.grid.shown)
-      assert.is_true(rec.facts.shown)
-      assert.equal(d.fixedHeightClosed, d.fixedHeight)
-    end)
-
-    -- Follow-up 2 (P4): that quiet close is this window's alone. It keeps the saved preference
-    -- (open) but left the window's own flag shut, and nothing set it again: the next window --
-    -- a one-line Reason with room to spare -- opened with Details closed until SHOW DETAILS.
-    it("opens the next window's transcript again, as the player saved it", function()
+    -- The whole panel, through the real openDialog and stamp: a refusal, then a buy, then
+    -- another item. The inspector never enables, disables or relabels the panel's own button --
+    -- that stays the purchase flow's -- and a new item starts from its own state.
+    it("draws a refusal, a buy and the next item on the real panel, leaving BUY to the purchase flow", function()
       local _, GC = buildFrame()
-      GC.db = { settings = { sniper = { dialogDetailsOpen = true } } }
-      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
-      local refreshRows = getUpvalue(clearDeals, "refreshRows")
-      local createRow = getUpvalue(refreshRows, "createRow")
-      local buildRowCell = getUpvalue(createRow, "buildRowCell")
-      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
-      local openDialog = getUpvalue(onBuyClick, "openDialog")
-      local d = getUpvalue(openDialog, "createDialog")()
-      setUpvalue(openDialog, "dialog", d) -- the one window every open reuses
-      _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
-      finally(function() _G.Item = nil end)
-      -- The Check the open starts waits for an item key nothing here will ever send.
-      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
-        getKeyInfo = function() return nil end, isReady = function() return false end,
-        sendSearch = function() end, onStatus = function() end,
-      })
-      local rec = watchAll(d)
-      d.GetHeight = function() return 10000 end
-      d.applyDetailsState(true)
-      local fits = d.fixedHeightOpen
-      d.GetHeight = function() return fits + 5 end
-      d.reasonText.GetStringHeight = function() return 60 end
-      d.layoutBlocks({ reconcile = false, actionable = true })
-      assert.is_false(d.detailsOpen) -- the long Reason closed it, quietly
-      assert.is_true(GC.db.settings.sniper.dialogDetailsOpen) -- the player's choice stands
-
-      d.row = nil -- that window was closed
-      d.reasonText.GetStringHeight = function() return 0 end -- the next one's Reason is one line
-      local deal = { itemID = 42, isCommodity = true, unitPrice = 100, qty = 1, stale = true }
-      openDialog({ deal = deal, purchaseToken = 1 }, deal)
-
-      assert.is_true(d.detailsOpen)
-      assert.is_true(rec.grid.shown)
-      assert.is_false(rec.facts.shown)
-    end)
-
-    it("leaves the next window's transcript closed when the player closed it", function()
-      local _, GC = buildFrame()
-      GC.db = { settings = { sniper = { dialogDetailsOpen = false } } }
+      GC.db = { settings = { sniper = {}, tooltip = true } }
       local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
       local refreshRows = getUpvalue(clearDeals, "refreshRows")
       local createRow = getUpvalue(refreshRows, "createRow")
@@ -555,93 +464,63 @@ describe("Sniper check panel inset (applyPanelInset)", function()
         getKeyInfo = function() return nil end, isReady = function() return false end,
         sendSearch = function() end, onStatus = function() end,
       })
-      d.GetHeight = function() return 10000 end
-
-      local deal = { itemID = 42, isCommodity = true, unitPrice = 100, qty = 1, stale = true }
+      local stamp = getUpvalue(openDialog, "stampDialogFromDecision")
+      local deal = { itemID = 42, isCommodity = true, unitPrice = 1520, qty = 1, stale = true,
+        forever = "market", ceiling = 850, refUnit = 1700 }
       openDialog({ deal = deal, purchaseToken = 1 }, deal)
+      assert.is_true(d.inspect.pending)
 
-      assert.is_false(d.detailsOpen)
+      local touched = {}
+      for _, method in ipairs({ "Enable", "Disable", "SetLabel" }) do
+        local real = d.primaryBtn[method]
+        d.primaryBtn[method] = function(...)
+          touched[#touched + 1] = method
+          return real(...)
+        end
+      end
+      d.bookLevels = { { unitPrice = 1520, quantity = 30 }, { unitPrice = 1600, quantity = 300 } }
+      stamp(deal, { status = "AVOID", buyable = false, reasons = { "profit_below_minimum" },
+        ceiling = 850, refUnit = 1700, entryUnitDisplay = 1520, exitUnit = 1700, stressProfit = -100 })
+      assert.equal("refuse", d.inspect.ctx.state)
+      assert.is_nil(d.inspect.pending)
+      assert.is_true(d.inspect.ladderH > 0)
+
+      stamp(deal, { status = "SAFE", buyable = true, reasons = {}, ceiling = 850, refUnit = 1700,
+        quantity = 5, entryTotal = 4000, stressProfit = 2000, exitUnit = 1700 })
+      assert.equal("buy", d.inspect.ctx.state)
+      assert.same({}, touched)
+
+      d.row = nil
+      d.bookLevels = nil
+      local other = { itemID = 43, isCommodity = true, unitPrice = 100, qty = 1, stale = true }
+      openDialog({ deal = other, purchaseToken = 2 }, other)
+      assert.equal(43, d.inspect.ctx.deal.itemID)
+      assert.is_nil(d.inspect.ladderH) -- no book read for it yet: no ladder left over from 42
+      assert.is_true(d.inspect.pending)
     end)
 
-    it("swaps the facts for the transcript rather than stacking both", function()
+    it("leaves out a ladder with no book and tiles with no figure, without a hole", function()
       local d = realDialog(false)
       local rec = watchAll(d)
-      d.layoutBlocks({ reconcile = false, actionable = true })
-      local factsTop, closedBudget = rec.facts.top, d.fixedHeightClosed
-
-      d.GetHeight = function() return 10000 end -- tall enough that the fit guard allows it
-      d.applyDetailsState(true)
-
-      assert.is_true(d.detailsOpen)
-      assert.is_false(rec.facts.shown)
-      assert.is_true(rec.grid.shown)
-      assert.equal(factsTop, rec.grid.top) -- the same slot, not a second one under it
-      assert.is_true(d.fixedHeightOpen > closedBudget)
-      assert.equal(d.fixedHeightOpen, d.fixedHeight)
+      d.inspect = { heroH = 70 }
+      d.layoutBlocks({ actionable = false })
+      assert.is_false(rec.ladder.shown)
+      assert.is_false(rec.tiles.shown)
+      assert.equal(rec.hero.top - rec.hero.height - 4, d.evidenceTop)
     end)
 
-    -- The shape is only known once a decision has been stamped. Before that the panel is
-    -- showing a quantity it fully intends to buy, so the quantity block has to be in.
-    it("keeps the quantity block before any verdict has set a shape", function()
+    it("fits the docked drawer with a full ladder, the tiles and the buy footer", function()
       local d = realDialog(false)
-      local rec = watchAll(d)
-      d.layoutBlocks()
-      assert.is_true(rec.qty.shown)
-      assert.is_false(rec.reconcile.shown)
-    end)
-
-    -- A Details toggle must not silently undo the verdict's own shape: layoutBlocks remembers
-    -- the last shape it was given precisely so opening the transcript on a refusal does not
-    -- bring the quantity box back.
-    it("remembers the verdict's shape across a Details toggle", function()
-      local d = realDialog(false)
-      local rec = watchAll(d)
-      d.layoutBlocks({ reconcile = true, actionable = false })
-      d.GetHeight = function() return 10000 end
-      d.applyDetailsState(true)
-
-      assert.is_false(rec.qty.shown)
-      assert.is_true(rec.reconcile.shown)
-    end)
-
-    -- A realm lot (CheckVerdict's `details` false, 2026-10-25): its transcript rows are about
-    -- commodities and stood empty, so the panel keeps the facts and offers no toggle, whatever
-    -- Details the player saved. The saved choice is left standing for the next commodity.
-    it("keeps the facts and hides SHOW DETAILS when the verdict has no transcript", function()
-      local d = realDialog(true)
-      local rec = watchAll(d)
-      local toggle = watch(d.detailsToggle)
+      watchAll(d)
       local DG = getUpvalue(getUpvalue(d.applyDetailsState, "layoutBlocks"), "DG")
-      d.GetHeight = function() return 10000 end
-      d.applyDetailsState(true)
-      d.layoutBlocks({ reconcile = false, actionable = true })
-      local withToggle = d.fixedHeightClosed
-      assert.is_true(toggle.shown)
-
-      d.layoutBlocks({ reconcile = false, actionable = true, details = false })
-
-      assert.is_true(rec.facts.shown)
-      assert.is_false(rec.grid.shown)
-      assert.is_false(toggle.shown)
-      assert.equal(withToggle - DG.TOGGLE_BLOCK_H, d.fixedHeightClosed)
-      assert.equal(d.fixedHeightClosed, d.fixedHeightOpen)
-      assert.equal(d.fixedHeightClosed, d.fixedHeight)
-      assert.is_true(d.detailsOpen)
-
-      -- The next commodity lot opens the transcript the player saved.
-      d.layoutBlocks({ reconcile = false, actionable = true })
-      assert.is_true(rec.grid.shown)
-      assert.is_true(toggle.shown)
-    end)
-
-    -- One realm item has nothing to choose a quantity of: "1 (whole lot)" was a row saying so.
-    it("drops the quantity block when the verdict has no quantity to choose", function()
-      local d = realDialog(false)
-      local rec = watchAll(d)
-      d.layoutBlocks({ reconcile = false, actionable = true, qty = false })
-
-      assert.is_false(rec.qty.shown)
-      assert.equal(rec.hero.top - rec.hero.height, rec.facts.top)
+      -- A three-line sentence, five levels and the limit line, the tiles.
+      d.inspect = { heroH = 8 + 12 + 4 + 28 + 4 + 42 + 8, ladderH = 8 + 16 + 5 * 16 + 16 + 4, tilesH = 8 + 40 + 4 }
+      d.layoutBlocks({ actionable = true })
+      local DOCKED_CEILING = 565 - 32 -- under the title bar
+      assert.is_true(d.fixedHeight + 4 + 46 <= DOCKED_CEILING,
+        ("the panel needs %d of %d"):format(d.fixedHeight + 50, DOCKED_CEILING)) -- with the banner slot
+      assert.equal(114, d.footerH)
+      assert.equal(78, DG.CONTROLS_H) -- the panel without UI/SniperInspector.lua keeps its own
     end)
   end)
 
