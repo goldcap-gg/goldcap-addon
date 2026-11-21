@@ -93,18 +93,15 @@ WIN.RAIL_W = Theme.RAIL_W                     -- left navigation rail (Theme.Rai
 WIN.CONTENT_LEFT = WIN.RAIL_W + Theme.pad.m   -- content starts right of the rail
 WIN.CONTENT_RIGHT_GUTTER = 32
 
--- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) shifts the deals list aside
--- only when the window is wide enough to fit both without crushing the item column below its
--- own declared min (COLUMNS.item.min = 180) -- below this floor the panel overlays instead
--- (see applyPanelInset in createFrame). Derived, not guessed: contentWidth = window width -
--- WIN.CONTENT_LEFT(88) - WIN.CONTENT_RIGHT_GUTTER(32) - inset(DG.WIDTH(320) + Theme.pad.m(12)
--- = 332); with both optional columns dropped the fixed-column budget is 356 (fixedColumnBudget
--- above: tier 48 + disc 56 + unit 76 + profit 84 + buy 52 = 316, plus 5 * Theme.pad.s(8) = 40),
--- so item = contentWidth - 356, and item >= 180 needs contentWidth >= 536, i.e. window width >=
--- 88 + 32 + 332 + 356 + 180 = 988 -- rounded up to 990. The docked-in-the-AH host is 792px wide
--- (AuctionHouseFrame's own 806px, minus the dock's 7px inset on each side), well under this
--- floor, so it always keeps the overlay.
-WIN.PANEL_SHIFT_MIN = 990
+-- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) always shifts the deals list
+-- aside while it is open: it used to lie over the list on any window under 990px, the docked
+-- auction house always, and covered the list's price column (owner, 2026-11-21). The list
+-- narrows instead, and drops its least important columns to keep the item readable
+-- (computeHidden's `open` drops, WIN.PANEL_ITEM_MIN). 88 keeps the unit price in the docked
+-- auction house (792px: the item gets 92px with it, its name on two lines). The Buy column is never one of them: the
+-- row's own left click acts through that button, and a hidden one would leave the rows of an
+-- open panel unclickable.
+WIN.PANEL_ITEM_MIN = 88
 
 WIN.TIER_W = 80          -- the verdict column on retail
 WIN.FOREVER_TIER_W = 112 -- and on WoW: Forever, whose verdicts are words (see createFrame)
@@ -941,6 +938,28 @@ end
 -- player is still reading the Check (`manual`, until GC.Sniper._LeavePane): its verdict is not
 -- forgotten under them (review M-1). A field, not a local: this chunk sits near its 200-local
 -- ceiling.
+-- The cheapest GC.DealCard.LADDER_ROWS levels of a book, copied: the verdict outlives the book.
+function GC.Sniper._KeepLevels(levels)
+  if type(levels) ~= "table" or #levels == 0 then return nil end
+  local sorted = {}
+  for i, level in ipairs(levels) do sorted[i] = level end
+  table.sort(sorted, function(a, b) return (a.unitPrice or 0) < (b.unitPrice or 0) end)
+  local kept = {}
+  for i = 1, math.min(#sorted, GC.DealCard and GC.DealCard.LADDER_ROWS or 5) do
+    kept[i] = { unitPrice = sorted[i].unitPrice, quantity = sorted[i].quantity }
+  end
+  return kept
+end
+
+-- The check panel's quantity stepper: one more or one less, committed the way a typed quantity is.
+function GC.Sniper._StepQty(d, delta)
+  local box = d and d.qtyBox
+  local eb = box and box.editBox
+  if not (eb and box.onCommit) then return end
+  eb:SetText(tostring(math.max(1, (tonumber(eb:GetText()) or 1) + delta)))
+  box.onCommit(eb)
+end
+
 function GC.Sniper._RefusalLapsed(v, now)
   return not v.buyable and not v.unverified and not v.cap and not v.manual
     and (now - v.at) > LIM.REFUSAL_TTL_SECONDS
@@ -959,6 +978,7 @@ local function renderList()
   local show = showRefused()
   local kept = {}
   refusedCount = 0
+  local hiddenItems = 0
   for i = 1, #list do
     local deal = list[i]
     local verdict = verdictFor(deal)
@@ -981,7 +1001,12 @@ local function renderList()
     -- A deal only the wallet limit refused is not one of them either, background or manual: it
     -- passed every other gate and needs gold, not hiding (owner report 2026-09-24 -- with no gold
     -- on the character, every row went to Hidden and the market read as empty).
-    if verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
+    -- An item the player hid from its check panel (HIDE ITEM) leaves the board the same way, and
+    -- the same toggle brings it back; it is counted on its own, never as one the check refused.
+    if GC.Sniper._ItemHidden(deal.itemID) and not pinned then
+      hiddenItems = hiddenItems + 1
+      if show then kept[#kept + 1] = deal end
+    elseif verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
         and not verdict.cap and not verdict.needsGold and not pinned then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
@@ -1090,9 +1115,18 @@ local function renderList()
     end
   end
   GC.Sniper._pendingRows = pendingRows
+  GC.Sniper._hiddenItemCount = hiddenItems
 
   return pinnedRows
 end
+
+-- Items the player hid from the board from their check panel (HIDE ITEM), saved with the
+-- settings. The board's Hidden toggle shows them again, and the panel's button un-hides one.
+function GC.Sniper._ItemHidden(itemID)
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  return (itemID and cfg and cfg.hiddenItems and cfg.hiddenItems[itemID]) and true or false
+end
+
 
 -- Dim suffix appended after the (possibly quality-colored) item name; a separate color code
 -- of its own so it never inherits the name's quality color.
@@ -1210,6 +1244,10 @@ local OPTIONAL_KEYS, DROP_THRESHOLDS = {}, { 180, 150 }
 for _, col in ipairs(COLUMNS) do
   if col.optional then OPTIONAL_KEYS[#OPTIONAL_KEYS + 1] = col.key end
 end
+-- While the check panel is open, in this order, once the optional ones are gone: the discount
+-- (the profit beside it says more), the verdict word (the open panel says it in full), the unit
+-- price (the panel's ladder lists it). See WIN.PANEL_ITEM_MIN.
+local PANEL_DROP_KEYS = { "disc", "tier", "unit" }
 
 -- Fixed pixel budget (every VISIBLE fixed column's width, plus one Theme.pad.s gap per visible
 -- fixed column -- anchorColumns puts exactly one gap in front of each: the outer name-to-
@@ -1228,7 +1266,7 @@ local function fixedColumnBudget(hidden)
   return sum + visible * Theme.pad.s
 end
 
-local function computeHidden(containerWidth)
+local function computeHidden(containerWidth, panelOpen)
   local hidden = {}
   for i, key in ipairs(OPTIONAL_KEYS) do
     local itemWidth = containerWidth - fixedColumnBudget(hidden)
@@ -1236,12 +1274,17 @@ local function computeHidden(containerWidth)
       hidden[key] = true
     end
   end
+  if panelOpen then
+    for _, key in ipairs(PANEL_DROP_KEYS) do
+      if containerWidth - fixedColumnBudget(hidden) < WIN.PANEL_ITEM_MIN then hidden[key] = true end
+    end
+  end
   return hidden
 end
 
 local function sameHidden(a, b)
-  for _, key in ipairs(OPTIONAL_KEYS) do
-    if (not a[key]) ~= (not b[key]) then return false end
+  for _, col in ipairs(COLUMNS) do
+    if (not a[col.key]) ~= (not b[col.key]) then return false end
   end
   return true
 end
@@ -1289,6 +1332,10 @@ local function setRowDeal(row, deal)
   -- cells below keep their own rules.
   local qty, total, profit = deal.qty, nil, deal.profit
   if not deal.pinPlaceholder then qty, total, profit = GC.BoardRows.Figures(deal, verdict) end
+  -- A market row's cell shows the target, sold at the AH value; the stress exit it is admitted
+  -- and sorted by is on its card and in its panel (Core/DealCard.lua Targets, 2026-11-21).
+  local targets = not deal.pinPlaceholder and GC.DealCard and GC.DealCard.Targets(deal, verdict) or nil
+  if targets and targets.upside > 0 then profit = targets.upside end
 
   -- refreshRows runs on every browse page while a full scan streams, on every watch-loop
   -- observation, on every verdict stamp, and off the 0.25s ticker -- with up to WIN.ROW_CAP
@@ -1820,15 +1867,15 @@ end
 function GC.Sniper._RareTooltip(row, draw)
   local entry = row.deal
   GC.Sniper._ShowItemTooltip(row, entry.itemID, draw or GC.Sniper._RareTooltip)
-  local standing, sales = GC.ItemsBoard.RareLines(entry)
-  local dim = GC.Kit.Tokens.blizzard.text3
-  GameTooltip:AddLine(" ")
-  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(GC.L["Rare find: seldom sold, so GoldCap puts no price on it"])),
-    GC.Kit.Tokens.blizzard.gold[1], GC.Kit.Tokens.blizzard.gold[2], GC.Kit.Tokens.blizzard.gold[3], true)
-  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(standing)), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
-  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(sales)), dim[1], dim[2], dim[3], true)
-  GC.Sniper._TryOnHint(entry.itemID)
   GameTooltip:Show()
+  if not (GC.DealCardUI and GC.DealCard) then return end
+  local standing, sales = GC.ItemsBoard.RareLines(entry)
+  local B = GC.Kit.Tokens.blizzard
+  GC.DealCardUI.Show(row, { deal = entry, notes = {
+    { text = GC.L["Rare find: seldom sold, so GoldCap puts no price on it"], color = B.gold },
+    { text = standing, color = B.tipWhite },
+    { text = sales, color = B.text3 },
+  }, hints = GC.DealCard.Hints(entry, false, GC.Sniper._Dressable(entry.itemID)) }, frame)
 end
 
 -- ---------------------------------------------------------------------------
@@ -1887,10 +1934,9 @@ function GC.Sniper._EndInspect(row)
   ResetCursor()
 end
 
--- The tooltip line for an item the Dressing Room can put on the character.
-function GC.Sniper._TryOnHint(itemID)
-  if not (C_Item and C_Item.IsDressableItemByID and C_Item.IsDressableItemByID(itemID)) then return end
-  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Ctrl-click to try it on"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
+-- Whether the Dressing Room can put the item on the character: the card's "try it on" key hint.
+function GC.Sniper._Dressable(itemID)
+  return (C_Item and C_Item.IsDressableItemByID and C_Item.IsDressableItemByID(itemID)) and true or false
 end
 
 -- Forward-declared: createRow's real definition lives further down (it needs the row
@@ -1913,9 +1959,9 @@ local createRow, layoutRow, layoutHeaderRow
 -- width changes. Recomputes `hiddenColumns` from scratch (see computeHidden) and only touches
 -- widgets when the drop STATE actually changed, so a resize that doesn't cross a threshold
 -- costs nothing beyond the cheap sameHidden comparison.
-local function applyColumnVisibility(containerWidth)
+local function applyColumnVisibility(containerWidth, panelOpen)
   if not layoutHeaderRow then return end -- header not built yet (see M7 comment above)
-  local newHidden = computeHidden(containerWidth)
+  local newHidden = computeHidden(containerWidth, panelOpen)
   if sameHidden(newHidden, hiddenColumns) then return end
   hiddenColumns = newHidden
   layoutHeaderRow()
@@ -3791,6 +3837,16 @@ local function repaintToggledRow(itemID)
   flashRow(row)
 end
 
+-- Hides `itemID` from the board, or shows it again; whether it is hidden now.
+function GC.Sniper._ToggleHidden(itemID)
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  if not (cfg and itemID) then return false end
+  cfg.hiddenItems = cfg.hiddenItems or {}
+  cfg.hiddenItems[itemID] = (not cfg.hiddenItems[itemID]) or nil
+  refreshRows()
+  return cfg.hiddenItems[itemID] == true
+end
+
 function GC.Sniper._TogglePin(itemID)
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   if not cfg or not itemID then return end
@@ -4892,8 +4948,14 @@ refreshSessionText = function()
   local s = GC.Sniper.session
   if not s or s.buys == 0 then fs:Hide() GC.Sniper._LayoutBoardRow() return end
   local c = s.estProfit >= 0 and Theme.color.green or Theme.color.red
-  fs:SetText((GC.L["SESSION %s%s · BUYS %d"]):format(s.estProfit >= 0 and "+" or "",
-    GC.Util.FormatMoney(s.estProfit), s.buys))
+  local target = s.targetProfit or s.estProfit
+  if target > s.estProfit then
+    fs:SetText((GC.L["SESSION %s · SAFE %s · BUYS %d"]):format("~+" .. GC.Util.FormatMoney(target),
+      (s.estProfit >= 0 and "+" or "") .. GC.Util.FormatMoney(s.estProfit), s.buys))
+  else
+    fs:SetText((GC.L["SESSION %s%s · BUYS %d"]):format(s.estProfit >= 0 and "+" or "",
+      GC.Util.FormatMoney(s.estProfit), s.buys))
+  end
   fs:SetTextColor(c[1], c[2], c[3])
   fs:Show()
   GC.Sniper._LayoutBoardRow()
@@ -5114,6 +5176,8 @@ end
 -- an accent (green when armReady confirms Buy, red on refusal/expiry) message.
 local function setDialogStatus(text, r, g, b)
   if not dialog then return end
+  -- The panel's hero has said the reason already (UI/SniperInspector.lua); it is said once.
+  if dialog.quietReasons and text and dialog.quietReasons[text] then text = "" end
   dialog.status:SetText(text or "")
   -- Theme.color.fgDim's own literal values (0.55, 0.54, 0.52 -- Theme.lua), not a live table
   -- read: several purchase-wiring specs build a bare-bones GC.Theme fixture with no `color`
@@ -5270,7 +5334,8 @@ DG.TOGGLE_BLOCK_H = Theme.pad.xs + DG.TOGGLE_H -- 26
 DG.GRID_H = Theme.pad.s + DG.GRID_ROWS * DG.GRID_ROW_H
 
 -- bottom margin + cancel + gap + primary + gap-to-status, measured up from the dialog's own
--- bottom edge.
+-- bottom edge. The panel UI/SniperInspector.lua lays out has a taller footer, the quantity
+-- stepper over BUY: it sets d.footerH, which every anchor below prefers.
 -- 12 + 32 + 4 + 22 + 8 = 78
 DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
 -- Construction-time defaults, before any verdict is known: the TALLEST shape, a purchase with
@@ -5341,8 +5406,9 @@ local function resizeDialogDiagnostics()
     -- "price confirmed" right above BUY. The fixed banner slot (LIM.REQUOTE_BANNER_HEIGHT) is
     -- reserved ABOVE the status (see the banner's anchors in createDialog), so the two never
     -- overlap regardless of how much room the evidence grid above actually used.
-    dialog.status:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H)
-    dialog.status:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H)
+    local footerH = dialog.footerH or DG.CONTROLS_H
+    dialog.status:SetPoint("BOTTOMLEFT", Theme.pad.m, footerH)
+    dialog.status:SetPoint("BOTTOMRIGHT", -Theme.pad.m, footerH)
   end
   dialog.diagnosticHeight = height
 
@@ -5561,6 +5627,16 @@ local function drawVerdict(deal, decision, market)
     end
   end
 
+  if dialog.ladderBlock and GC.SniperInspector then
+    local kept = verdictFor(deal)
+    GC.SniperInspector.Paint(dialog, { cv = verdict, decision = decision, deal = deal, market = market,
+      figure = figure, figureColor = figureColor, caption = caption, sentence = sentence,
+      levels = dialog.bookLevels or (kept and kept.levels),
+      checkedAt = function() local v = verdictFor(deal) return v and v.at end,
+      isPinned = function() return isPinned(deal.itemID) end,
+      isHidden = function() return GC.Sniper._ItemHidden(deal.itemID) end,
+      maxQty = function() return deal.isCommodity and GC.Sniper._QtyMax and GC.Sniper._QtyMax(deal) or nil end })
+  end
   if dialog.layoutBlocks then
     -- A realm lot of one item has no quantity to choose: "1 (whole lot)" was a row saying so.
     local candidate = type(decision.candidate) == "table" and decision.candidate or nil
@@ -5865,6 +5941,12 @@ local function recordPurchaseFacts(deal, purchase)
   session.buys = session.buys + 1
   session.spent = session.spent + purchase.total
   session.estProfit = session.estProfit + purchase.expectedProfit
+  -- What the buy makes at the AH value, for a market buy; anything else counts its own profit.
+  local board = deal.boardDeal or deal
+  local target = board.forever == "market" and board.refSource ~= "group" and GC.DealCard
+    and GC.DealCard.AtPrice(purchase.quantity, purchase.total, board.refUnit, board.depositUnit) or nil
+  session.targetProfit = (session.targetProfit or 0)
+    + ((target and target > purchase.expectedProfit) and target or purchase.expectedProfit)
   local now = time()
   -- `purchase` is the one immutable final-quote object shared by both stores.
   local context = GC.Ledger.Context()
@@ -6619,11 +6701,71 @@ function GC.Sniper._ForeverLabel(kind)
   return kind == "market" and GC.L["Under market"] or GC.L["Below vendor"]
 end
 
+-- The row tooltip's one Forever line: what to buy at and against what, left, and what the buy
+-- makes, right. The whole sentence (_ForeverNote) ran three lines under the item's own tooltip,
+-- and the owner found the block below the item too long to read (2026-11-21); the inspector
+-- still carries the sentence. A market deal's profit is an estimate, so it reads "~+".
+function GC.Sniper._ForeverTipLine(deal)
+  if not (deal and deal.forever and deal.ceiling and deal.refUnit) then return nil end
+  local text = deal.forever == "market"
+    and GC.L["buy at %s or less, AH value %s"] or GC.L["buy at %s or less, vendor pays %s"]
+  local left = text:format(GC.Util.FormatMoney(deal.ceiling), GC.Util.FormatMoney(deal.refUnit))
+  local right
+  if type(deal.estProfit) == "number" and deal.estProfit > 0 then
+    right = (deal.forever == "market" and "~+" or "+") .. GC.Util.FormatMoney(deal.estProfit)
+  end
+  return left, right
+end
+
 function GC.Sniper._ForeverNote(kind, ceiling, ref, profit)
   local text = kind == "market"
     and GC.L["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."]
     or GC.L["Buy at or under %s: a vendor pays %s each. This buy makes %s."]
   return text:format(GC.Util.FormatMoney(ceiling), GC.Util.FormatMoney(ref), GC.Util.FormatMoney(profit or 0))
+end
+
+-- The tooltip card's model for a DEALS row (UI/DealCard.lua draws it; Core/DealCard.lua decides
+-- each part). `verdict`: the row's live verdict (verdictFor); `pinned`: whether it is watched.
+-- Every note the row's tooltip used to carry keeps its meaning here, as a short line: a refusal's
+-- reason when there is no limit to measure it by, a cap's or a followed group's note, the Forever
+-- buy line when the scale cannot be drawn, a realm item with no reference, an Items board flip's
+-- facts, and a watched placeholder's. GoldCap's own item lines (the region price and its item
+-- level, the Forever sell verdict, data age) follow as facts, minus what the scale already shows.
+function GC.Sniper._CardModel(deal, verdict, pinned)
+  local DC, B = GC.DealCard, GC.Kit.Tokens.blizzard
+  local _, _, profit = GC.BoardRows.Figures(deal, verdict)
+  local cheapest = DC.Cheapest(deal, verdict)
+  local scale = deal.forever and deal.refSource ~= "group"
+    and DC.Scale(cheapest, deal.ceiling, deal.refUnit, deal.forever) or nil
+  local big = DC.Big(deal, verdict, profit)
+  local notes = {}
+  local function note(text, color) if text then notes[#notes + 1] = { text = text, color = color } end end
+  if DC.Refused(verdict) and not big then
+    note(GC.BoardRows.Reason(verdict) or GC.L["live verification required"], B.text2)
+  end
+  note(GC.Sniper._CapNote(deal), B.profit)
+  if deal.forever then
+    if not scale and deal.refSource ~= "group" then
+      local left, right = GC.Sniper._ForeverTipLine(deal)
+      if left then note(right and (left .. "  " .. right) or left, B.text2) end
+    end
+    note(GC.Sniper._GroupNote(deal), B.profit)
+  end
+  if not GC.Sniper._RealmValue(deal.itemID) and GC.Sniper._RealmNeedsReference(deal.itemID) then
+    note(GC.SniperDecision.ReasonText("realm_no_reference"), B.text3)
+  end
+  for _, detail in ipairs(GC.Sniper._RowDetails(deal)) do note(detail.text, detail.color) end
+  if deal.pinPlaceholder then
+    note(GC.L["Watching: pinned, but not a deal right now"], B.text3)
+    note(GC.Sniper._WatchNote(deal), B.text3)
+  end
+  -- Only while the player keeps GoldCap's lines in item tooltips (Settings > TOOLTIP).
+  local shown = GC.db and GC.db.settings and GC.db.settings.tooltip
+  local lines = shown and GC.Tooltip and GC.Tooltip.ItemLines
+    and GC.Tooltip.ItemLines(deal.itemID, time(), GC.Sniper._RowItemLink(deal.itemID)) or nil
+  return { deal = deal, verdict = verdict, now = GetTime, big = big, scale = scale,
+    chips = DC.Chips(deal), notes = notes, facts = DC.Facts(lines, scale ~= nil),
+    hints = DC.Hints(deal, pinned, GC.Sniper._Dressable(deal.itemID)) }
 end
 
 -- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
@@ -7486,6 +7628,9 @@ stampVerdict = function(deal, data, manual)
     -- What the buy needs, when the wallet limit alone refused it (SniperDecision.Evaluate):
     -- renderList keeps the row, GC.BoardRows labels it "needs <gold>".
     needsGold = decision and decision.needsGold or nil,
+    -- The cheapest levels this check read, for the check panel's ladder when it opens on this
+    -- verdict after the book itself has gone (dialog.bookLevels is the panel's, and cleared).
+    levels = data and GC.Sniper._KeepLevels(data.levels) or nil,
   }
   refreshRows()
 
@@ -10099,6 +10244,8 @@ local function qtyMaxAvailable(deal)
   if not maxQty or maxQty < 1 then maxQty = 1 end
   return maxQty
 end
+-- The same ceiling, for the check panel's ALL chip (UI/SniperInspector.lua).
+GC.Sniper._QtyMax = qtyMaxAvailable
 
 -- Keeps the dialog's Quantity row (box + "of N" label + quick-fill buttons, or the
 -- non-commodity "(whole lot)" fallback) in sync with the CURRENT dialog.deal and
@@ -10159,6 +10306,12 @@ refreshQtyRow = function()
     eb:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3], 1)
     for _, btn in pairs(dialog.quickFillBtns) do btn:Disable() end
   end
+  -- The footer's stepper (UI/SniperInspector.lua) follows the box, and the box goes back where
+  -- the footer puts it: the Show above is for the panel without that module.
+  for _, btn in ipairs({ dialog.qtyMinus or false, dialog.qtyPlus or false, dialog.qtyAll or false }) do
+    if btn then if editable then btn:Enable() else btn:Disable() end end
+  end
+  if dialog.ladderBlock and GC.SniperInspector then GC.SniperInspector.Refresh(dialog, true) end
 end
 
 -- Only meaningful while the dialog is genuinely offering a "click Buy" decision (stage
@@ -10357,10 +10510,9 @@ CH.HEADER = 16      -- column header row height
 -- (measured in the 2026-08-24 screenshot: logo top ~= 59px, portrait bottom ~= 70px at 1x);
 -- 28 clears it with margin. Passed to rail.SetTopInset in SetDocked below.
 CH.DOCK_RAIL_INSET = 28
--- One strata up from whatever the window itself is in. The check drawer overlays the deals
--- list on any window narrower than WIN.PANEL_SHIFT_MIN -- which the docked auction house
--- always is -- and it is an OPAQUE sheet precisely so the rows underneath do not ghost
--- through it. A texture cannot cross a strata boundary, so "opaque" only holds while the
+-- One strata up from whatever the window itself is in. The check drawer shifts the deals list
+-- aside (applyPanelInset), but it slides in over the rows and is an OPAQUE sheet precisely so
+-- the rows underneath do not ghost through it. A texture cannot cross a strata boundary, so "opaque" only holds while the
 -- drawer is in a HIGHER strata than the rows; land the two in the SAME strata and the fight
 -- is decided by frame level instead, which a scroll child can win. That is exactly what
 -- docking started doing: GC.Sniper.SetDocked adopts the auction house's own strata for the
@@ -10492,8 +10644,16 @@ local function createDialog()
     nameText:SetText(nameText:GetText() or "") -- laid out at its width before it is measured
     local h = nameText:GetStringHeight() or 0
     nameText:ClearAllPoints()
-    nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", Theme.pad.s, -math.max(0, math.floor((DG.ICON - h) / 2)))
-    local headerH = math.max(DG.HEADER_H, math.ceil(Theme.pad.m + h + Theme.pad.s))
+    -- With the caps line under it (UI/SniperInspector.lua's "COMMODITY · 412 LISTED"), the two
+    -- are centred on the icon together.
+    local kindH = d.kindText and 12 or 0
+    nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", Theme.pad.s, -math.max(0, math.floor((DG.ICON - h - kindH) / 2)))
+    if d.kindText then
+      d.kindText:ClearAllPoints()
+      d.kindText:SetPoint("TOPLEFT", nameText, "BOTTOMLEFT", 0, -2)
+      d.kindText:SetWidth(DG.HEADER_NAME_W)
+    end
+    local headerH = math.max(DG.HEADER_H, math.ceil(Theme.pad.m + h + kindH + Theme.pad.s))
     if headerH ~= d.headerH then
       d.headerH = headerH
       if d.layoutBlocks then d.layoutBlocks() end
@@ -10876,6 +11036,25 @@ local function createDialog()
       block:Show()
       y = y - height
     end
+    -- The panel as UI/SniperInspector.lua draws it: the hero, the cheapest listings, the three
+    -- tiles, and the footer it pins to the bottom. The four facts, the reconciliation, the
+    -- quantity block and the transcript behind Details are not stacked: the facts and the
+    -- transcript were a column of dashes on most verdicts and said the reason a third and a
+    -- fourth time (owner, 2026-11-21), the quantity is the footer's stepper now. The stack below
+    -- this branch is the panel without that module, as the headless specs load it.
+    if d.ladderBlock then
+      local inspect = d.inspect or {}
+      place(heroBlock, inspect.heroH or DG.HERO_H, true)
+      for _, block in ipairs({ reconcileBlock, qtyBlock, factsBlock, gridBlock }) do block:Hide() end
+      detailsToggle:Hide()
+      place(d.ladderBlock, inspect.ladderH or 0, inspect.ladderH ~= nil)
+      place(d.tilesBlock, inspect.tilesH or 0, inspect.tilesH ~= nil)
+      d.evidenceTop = y - Theme.pad.xs
+      d.evidenceTopOpen, d.evidenceTopClosed = d.evidenceTop, d.evidenceTop
+      d.fixedHeightClosed = -y + DG.STATUS_H + (d.footerH or DG.CONTROLS_H)
+      d.fixedHeightOpen, d.fixedHeight = d.fixedHeightClosed, d.fixedHeightClosed
+      return
+    end
     local reconcile = shape.reconcile and true or false
     -- Default TRUE: the shape is only known once a decision has been stamped, and before that
     -- the panel is showing a quantity it fully intends to buy.
@@ -11148,6 +11327,19 @@ local function createDialog()
   primaryBtn:SetScript("OnClick", onDialogPrimaryClick)
   d.primaryBtn = primaryBtn
 
+  -- The panel's ladder, tiles and footer (UI/SniperInspector.lua). WATCH pins the item, HIDE
+  -- hides it from the board and closes the panel, the stepper commits like a typed quantity.
+  if GC.SniperInspector then
+    GC.SniperInspector.Build(d, {
+      watch = function() if d.deal then GC.Sniper._TogglePin(d.deal.itemID) end end,
+      hide = function()
+        if d.deal and GC.Sniper._ToggleHidden(d.deal.itemID) then d.close() end
+      end,
+      step = function(delta) GC.Sniper._StepQty(d, delta) end,
+      all = function() applyQuickFillQty(100) end,
+    })
+  end
+
   -- Esc (via UISpecialFrames) hides the dialog. Before Confirm that follows the ordinary
   -- abort path; after Confirm abortRowPurchase deliberately preserves server ownership, so
   -- Esc can never discard the token/final quote while a terminal event is still possible.
@@ -11337,6 +11529,7 @@ local function openDialog(row, deal)
       dialog.verdictAmountNote:SetText("")
       dialog.verdictAmountNote:Show()
     end
+    if GC.SniperInspector then GC.SniperInspector.Pending(dialog) end
     setDialogStatus(GC.L["checking live safety..."])
     startRequery(row, deal) -- pins the row ("requerying"); only a SAFE commodity decision arms Buy
   end
@@ -11386,11 +11579,7 @@ end
 -- Two sheets can lie over the list, and only one of them hides a row. The settings sheet
 -- (UI/SettingsFrame.lua) covers the whole content area, every row entire, at every width, so
 -- while it is up no row is on screen; the ticker picks the ring up once it closes. The check
--- drawer does not count: below WIN.PANEL_SHIFT_MIN it lies over the list rather than pushing it
--- aside, but it covers exactly the rightmost 288 px of a row (320 wide, flush with the window's
--- right edge, where the row stops 32 px short), so the item stays in view, and its verdict chip
--- with it -- only just clipped at the narrowest width a window can be resized to
--- (WIN.RESIZE_MIN_WIDTH). A field, not a local: this chunk sits near Lua's 200-local ceiling.
+-- drawer does not count: it pushes the list aside rather than lying over it (applyPanelInset). A field, not a local: this chunk sits near Lua's 200-local ceiling.
 function GC.Sniper._RowOnScreen(row)
   if not row:IsVisible() then return false end
   if GC.SettingsUI and GC.SettingsUI.IsShown and GC.SettingsUI.IsShown() then return false end
@@ -11807,82 +11996,13 @@ createRow = function(parent, index)
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
     -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
     GC.Sniper._ShowItemTooltip(self, self.deal.itemID, drawRowTooltip)
-    -- What the background check found, in words. A refused row that the toolbar toggle has
-    -- brought back into view is otherwise a status code and nothing else.
-    local verdict = verdictFor(self.deal)
-    -- A cap row says what YOUR PRICE means and which group it came from, fresh verdict or not
-    -- (review M6: it waited on a cap verdict, and a verdict goes stale in two minutes). In place
-    -- of the verdict lines: "checked live -- safe to buy" is the market engine's word, and no
-    -- safety was judged here -- the player's own price was.
-    local capNote = GC.Sniper._CapNote(self.deal)
-    if capNote then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(capNote)), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true)
-    elseif verdict then
-      GameTooltip:AddLine(" ")
-      if verdict.buyable then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live, safe to buy"]), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3])
-      elseif verdict.needsGold then
-        GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText((GC.L["GoldCap: checked live. A deal, but you need %s on this character"])
-          :format(GC.Util.FormatGoldCeil(verdict.needsGold)))), GC.Kit.Tokens.blizzard.tipAmber[1], GC.Kit.Tokens.blizzard.tipAmber[2], GC.Kit.Tokens.blizzard.tipAmber[3], true)
-      else
-        -- The cell above says only WATCH; this is where the sentence behind it lives.
-        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: %s. %s"]):format(verdict.status or "refused",
-          GC.BoardRows.Reason(verdict) or GC.L["live verification required"])), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
-      end
-    elseif not self.deal.pinPlaceholder then
-      -- Saying nothing here read as approval. The row already shows a tier, a discount and a
-      -- profit -- all of it computed from the imported market snapshot, none of it confirmed
-      -- against the live auction house -- and the only thing separating it from a row a live
-      -- check HAD approved was the word on the button. That is too thin a line to carry the
-      -- difference between an estimate and a finding, so the tooltip states it outright.
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: not checked against the live auction house yet"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
-    end
-    if self.deal.forever then
-      -- A row measured against a followed group's usual price has no AH value for the note to name:
-      -- the group's sentence stands in for it.
-      if self.deal.refSource ~= "group" then
-        GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling,
-          self.deal.refUnit, self.deal.estProfit))), self.deal.forever == "market" and 0.83 or 0.25,
-          self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
-      end
-      local groupNote = GC.Sniper._GroupNote(self.deal)
-      if groupNote then GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(groupNote)), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true) end
-    end
-    -- A realm row priced against the region says nothing more about it here: the verdict line
-    -- above says it is a realm item, and GoldCap's price block under the item names the region's
-    -- price and its item level (owner, 2026-10-25: the line read "region reference 77824g (ilvl 0)"
-    -- under its twin).
-    if not GC.Sniper._RealmValue(self.deal.itemID) and GC.Sniper._RealmNeedsReference(self.deal.itemID) then
-      -- A pinned realm item the region has no price for. It is on the board because the player
-      -- put it there, and the row cannot say anything about value -- so the tooltip says the
-      -- same sentence a Check on it would, rather than leaving the blank cells to be read as
-      -- "nothing to report".
-      GameTooltip:AddLine(GC.Util.ClientText(GC.SniperDecision.ReasonText("realm_no_reference")),
-        GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
-    end
-    -- An Items board flip's facts, which its one line under the name leaves out.
-    local details = GC.Sniper._RowDetails(self.deal)
-    if #details > 0 then GameTooltip:AddLine(" ") end
-    for _, detail in ipairs(details) do
-      GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(detail.text)), detail.color[1], detail.color[2], detail.color[3], true)
-    end
-    -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
-    -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
-    if self.deal.pinPlaceholder then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Watching: pinned, but not a deal right now"]),
-        GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
-      local watchNote = GC.Sniper._WatchNote(self.deal)
-      if watchNote then
-        GameTooltip:AddLine(GC.Util.ClientText(watchNote), GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
-      end
-    end
-    GC.Sniper._TryOnHint(self.deal.itemID)
-    GameTooltip:AddLine(GC.Util.ClientText(isPinned(self.deal.itemID)
-      and GC.L["Right-click to stop watching this item"]
-      or GC.L["Right-click to watch this item closely"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
+    -- The item's own lines and nothing else: what GoldCap says about the deal -- the live check,
+    -- the profit, the buy limit, a cap's or a group's note, an Items board flip's facts -- is the
+    -- card docked under it (UI/DealCard.lua, built by GC.Sniper._CardModel). Mixed into the item's
+    -- own lines and other addons', it read as clutter (owner, 2026-11-21).
     GameTooltip:Show()
+    if not (GC.DealCardUI and GC.DealCard) then return end
+    GC.DealCardUI.Show(self, GC.Sniper._CardModel(self.deal, verdictFor(self.deal), isPinned(self.deal.itemID)), frame)
   end
   row:SetScript("OnEnter", function(self)
     -- A section header or an empty section's line is a label, not a row to point at: no wash,
@@ -11891,9 +12011,10 @@ createRow = function(parent, index)
     self.highlight:Show()
     self.rail:Show()
     hoveredRow = self
-    -- GoldCap's own price block under the item's tooltip stands aside for a Rare finds row, which
-    -- has no price (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
-    self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil
+    -- GoldCap's own price block under the item's tooltip stands aside for every row: a deal row's
+    -- card carries its lines (GC.Sniper._CardModel), and a Rare finds row has no price
+    -- (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
+    self.goldcapOwnLines = self.deal and true or nil
     if not self.deal then return end
     GC.Sniper._BeginInspect(self)
     if self.deal.kind ~= "rare" then GC.Sniper._HoverPrewarm(self) end
@@ -12634,7 +12755,7 @@ local function createFrame()
     -- it came through here.
     -- Stamped every time, for the reason refreshAutoButton gives -- this button's remembered
     -- on/off is the very field the 3c beta's taint log named.
-    btn:SetLabel((show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount))
+    btn:SetLabel((show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount + (GC.Sniper._hiddenItemCount or 0)))
     btn:SetVariant(show and "active" or "ghost")
   end
   refreshVerifyButton(f)
@@ -12813,15 +12934,15 @@ local function createFrame()
   -- directly, so the derived contentWidth here is exactly the header's width too -- one number
   -- feeds the responsive column-drop decision (applyColumnVisibility) for both.
   --
-  -- The check panel shifts the list aside only when there is room for both (>= WIN.PANEL_
-  -- SHIFT_MIN, 990 wide); narrower windows -- the docked AH is ~805 -- get an opaque overlay
-  -- instead (see createDialog's sheet alpha). One function owns every right-edge anchor
+  -- The check panel always shifts the list aside while it is open, and the list drops columns to
+  -- fit (computeHidden, WIN.PANEL_ITEM_MIN): it used to overlay any window under 990px and cover
+  -- the list's numbers. One function owns every right-edge anchor
   -- (scroll's BOTTOMRIGHT, f.headerRow's TOPRIGHT, verifyBtn's TOPRIGHT) plus the derived
   -- content width, so they can never drift apart -- called from here on every resize, and from
   -- createDialog's OnShow/OnHide whenever the sheet itself appears or disappears.
   local function applyPanelInset(open)
     local w = f:GetWidth() or 0
-    local inset = (open and w >= WIN.PANEL_SHIFT_MIN) and (DG.WIDTH + Theme.pad.m) or 0
+    local inset = open and (DG.WIDTH + Theme.pad.m) or 0
     f.panelInset = inset
     local right = -(WIN.CONTENT_RIGHT_GUTTER + inset)
     scroll:ClearAllPoints()
@@ -12834,15 +12955,15 @@ local function createFrame()
     verifyBtn:SetPoint("TOPRIGHT", right, row2Y)
     local contentWidth = math.max(w - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - inset, 1)
     content:SetWidth(contentWidth)
-    applyColumnVisibility(contentWidth)
+    applyColumnVisibility(contentWidth, inset > 0)
   end
   f.applyPanelInset = applyPanelInset
 
   -- OnSizeChanged now fully delegates to applyPanelInset (above), which supersedes what this
   -- handler used to do inline (compute contentWidth off `w` alone, content:SetWidth it,
   -- applyColumnVisibility it) -- passing the dialog's live open/shown state re-evaluates the
-  -- inset on every resize too, so dragging the window across WIN.PANEL_SHIFT_MIN while the
-  -- panel is open re-flows the list instead of leaving it stuck at whichever side it started on.
+  -- inset on every resize too, so dragging the window while the panel is open re-flows the list
+  -- and its column drops instead of leaving them at whichever width it started on.
   f:SetScript("OnSizeChanged", function(_, w)
     if not w or w <= 0 then return end
     applyPanelInset(dialog ~= nil and dialog:IsShown())
@@ -13376,6 +13497,7 @@ function GC.Sniper.OnAuctionHouseClosed()
     GC.Print((GC.L["session: %d snipes, spent %s, ~%s est. profit"]):format(
       session.buys, GC.Util.CoinText(session.spent), GC.Util.CoinText(session.estProfit)))
     session.buys, session.spent, session.estProfit = 0, 0, 0
+    session.targetProfit = 0
   end
   -- The wipe above (or a no-op when buys was already 0) can leave f.sessionText showing a
   -- figure for a session that no longer exists -- re-derive right away rather than waiting for

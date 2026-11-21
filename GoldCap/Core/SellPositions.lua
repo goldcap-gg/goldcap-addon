@@ -148,31 +148,55 @@ end
 -- sold at 24c came back as one lot at 7s44c (the sale's total) with 112 seconds left, on MY
 -- LOTS as UNDERCUT and in the cancel queue, and that price went into GoldCapDB.ownedLots for
 -- the companion to upload and into the price a later invoice is matched by (owner's save,
--- WoW: Forever, 2026-11-06). Left out, it is gone from the roster, which is what the site
--- already reads as "no longer listed"; nothing reads a sold row.
+-- WoW: Forever, 2026-11-06). So it is never a lot: it comes back in a list of its own (below).
 local AUCTION_SOLD = 1
+GC.SellPositions.AUCTION_SOLD = AUCTION_SOLD
 
+--- lots, sold: the player's live lots, and the sold rows the client still holds until their gold is
+-- collected. A part-sold lot is ONE auctionID in TWO rows (owner's read, WoW: Forever, 2026-11-21:
+-- 5 Shellfish sold, buyoutAmount 1100 the sale's total, and 10 still up at 220 each), so the live
+-- lot of a sold row's auctionID carries `soldQty` and `soldTotal` (nil while nothing sold): listed
+-- plus sold is what went up. A sold row is { auctionID, itemID, positionKey, isCommodity, soldQty,
+-- soldTotal (nil when the client gives none), seenAt }, MY LOTS' SOLD OUT and its banner
+-- (Core/SoldLots.lua); never a lot, so nothing that reads lots (the cancel queue, the upload,
+-- the deck count) can take it for one.
 function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
-  local lots = {}
+  local lots, sold = {}, {}
   for _, auction in ipairs(auctionInfos or {}) do
     local positionKey, itemID, isCommodity = keyForLot(auction)
     local quantity = positive(auction.quantity) and auction.quantity or 1
-    local unitPrice = lotUnit(auction)
-    if positionKey and positive(unitPrice) and positive(auction.auctionID) and exact(seenAt or 0)
-        and auction.status ~= AUCTION_SOLD then
-      -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): carried here,
-      -- not computed later, because this is the one place that already has both the auction
-      -- and the seenAt it was read at. Only a genuine, positive, whole-second countdown counts
-      -- -- a fractional or non-positive timeLeftSeconds is not a real API answer.
-      local expiresAt = positive(auction.timeLeftSeconds) and ((seenAt or 0) + auction.timeLeftSeconds) or nil
-      lots[#lots + 1] = { positionKey = positionKey, itemID = itemID, quantity = quantity,
-        unitPrice = unitPrice, auctionID = auction.auctionID, firstSeenAt = seenAt or 0,
-        isCommodity = isCommodity == true, expiresAt = expiresAt,
-        variant = (isCommodity ~= true and lotIsVariant(auction)) or nil,
-        itemLink = type(auction.itemLink) == "string" and auction.itemLink or nil }
+    if auction.status == AUCTION_SOLD then
+      if positionKey and positive(auction.auctionID) and exact(seenAt or 0) then
+        sold[#sold + 1] = { auctionID = auction.auctionID, itemID = itemID, positionKey = positionKey,
+          isCommodity = isCommodity == true, soldQty = quantity,
+          soldTotal = positive(auction.buyoutAmount) and auction.buyoutAmount or nil, seenAt = seenAt or 0 }
+      end
+    else
+      local unitPrice = lotUnit(auction)
+      if positionKey and positive(unitPrice) and positive(auction.auctionID) and exact(seenAt or 0) then
+        -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): carried here,
+        -- not computed later, because this is the one place that already has both the auction
+        -- and the seenAt it was read at. Only a genuine, positive, whole-second countdown counts
+        -- -- a fractional or non-positive timeLeftSeconds is not a real API answer.
+        local expiresAt = positive(auction.timeLeftSeconds) and ((seenAt or 0) + auction.timeLeftSeconds) or nil
+        lots[#lots + 1] = { positionKey = positionKey, itemID = itemID, quantity = quantity,
+          unitPrice = unitPrice, auctionID = auction.auctionID, firstSeenAt = seenAt or 0,
+          isCommodity = isCommodity == true, expiresAt = expiresAt,
+          variant = (isCommodity ~= true and lotIsVariant(auction)) or nil,
+          itemLink = type(auction.itemLink) == "string" and auction.itemLink or nil }
+      end
     end
   end
-  return lots
+  local liveByID = {}
+  for _, lot in ipairs(lots) do liveByID[lot.auctionID] = lot end
+  for _, row in ipairs(sold) do
+    local lot = liveByID[row.auctionID]
+    if lot then
+      lot.soldQty = add(lot.soldQty or 0, row.soldQty) or lot.soldQty
+      if row.soldTotal then lot.soldTotal = add(lot.soldTotal or 0, row.soldTotal) or lot.soldTotal end
+    end
+  end
+  return lots, sold
 end
 
 local function quoteInfo(quotes, itemID, now, maxAge)
@@ -300,6 +324,9 @@ local function addLot(position, ownedLot)
     return
   end
   position.listedQty, position.listedValue = listedQty, listedValue
+  -- What the lot already sold of itself (NormalizeOwnedLots): nil until something has.
+  if positive(ownedLot.soldQty) then position.soldQty = add(position.soldQty or 0, ownedLot.soldQty) end
+  if positive(ownedLot.soldTotal) then position.soldTotal = add(position.soldTotal or 0, ownedLot.soldTotal) end
 end
 
 --- Whether a position is a commodity's: its key says so ("commodity:<id>", GC.Acquisitions.

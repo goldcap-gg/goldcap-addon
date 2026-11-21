@@ -3181,23 +3181,39 @@ describe("Sell widget geometry and manual cost", function()
     it("counts a live lot's standing in the watch blue, as stock under it", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 }) }, "listed")
-      -- rows[1] is the deck's section heading.
-      assert.equal("360 under you", rows[2].priceStand.text)
+      -- rows[1] is the deck's section heading. The words sit under the marks, as on DEALS.
+      assert.equal("360 ahead", rows[2].priceStand.text)
+      assert.is_nil(rows[2].itemStock.text:find("ahead", 1, true))
       local WATCH = GC.Theme.color.watch
       assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[2].standMarks[4].colorTexture)
     end)
 
-    -- The count under a lot says whether it matters: gold on a lot the cancel queue holds
-    -- (those units are why it is worth cancelling), quiet on one being held. A lot priced far
-    -- under the market wears its price in red -- that figure is the problem.
-    it("lights the units under a lot worth cancelling, and reddens a price that is far too low", function()
+    -- Owner's MY LOTS (2026-11-21): a lot behind more price levels than there are marks showed five
+    -- grey ticks and no words. The last mark lights.
+    it("lights the last mark for a lot standing past every mark", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock({ bagQty = 0, listedQty = 20, listedValue = 20 * 999999 }) }, "listed")
+      local marks = rows[2].standMarks
+      local WATCH = GC.Theme.color.watch
+      assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, marks[#marks].colorTexture)
+      assert.same({ 1, 1, 1, 0.32 }, marks[1].colorTexture)
+      assert.truthy(rows[2].priceStand.text:find("ahead", 1, true))
+    end)
+
+    -- The count under a lot says that cheaper units sell first, in amber on MY LOTS (owner's
+    -- design, 2026-11-21: "92 cheaper ahead of you"), with the row's Cancel lot there when the
+    -- cancel queue holds it. A lot priced far under the market wears its price in red -- that
+    -- figure is the problem.
+    it("golds the units ahead of a lot worth cancelling, and reddens a price that is far too low", function()
       local GC = load(620, { calls = {} })
       local lot = stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 })
+      GC.Theme.color.amber = { 0.96, 0.77, 0.41 }
       GC.SellState.cancelEntries = { { positionKey = lot.positionKey, auctionID = 1 } }
       local rows = topRows(GC, { lot }, "listed")
-      local GOLD = GC.Theme.color.goldHi or GC.Theme.color.gold
-      assert.equal("360 under you", rows[2].priceStand.text)
-      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[2].priceStand.color)
+      assert.equal("360 ahead", rows[2].priceStand.text)
+      local GOLDHI = GC.Theme.color.goldHi or GC.Theme.color.gold
+      assert.same({ GOLDHI[1], GOLDHI[2], GOLDHI[3], 1 }, rows[2].priceStand.color)
+      assert.equal("Cancel lot", rows[2].action.label)
       local FG = GC.Theme.color.fg
       assert.same({ FG[1], FG[2], FG[3], 1 }, rows[2].cells.price.color)
 
@@ -3707,6 +3723,24 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(container.search.shown)
       GC.SellUI.List.RenderRows()
       assert.same({ "Arcanoweave", "Pygmy Oil" }, names(rows))
+    end)
+
+    -- The Sold receipt's "N MORE IN BAGS · SELL": the post deck on that item, and no post made.
+    it("opens on one item for the Sold tab: the post deck, the chips off, the search holding its name", function()
+      local env = { calls = {} }
+      local GC = load(800, env)
+      local rows, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Pygmy Oil") })
+      GC.SellState.filterMode = "listed"
+      GC.SellUI.chips.nocost = true
+      -- Any auction house call from here is a post nobody clicked for.
+      _G.C_AuctionHouse = setmetatable({}, { __index = function(_, k) error("auction house call: " .. k) end })
+      GC.Sell.FocusItem("Pygmy Oil")
+      _G.C_AuctionHouse = nil
+      assert.equal("post", GC.SellState.filterMode)
+      assert.is_nil(GC.SellUI.chips.nocost)
+      assert.equal("Pygmy Oil", container.search.text)
+      assert.same({ "Pygmy Oil" }, names(rows))
+      assert.same({}, env.calls)                    -- and no cost recorded either
     end)
   end)
   it("drops the bag line from the panel when it would only repeat the panel's own heading", function()

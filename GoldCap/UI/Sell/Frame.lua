@@ -82,6 +82,9 @@ UI.COLUMNS = {
   { key = "market", w = 92, min = 72, num = true },
   { key = "profit", w = 96, min = 76, num = true, bold = true },
   { key = "status", w = 176 },
+  -- MY LOTS: what the lot has sold of itself, after the cut, as a green chip, and how many sales
+  -- and when on the line under it (UI/Sell/Sold.lua).
+  { key = "sold", w = 104, num = true },
   { key = "action", w = 88 },
 }
 

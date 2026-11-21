@@ -102,8 +102,6 @@ function ROW.onHand(position)
   return (position.bagQty or 0) > 0 or (position.listedQty or 0) > 0
 end
 
--- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
--- posting deck keeps its plain count beside the bags'.
 -- What a row of the post deck shows under YOU GET: what one click of its Post fetches after the
 -- auction house's 5%, at the price it posts at and over what that click lists (the largest stack
 -- of a normal item, a commodity's whole pool, fewer when the seller asked for fewer). nil with no
@@ -113,13 +111,6 @@ function ROW.postNet(position)
   local unit = effectivePostUnit(position)
   if not unit then return nil end
   return GC.SellPositions.Net((postQuantity(position)), unit)
-end
-
-function ROW.listedText(position, listedQty, onListed)
-  local lots = #(position.ownedLots or {})
-  if not onListed or lots == 0 then return (GC.L["×%d listed"]):format(listedQty) end
-  if lots == 1 then return (GC.L["%d in 1 lot"]):format(listedQty) end
-  return (GC.L["%d in %d lots"]):format(listedQty, lots)
 end
 
 -- Two copies of one piece at two item levels were two identical rows (review M9): a variant's
@@ -462,7 +453,10 @@ function Row.PaintPosition(row, entry, ctx)
   local listedQty, bagQty = p.listedQty or 0, p.bagQty or 0
   local stockParts = {}
   if bagQty > 0 then stockParts[#stockParts + 1] = (GC.L["×%d in bags"]):format(bagQty) end
-  if listedQty > 0 then stockParts[#stockParts + 1] = ROW.listedText(p, listedQty, onListed) end
+  -- On MY LOTS, how much of it has sold: "28 of 48 sold · 20 left" (UI/Sell/Sold.lua).
+  if listedQty > 0 then
+    stockParts[#stockParts + 1] = onListed and UI.Sold.ListedText(p, listedQty) or (GC.L["×%d listed"]):format(listedQty)
+  end
   -- What one of these cost, on the line under the name. COST / UNIT was its own column
   -- until this deck's column set replaced it; the fact is too load-bearing to lose with
   -- the column, and it reads better beside the quantity it applies to anyway.
@@ -715,29 +709,34 @@ function Row.PaintPosition(row, entry, ctx)
   local standing = rowUnit and GC.SellViewModel.Standing
     and GC.SellViewModel.Standing(p, rowUnit) or nil
   local lit = onListedDeck and Theme.color.watch or Theme.color.gold
+  -- Past the last mark the last one lights: a lot behind more levels than there are marks read
+  -- as five grey ticks and nothing (owner's MY LOTS, 2026-11-21).
+  local litSlot = standing and math.min(standing.slot, #row.standMarks) or nil
   for slot, mark in ipairs(row.standMarks) do
     if not standing then
       -- No book, no marks: five grey ticks beside nothing read as a broken widget.
       mark:SetColorTexture(1, 1, 1, 0) -- untinted
-    elseif slot == standing.slot then
+    elseif slot == litSlot then
       mark:SetColorTexture(lit[1], lit[2], lit[3], 1)
     else
       local ink = GC.Kit.Tokens.color.ink
-      mark:SetColorTexture(ink[1], ink[2], ink[3], slot < standing.slot and 0.32 or 0.10)
+      mark:SetColorTexture(ink[1], ink[2], ink[3], slot < litSlot and 0.32 or 0.10)
     end
   end
+  -- The words under the marks, on both decks, as DEALS has them (owner, 2026-11-21: MY LOTS showed
+  -- only the marks, its count up on the stock line).
   if not standing then
     row.priceStand:SetText("")
   elseif standing.ahead == 0 then
     row.priceStand:SetText(GC.L["first in line"])
     setColor(row.priceStand, Theme.color.green)
   else
-    row.priceStand:SetText((onListedDeck and GC.L["%s under you"] or GC.L["%s ahead"]):format(
-      GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
+    row.priceStand:SetText((GC.L["%s ahead"]):format(GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
     -- Gold where those units are why the lot is worth cancelling; quiet on one being held.
     setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
       and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
   end
+  if onListed and listedQty > 0 and UI.Sold.summary then UI.Sold.PaintLive(row, p) end
   -- Stock in the bags posts from the row's own Post or from the dock's POST, the same click
   -- (UI.Dock.OnPostClick) at the same price and number (owner, 2026-10-10: keep the row's, "it is
   -- handy"). Set cost is bookkeeping and stays available whenever there is no stock to act on;
@@ -879,7 +878,7 @@ function Row.Style(row, entry)
     -- resolvable icon.
     -- The selling mark, where the deck has marks: every row's icon and name make room for one,
     -- so the names line up under ITEM whether this row has a mark to draw or not.
-    local markW = entry.markRoom and ROW.MARK_W or 0
+    local markW = entry.markRoom and ROW.MARK_W or entry.ringRoom and UI.Sold.RING_PAD or 0
     if entry.selling ~= nil then
       ROW.paintMark(row, entry.selling, entry.done)
       row.mark:Show()
@@ -888,6 +887,8 @@ function Row.Style(row, entry)
     row.icon:SetPoint("LEFT", row, "LEFT", 4 + markW, 0)
     row.itemInset = (icon and (ROW.ICON + 10) or 0) + markW
     if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
+  elseif UI.Sold.KINDS[entry.kind] then
+    UI.Sold.Style(row, entry)
   elseif entry.kind == "fold" or entry.kind == "section" or entry.kind == "waitHead"
       or entry.kind == "waitItem" then
     -- A heading in the list's own column, not a child of the row above it: no spine, no
@@ -951,6 +952,7 @@ function Row.Style(row, entry)
     UI.List.LayoutCells(row)
   end
   if row.iconFrame then row.iconFrame:SetShown(row.icon:IsShown()) end
+  UI.Sold.Sync(row, entry)
   if row.nameFrame then
     -- Classic's rows are the square name frame: the glass wash is not drawn over it.
     row.nameFrame:SetShown(row.zebra:IsShown())

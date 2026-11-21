@@ -196,7 +196,7 @@ describe("SoldView", function()
     for _, case in ipairs({
       { period = "today", back = 0 },
       { period = "7d", back = 6 },
-      { period = "30d", back = 29 },
+      { period = "30d", back = 6 },          -- gone: seven days at most, the rest is goldcap.gg's
       { period = "nonsense", back = 6 },
     }) do
       it(("starts %s at local midnight %d days back"):format(case.period, case.back), function()
@@ -262,6 +262,8 @@ describe("SoldView", function()
       assert.equal("10s 50c", V.Money(1050, nil, true))
       assert.equal("0c", V.Money(0, nil, true))
       assert.equal("5g", V.Money(50000, nil, true))
+      assert.equal("1g 0s 62c", V.Money(10062, nil, true))
+      assert.equal("2g 0s 5c", V.Money(20005, nil, true))
     end)
 
     it("groups the gold with the client's own separator when given one", function()

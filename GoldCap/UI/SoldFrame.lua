@@ -2,8 +2,8 @@ local _, GC = ...
 local B = GC.Kit.Tokens.blizzard
 
 -- The Sold tab: what the player sold, what reached the mailbox, and the profit GoldCap knows.
--- The arithmetic lives in Core/SoldView.lua; this file reads the stores, hands their rows to
--- it, and paints what comes back.
+-- The arithmetic lives in Core/SoldView.lua and the receipt's rules in Core/SoldReceipt.lua; this
+-- file reads the stores, hands their rows to them, and paints what comes back.
 --
 -- Honesty rules, unchanged from the tab's first design:
 --   * Two sources, never merged or fuzzy-matched: the goldcap.gg snapshot (GC.AppLedger, as of
@@ -15,42 +15,64 @@ local B = GC.Kit.Tokens.blizzard
 --     both labelled sections for a reload (accepted); it can never hide one.
 --   * Local profit only on an EXACT evidence-key join to GC.Acquisitions.GetRealized(), and the
 --     stock's sources only through the same key (GC.Acquisitions.SourcesIndex). Everything else
---     says "-", never an invented number. Pro gating happened server-side: a free summary
---     carries no basis, and its rows show no profit at all.
+--     says "-" (or "set cost" where the receipt can finish it), never an invented number. Pro
+--     gating happened server-side: a free summary carries no basis, and its rows show no profit.
 --   * WoW: Forever has no goldcap.gg sales. Its local sales are the whole list, grouped by day,
 --     and a snapshot is never read there.
 --
--- Layout, top to bottom: three summary tiles, the Forever banner (bag items worth more on the
--- auction house), the period chips and the search box, the column headings, the list.
+-- Layout, top to bottom: the header (the tab's name, the period switch, the search button and
+-- the box it reveals), the cards (YOU GOT, PROFIT, BEST SALE, and Road to 40 on Forever or the
+-- goldcap.gg sync on retail), the list, and at the bottom one quiet line for the bag items that
+-- fetch more on the auction house. A sale row opens, on a click, into its receipt
+-- (UI/SoldReceipt.lua); a second click or Escape closes it. Hover only lights the row.
 --
 -- Nothing is cut short. Every figure column is as wide as the widest text it holds this render,
--- heading included -- measured with GetUnboundedStringWidth, so the active language and the
--- font scale are both in the number -- and ITEM takes what is left. Sentences (tile lines, the
--- banner, section notes, hints, the empty state) wrap inside a box that grows, and so does an
--- item name longer than ITEM's room: its row grows to hold the extra lines.
+-- measured with GetUnboundedStringWidth, so the active language and the font scale are both in
+-- the number, and the item takes what is left. Sentences (card lines, the bottom line, section
+-- notes, hints, the empty state) wrap inside a box that grows, and so does an item name longer
+-- than its room: its row grows to hold the extra lines.
 GC.Sold = {}
 local Sold = GC.Sold
 
-local Theme, V
+local Theme, V, R
 
 -- Every widget the tab owns. A field on GC.Sold so the module's own spec can read the pool and
--- the tiles without reaching into upvalues; nothing else reads it.
+-- the cards without reaching into upvalues; nothing else reads it.
 local view = { rows = {} }
 Sold._view = view
-local state = { period = "7d", query = "" }
+-- `open` is the one sale whose receipt is open, by the sale's identity (saleID), never by the
+-- pooled row that happens to draw it.
+local state = { period = "7d", query = "", open = nil, searchOpen = false }
+
+-- The whole history lives on goldcap.gg. WoW cannot open a URL from an addon, so the link shows in
+-- a box in the header, where the search box sits, selected whole for the copy keys (the welcome
+-- window does the same, GoldCap/UI/WelcomeFrame.lua). No StaticPopup: GoldCap keeps out of them.
+local SITE_URL = "https://goldcap.gg/ledger"
+local render
+local function showSiteLink()
+  state.siteOpen = not state.siteOpen
+  if state.siteOpen then state.searchOpen = false end
+  render()
+  local box = state.siteOpen and view and view.head and view.head.siteBox
+  if box and box.SetFocus then
+    box:SetFocus()
+    box:HighlightText()
+  end
+end
 Sold._state = state
 
 local SD = {
-  GAP = 10,           -- between the tab's blocks, and between two tiles
-  TILE_PAD_X = 14, TILE_PAD_Y = 11, TILE_LINE = 7, TILE_MIN_H = 74,
-  BAR_H = 5,          -- bar.png's caps are 2px: under half of this
-  BANNER_MIN_H = 34, BANNER_PAD_X = 12, BANNER_PAD_Y = 6,
-  BTN_H = 26, BTN_PAD = 12, -- plaque's 12px caps must stay under half the height
+  GAP = 10,           -- between the tab's blocks, and between two cards
+  HEAD_H = 28, TITLE_GAP = 12,
+  CARD_PAD_X = 12, CARD_PAD_Y = 10, CARD_LINE = 6, CARD_MIN_H = 70, CARD_MIN_W = 150,
+  RING = 34, RING_DOTS = 16, RING_DOT = 3, RING_GAP = 8,
+  FOOT_MIN_H = 26, FOOT_PAD = 6,
+  BTN_H = 22, BTN_PAD = 10,
   CHIP_H = 22, CHIP_PAD = 10, CHIP_GAP = 2, GROUP_PAD = 3,
-  SEARCH_W = 210, SEARCH_MIN = 120, SEARCH_PAD = 10, CTRL_H = 28, GLYPH = 12, GLYPH_GAP = 7,
-  HEAD_H = 16,
-  ROW_H = 34, DAY_H = 26, ICON = 24, ICON_GAP = 10, QTY_GAP = 6,
-  PAD_X = 10, COL_GAP = 10, ITEM_MIN = 110, NOTE_MIN = 80,
+  SEARCH_W = 210, SEARCH_MIN = 120, SEARCH_PAD = 10, CTRL_H = 26, GLYPH = 12, GLYPH_GAP = 7,
+  ROW_H = 52, ROW_PAD_Y = 9, SUB_GAP = 3, DAY_H = 28, ICON = 32, ICON_GAP = 10, CHEVRON = 12,
+  MKT_BAR_W = 56, MKT_DOT = 7, MKT_TICK_H = 9, MKT_GAP = 6, OPEN_INSET = 4,
+  PAD_X = 10, COL_GAP = 12, ITEM_MIN = 110, NOTE_MIN = 80, RULE_GAP = 8,
   EMPTY_PAD = 20,
   STALE_YELLOW = 6 * 3600, STALE_RED = 24 * 3600,
 }
@@ -61,31 +83,20 @@ local HEX = setmetatable({}, { __index = function(_, key)
   local color = GC.Kit.Tokens.color[HEX_KEY[key]]
   return color and GC.Util.Colored(color, ""):sub(1, -3)
 end })
-local COLOR_KEY = { tile = "soldTile", road = "soldRoad", banner = "soldBanner", empty = "soldEmpty", faint = "soldFaint" }
--- The window's fills and faint text, read from the applied skin when a tile is built; `orange` and
--- `white` are the game tooltip's.
-local COLOR = setmetatable({ orange = B.tipOrange, white = B.tipWhite }, { __index = function(_, key)
+local COLOR_KEY = { tile = "soldTile", road = "soldRoad", empty = "soldEmpty", faint = "soldFaint" }
+-- The window's fills and faint text, read from the applied skin when a card is built; `white` is
+-- the game tooltip's.
+local COLOR = setmetatable({ white = B.tipWhite }, { __index = function(_, key)
   return GC.Kit.Tokens.color[COLOR_KEY[key]]
 end })
 
--- @localised-keys: literals in these tables ARE GC.L keys. They are built at FILE SCOPE, where
--- GC.L still answers in English (ApplyLocale runs at ADDON_LOADED), so each is looked up where
--- it is read. Every table closes with a `}` on its own line -- that is where the spec's scanner
+-- @localised-keys: date("*t").wday order, Sunday first. The literals ARE GC.L keys, looked up
+-- where they are read: at FILE SCOPE GC.L still answers in English (ApplyLocale runs at
+-- ADDON_LOADED). The table closes with a `}` on its own line -- that is where the spec's scanner
 -- stops.
-local HEADER_TEXT = {
-  item = "ITEM", when = "WHEN", each = "EACH", got = "YOU GOT", profit = "PROFIT",
-}
--- @localised-keys: date("*t").wday order, Sunday first.
 local WEEKDAY = {
   "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT",
 }
--- @localised-keys: where the stock a sale drew on came from (GC.Acquisitions batch sources).
-local SOURCE_TEXT = {
-  goldcap = "Sniper", goldcap_buy = "BUY list", manual = "set by you", auction_house = "the auction house",
-  craft = "crafted",
-}
-
-local COLS = { "when", "each", "got", "profit" }
 
 local function setColor(fs, c)
   if fs and c then fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
@@ -209,11 +220,11 @@ end
 
 -- A sale mail carries the item's NAME only, and the client answers a name only for an item it
 -- has cached. What a name lookup finds is used for the icon and the colour and nothing else:
--- two quality ranks of one reagent share a name, so a tooltip or a market price read off a
--- name could describe the other rank. Only an exact id (the sale's own, the position its
--- profit was matched to, or the one item the character listed under that name) opens the
--- item's tooltip.
-local byName = {}
+-- two quality ranks of one reagent share a name, so a market price or a bag count read off a
+-- name could describe the other rank. Only an exact id (the sale's own, the position its profit
+-- was matched to, or the one item the character listed under that name) is priced or counted,
+-- and nothing here ever opens the item's own tooltip.
+local byName, unnamed = {}, {}
 local function lookupName(name)
   local api = _G.C_Item
   if type(name) ~= "string" or name == "" or not api then return nil end
@@ -226,6 +237,18 @@ local function lookupName(name)
   if api.GetItemInfo then
     local ok, _, _, q, _, _, _, _, _, _, tex = pcall(api.GetItemInfo, name)
     if ok then quality, icon = q, icon or tex end
+  end
+  -- WoW: Forever: a name the client has not cached left a blank grey square (Relic Coffer Key,
+  -- Pitchblende, owner's screenshot, 2026-11-21). The names the last scan saw (Core/ForeverNames.lua)
+  -- give the item's id, and an icon by id needs no cache. The icon only: the id is still not exact.
+  if not icon and not unnamed[name] and api.GetItemIconByID and GC.ForeverNames and GC.ForeverNames.Each then
+    local id
+    GC.ForeverNames.Each(function(itemID, known) if known == name then id = itemID end end)
+    unnamed[name] = id == nil or nil
+    if id then
+      local ok, tex = pcall(api.GetItemIconByID, id)
+      if ok then icon = tex end
+    end
   end
   if not icon and quality == nil then return nil end
   byName[name] = { icon = icon, quality = quality }
@@ -271,15 +294,28 @@ local function itemInfo(row)
   return { id = id, icon = icon, color = qualityColor(quality) }
 end
 
--- The market price the tooltip compares a sale with: the figure GoldCap's own item tooltip
--- prices the item at (UI/Tooltip.lua), for an item priced as one thing. A realm item's figure
--- is one item level's or one realm's median, and a piece of Forever gear's is its cheapest
--- version's; the copy that sold may have been another, so those are never compared.
+-- The market price a sale is compared with (Core/SoldReceipt.Market): the figure GoldCap's own
+-- item tooltip prices the item at (UI/Tooltip.lua), for an exact item priced as one thing.
 local function marketFor(itemID)
   if not (itemID and GC.Data and GC.Data.GetItemValue) then return nil end
   local ok, v = pcall(GC.Data.GetItemValue, itemID)
-  if not ok or type(v) ~= "table" or v.gear or v.kind == "realm_item" then return nil end
-  return type(v.mv) == "number" and v.mv > 0 and v.mv or nil
+  return ok and R.Market(v) or nil
+end
+
+-- How many of the exact item the bags hold, for the receipt's way to SELL.
+local function bagsOf(itemID)
+  local api = _G.C_Item
+  local fn = (api and api.GetItemCount) or _G.GetItemCount
+  if not (itemID and type(fn) == "function") then return 0 end
+  local ok, n = pcall(fn, itemID)
+  return ok and type(n) == "number" and n or 0
+end
+
+-- A sale's identity across renders: the ledger key for a local sale, and for a goldcap.gg one
+-- the fields the snapshot holds it by.
+local function saleID(r)
+  if r.key then return "local\1" .. r.key end
+  return table.concat({ r.section or "", tostring(r.at), tostring(r.name), tostring(r.qty), tostring(r.gross) }, "\1")
 end
 
 -- The model ---------------------------------------------------------------------------------
@@ -290,20 +326,23 @@ local function buildModel()
   local now = time()
   local m = { isForever = isForever, summary = summary, now = now,
     from = V.PeriodStart(state.period, now, dateOf) }
+  local acq = GC.Acquisitions or {}
   local realized = {}
-  if GC.Acquisitions and GC.Acquisitions.GetRealized then
-    for _, row in ipairs(GC.Acquisitions.GetRealized()) do
+  if acq.GetRealized then
+    for _, row in ipairs(acq.GetRealized()) do
       if row.evidenceKey then realized[row.evidenceKey] = row end
     end
   end
-  local listed = V.ListedIndex(GC.Acquisitions and GC.Acquisitions.GetActivities
-    and GC.Acquisitions.GetActivities() or {})
+  local activities = acq.GetActivities and acq.GetActivities() or {}
+  local listed = V.ListedIndex(activities)
   local entries = GC.Ledger and GC.Ledger.GetEntries and GC.Ledger.GetEntries() or {}
   local locals, servers = {}, {}
   for _, sale in ipairs(V.LocalSales(entries, V.Boundary(summary))) do
     local hit = sale.key and realized[sale.key] or nil
     local listedID = V.ListedItemID(listed, sale.itemName, sale.char, sale.region)
-    locals[#locals + 1] = V.LocalRow(sale, hit, nil, listedID)
+    local row = V.LocalRow(sale, hit, nil, listedID)
+    row.entry = sale
+    locals[#locals + 1] = row
   end
   for _, sale in ipairs(summary and summary.sales or {}) do servers[#servers + 1] = V.ServerRow(sale) end
   m.anySales = #locals + #servers > 0
@@ -311,13 +350,19 @@ local function buildModel()
   -- Sources only for the rows the period and the search left, and from one pass over the store
   -- for all of them: SourcesOf per sale scanned every batch for every sale ever made, on each render.
   -- A row has a profit exactly when LocalRow found its sale realized.
-  if GC.Acquisitions and GC.Acquisitions.SourcesIndex then
-    local index
-    for _, row in ipairs(m.locals) do
-      if row.profit ~= nil and row.key then
-        index = index or GC.Acquisitions.SourcesIndex()
-        row.sources = index[row.key] or {}
-      end
+  local index
+  local active = {}
+  for _, row in ipairs(m.locals) do
+    if row.profit ~= nil and row.key and acq.SourcesIndex then
+      index = index or acq.SourcesIndex()
+      row.sources = index[row.key] or {}
+    elseif row.profit == nil and not row.pending and acq.GetActive then
+      -- Whether the receipt can finish this sale with a typed cost (Core/SoldReceipt.CostTarget):
+      -- the books' stock once per character, not once per sale.
+      local e = row.entry
+      local scope = tostring(e.char) .. "\1" .. tostring(e.region)
+      active[scope] = active[scope] or acq.GetActive({ char = e.char, region = e.region })
+      row.canSave = R.CostTarget(row, e, activities, active[scope]) ~= nil
     end
   end
   m.servers = V.Filter(servers, m.from, state.query)
@@ -364,207 +409,227 @@ local function listEntries(m)
   return out
 end
 
--- Tiles ------------------------------------------------------------------------------------
+-- Cards ------------------------------------------------------------------------------------
 
-local function tileParts(tile)
-  return { tile.label, tile.value, tile.small, tile.name, tile.sub }
+local function cardParts(card)
+  return { card.label, card.value, card.small, card.name, card.sub }
 end
 
--- A tile's headline figure, in the big face; stackTile moves it to the smaller one when it is
--- wider than the tile.
-local function putValue(tile, text, color)
-  put(tile.value, text)
-  setColor(tile.value, color)
-  tile.valueColor = color
+-- A card's headline figure, in the big face; stackCard moves it to the smaller one when it is
+-- wider than the card.
+local function putValue(card, text, color)
+  put(card.value, text)
+  setColor(card.value, color)
+  card.valueColor = color
 end
 
-local function resetTile(tile)
-  for _, fs in ipairs(tileParts(tile)) do fs:Hide() end
-  tile.bar:Hide()
-  tile.icon:Hide(); tile.iconEdge:Hide()
-  tile.frame:SetTint(COLOR.tile, Theme.color.border)
-  setColor(tile.label, Theme.color.fgDim)
-  setColor(tile.value, Theme.color.fg)
-  setColor(tile.small, Theme.color.fg)
-  setColor(tile.sub, Theme.color.fgDim)
-  tile.hasBar, tile.hasIcon, tile.road = false, false, nil
+local function resetCard(card)
+  for _, fs in ipairs(cardParts(card)) do fs:Hide() end
+  card.ring:Hide()
+  card.icon:Hide(); card.iconEdge:Hide()
+  card.frame:SetTint(COLOR.tile, Theme.color.border)
+  setColor(card.label, Theme.color.fgDim)
+  setColor(card.value, Theme.color.fg)
+  setColor(card.small, Theme.color.fg)
+  setColor(card.sub, Theme.color.fgDim)
+  card.hasRing, card.hasIcon, card.road, card.progress = false, false, nil, nil
 end
 
-local function paintGot(tile, m)
-  put(tile.label, GC.L["YOU GOT · %s"]:format(periodLabel(state.period)))
-  putValue(tile, coins(m.totals.net), Theme.color.fg)
+local function paintGot(card, m)
+  put(card.label, GC.L["YOU GOT"])
+  putValue(card, coins(m.totals.net), Theme.color.fg)
   local count = m.totals.count
   local sub
   if m.truncated then sub = GC.L["%d here · all on goldcap.gg"]:format(count)
-  elseif count == 1 then sub = GC.L["1 sale · after the AH cut"]
-  else sub = GC.L["%d sales · after the AH cut"]:format(count) end
-  put(tile.sub, sub)
+  elseif count == 1 then sub = GC.L["1 sale, after the cut"]
+  else sub = GC.L["%d sales, after the cut"]:format(count) end
+  put(card.sub, sub)
 end
 
-local function paintProfit(tile, m)
-  put(tile.label, GC.L["PROFIT"])
+local function paintProfit(card, m)
+  put(card.label, GC.L["PROFIT"])
   local t = m.totals
   if t.known > 0 then
-    putValue(tile, signed(t.profit), t.profit >= 0 and Theme.color.green or Theme.color.red)
+    putValue(card, signed(t.profit), t.profit >= 0 and Theme.color.green or Theme.color.red)
   else
-    putValue(tile, "-", COLOR.faint)
+    putValue(card, "-", COLOR.faint)
   end
-  if t.count > 0 then put(tile.sub, GC.L["cost known for %d of %d"]:format(t.known, t.count)) end
+  if t.count > 0 then put(card.sub, GC.L["%d of %d have a cost"]:format(t.known, t.count)) end
 end
 
-local function paintRoad(tile, s)
-  local gc = Theme.color.gold
-  tile.frame:SetTint(COLOR.road, { gc[1], gc[2], gc[3], 0.22 })
-  tile.road = s
-  put(tile.label, GC.L["ROAD TO 40"])
-  setColor(tile.label, Theme.color.goldHi)
-  local have = (s.money or 0) + (s.bags or 0)
-  if type(s.cost) == "number" and s.cost > 0 then
-    put(tile.small, GC.L["%s of %s"]:format(coins(have), coins(s.cost)))
-    tile.hasBar = true
-    tile.progress = V.Progress(have, s.cost)
-  else
-    put(tile.small, GC.L["%s · gold %s, bags %s"]:format(coins(have), coins(s.money or 0), coins(s.bags or 0)))
-    put(tile.sub, GC.L["set the riding cost: %s"]:format(HEX.gold .. "/gc mount 90g|r"))
-  end
-end
-
-local function paintSynced(tile, m)
-  local s = m.summary
-  put(tile.label, GC.L["GOLDCAP.GG · %d DAYS"]:format(s.days))
-  local age = math.max(0, m.now - (s.generatedAt or m.now))
-  local ago = GC.Util.FormatAge(age)
-  if type(s.totals.realized) == "number" then
-    putValue(tile, signed(s.totals.realized), s.totals.realized >= 0 and Theme.color.green or Theme.color.red)
-    put(tile.sub, GC.L["profit · synced %s ago"]:format(ago))
-  else
-    putValue(tile, coins(s.totals.proceeds or 0), Theme.color.fg)
-    put(tile.sub, GC.L["after the AH cut · synced %s ago"]:format(ago))
-  end
-  if age >= SD.STALE_RED then setColor(tile.sub, Theme.color.red)
-  elseif age >= SD.STALE_YELLOW then setColor(tile.sub, Theme.tier.SUSPECT) end
-end
-
-local function paintBest(tile, m)
-  put(tile.label, GC.L["BEST SALE"])
+local function paintBest(card, m)
+  put(card.label, GC.L["BEST SALE"])
   local best = m.best
   if not best then
-    put(tile.small, "-")
-    setColor(tile.small, COLOR.faint)
-    put(tile.sub, GC.L["no sale with a known profit yet"])
+    put(card.small, "-")
+    setColor(card.small, COLOR.faint)
+    put(card.sub, GC.L["no sale with a known profit yet"])
     return
   end
   local info = itemInfo(best)
-  if info.icon then tile.icon:SetTexture(info.icon)
-  else tile.icon:SetColorTexture(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.05) end
+  if info.icon then card.icon:SetTexture(info.icon)
+  else card.icon:SetColorTexture(GC.Kit.Tokens.color.ink[1], GC.Kit.Tokens.color.ink[2], GC.Kit.Tokens.color.ink[3], 0.05) end
   local edge = info.color and { info.color[1], info.color[2], info.color[3], 0.6 } or GC.Kit.Tokens.ink(0.16)
-  tile.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], edge[4])
-  tile.icon:Show(); tile.iconEdge:Show()
-  tile.hasIcon = true
-  put(tile.name, best.name or GC.L["Unknown item"])
-  setColor(tile.name, info.color or Theme.color.fg)
-  put(tile.sub, GC.L["%s profit"]:format(signed(best.profit)))
-  setColor(tile.sub, Theme.color.green)
+  card.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], edge[4])
+  card.icon:Show(); card.iconEdge:Show()
+  card.hasIcon = true
+  put(card.name, best.name or GC.L["Unknown item"])
+  setColor(card.name, info.color or Theme.color.fg)
+  put(card.small, coins(best.net))
+  put(card.sub, GC.L["%s profit"]:format(signed(best.profit)))
+  setColor(card.sub, Theme.color.green)
 end
 
--- Stacks a tile's shown parts top-down inside `inner` and says how tall they came out.
-local function stackTile(tile, inner)
-  local y = SD.TILE_PAD_Y - SD.TILE_LINE -- the first part sits at TILE_PAD_Y
-  local function place(fs, width)
+-- Road to 40: a ring of segments with the percent inside, and gold plus bags against the cost.
+local function paintRoad(card, s)
+  local gc = Theme.color.gold
+  card.frame:SetTint(COLOR.road, { gc[1], gc[2], gc[3], 0.22 })
+  card.road = s
+  put(card.label, GC.L["ROAD TO 40"])
+  setColor(card.label, Theme.color.goldHi)
+  local have = (s.money or 0) + (s.bags or 0)
+  if type(s.cost) == "number" and s.cost > 0 then
+    put(card.small, coins(have) .. " / " .. coins(s.cost))
+    card.hasRing = true
+    card.progress = V.Progress(have, s.cost)
+    put(card.ring.pct, ("%d%%"):format(math.floor(card.progress * 100)))
+  else
+    put(card.small, GC.L["%s · gold %s, bags %s"]:format(coins(have), coins(s.money or 0), coins(s.bags or 0)))
+    put(card.sub, GC.L["set the riding cost: %s"]:format(HEX.gold .. "/gc mount 90g|r"))
+  end
+end
+
+local function paintSynced(card, m)
+  local s = m.summary
+  put(card.label, GC.L["GOLDCAP.GG · %d DAYS"]:format(s.days))
+  local age = math.max(0, m.now - (s.generatedAt or m.now))
+  local ago = GC.Util.FormatAge(age)
+  if type(s.totals.realized) == "number" then
+    putValue(card, signed(s.totals.realized), s.totals.realized >= 0 and Theme.color.green or Theme.color.red)
+    put(card.sub, GC.L["profit · synced %s ago"]:format(ago))
+  else
+    putValue(card, coins(s.totals.proceeds or 0), Theme.color.fg)
+    put(card.sub, GC.L["after the AH cut · synced %s ago"]:format(ago))
+  end
+  if age >= SD.STALE_RED then setColor(card.sub, Theme.color.red)
+  elseif age >= SD.STALE_YELLOW then setColor(card.sub, Theme.tier.SUSPECT) end
+end
+
+-- The ring's segments lit for the card's progress, clockwise from the top.
+local function paintRing(card)
+  local lit = R.RingLit(card.progress, SD.RING_DOTS)
+  local on, off = Theme.color.gold, GC.Kit.Tokens.ink(0.14)
+  for i, dot in ipairs(card.ring.dots) do
+    local c = i <= lit and on or off
+    dot:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+  end
+  card.ring:Show()
+end
+
+-- Stacks a card's shown parts top-down inside `inner` and says how tall they came out.
+local function stackCard(card, inner)
+  local y = SD.CARD_PAD_Y - SD.CARD_LINE -- the first part sits at CARD_PAD_Y
+  local function place(fs, width, x)
     local h = wrapTo(fs, width)
     fs:ClearAllPoints()
-    fs:SetPoint("TOPLEFT", tile.frame, "TOPLEFT", SD.TILE_PAD_X, -(y + SD.TILE_LINE))
-    y = y + SD.TILE_LINE + h
+    fs:SetPoint("TOPLEFT", card.frame, "TOPLEFT", SD.CARD_PAD_X + (x or 0), -(y + SD.CARD_LINE))
+    y = y + SD.CARD_LINE + h
   end
-  if tile.label:IsShown() then place(tile.label, inner) end
-  if tile.value:IsShown() and widthOf(tile.value) > inner and not tile.small:IsShown() then
-    -- A figure too wide for the tile at the big size (a retail total, the largest font scale,
-    -- the narrowest window) steps down to the tile's smaller face rather than be cut.
-    tile.value:Hide()
-    put(tile.small, tile.value:GetText())
-    setColor(tile.small, tile.valueColor)
+  if card.label:IsShown() then place(card.label, inner) end
+  if card.value:IsShown() and widthOf(card.value) > inner and not card.small:IsShown() then
+    -- A figure too wide for the card at the big size (a retail total, the largest font scale,
+    -- the narrowest window) steps down to the card's smaller face rather than be cut.
+    card.value:Hide()
+    put(card.small, card.value:GetText())
+    setColor(card.small, card.valueColor)
   end
-  if tile.value:IsShown() then place(tile.value, inner) end
-  if tile.small:IsShown() then place(tile.small, inner) end
-  if tile.hasIcon then
+  if card.value:IsShown() then place(card.value, inner) end
+  if card.hasIcon then
     -- The best sale: its icon beside its name, the name wrapping in what the icon leaves.
-    local h = wrapTo(tile.name, inner - 28)
-    local line, top = math.max(h, 22), y + SD.TILE_LINE
-    tile.iconEdge:ClearAllPoints()
-    tile.iconEdge:SetPoint("TOPLEFT", tile.frame, "TOPLEFT", SD.TILE_PAD_X, -(top + (line - 22) / 2))
-    tile.name:ClearAllPoints()
-    tile.name:SetPoint("TOPLEFT", tile.frame, "TOPLEFT", SD.TILE_PAD_X + 28, -(top + (line - h) / 2))
+    local h = wrapTo(card.name, inner - 28)
+    local line, top = math.max(h, 22), y + SD.CARD_LINE
+    card.iconEdge:ClearAllPoints()
+    card.iconEdge:SetPoint("TOPLEFT", card.frame, "TOPLEFT", SD.CARD_PAD_X, -(top + (line - 22) / 2))
+    card.name:ClearAllPoints()
+    card.name:SetPoint("TOPLEFT", card.frame, "TOPLEFT", SD.CARD_PAD_X + 28, -(top + (line - h) / 2))
     y = top + line
   end
-  if tile.hasBar then
-    y = y + SD.TILE_LINE
-    tile.bar:ClearAllPoints()
-    tile.bar:SetPoint("TOPLEFT", tile.frame, "TOPLEFT", SD.TILE_PAD_X, -y)
-    tile.bar:SetSize(inner, SD.BAR_H)
-    tile.bar.fill:SetWidth(math.max(SD.BAR_H, inner * (tile.progress or 0)))
-    if (tile.progress or 0) > 0 then tile.bar.fill:Show() else tile.bar.fill:Hide() end
-    tile.bar:Show()
-    y = y + SD.BAR_H
+  if card.hasRing then
+    -- The ring at the left, gold plus bags of the cost beside it, centred on it.
+    local top = y + SD.CARD_LINE
+    card.ring:ClearAllPoints()
+    card.ring:SetPoint("TOPLEFT", card.frame, "TOPLEFT", SD.CARD_PAD_X, -top)
+    paintRing(card)
+    local h = wrapTo(card.small, inner - SD.RING - SD.RING_GAP)
+    card.small:ClearAllPoints()
+    card.small:SetPoint("TOPLEFT", card.frame, "TOPLEFT", SD.CARD_PAD_X + SD.RING + SD.RING_GAP,
+      -(top + math.max(0, (SD.RING - h) / 2)))
+    y = top + math.max(SD.RING, h)
+  elseif card.small:IsShown() then
+    place(card.small, inner)
   end
-  if tile.sub:IsShown() then place(tile.sub, inner) end
-  return y + SD.TILE_PAD_Y
+  if card.sub:IsShown() then place(card.sub, inner) end
+  return y + SD.CARD_PAD_Y
 end
 
-local function layoutTiles(m, width)
-  local tiles = view.tiles
-  for _, tile in ipairs(tiles) do resetTile(tile) end
-  paintGot(tiles[1], m)
-  paintProfit(tiles[2], m)
-  if m.road then paintRoad(tiles[3], m.road)
-  elseif m.summary then paintSynced(tiles[3], m)
-  else paintBest(tiles[3], m) end
-  local w = math.floor((width - 2 * SD.GAP) / 3)
-  local height = SD.TILE_MIN_H
-  for _, tile in ipairs(tiles) do height = math.max(height, stackTile(tile, w - 2 * SD.TILE_PAD_X)) end
-  for i, tile in ipairs(tiles) do
-    tile.frame:ClearAllPoints()
-    tile.frame:SetPoint("TOPLEFT", view.container, "TOPLEFT", (i - 1) * (w + SD.GAP), 0)
-    tile.frame:SetSize(w, height)
+local function layoutCards(m, width, top)
+  local cards = view.cards
+  for _, card in ipairs(cards) do resetCard(card); card.frame:Hide() end
+  paintGot(cards[1], m)
+  paintProfit(cards[2], m)
+  paintBest(cards[3], m)
+  local shown = { cards[1], cards[2], cards[3] }
+  if m.road then paintRoad(cards[4], m.road); shown[4] = cards[4]
+  elseif m.summary then paintSynced(cards[4], m); shown[4] = cards[4] end
+  -- One row of cards; two rows of two when four in one would leave a card too narrow for its
+  -- figure (the narrowest window, the largest font scale).
+  local perRow = #shown
+  if perRow == 4 and (width - 3 * SD.GAP) / 4 < SD.CARD_MIN_W then perRow = 2 end
+  local w = math.floor((width - (perRow - 1) * SD.GAP) / perRow)
+  local height = SD.CARD_MIN_H
+  for _, card in ipairs(shown) do height = math.max(height, stackCard(card, w - 2 * SD.CARD_PAD_X)) end
+  for i, card in ipairs(shown) do
+    local col, line = (i - 1) % perRow, math.floor((i - 1) / perRow)
+    card.frame:ClearAllPoints()
+    card.frame:SetPoint("TOPLEFT", view.container, "TOPLEFT", col * (w + SD.GAP), -(top + line * (height + SD.GAP)))
+    card.frame:SetSize(w, height)
+    card.frame:Show()
   end
-  return height
+  local lines = math.ceil(#shown / perRow)
+  return top + lines * height + (lines - 1) * SD.GAP
 end
 
--- The Forever banner: bag items the auction house pays more for than a vendor, and the way to
--- the tab that sells them. The sentence wraps and the banner grows; the button is as wide as
--- its own label.
-local function layoutBanner(m, width, y)
-  local b = view.banner
-  local s = m.road
-  if not (s and (s.gainItems or 0) > 0 and (s.gain or 0) > 0) then
-    b.frame:Hide()
-    return y
-  end
-  setLabel(b.button, GC.L["OPEN SELL"])
-  local bw = widthOf(b.button.text) + 2 * SD.BTN_PAD
-  b.button:SetSize(bw, SD.BTN_H)
-  put(b.text, GC.L["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."]
-    :format(s.gainItems, HEX.green .. plain(s.gain) .. "|r"))
-  local th = wrapTo(b.text, width - 2 * SD.BANNER_PAD_X - (SD.GLYPH + 2 + SD.GLYPH_GAP) - bw - SD.GAP)
-  local h = math.max(SD.BANNER_MIN_H, th + 2 * SD.BANNER_PAD_Y, SD.BTN_H + 2 * SD.BANNER_PAD_Y)
-  b.frame:ClearAllPoints()
-  b.frame:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -y)
-  b.frame:SetSize(width, h)
-  b.frame:Show()
-  return y + h + SD.GAP
-end
+-- The header -------------------------------------------------------------------------------
 
--- The period chips and the search box. The chips are as wide as their labels; the search box
--- takes up to SEARCH_W of what is left on the line, or a line of its own when too little is.
-local function layoutControls(width, y)
-  local c = view.controls
+-- The tab's name at the left; at the right the period switch and the search button. The search
+-- box shows while it is open or holds a query: in the header between the name and the switch
+-- when there is room, else on a line of its own under it. The window's own close is the
+-- window's (its title bar), not drawn again here.
+local function layoutHeader(width)
+  local h = view.head
+  -- The tab's own name, exactly as the rail writes it: the tab names (DEALS, SELL, SOLD, BUY) are
+  -- the same word in every language, as "OPEN SELL" is translated around them.
+  local name = "SOLD"
+  for _, tab in ipairs(Theme.RAIL_ORDER or {}) do
+    if tab.key == "sold" then name = tab.label end
+  end
+  put(h.title, name)
+  h.title:ClearAllPoints()
+  h.title:SetPoint("LEFT", view.container, "TOPLEFT", 0, -SD.HEAD_H / 2)
+  local titleW = hug(h.title)
+
+  h.find:SetSize(SD.CTRL_H, SD.CTRL_H)
+  h.find:ClearAllPoints()
+  h.find:SetPoint("TOPRIGHT", view.container, "TOPRIGHT", 0, -(SD.HEAD_H - SD.CTRL_H) / 2)
+
   local x = SD.GROUP_PAD
   for _, period in ipairs(V.PERIODS) do
-    local chip = c.chips[period]
+    local chip = h.chips[period]
     setLabel(chip, periodLabel(period))
     local w = widthOf(chip.text) + 2 * SD.CHIP_PAD
     chip:SetSize(w, SD.CHIP_H)
     chip:ClearAllPoints()
-    chip:SetPoint("LEFT", c.group, "LEFT", x, 0)
+    chip:SetPoint("LEFT", h.group, "LEFT", x, 0)
     x = x + w + SD.CHIP_GAP
     if period == state.period then
       chip:SetVariant("active")
@@ -574,55 +639,119 @@ local function layoutControls(width, y)
       setColor(chip.text, Theme.color.fgDim)
     end
   end
+  -- Past seven days: the site.
+  setLabel(h.site, GC.L["ALL ON GOLDCAP.GG"])
+  local siteW = widthOf(h.site.text) + 2 * SD.CHIP_PAD
+  h.site:SetSize(siteW, SD.CHIP_H)
+  h.site:ClearAllPoints()
+  h.site:SetPoint("LEFT", h.group, "LEFT", x, 0)
+  h.site.bg:SetVertexColor(1, 1, 1, 0) -- untinted
+  setColor(h.site.text, Theme.color.goldHi)
+  x = x + siteW + SD.CHIP_GAP
   local groupW = x - SD.CHIP_GAP + SD.GROUP_PAD
-  c.group:ClearAllPoints()
-  c.group:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -y)
-  c.group:SetSize(groupW, SD.CTRL_H)
+  h.group:ClearAllPoints()
+  h.group:SetPoint("TOPRIGHT", view.container, "TOPRIGHT", -(SD.CTRL_H + SD.GAP / 2), -(SD.HEAD_H - SD.CTRL_H) / 2)
+  h.group:SetSize(groupW, SD.CTRL_H)
 
-  put(c.hint, GC.L["Find an item"])
-  local least = math.max(SD.SEARCH_MIN, hug(c.hint) + 2 * SD.SEARCH_PAD + SD.GLYPH + SD.GLYPH_GAP)
-  local room = width - groupW - SD.GAP
-  local searchW, searchY = math.min(math.max(SD.SEARCH_W, least), room), y
-  if room < least then searchW, searchY = math.min(width, math.max(least, SD.SEARCH_W)), y + SD.CTRL_H + SD.GAP / 2 end
-  c.well:ClearAllPoints()
-  c.well:SetPoint("TOPRIGHT", view.container, "TOPRIGHT", 0, -searchY)
-  c.well:SetSize(searchW, SD.CTRL_H)
-  local text = c.search:GetText() or ""
-  if text ~= "" or (c.search.HasFocus and c.search:HasFocus()) then c.hint:Hide() end
-  return searchY + SD.CTRL_H + SD.GAP
+  local y = SD.HEAD_H
+  -- The goldcap.gg link takes the search box's place while it is open.
+  if state.siteOpen then
+    h.well:Hide()
+    local room = width - titleW - SD.TITLE_GAP - groupW - SD.CTRL_H - SD.GAP
+    local least = hug(h.siteBox.measure) + 2 * SD.SEARCH_PAD + SD.GLYPH + 14
+    h.siteWell:ClearAllPoints()
+    if room >= least then
+      h.siteWell:SetPoint("TOPRIGHT", h.group, "TOPLEFT", -SD.GAP, 0)
+      h.siteWell:SetSize(math.min(math.max(least, SD.SEARCH_W), room), SD.CTRL_H)
+    else
+      h.siteWell:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -(y + SD.GAP / 2))
+      h.siteWell:SetSize(math.min(width, math.max(least, SD.SEARCH_W)), SD.CTRL_H)
+      y = y + SD.GAP / 2 + SD.CTRL_H
+    end
+    h.siteWell:Show()
+    return y + SD.GAP
+  end
+  h.siteWell:Hide()
+  local text = h.search:GetText() or ""
+  if not (state.searchOpen or text ~= "") then
+    h.well:Hide()
+    return y + SD.GAP
+  end
+  put(h.hint, GC.L["Find an item"])
+  local least = math.max(SD.SEARCH_MIN, hug(h.hint) + 2 * SD.SEARCH_PAD + 2 * SD.GLYPH + 2 * SD.GLYPH_GAP)
+  local room = width - titleW - SD.TITLE_GAP - groupW - SD.CTRL_H - SD.GAP
+  h.well:ClearAllPoints()
+  if room >= least then
+    h.well:SetPoint("TOPRIGHT", h.group, "TOPLEFT", -SD.GAP, 0)
+    h.well:SetSize(math.min(SD.SEARCH_W, room), SD.CTRL_H)
+  else
+    h.well:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -(y + SD.GAP / 2))
+    h.well:SetSize(math.min(width, math.max(least, SD.SEARCH_W)), SD.CTRL_H)
+    y = y + SD.GAP / 2 + SD.CTRL_H
+  end
+  h.well:Show()
+  if text ~= "" or (h.search.HasFocus and h.search:HasFocus()) then h.hint:Hide() end
+  return y + SD.GAP
+end
+
+-- The bottom line ---------------------------------------------------------------------------
+
+-- WoW: Forever: bag items the auction house pays more for than a vendor, and the way to the tab
+-- that sells them, in one quiet line at the foot of the tab. The sentence wraps and the line
+-- grows; the button is as wide as its own label. Returns the room it takes at the bottom.
+local function layoutFoot(m, width)
+  local f = view.foot
+  local s = m.road
+  if not (s and (s.gainItems or 0) > 0 and (s.gain or 0) > 0) then
+    f.frame:Hide()
+    return 0
+  end
+  setLabel(f.button, GC.L["OPEN SELL"])
+  local bw = widthOf(f.button.text) + 2 * SD.BTN_PAD + SD.GLYPH
+  f.button:SetSize(bw, SD.BTN_H)
+  put(f.text, GC.L["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."]
+    :format(s.gainItems, HEX.green .. plain(s.gain) .. "|r"))
+  local th = wrapTo(f.text, width - (SD.GLYPH + 2 + SD.GLYPH_GAP) - bw - SD.GAP)
+  local h = math.max(SD.FOOT_MIN_H, th + 2 * SD.FOOT_PAD, SD.BTN_H + 2 * SD.FOOT_PAD)
+  f.frame:ClearAllPoints()
+  f.frame:SetPoint("BOTTOMLEFT", view.container, "BOTTOMLEFT", 0, 0)
+  f.frame:SetSize(width, h)
+  f.frame:Show()
+  return h + SD.GAP / 2
 end
 
 -- Rows -------------------------------------------------------------------------------------
 
 local function whenText(r, grouped, now)
-  if r.pending then return GC.L["in the mail"] end
+  if r.pending then return HEX.gold .. GC.L["in the mail"] .. "|r" end
   if grouped or isToday(r.at, now) then return clock(r.at) end
   return shortDate(r.at)
 end
 
 local function profitText(r)
-  if type(r.profit) == "number" then
+  local cell = R.ProfitCell(r, r.canSave)
+  if cell == "profit" then
     local text = signed(r.profit)
     if r.costUnits then text = text .. "  " .. HEX.dim .. ("%d/%d"):format(r.costUnits, r.qty) .. "|r" end
     return text, r.profit >= 0 and Theme.color.green or Theme.color.red
   end
-  -- A free account is told nothing about profit: an empty cell, not a dash that implies a
-  -- cost was looked for.
-  if r.noBasis then return "", COLOR.faint end
+  if cell == "set" then return GC.L["set cost"], COLOR.faint end
+  if cell == "blank" then return "", COLOR.faint end
   return "-", COLOR.faint
 end
 
 local function clearRow(row)
-  row.name:Hide(); row.qty:Hide(); row.icon:Hide(); row.iconEdge:Hide()
+  row.name:Hide(); row.sub:Hide(); row.icon:Hide(); row.iconEdge:Hide(); row.chevron:Hide()
   row.title:Hide(); row.note:Hide(); row.rule:Hide(); row.wide:Hide()
-  for _, key in ipairs(COLS) do row.cells[key]:Hide() end
+  for _, key in ipairs({ "mkt", "got", "profit" }) do row.cells[key]:Hide() end
+  row.track:Hide(); row.tick:Hide(); row.dot:Hide()
   -- Hide/Show, never SetAlpha: on a texture SetAlpha writes the very alpha the wash's colour
   -- set, and SetAlpha(1) turns the faint wash into a solid bar.
-  row.highlight:Hide()
-  row.sale, row.info = nil, nil
+  row.highlight:Hide(); row.outline:Hide(); row.openFill:Hide()
+  row.sale, row.info, row.saleID, row.isOpen, row.pct = nil, nil, nil, false, nil
 end
 
--- Pass one: the texts. The table's columns are fitted to what these come out as.
+-- Pass one: the texts. The figure columns are fitted to what these come out as.
 local function paintRow(row, entry, now)
   clearRow(row)
   row.kind = entry.kind
@@ -638,7 +767,8 @@ local function paintRow(row, entry, now)
     return
   end
   local r = entry.row
-  row.sale, row.info = r, itemInfo(r)
+  row.sale, row.info, row.saleID = r, itemInfo(r), saleID(r)
+  row.isOpen = state.open == row.saleID
   if row.info.icon then
     row.icon:SetTexture(row.info.icon)
   else
@@ -652,17 +782,63 @@ local function paintRow(row, entry, now)
   row.icon:Show(); row.iconEdge:Show()
   put(row.name, r.name or GC.L["Unknown item"])
   setColor(row.name, c or Theme.color.fg)
-  put(row.qty, "×" .. tostring(r.qty))
-  put(row.cells.when, whenText(r, entry.grouped, now))
-  setColor(row.cells.when, r.pending and Theme.color.goldHi or Theme.color.fgDim)
-  put(row.cells.each, r.each and coins(r.each) or "")
+  put(row.sub, ("%d × %s · %s"):format(r.qty, r.each and plain(r.each) or "-", whenText(r, entry.grouped, now)))
+  -- Against the market: only an exact item's own price (Core/SoldReceipt.Market).
+  row.market = marketFor(row.info.id)
+  row.pct = row.market and V.Percent(r.each, row.market) or nil
+  if row.pct then
+    put(row.cells.mkt, row.pct == 0 and "0%" or ("%+d%%"):format(row.pct))
+    local tone = R.Tone(row.pct)
+    row.mktColor = tone == "above" and Theme.color.green or tone == "under"
+      and (GC.Kit.Tokens.color.warn or Theme.color.goldHi) or Theme.color.fgDim
+    setColor(row.cells.mkt, row.mktColor)
+  else
+    put(row.cells.mkt, "")
+  end
   put(row.cells.got, coins(r.net))
   local text, color = profitText(r)
   put(row.cells.profit, text)
   setColor(row.cells.profit, color)
+  Theme.SetIcon(row.chevron, row.isOpen and "caretDown" or "caretRight", row.isOpen and Theme.color.goldHi or Theme.color.fgDim)
+  row.chevron:Show()
 end
 
--- Pass two: the anchors, now that the columns are fitted. Returns the row's height.
+-- The vs-market mark: a thin track, the market's tick at its middle, a dot left or right of it
+-- by the percent (Core/SoldReceipt.BarPosition), the figure beside it.
+local function layoutMarket(row, right, mid, width)
+  local cell = row.cells.mkt
+  local pctW = width - SD.MKT_BAR_W - SD.MKT_GAP
+  cell:SetWidth(math.max(1, pctW))
+  cell:ClearAllPoints()
+  cell:SetPoint("RIGHT", row, "TOPRIGHT", -right, -mid)
+  if not row.pct then return end
+  local barRight = right + pctW + SD.MKT_GAP
+  row.track:ClearAllPoints()
+  row.track:SetPoint("RIGHT", row, "TOPRIGHT", -barRight, -mid)
+  row.track:SetSize(SD.MKT_BAR_W, 2)
+  row.tick:ClearAllPoints()
+  row.tick:SetPoint("CENTER", row.track, "CENTER", 0, 0)
+  row.tick:SetSize(1, SD.MKT_TICK_H)
+  local at = R.BarPosition(row.pct)
+  row.dot:ClearAllPoints()
+  row.dot:SetPoint("CENTER", row.track, "LEFT", at * SD.MKT_BAR_W, 0)
+  row.dot:SetSize(SD.MKT_DOT, SD.MKT_DOT)
+  local dc = row.mktColor
+  row.dot:SetColorTexture(dc[1], dc[2], dc[3], 1)
+  row.dotAt = at
+  row.track:Show(); row.tick:Show(); row.dot:Show()
+end
+
+-- One line when it fits in `room`, else wrapped inside it: a long name grows its row and is
+-- never cut. Says how tall it came out.
+local function fitLine(fs, room)
+  if widthOf(fs) > room then return wrapTo(fs, room) end
+  hug(fs)
+  return heightOf(fs)
+end
+
+-- Pass two: the anchors, now that the columns are fitted. Returns the row's own height (without
+-- an open receipt).
 local function layoutRow(row, width, fit)
   local inner = width - 2 * SD.PAD_X
   if row.kind == "hint" then
@@ -672,139 +848,70 @@ local function layoutRow(row, width, fit)
     return h + 16
   end
   if row.kind == "head" then
+    -- "TODAY" in gold small caps, a hairline, and the day's count and sum at the right.
     local titleW = math.min(widthOf(row.title), inner)
     local th = wrapTo(row.title, titleW)
-    local noteRoom = inner - titleW - SD.GAP
+    local noteRoom = inner - titleW - 2 * SD.RULE_GAP - 24
+    local beside = noteRoom >= SD.NOTE_MIN
     local nh
     row.note:ClearAllPoints()
-    if noteRoom >= SD.NOTE_MIN then
+    if beside then
       nh = wrapTo(row.note, math.min(noteRoom, widthOf(row.note)))
-      row.note:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -SD.PAD_X, 5)
+      row.note:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -SD.PAD_X, 6)
     else
       -- No room beside the title: the note takes a line of its own under it.
       nh = wrapTo(row.note, inner)
-      row.note:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", SD.PAD_X, 5)
+      row.note:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", SD.PAD_X, 6)
       th = th + nh + 2
     end
     row.title:ClearAllPoints()
-    row.title:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", SD.PAD_X, 5 + (noteRoom >= SD.NOTE_MIN and 0 or nh + 2))
-    row.note:SetJustifyH(noteRoom >= SD.NOTE_MIN and "RIGHT" or "LEFT")
-    return math.max(SD.DAY_H, th + 11, nh + 11)
+    row.title:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", SD.PAD_X, 6 + (beside and 0 or nh + 2))
+    row.note:SetJustifyH(beside and "RIGHT" or "LEFT")
+    row.rule:ClearAllPoints()
+    row.rule:SetPoint("LEFT", row.title, "RIGHT", SD.RULE_GAP, 0)
+    if beside then row.rule:SetPoint("RIGHT", row.note, "LEFT", -SD.RULE_GAP, 0)
+    else row.rule:SetPoint("RIGHT", row, "RIGHT", -SD.PAD_X, 0) end
+    return math.max(SD.DAY_H, th + 12, nh + 12)
   end
-  -- A sale: the fixed columns right to left off the row's edge, ITEM in what is left.
+  -- A sale: the chevron at the right edge, the figure columns right to left off it, the item in
+  -- what is left. The figures sit on the middle of the row's own 52px, whether or not a receipt
+  -- hangs under it.
   local right = SD.PAD_X
-  local leftmost = width - SD.PAD_X
-  for i = #COLS, 1, -1 do
-    local key = COLS[i]
+  row.chevron:ClearAllPoints()
+  row.chevron:SetSize(SD.CHEVRON, SD.CHEVRON)
+  local textX = SD.PAD_X + SD.ICON + 2 + SD.ICON_GAP
+  -- The name block first, at the room the columns leave, so the row's height is known.
+  local used = SD.CHEVRON + SD.COL_GAP
+  for _, key in ipairs({ "mkt", "got", "profit" }) do
+    if not fit.hidden[key] then used = used + fit.widths[key] + SD.COL_GAP end
+  end
+  local nameRoom = math.max(24, width - SD.PAD_X - used - textX)
+  local nh, sh = fitLine(row.name, nameRoom), fitLine(row.sub, nameRoom)
+  local h = math.max(SD.ROW_H, nh + SD.SUB_GAP + sh + 2 * SD.ROW_PAD_Y)
+  local mid = h / 2
+  row.chevron:SetPoint("RIGHT", row, "TOPRIGHT", -right, -mid)
+  right = right + SD.CHEVRON + SD.COL_GAP
+  for _, key in ipairs({ "profit", "got", "mkt" }) do
     local cell = row.cells[key]
     if fit.hidden[key] then
       cell:Hide()
+    elseif key == "mkt" then
+      layoutMarket(row, right, mid, fit.widths.mkt)
     else
       cell:SetWidth(fit.widths[key])
       cell:ClearAllPoints()
-      cell:SetPoint("RIGHT", row, "RIGHT", -right, 0)
-      leftmost = width - right - fit.widths[key]
-      right = right + fit.widths[key] + SD.COL_GAP
+      cell:SetPoint("RIGHT", row, "TOPRIGHT", -right, -mid)
     end
+    if not fit.hidden[key] then right = right + fit.widths[key] + SD.COL_GAP end
   end
   row.iconEdge:ClearAllPoints()
-  row.iconEdge:SetPoint("LEFT", row, "LEFT", SD.PAD_X, 0)
-  local qtyW = hug(row.qty)
-  local nameRoom = leftmost - SD.COL_GAP - (SD.PAD_X + SD.ICON + 2 + SD.ICON_GAP) - SD.QTY_GAP - qtyW
-  if nameRoom < 24 then
-    -- Too narrow for the name and the count both: the count goes (the tooltip says "14 × 75c"),
-    -- so it cannot run into the first figure column.
-    row.qty:Hide()
-    nameRoom = nameRoom + SD.QTY_GAP + qtyW
-  end
-  local h = SD.ROW_H
-  if widthOf(row.name) <= nameRoom then
-    hug(row.name)
-  else
-    -- A name longer than ITEM's room wraps onto more lines and the row grows to hold them:
-    -- nothing is cut.
-    h = math.max(SD.ROW_H, wrapTo(row.name, math.max(1, nameRoom)) + 10)
-  end
+  row.iconEdge:SetPoint("LEFT", row, "TOPLEFT", SD.PAD_X, -mid)
+  local top = (h - (nh + SD.SUB_GAP + sh)) / 2
   row.name:ClearAllPoints()
-  row.name:SetPoint("LEFT", row.iconEdge, "RIGHT", SD.ICON_GAP, 0)
-  row.qty:ClearAllPoints()
-  row.qty:SetPoint("LEFT", row.name, "RIGHT", SD.QTY_GAP, 0)
+  row.name:SetPoint("TOPLEFT", row, "TOPLEFT", textX, -top)
+  row.sub:ClearAllPoints()
+  row.sub:SetPoint("TOPLEFT", row, "TOPLEFT", textX, -(top + nh + SD.SUB_GAP))
   return h
-end
-
-local function saleTooltip(row)
-  local r, info = row.sale, row.info
-  if not (GameTooltip and r and info) then return end
-  local anchor = Theme.TooltipAnchor and Theme.TooltipAnchor(row) or "ANCHOR_RIGHT"
-  GameTooltip:SetOwner(row, anchor)
-  -- The sale's own card: the name in its quality colour, then where the money went. The item's
-  -- full tooltip (stats, vendor price, GoldCap's own price block) buried the sale under it.
-  local nameColor = info.color or COLOR.white
-  GameTooltip:SetText(GC.Util.ClientText(r.name or GC.L["Unknown item"]), nameColor[1], nameColor[2], nameColor[3])
-  local dim, body, white = B.text3, B.tipBody, COLOR.white
-  local tip = GC.Util.ClientText
-  local function line(text, c, wrap) GameTooltip:AddLine(tip(text), c[1], c[2], c[3], wrap) end
-  local function pair(left, right, lc, rc)
-    GameTooltip:AddDoubleLine(tip(left), tip(right), lc[1], lc[2], lc[3], rc[1], rc[2], rc[3])
-  end
-  line(" ", dim)
-  local each = plain(r.each or 0, true)
-  if r.pending then
-    line(GC.L["sold, the money is in your mail · %d × %s"]:format(r.qty, each), dim, true)
-  elseif isToday(r.at, time()) then
-    line(GC.L["sold today at %s · %d × %s"]:format(clock(r.at), r.qty, each), dim, true)
-  else
-    line(GC.L["sold %s at %s · %d × %s"]:format(shortDate(r.at), clock(r.at), r.qty, each), dim, true)
-  end
-  pair(GC.L["Sale price"], plain(r.gross, true), body, white)
-  pair(r.cutEstimated and GC.L["Auction house cut, 5%"] or GC.L["Auction house cut"], "-" .. plain(r.cut, true), body, body)
-  pair(GC.L["You got"], plain(r.net, true), white, white)
-  line(" ", dim)
-  if type(r.profit) == "number" then
-    local names = {}
-    for _, source in ipairs(r.sources or {}) do
-      if SOURCE_TEXT[source] then names[#names + 1] = GC.L[SOURCE_TEXT[source]] end
-    end
-    local paid = #names > 0 and GC.L["You paid (%s)"]:format(table.concat(names, ", ")) or GC.L["You paid"]
-    if r.paid then pair(paid, plain(r.paid, true), body, B.cost) end
-    if r.paidEach then line(GC.L["%s each"]:format(plain(r.paidEach, true)), dim) end
-    if r.costUnits then line(GC.L["cost known for %d of %d"]:format(r.costUnits, r.qty), dim) end
-    pair(GC.L["Profit"], signed(r.profit, true), white, r.profit >= 0 and B.profit or B.loss)
-    -- A crafted item whose cost counts reagents at the market price says so, and which.
-    if info.id and GC.CraftCapture and GC.CraftCapture.WhyEstimated and C_Item and C_Item.GetItemNameByID then
-      for _, why in ipairs(GC.CraftCapture.WhyEstimated(info.id, function(itemID)
-        local ok, name = pcall(C_Item.GetItemNameByID, itemID)
-        return ok and type(name) == "string" and name or nil
-      end)) do
-        line(why, dim, true)
-      end
-    end
-  elseif r.pending then
-    line(GC.L["The profit is worked out once the money arrives."], body, true)
-  elseif r.noBasis then
-    line(GC.L["Profit tracking is a goldcap.gg Pro feature"], body, true)
-  else
-    line(GC.L["GoldCap never saw this bought, so there is no profit to show. Set what it cost you in SELL."],
-      body, true)
-    -- A crafted item says which reagent had no price and why (/gc craft says the same).
-    if info.id and GC.CraftCapture and GC.CraftCapture.WhyUncosted and C_Item and C_Item.GetItemNameByID then
-      for _, why in ipairs(GC.CraftCapture.WhyUncosted(info.id, function(itemID)
-        local ok, name = pcall(C_Item.GetItemNameByID, itemID)
-        return ok and type(name) == "string" and name or nil
-      end)) do
-        line(why, body, true)
-      end
-    end
-  end
-  local market = info.id and marketFor(info.id)
-  local pct = market and V.Percent(r.each, market)
-  if pct then
-    local price = plain(market, true)
-    if pct > 0 then line(GC.L["Market now %s · you sold %d%% above it"]:format(price, pct), B.profit, true)
-    elseif pct < 0 then line(GC.L["Market now %s · you sold %d%% under it"]:format(price, -pct), COLOR.orange, true)
-    else line(GC.L["Market now %s · you sold at it"]:format(price), dim, true) end
-  end
-  GameTooltip:Show()
 end
 
 local function createRow(parent)
@@ -819,17 +926,24 @@ local function createRow(parent)
   row.highlight:SetPoint("TOPLEFT", 2, -1)
   row.highlight:SetPoint("BOTTOMRIGHT", -2, 1)
   row.highlight:Hide()
-  row.isSoldRow = true
+  -- An open row: a faint gold fill and a gold outline round the row and its receipt.
+  local gc = Theme.color.gold
+  row.openFill = Theme.ShapeTexture(row, "BACKGROUND", "control", { gc[1], gc[2], gc[3], 0.05 })
+  row.openFill:SetPoint("TOPLEFT", 2, -1)
+  row.openFill:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.outline = Theme.ShapeTexture(row, "BORDER", "control", { gc[1], gc[2], gc[3], 0.55 }, true)
+  row.outline:SetPoint("TOPLEFT", 2, -1)
+  row.outline:SetPoint("BOTTOMRIGHT", -2, 1)
   row:EnableMouse(true)
-  -- Wired once on the pooled row; it reads whatever paintRow last stamped.
+  -- Wired once on the pooled row; it reads whatever paintRow last stamped. Hover only lights the
+  -- row; a click opens its receipt, or closes it again.
   row:SetScript("OnEnter", function(self)
-    if not self.sale then return end
-    self.highlight:Show()
-    saleTooltip(self)
+    if self.sale then self.highlight:Show() end
   end)
-  row:SetScript("OnLeave", function(self)
-    self.highlight:Hide()
-    if GameTooltip then GameTooltip:Hide() end
+  row:SetScript("OnLeave", function(self) self.highlight:Hide() end)
+  row:SetScript("OnMouseUp", function(self, button)
+    if not self.saleID or (button and button ~= "LeftButton") then return end
+    Sold.Toggle(self.saleID)
   end)
 
   row.iconEdge = row:CreateTexture(nil, "BORDER")
@@ -841,66 +955,35 @@ local function createRow(parent)
 
   row.name = Theme.Label(row, 12)
   row.name:SetJustifyH("LEFT")
-  row.qty = Theme.Num(row, 10)
-  row.qty:SetJustifyH("LEFT")
-  setColor(row.qty, Theme.color.fgDim)
+  row.sub = Theme.Num(row, 10)
+  row.sub:SetJustifyH("LEFT")
+  setColor(row.sub, Theme.color.fgDim)
 
-  row.cells = {
-    when = Theme.Num(row, 10),
-    each = Theme.Num(row, 11),
-    got = Theme.Num(row, 12, true),
-    profit = Theme.Num(row, 12, true),
-  }
-  setColor(row.cells.each, Theme.color.fgMuted)
+  row.cells = { mkt = Theme.Num(row, 10, true), got = Theme.Num(row, 12, true), profit = Theme.Num(row, 12, true) }
   setColor(row.cells.got, Theme.color.fg)
-  for _, key in ipairs(COLS) do
-    row.cells[key]:SetJustifyH("RIGHT")
-    row.cells[key]:SetWordWrap(false)
-    if row.cells[key].SetMaxLines then row.cells[key]:SetMaxLines(1) end
+  for _, cell in pairs(row.cells) do
+    cell:SetJustifyH("RIGHT")
+    cell:SetWordWrap(false)
+    if cell.SetMaxLines then cell:SetMaxLines(1) end
   end
+  row.track = Theme.Solid(row, "ARTWORK", GC.Kit.Tokens.ink(0.12))
+  row.tick = Theme.Solid(row, "ARTWORK", GC.Kit.Tokens.ink(0.45))
+  -- A solid square: at 7px the chip art's 6px caps would overlap.
+  row.dot = Theme.Solid(row, "OVERLAY", Theme.color.fgDim)
+  row.chevron = row:CreateTexture(nil, "ARTWORK")
 
   row.title = Theme.Num(row, 9, true)
   row.title:SetJustifyH("LEFT")
   setColor(row.title, Theme.color.goldHi)
   row.note = Theme.Num(row, 10)
   setColor(row.note, Theme.color.fgDim)
-  local bc = Theme.color.border
-  row.rule = row:CreateTexture(nil, "ARTWORK")
-  row.rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
-  row.rule:SetPoint("BOTTOMLEFT", 0, 0)
-  row.rule:SetPoint("BOTTOMRIGHT", 0, 0)
+  row.rule = Theme.Solid(row, "ARTWORK", Theme.color.border)
   row.rule:SetHeight(1)
 
   row.wide = Theme.Label(row, 11)
   row.wide:SetJustifyH("CENTER")
   clearRow(row)
   return row
-end
-
--- The column headings, fitted with the rows.
-local function layoutHeader(width, y, fit)
-  local h = view.header
-  h.frame:ClearAllPoints()
-  h.frame:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -y)
-  h.frame:SetSize(width, SD.HEAD_H)
-  local right = SD.PAD_X
-  local leftmost = width - SD.PAD_X
-  for i = #COLS, 1, -1 do
-    local key = COLS[i]
-    local label = h.cells[key]
-    if fit.hidden[key] then
-      label:Hide()
-    else
-      label:SetWidth(fit.widths[key])
-      label:ClearAllPoints()
-      label:SetPoint("RIGHT", h.frame, "RIGHT", -right, 0)
-      leftmost = width - right - fit.widths[key]
-      right = right + fit.widths[key] + SD.COL_GAP
-    end
-  end
-  h.cells.item:ClearAllPoints()
-  h.cells.item:SetPoint("LEFT", h.frame, "LEFT", SD.PAD_X, 0)
-  h.cells.item:SetWidth(math.max(1, leftmost - SD.COL_GAP - SD.PAD_X))
 end
 
 -- The empty states: nothing sold yet, or nothing in this period or search.
@@ -919,10 +1002,10 @@ local function layoutEmpty(m, width, y)
   elseif query ~= "" then
     message = state.period == "today" and GC.L["No sales match “%s” today."]:format(query)
       or GC.L["No sales match “%s” in these %d days."]:format(query, days)
-    button = state.period ~= "30d" and GC.L["SEARCH 30 DAYS"] or nil
+    button = state.period == "today" and GC.L["%d DAYS"]:format(7) or GC.L["ALL ON GOLDCAP.GG"]
   else
     message = state.period == "today" and GC.L["No sales today."] or GC.L["No sales in these %d days."]:format(days)
-    button = state.period ~= "30d" and GC.L["SHOW 30 DAYS"] or nil
+    button = state.period == "today" and GC.L["%d DAYS"]:format(7) or GC.L["ALL ON GOLDCAP.GG"]
   end
   local inner = width - 2 * SD.EMPTY_PAD
   -- The first visit is a welcome, set left under the mail glyph; a period or a search with
@@ -973,40 +1056,66 @@ local function layoutEmpty(m, width, y)
   return y + h
 end
 
-local function renderList(m, width, top)
+-- The open row's receipt under its own 52px, inside its outline. Returns the receipt's height.
+local function openReceipt(row, width)
+  local r, rc = row.sale, view.receipt
+  local cols = R.Columns(r, { market = row.market, canSave = r.canSave, bags = bagsOf(row.info.id) })
+  local h = GC.SoldReceiptUI.Paint(rc, r, { id = row.saleID, info = row.info, cols = cols, entry = r.entry },
+    width - 2 * SD.OPEN_INSET, view.helpers)
+  rc.frame:ClearAllPoints()
+  rc.frame:SetPoint("TOPLEFT", row, "TOPLEFT", SD.OPEN_INSET, -row.topH)
+  if rc.frame.SetFrameLevel and row.GetFrameLevel then rc.frame:SetFrameLevel((row:GetFrameLevel() or 0) + 2) end
+  rc.frame:Show()
+  row.outline:Show(); row.openFill:Show()
+  return h
+end
+
+local function renderList(m, width, top, bottom)
   local entries = listEntries(m)
   local rows = view.rows
   for i = #rows + 1, #entries do rows[i] = createRow(view.content) end
-  local need = {}
-  for _, key in ipairs(COLS) do
-    put(view.header.cells[key], GC.L[HEADER_TEXT[key]])
-    need[key] = widthOf(view.header.cells[key])
-  end
-  put(view.header.cells.item, GC.L[HEADER_TEXT.item])
+  local need = { mkt = 0, got = 0, profit = 0 }
   for i, entry in ipairs(entries) do
     paintRow(rows[i], entry, m.now)
     if entry.kind == "sale" then
-      for _, key in ipairs(COLS) do need[key] = math.max(need[key], widthOf(rows[i].cells[key])) end
+      local row = rows[i]
+      for _, key in ipairs({ "got", "profit" }) do need[key] = math.max(need[key], widthOf(row.cells[key])) end
+      if row.pct then need.mkt = math.max(need.mkt, SD.MKT_BAR_W + SD.MKT_GAP + widthOf(row.cells.mkt)) end
     end
   end
   local cols = {}
-  for _, key in ipairs(COLS) do cols[#cols + 1] = { key = key, need = need[key] + 2 } end
-  local fit = V.FitColumns(width - 2 * SD.PAD_X, cols, SD.COL_GAP, SD.ITEM_MIN, { "when", "each" })
+  for _, key in ipairs({ "mkt", "got", "profit" }) do
+    cols[#cols + 1] = { key = key, need = need[key] > 0 and need[key] + 2 or 0 }
+  end
+  local fit = V.FitColumns(width - 2 * SD.PAD_X - SD.CHEVRON - SD.COL_GAP, cols, SD.COL_GAP, SD.ITEM_MIN, { "mkt" })
+  -- No row with an exact market price this render: the mark's column takes no room at all.
+  if need.mkt == 0 then fit.hidden.mkt = true end
   view.fit = fit
-  layoutHeader(width, top, fit)
   view.scroll:ClearAllPoints()
-  view.scroll:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -(top + SD.HEAD_H + SD.GAP))
-  view.scroll:SetPoint("BOTTOMRIGHT", view.container, "BOTTOMRIGHT", 0, 0)
-  local y = 0
+  view.scroll:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -top)
+  view.scroll:SetPoint("BOTTOMRIGHT", view.container, "BOTTOMRIGHT", 0, bottom)
+  -- The receipt is not hidden ahead of the layout: an open one is moved, never hidden and shown
+  -- again, so its cost box keeps the keyboard while the player types (see openReceipt).
+  local y, opened = 0, false
   for i = 1, #entries do
     local row = rows[i]
     local h = layoutRow(row, width, fit)
+    row.topH = h
+    if row.isOpen then
+      h = h + openReceipt(row, width) + SD.OPEN_INSET
+      opened = true
+    end
     row:SetHeight(h)
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", view.content, "TOPLEFT", 0, -y)
     row:SetPoint("TOPRIGHT", view.content, "TOPRIGHT", 0, -y)
     row:Show()
     y = y + h
+  end
+  -- The open sale left the list (the period, a search): nothing stays open behind it.
+  if not opened then
+    state.open = nil
+    GC.SoldReceiptUI.Close(view.receipt)
   end
   for i = #entries + 1, #rows do rows[i]:Hide() end
   y = layoutEmpty(m, width, y)
@@ -1019,60 +1128,66 @@ local function currentWidth()
   return view.width or 600
 end
 
-local function render()
+function render()
   if not view.container then return end
   local width = currentWidth()
   view.content:SetWidth(width)
   local m = buildModel()
   view.model = m
-  local y = layoutTiles(m, width) + SD.GAP
-  y = layoutBanner(m, width, y)
-  y = layoutControls(width, y)
-  renderList(m, width, y)
-  -- A re-render under a still cursor (a keystroke in search, money arriving) can hand the
-  -- hovered row another sale or a heading; its tooltip follows, or goes.
-  local owner = GameTooltip and GameTooltip:IsShown() and GameTooltip.GetOwner and GameTooltip:GetOwner() or nil
-  if type(owner) == "table" and owner.isSoldRow then
-    if owner.sale and owner:IsVisible() then
-      owner.highlight:Show()
-      saleTooltip(owner)
-    else
-      owner.highlight:Hide()
-      GameTooltip:Hide()
-    end
-  end
+  local y = layoutHeader(width)
+  y = layoutCards(m, width, y) + SD.GAP
+  local bottom = layoutFoot(m, width)
+  renderList(m, width, y, bottom)
+end
+
+--- Opens a sale's receipt, or closes it when it is the one open (a second click). One at a time.
+function Sold.Toggle(id)
+  state.open = state.open ~= id and id or nil
+  render()
 end
 
 -- Building ---------------------------------------------------------------------------------
 
-local function createTile(parent)
-  local tile = { frame = Theme.Card(parent, COLOR.tile, Theme.color.border, true) }
-  tile.label = Theme.Num(tile.frame, 9, true)
-  tile.value = Theme.Num(tile.frame, 17, true)
-  tile.small = Theme.Num(tile.frame, 13, true)
-  tile.name = Theme.Label(tile.frame, 12)
-  tile.sub = Theme.Num(tile.frame, 10)
-  for _, fs in ipairs(tileParts(tile)) do fs:SetJustifyH("LEFT") end
-  tile.iconEdge = tile.frame:CreateTexture(nil, "BORDER")
-  tile.iconEdge:SetSize(22, 22)
-  tile.icon = tile.frame:CreateTexture(nil, "ARTWORK")
-  tile.icon:SetSize(20, 20)
-  tile.icon:SetPoint("CENTER", tile.iconEdge, "CENTER")
-  tile.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-  tile.bar = CreateFrame("Frame", nil, tile.frame)
-  local track = Theme.SlicedTexture(tile.bar, "BACKGROUND", Theme.MEDIA .. "bar.png", GC.Kit.Tokens.ink(0.07), 2)
-  track:SetAllPoints()
-  tile.bar.fill = Theme.SlicedTexture(tile.bar, "ARTWORK", Theme.MEDIA .. "bar.png", Theme.color.gold, 2)
-  tile.bar.fill:SetPoint("TOPLEFT")
-  tile.bar.fill:SetPoint("BOTTOMLEFT")
-  -- The Road to 40 tile on hover: its sums as a short table, a label and an amount a row, then the
+local function createCard(parent)
+  local card = { frame = Theme.Card(parent, COLOR.tile, Theme.color.border, true) }
+  card.label = Theme.Num(card.frame, 9, true)
+  card.value = Theme.Num(card.frame, 17, true)
+  card.small = Theme.Num(card.frame, 12, true)
+  card.name = Theme.Label(card.frame, 12)
+  card.sub = Theme.Num(card.frame, 10)
+  for _, fs in ipairs(cardParts(card)) do fs:SetJustifyH("LEFT") end
+  card.iconEdge = card.frame:CreateTexture(nil, "BORDER")
+  card.iconEdge:SetSize(22, 22)
+  card.icon = card.frame:CreateTexture(nil, "ARTWORK")
+  card.icon:SetSize(20, 20)
+  card.icon:SetPoint("CENTER", card.iconEdge, "CENTER")
+  card.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  -- The ring: RING_DOTS small squares on a circle, no ring art needed, the percent in the middle.
+  local ring = CreateFrame("Frame", nil, card.frame)
+  ring:SetSize(SD.RING, SD.RING)
+  ring.dots = {}
+  local radius = (SD.RING - SD.RING_DOT) / 2
+  for i = 1, SD.RING_DOTS do
+    local a = (i - 1) / SD.RING_DOTS * 2 * math.pi
+    local dot = Theme.Solid(ring, "ARTWORK", GC.Kit.Tokens.ink(0.14))
+    dot:SetSize(SD.RING_DOT, SD.RING_DOT)
+    dot:SetPoint("CENTER", ring, "CENTER", math.floor(radius * math.sin(a) + 0.5), math.floor(radius * math.cos(a) + 0.5))
+    ring.dots[i] = dot
+  end
+  ring.pct = Theme.Num(ring, 9, true)
+  ring.pct:SetPoint("CENTER", ring, "CENTER", 0, 0)
+  ring.pct:SetJustifyH("CENTER")
+  setColor(ring.pct, Theme.color.goldHi)
+  card.ring = ring
+  -- The Road to 40 card on hover: its sums as a short table, a label and an amount a row, then the
   -- forecast sentence. /gc mount's chat sentence with four amounts in it wrapped to three lines of
   -- coins here and could not be read (owner, 2026-11-16).
-  tile.frame:EnableMouse(true)
-  tile.frame:SetScript("OnEnter", function(self)
-    local s = tile.road
+  card.frame:EnableMouse(true)
+  card.frame:SetScript("OnEnter", function(self)
+    local s = card.road
     if not (GameTooltip and s and GC.ForeverRoad and GC.ForeverRoad.Lines) then return end
-    local tip, coin = GC.Util.ClientText, GC.Util.CoinText
+    local tip = GC.Util.ClientText
+    local coin = GC.Util.CoinText
     local title, body, dim, white, green = B.tipTitle, B.tipBody, B.text3, COLOR.white, Theme.color.green
     local function pair(left, right, rc)
       GameTooltip:AddDoubleLine(tip(left), tip(right), dim[1], dim[2], dim[3], rc[1], rc[2], rc[3])
@@ -1092,73 +1207,156 @@ local function createTile(parent)
     end
     GameTooltip:Show()
   end)
-  tile.frame:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-  return tile
+  card.frame:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  return card
 end
 
-local function createBanner(parent)
+local function createFoot(parent)
   local green = Theme.color.green
-  local b = { frame = Theme.Card(parent, COLOR.banner, { green[1], green[2], green[3], 0.2 }, true) }
-  b.text = Theme.Num(b.frame, 10)
-  b.text:SetJustifyH("LEFT")
-  setColor(b.text, Theme.color.fgMuted)
-  b.icon = b.frame:CreateTexture(nil, "ARTWORK")
-  Theme.SetIcon(b.icon, "trend")
-  b.icon:SetVertexColor(green[1], green[2], green[3], 1)
-  b.icon:SetSize(SD.GLYPH + 2, SD.GLYPH + 2)
-  b.icon:SetPoint("LEFT", b.frame, "LEFT", SD.BANNER_PAD_X, 0)
-  b.text:SetPoint("LEFT", b.icon, "RIGHT", SD.GLYPH_GAP, 0)
-  b.button = Theme.Button(b.frame, "ghost", "plaque")
-  b.button:SetPoint("RIGHT", b.frame, "RIGHT", -SD.BANNER_PAD_X / 2, 0)
-  local gc = Theme.color.gold
-  -- A plate's ring is baked in colour: a tint would spoil it.
-  if b.button.ring and not b.button.plate then b.button.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.5) end
-  b.button.bg:SetVertexColor(1, 1, 1, 0) -- untinted
-  setColor(b.button.text, Theme.color.goldHi)
-  b.button:SetScript("OnClick", function()
+  local f = { frame = CreateFrame("Frame", nil, parent) }
+  f.rule = Theme.Solid(f.frame, "ARTWORK", Theme.color.border)
+  f.rule:SetHeight(1)
+  f.rule:SetPoint("TOPLEFT", f.frame, "TOPLEFT", 0, 0)
+  f.rule:SetPoint("TOPRIGHT", f.frame, "TOPRIGHT", 0, 0)
+  f.text = Theme.Num(f.frame, 10)
+  f.text:SetJustifyH("LEFT")
+  setColor(f.text, Theme.color.fgMuted)
+  f.icon = f.frame:CreateTexture(nil, "ARTWORK")
+  Theme.SetIcon(f.icon, "trend")
+  f.icon:SetVertexColor(green[1], green[2], green[3], 1)
+  f.icon:SetSize(SD.GLYPH + 2, SD.GLYPH + 2)
+  f.icon:SetPoint("LEFT", f.frame, "LEFT", 0, 0)
+  f.text:SetPoint("LEFT", f.icon, "RIGHT", SD.GLYPH_GAP, 0)
+  -- A quiet ghost button, its label in gold with a caret after it: "OPEN SELL >".
+  f.button = Theme.Button(f.frame, "ghost", "badge")
+  f.button:SetPoint("RIGHT", f.frame, "RIGHT", 0, 0)
+  f.button.bg:SetVertexColor(1, 1, 1, 0) -- untinted
+  setColor(f.button.text, Theme.color.goldHi)
+  f.caret = f.button:CreateTexture(nil, "OVERLAY")
+  Theme.SetIcon(f.caret, "caretRight", Theme.color.goldHi)
+  f.caret:SetSize(SD.GLYPH, SD.GLYPH)
+  f.caret:SetPoint("RIGHT", f.button, "RIGHT", -SD.BTN_PAD / 2, 0)
+  f.button:SetScript("OnClick", function()
     if GC.Sniper and GC.Sniper.ShowView then GC.Sniper.ShowView("sell") end
   end)
-  b.frame:Hide()
-  return b
+  f.frame:Hide()
+  return f
 end
 
-local function createControls(parent)
-  local c = { chips = {} }
-  c.group = Theme.Card(parent, COLOR.tile, Theme.color.border, true)
+local function createHead(parent)
+  local h = { chips = {} }
+  h.title = Theme.Heading and Theme.Heading(parent, 14) or Theme.Num(parent, 14, true)
+  h.title:SetJustifyH("LEFT")
+  setColor(h.title, Theme.color.goldHi)
+  h.group = Theme.Card(parent, COLOR.tile, Theme.color.border, true)
   for _, period in ipairs(V.PERIODS) do
-    local chip = Theme.Button(c.group, "ghost", "badge")
+    local chip = Theme.Button(h.group, "ghost", "badge")
     chip:SetScript("OnClick", function()
       state.period = period
       render()
     end)
-    c.chips[period] = chip
+    h.chips[period] = chip
   end
-  c.well = Theme.Card(parent, COLOR.tile, GC.Kit.Tokens.ink(0.08), true)
-  c.glass = c.well:CreateTexture(nil, "ARTWORK")
-  Theme.SetIcon(c.glass, "search")
+  h.site = Theme.Button(h.group, "ghost", "badge")
+  h.site:SetScript("OnClick", showSiteLink)
+  -- The link's siteBox: the URL selected whole on a click, put back if anything types over it.
+  h.siteWell = Theme.Card(parent, COLOR.tile, Theme.color.goldHi, true)
+  h.siteWell:Hide()
+  local siteBox = CreateFrame("EditBox", nil, h.siteWell)
+  siteBox:SetAutoFocus(false)
+  siteBox:SetPoint("TOPLEFT", SD.SEARCH_PAD, -2)
+  siteBox:SetPoint("BOTTOMRIGHT", -(SD.GLYPH + 14), 2)
+  if siteBox.SetFont then
+    siteBox:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
+    siteBox:SetTextColor(Theme.color.goldHi[1], Theme.color.goldHi[2], Theme.color.goldHi[3], 1)
+    if Theme.OnRescale then Theme.OnRescale(function(scale) siteBox:SetFont(Theme.FONT_UI, 11 * scale, "") end) end
+  end
+  siteBox:SetText(SITE_URL)
+  siteBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+  siteBox:SetScript("OnMouseUp", function(self) self:SetFocus() self:HighlightText() end)
+  siteBox:SetScript("OnTextChanged", function(self)
+    if self:GetText() ~= SITE_URL then
+      self:SetText(SITE_URL)
+      self:HighlightText()
+    end
+  end)
+  siteBox:SetScript("OnEscapePressed", function(self)
+    self:ClearFocus()
+    state.siteOpen = false
+    render()
+  end)
+  -- What the siteBox's text needs, measured on a plain string (an EditBox has no string width).
+  siteBox.measure = Theme.Num(h.siteWell, 11)
+  siteBox.measure:SetText(SITE_URL)
+  siteBox.measure:Hide()
+  h.siteBox = siteBox
+  h.siteClose = Theme.Button(h.siteWell, "ghost", "badge")
+  h.siteClose:SetSize(SD.GLYPH + 8, SD.GLYPH + 8)
+  h.siteClose:SetPoint("RIGHT", h.siteWell, "RIGHT", -4, 0)
+  h.siteClose.bg:SetVertexColor(1, 1, 1, 0) -- untinted
+  h.siteClose.glyph = h.siteClose:CreateTexture(nil, "OVERLAY")
+  Theme.SetIcon(h.siteClose.glyph, "close", Theme.color.fgDim)
+  h.siteClose.glyph:SetSize(SD.GLYPH - 2, SD.GLYPH - 2)
+  h.siteClose.glyph:SetPoint("CENTER", h.siteClose, "CENTER", 0, 0)
+  h.siteClose:SetScript("OnClick", function()
+    state.siteOpen = false
+    render()
+  end)
   local dim = Theme.color.fgDim
-  c.glass:SetVertexColor(dim[1], dim[2], dim[3], 1)
-  c.glass:SetSize(SD.GLYPH, SD.GLYPH)
-  c.glass:SetPoint("LEFT", c.well, "LEFT", SD.SEARCH_PAD, 0)
-  local search = CreateFrame("EditBox", nil, c.well)
+  -- The search button: a magnifier that reveals the box, and hides it again (clearing it).
+  h.find = Theme.Button(parent, "ghost", "badge")
+  h.find.glyph = h.find:CreateTexture(nil, "OVERLAY")
+  Theme.SetIcon(h.find.glyph, "search", dim)
+  h.find.glyph:SetSize(SD.GLYPH, SD.GLYPH)
+  h.find.glyph:SetPoint("CENTER", h.find, "CENTER", 0, 0)
+
+  h.well = Theme.Card(parent, COLOR.tile, GC.Kit.Tokens.ink(0.08), true)
+  h.glass = h.well:CreateTexture(nil, "ARTWORK")
+  Theme.SetIcon(h.glass, "search")
+  h.glass:SetVertexColor(dim[1], dim[2], dim[3], 1)
+  h.glass:SetSize(SD.GLYPH, SD.GLYPH)
+  h.glass:SetPoint("LEFT", h.well, "LEFT", SD.SEARCH_PAD, 0)
+  h.close = Theme.Button(h.well, "ghost", "badge")
+  h.close:SetSize(SD.GLYPH + 8, SD.GLYPH + 8)
+  h.close:SetPoint("RIGHT", h.well, "RIGHT", -4, 0)
+  h.close.bg:SetVertexColor(1, 1, 1, 0) -- untinted
+  h.close.glyph = h.close:CreateTexture(nil, "OVERLAY")
+  Theme.SetIcon(h.close.glyph, "close", dim)
+  h.close.glyph:SetSize(SD.GLYPH - 2, SD.GLYPH - 2)
+  h.close.glyph:SetPoint("CENTER", h.close, "CENTER", 0, 0)
+  local search = CreateFrame("EditBox", nil, h.well)
   search:SetAutoFocus(false)
   search:SetPoint("TOPLEFT", SD.SEARCH_PAD + SD.GLYPH + SD.GLYPH_GAP, -2)
-  search:SetPoint("BOTTOMRIGHT", -SD.SEARCH_PAD, 2)
+  search:SetPoint("BOTTOMRIGHT", -(SD.GLYPH + 14), 2)
   -- Guarded for busted; in the client a bare EditBox with no font draws no text at all.
   if search.SetFont then
     search:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
     search:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
     if Theme.OnRescale then Theme.OnRescale(function(scale) search:SetFont(Theme.FONT_UI, 11 * scale, "") end) end
   end
-  c.search = search
-  c.hint = Theme.Num(c.well, 10)
-  c.hint:SetJustifyH("LEFT")
-  c.hint:SetPoint("LEFT", c.glass, "RIGHT", SD.GLYPH_GAP, 0)
-  setColor(c.hint, Theme.color.fgDim)
+  h.search = search
+  h.hint = Theme.Num(h.well, 10)
+  h.hint:SetJustifyH("LEFT")
+  h.hint:SetPoint("LEFT", h.glass, "RIGHT", SD.GLYPH_GAP, 0)
+  setColor(h.hint, dim)
   local function hint()
     local text = search:GetText() or ""
-    if text ~= "" or (search.HasFocus and search:HasFocus()) then c.hint:Hide() else c.hint:Show() end
+    if text ~= "" or (search.HasFocus and search:HasFocus()) then h.hint:Hide() else h.hint:Show() end
   end
+  -- Closing the box clears it: a list narrowed by a box nobody can see is a list that looks broken.
+  local function shut()
+    search:SetText("")
+    search:ClearFocus()
+    state.query, state.searchOpen = "", false
+    render()
+  end
+  h.find:SetScript("OnClick", function()
+    if state.searchOpen or (search:GetText() or "") ~= "" then return shut() end
+    state.searchOpen, state.siteOpen = true, false
+    render()
+    if search.SetFocus then search:SetFocus() end
+  end)
+  h.close:SetScript("OnClick", shut)
   search:SetScript("OnTextChanged", function(_, byUser)
     state.query = search:GetText() or ""
     hint()
@@ -1167,26 +1365,7 @@ local function createControls(parent)
   search:SetScript("OnEditFocusGained", hint)
   search:SetScript("OnEditFocusLost", hint)
   search:SetScript("OnEnterPressed", function(box) box:ClearFocus() end)
-  search:SetScript("OnEscapePressed", function(box)
-    box:SetText("")
-    box:ClearFocus()
-    state.query = ""
-    hint()
-    render()
-  end)
-  return c
-end
-
-local function createHeader(parent)
-  local h = { frame = CreateFrame("Frame", nil, parent), cells = {} }
-  for _, key in ipairs({ "item", "when", "each", "got", "profit" }) do
-    local label = Theme.Num(h.frame, 9)
-    label:SetWordWrap(false)
-    if label.SetMaxLines then label:SetMaxLines(1) end
-    label:SetJustifyH(key == "item" and "LEFT" or "RIGHT")
-    setColor(label, COLOR.faint)
-    h.cells[key] = label
-  end
+  search:SetScript("OnEscapePressed", shut)
   return h
 end
 
@@ -1210,8 +1389,12 @@ local function createEmpty(parent)
   e.button.bg:SetVertexColor(1, 1, 1, 0) -- untinted
   setColor(e.button.text, Theme.color.goldHi)
   e.button:SetScript("OnClick", function()
-    state.period = "30d"
-    render()
+    if state.period == "today" then
+      state.period = "7d"
+      render()
+    else
+      showSiteLink()
+    end
   end)
   e.frame:Hide()
   return e
@@ -1219,10 +1402,10 @@ end
 
 -- Builds the tab's container, hidden, over the same region the Deals list occupies --
 -- geometry passed through from createFrame, never re-declared, exactly like GC.Sell.Attach.
--- Only the container and its scroll are made here; the tiles, controls and headings wait for
--- the tab's first Show (build below), so a session that never opens Sold never makes them.
+-- Only the container and its scroll are made here; the header, cards and receipt wait for the
+-- tab's first Show (build below), so a session that never opens Sold never makes them.
 function Sold.Attach(f, geo)
-  Theme, V = GC.Theme, GC.SoldView
+  Theme, V, R = GC.Theme, GC.SoldView, GC.SoldReceipt
   local container = CreateFrame("Frame", nil, f)
   container:SetPoint("TOPLEFT", f, "TOPLEFT", geo.panelLeft, geo.top)
   container:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -geo.panelRightInset, geo.bottom)
@@ -1243,21 +1426,25 @@ function Sold.Attach(f, geo)
   -- Show() lays it out anyway.
   container:HookScript("OnSizeChanged", function(_, width)
     if width and width > 0 then view.width = width end
-    if container:IsVisible() and view.tiles then render() end
+    if container:IsVisible() and view.cards then render() end
   end)
   if Theme.OnRescale then
-    Theme.OnRescale(function() if container:IsVisible() and view.tiles then render() end end)
+    Theme.OnRescale(function() if container:IsVisible() and view.cards then render() end end)
   end
 end
 
 local function build()
-  if view.tiles then return end
+  if view.cards then return end
   local container = view.container
-  view.tiles = { createTile(container), createTile(container), createTile(container) }
-  view.banner = createBanner(container)
-  view.controls = createControls(container)
-  view.header = createHeader(container)
+  view.head = createHead(container)
+  view.cards = { createCard(container), createCard(container), createCard(container), createCard(container) }
+  view.foot = createFoot(container)
   view.empty = createEmpty(view.content)
+  view.helpers = { put = put, setLabel = setLabel, widthOf = widthOf, heightOf = heightOf, wrapTo = wrapTo,
+    hug = hug, setColor = setColor, plain = plain, signed = signed, clock = clock, shortDate = shortDate,
+    isToday = function(at) return isToday(at, time()) end, render = render,
+    close = function() if state.open then Sold.Toggle(state.open) end end }
+  view.receipt = GC.SoldReceiptUI.Create(view.content, view.helpers)
 end
 
 function Sold.Show()
@@ -1281,5 +1468,5 @@ function Sold.RefreshIfShown()
   -- IsVisible: with the window closed and Sold still the chosen tab, the container is "shown"
   -- but nothing under it is drawn, and strings written then come back blank (see put()). The
   -- window's OnShow calls Show, which draws everything again.
-  if view.container and view.container:IsVisible() and view.tiles then render() end
+  if view.container and view.container:IsVisible() and view.cards then render() end
 end

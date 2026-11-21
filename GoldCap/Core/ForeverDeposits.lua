@@ -226,7 +226,15 @@ function M.OnOwnedRoster(auctions, context, now, pending)
   local listed = {}
   for _, auction in ipairs(auctions) do
     if type(auction) == "table" and whole(auction.auctionID) then
-      listed[auction.auctionID] = auction.status == AUCTION_SOLD and "sold" or "listed"
+      -- A part-sold lot comes back as TWO rows with one auctionID: the sold part (status Sold, its
+      -- quantity, the sale's total) and the rest still listed (owner's read, WoW: Forever,
+      -- 2026-11-21: Shellfish 198344858, 5 sold and 10 live). The live row wins, whichever the
+      -- client hands over first: the lot is still on the auction house.
+      if auction.status ~= AUCTION_SOLD then
+        listed[auction.auctionID] = "listed"
+      elseif listed[auction.auctionID] == nil then
+        listed[auction.auctionID] = "sold"
+      end
     end
   end
   pending = type(pending) == "table" and pending or {}

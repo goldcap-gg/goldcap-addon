@@ -42,6 +42,12 @@ GC.SellState = {
   -- Whether this session has read the player's own auctions yet (GC.Sell.OnOwnedAuctions). Until
   -- it has, ownedLots is empty and a listed lot looks like one in no bag and on no auction.
   ownedRead = false,
+  -- The sold rows the owned list still holds until their gold is collected (NormalizeOwnedLots'
+  -- second list), for MY LOTS' SOLD OUT, its banner and the deck's badge (Core/SoldLots.lua).
+  soldLots = {},
+  -- When each sold row was first seen, for "51 min ago" (GC.SoldLots.Stamp), and when the last
+  -- owned read was. Kept for the session: a sale stays dated across closing the auction house.
+  soldSeen = {}, soldReadAt = nil,
   -- The posting queue, DERIVED, never stored: rebuilt by Compose.Positions() every time positions
   -- are, straight from GC.PostQueue.Build(positions). There is deliberately no separate stateful
   -- queue with an index into it -- a post empties that item from the bags, so the entry drops out

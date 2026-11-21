@@ -102,11 +102,70 @@ local function deckCounts()
   end
   return post, listed
 end
+-- Why the deck is empty, in the five ways the owner approved (3C mockup, 2026-10-10): the icon
+-- for its tile, a title, and a line saying what to do about it. Each reason needs a different next
+-- move: a deck that is genuinely empty, a chip or a search that emptied it, the other deck holding
+-- everything. Read live from the deck and chip state rather than passed in, so it can never
+-- disagree with what the switch is painting.
+-- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount
+-- (UI/Sell/Frame.lua) (final review "Headroom"). Read by UI/Sell/List.lua's RenderRows.
+function GC.Sell._EmptyDeck()
+  if UI.chips.search then
+    return "search", GC.L["No match"],
+      GC.L["Nothing on this deck matches that search. Clear the box to see everything."]
+  end
+  if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
+    if S.group then return "sell", GC.L["Nothing of this group is listed"], GC.L["None of this group's items has a live lot. Pick ALL to see every lot."] end
+    return "sell", GC.L["No auctions up"],
+      GC.L["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."]
+  end
+  -- The GROUPS row picked a group with nothing left in the bags (UI/Sell/Toolbar.lua).
+  if S.group then
+    return "bag", GC.L["Nothing left in this group"],
+      GC.L["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."]
+  end
+  if UI.chips.ready then
+    return "clock", GC.L["Still pricing"],
+      GC.L["The auction house is still answering. Items show up here as their prices arrive."]
+  end
+  if UI.chips.nocost then
+    return "check", GC.L["Every cost is known"],
+      GC.L["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."]
+  end
+  return "bag", GC.L["Nothing to sell"],
+    GC.L["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."]
+end
+
 -- Deliberately reads the deck the cancel queue's focus state belongs to: "cancelqueue" is a
 -- focus inside listed, so pressing CANCEL must not leave the switch painting neither half active.
 local function activeDeck()
   return (S.filterMode == "listed" or S.filterMode == "cancelqueue") and "listed" or "post"
 end
+-- The deck switch's two halves and the track's inset around and between them.
+local DECK_W, DECK_PAD = 127, 2
+-- How much wider MY LOTS stands than DECK_W while it wears its sold badge (PaintDeckSwitch): the
+-- track and the search box beside the switch make room for it.
+local deckExtra = 0
+
+-- MY LOTS' half wears a small green "3 SOLD" while the owned list holds sold rows, the gold of
+-- which waits in the mailbox (UI/Sell/Sold.lua). Without any its label is as it always was.
+local function fitDeck(container, button, label, sold)
+  local extra = 0
+  if sold > 0 and button.FitLabels then
+    button:FitLabels({ label }, DECK_W)
+    extra = math.max(0, (button.GetWidth and button:GetWidth() or DECK_W) - DECK_W)
+  else
+    button:SetWidth(DECK_W)
+  end
+  if extra ~= deckExtra then
+    deckExtra = extra
+    local trackW = 2 * DECK_W + 3 * DECK_PAD + extra
+    if container.deckTrack then container.deckTrack:SetSize(trackW, 26) end
+    if container.deckTrackRing then container.deckTrackRing:SetSize(trackW, 26) end
+    if container.searchWell then Toolbar.LayoutSearch() end
+  end
+end
+
 function Toolbar.PaintDeckSwitch()
   local container = UI.container
   local post, listed = deckCounts()
@@ -114,7 +173,13 @@ function Toolbar.PaintDeckSwitch()
   for slot, id in ipairs(DECK_IDS) do
     local button = container.deckButtons[id]
     if button then
-      button:SetLabel(UI.fmt.count(GC.L[DECK_LABELS[slot]], counts[id] or 0))
+      local label = UI.fmt.count(GC.L[DECK_LABELS[slot]], counts[id] or 0)
+      local sold = id == "listed" and UI.Sold.Count() or 0
+      if sold > 0 then
+        label = label .. "  " .. GC.Sell._InlineColor(Theme.color.green, (GC.L["%d SOLD"]):format(sold))
+      end
+      button:SetLabel(label)
+      if id == "listed" then fitDeck(container, button, label, sold) end
       button:SetVariant(activeDeck() == id and "active" or "segment")
     end
   end
@@ -245,13 +310,11 @@ local function applySearch()
   if text ~= "" or (search.HasFocus and search:HasFocus()) then searchHint:Hide() else searchHint:Show() end
 end
 
--- The deck switch's two halves and the track's inset around and between them.
-local DECK_W, DECK_PAD = 127, 2
 -- Row 1's fixed occupants: the deck switch, REFRESH, the two chips and their gaps.
 local SEARCH_MIN, SEARCH_MAX, ROW1_FIXED = 120, 220, 2 * DECK_W + 3 * DECK_PAD + 104 + 92 + 76 + 4
 function Toolbar.LayoutSearch()
   local container = UI.container
-  local room = (UI.rowWidth or 0) - ROW1_FIXED - 36
+  local room = (UI.rowWidth or 0) - ROW1_FIXED - deckExtra - 36
   if room >= SEARCH_MIN then
     container.searchWell:SetWidth(math.min(SEARCH_MAX, room)); container.searchWell:Show(); container.search:Show()
   else
@@ -323,7 +386,7 @@ function Toolbar.Build()
     local trackRing = Theme.ShapeTexture(container, "BORDER", "control",
       { tb[1], tb[2], tb[3], tb[4] or 0.075 }, true)
     trackRing:SetPoint("TOPLEFT"); trackRing:SetSize(trackW, 26)
-    container.deckTrack = trackFill
+    container.deckTrack, container.deckTrackRing = trackFill, trackRing
   end
   container.deckButtons = {}
   local deckPrevious
@@ -400,6 +463,20 @@ function Toolbar.Build()
     applySearch(); UI.List.RenderRows()
   end)
   Toolbar.LayoutSearch()
+end
+
+-- The Sold tab's "14 MORE IN BAGS · SELL" (UI/SoldReceipt.lua): the post deck, the two chips
+-- off, the search holding the item's name. A view and a filter and nothing more: no post is made
+-- from here, the player posts from the row as always. Where the window is too narrow for the
+-- search box the filter goes with it (Toolbar.LayoutSearch), and the deck shows whole.
+function GC.Sell.FocusItem(name)
+  local container = UI.container
+  if not (container and container.search) or type(name) ~= "string" or name == "" then return end
+  S.filterMode, S.rowPlaces = "post", {}
+  for _, id in ipairs(CHIP_IDS) do UI.chips[id] = nil end
+  container.search:SetText(name)
+  applySearch()
+  Toolbar.PaintDeckSwitch(); Toolbar.PaintFilterChips(); UI.List.RenderRows()
 end
 
 GC.SellView.paintDeck = function()

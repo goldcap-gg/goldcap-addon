@@ -15,40 +15,6 @@ local COLUMNS, ROW, DR, INSP = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP
 local setColor, dimHex = UI.fmt.setColor, UI.fmt.dimHex
 local renderGeneration = 0
 
--- Why the deck is empty, in the five ways the owner approved (3C mockup, 2026-10-10): the icon
--- for its tile, a title, and a line saying what to do about it. Each reason needs a different next
--- move: a deck that is genuinely empty, a chip or a search that emptied it, the other deck holding
--- everything. Read live from the deck and chip state rather than passed in, so it can never
--- disagree with what the switch is painting.
--- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount
--- (UI/Sell/Frame.lua) (final review "Headroom").
-function GC.Sell._EmptyDeck()
-  if UI.chips.search then
-    return "search", GC.L["No match"],
-      GC.L["Nothing on this deck matches that search. Clear the box to see everything."]
-  end
-  if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
-    if S.group then return "sell", GC.L["Nothing of this group is listed"], GC.L["None of this group's items has a live lot. Pick ALL to see every lot."] end
-    return "sell", GC.L["No auctions up"],
-      GC.L["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."]
-  end
-  -- The GROUPS row picked a group with nothing left in the bags (UI/Sell/Toolbar.lua).
-  if S.group then
-    return "bag", GC.L["Nothing left in this group"],
-      GC.L["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."]
-  end
-  if UI.chips.ready then
-    return "clock", GC.L["Still pricing"],
-      GC.L["The auction house is still answering. Items show up here as their prices arrive."]
-  end
-  if UI.chips.nocost then
-    return "check", GC.L["Every cost is known"],
-      GC.L["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."]
-  end
-  return "bag", GC.L["Nothing to sell"],
-    GC.L["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."]
-end
-
 local function currentPosition(positionKey)
   for _, position in ipairs(S.positions) do
     if position.positionKey == positionKey then return position end
@@ -162,16 +128,17 @@ local DECK_COLUMNS = {
   -- is under me". Its cost basis has not changed since it was posted and is one click away in
   -- the expansion. "Who is under me" is the line under YOUR PRICE now, in units, which is the
   -- half of that question the old UNDER YOU column (a bare price) never answered.
-  listed = { item = true, price = true, listed = true, action = true },
+  listed = { item = true, price = true, listed = true, sold = true, action = true },
 }
 -- What a deck gives up once squeezing every minimum still does not fit, in order.
 --
 -- Nothing, on either deck, since each is down to two figures and the button: at the narrowest
 -- window the item name still clears ITEM_MIN with both at their minimum. The table stays so
 -- that the next column anybody adds has to say where it goes when the room runs out.
+-- MY LOTS gives up SOLD SO FAR first: the banner over the deck still adds up what sold.
 local DECK_SHED = {
   post = {},
-  listed = {},
+  listed = { "sold" },
 }
 
 -- Content-sized figure columns. FIT.need (below) answers how wide a
@@ -259,7 +226,7 @@ end
 -- @localised-keys
 ROW.SECTION_TITLES = {
   undercut = "UNDERCUT %d", low = "PRICED TOO LOW %d", hold = "HOLDING %d",
-  selling = "SELLING %d", notSelling = "NOT SELLING %d",
+  selling = "SELLING %d", notSelling = "NOT SELLING %d", soldOut = "SOLD OUT %d",
 }
 -- @localised-keys
 ROW.SECTION_HINTS = {
@@ -373,7 +340,7 @@ local HEADINGS_POST = {
 local HEADINGS_LISTED = {
   item = "LISTED AS", gross = "IN THE LOT", price = "YOUR PRICE",
   cost = "COST / UNIT", listed = "YOU GET", market = "UNDER YOU",
-  profit = "PROFIT / UNIT", status = "WHAT TO DO",
+  profit = "PROFIT / UNIT", status = "WHAT TO DO", sold = "SOLD SO FAR",
 }
 
 -- The widest thing a column prints besides its figure: its heading on either deck and, for the
@@ -389,6 +356,8 @@ function FIT.need(key, deck)
     for columnKey, word in pairs(words) do
       FIT.cache[columnKey] = FIT.width(9, GC.L[word])
     end
+    -- The stand line under the price, on both decks. "%s under you" was MY LOTS' old line, and
+    -- TO POST's price column has always been as wide as it: still measured, so it keeps its width.
     local count = "99.9k"
     local stand = math.max(FIT.width(10, GC.L["first in line"]),
       FIT.width(10, (GC.L["%s ahead"]):format(count)),
@@ -397,6 +366,7 @@ function FIT.need(key, deck)
     if stand > 0 then FIT.cache.price = math.max(FIT.cache.price or 0, stand + ROW.MARKS_W) end
     local margin = math.max(FIT.width(11, GC.L["no cost"]), FIT.width(11, (GC.L["no cost for %d"]):format(999)), FIT.width(11, "+9999%"))
     if margin > 0 then FIT.cache.gross = math.max(FIT.cache.gross or 0, margin) end
+    FIT.cache.sold = math.max(FIT.cache.sold or 0, UI.Sold.Need(FIT.width)) -- its line and its chip
     -- A few pixels of air: an exactly-fitting string sits flush against its neighbour.
     for columnKey, width in pairs(FIT.cache) do
       FIT.cache[columnKey] = width > 0 and math.ceil(width + 6) or 0
@@ -415,7 +385,8 @@ end
 List.PaintHeaderText = paintHeaderText
 
 -- Which figure carries a second line, and the row field that line lives in.
-ROW.SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "grossNote" }
+ROW.SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "grossNote", sold = "soldNote" }
+
 
 -- How tall a position's name and stock line stand together at the width their anchors give them,
 -- both wrapped (Row.CreateRow): what the card has to hold. nil where the client cannot say.
@@ -466,7 +437,7 @@ local function layoutCells(row)
       -- header row and every sub-row keep the whole box, centred, because they carry one line.
       -- 8, not 7: at Theme.Scale 1.3 a 12px name is ~15.6 tall and a 10px stock line ~13, so
       -- the two boxes touch at ±7 and clear each other at ±8 inside the 32px row.
-      if row.kind == "position" and row.itemStock then
+      if UI.Sold.CARDED[row.kind] and row.itemStock then
         -- Laid out once to be measured at its real width, then again centred on what it measured;
         -- the card grows to hold it (row.fitHeight, read by List.RenderRows).
         placeName(row, right, rightLift, ROW.LIFT)
@@ -506,7 +477,7 @@ local function layoutCells(row)
       cell:SetWidth(columnWidth[column.key] or column.w)
       -- A position's figures share the row with a second line, exactly as its name does with the
       -- stock line (same +-8 split, same reason). Every other kind keeps the cell centred.
-      local second = row.kind == "position" and ROW.SECOND_LINE[column.key] and row[ROW.SECOND_LINE[column.key]] or nil
+      local second = UI.Sold.CARDED[row.kind] and ROW.SECOND_LINE[column.key] and row[ROW.SECOND_LINE[column.key]] or nil
       local lift = second and ROW.LIFT or 0
       -- The figure beside the button stands clear of it: at the usual 2px the row's total ran
       -- into the button's own edge. The button stands clear of the card's right edge in turn: at 0
@@ -625,7 +596,8 @@ local function renderRows()
   -- the posting deck marks every row and splits in two.
   local sellingList = headerDeck == "post" and GC.Sell._QueueOpts().marks ~= nil
   -- ITEM stands over the names, which the selling mark moves right on the posting deck.
-  local headerInset = ROW.ICON + 10 + (sellingList and ROW.MARK_W or 0)
+  local headerInset = ROW.ICON + 10 + (sellingList and ROW.MARK_W or 0) -- and MY LOTS' ring (UI/Sell/Sold.lua)
+    + (headerDeck == "listed" and UI.Sold.RING_PAD or 0)
   local header = UI.container and UI.container.header
   if header and (UI.container.headerDeck ~= headerDeck or header.itemInset ~= headerInset) then
     UI.container.headerDeck = headerDeck
@@ -688,8 +660,9 @@ local function renderRows()
   if not onListed then
     for _, done in ipairs(S.queueDone or {}) do heldBackReason[done.positionKey] = done.reason end
   end
-  -- What every position row reads for this render (Row.PaintPosition).
+  -- What every position row reads for this render (Row.PaintPosition), and MY LOTS' sold side.
   local ctx = { onListed = onListed, heldBackReason = heldBackReason }
+  UI.Sold.Summarize(onListed)
   local entries = {}
   -- Stock that is neither in the bags nor listed is cost history, not work: it sits at the
   -- bottom of the posting deck folded under one heading, so the rows a seller acts on are not
@@ -708,7 +681,7 @@ local function renderRows()
       done = selling and GC.Sell.DoneThisVisit(position.positionKey)
     end
     entries[#entries + 1] = { kind = "position", position = position, selling = selling, done = done,
-      markRoom = sellingList }
+      markRoom = sellingList, ringRoom = onListed }
     -- Cached here for every position this render pushes, not only an expanded one: the row's own
     -- Post button (Row.PaintPosition in UI/Sell/Row.lua, "bagQty > 0 and not onListed") is live
     -- whether or not the drawer is open, and onPostClick never builds an ItemLocation itself --
@@ -799,6 +772,8 @@ local function renderRows()
     end
   end
   if S.filterMode == "post" then ROW.pushWaiting(entries) end
+  -- MY LOTS: what sold, round the live lots -- the banner, SOLD OUT and the line under them.
+  if S.filterMode == "listed" then entries = UI.Sold.PushEntries(entries) end
   local empty = UI.container.empty
   if #entries == 0 then
     local icon, title, line = GC.Sell._EmptyDeck()
@@ -845,7 +820,7 @@ local function renderRows()
       row.placedY = offset
       if row.SetAlpha then row:SetAlpha(1) end
       -- A position in the list is a card at least ROW.H tall; everything else keeps the slot pitch.
-      local card = entry.kind == "position" and not entry.panel
+      local card = UI.Sold.CARDED[entry.kind] and not entry.panel
       row:SetHeight(card and ROW.H or slots * UI.rowHeight)
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
       -- Read by this row's own OnEnter (Row.CreateRow) to decide whether to add a tooltip line about the
@@ -868,6 +843,8 @@ local function renderRows()
       elseif entry.kind == "fold" or entry.kind == "section" or entry.kind == "waitHead"
           or entry.kind == "waitItem" then
         UI.Row.PaintHeading(row, entry)
+      elseif UI.Sold.KINDS[entry.kind] then
+        UI.Sold.Paint(row, entry)
       elseif entry.kind == "batch" then
         UI.CostDialog.PaintBatch(row, entry)
       else
