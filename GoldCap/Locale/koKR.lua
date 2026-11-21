@@ -1923,4 +1923,6 @@ GC.Locales.koKR = {
   ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "아이템 툴팁의 장비 아래: 스캔 가격 기준으로 마력 추출 한 번의 평균 가치입니다.",
   ["Disenchant materials"] = "마력 추출 재료",
   ["Under the disenchant value: each material with how many, its price and its chance."] = "마력 추출 가치 아래: 재료별 개수, 가격, 확률입니다.",
+  ["%d min ago"] = "%d분 전",
+  ["%d h ago"] = "%d시간 전",
 }

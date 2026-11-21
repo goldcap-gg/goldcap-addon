@@ -2004,4 +2004,6 @@ GC.Locales.esMX = {
   ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Bajo el equipo, en la descripción del objeto: lo que vale en promedio un desencantamiento a los precios de tu escaneo.",
   ["Disenchant materials"] = "Materiales al desencantar",
   ["Under the disenchant value: each material with how many, its price and its chance."] = "Bajo el valor al desencantar: cada material con su cantidad, su precio y su probabilidad.",
+  ["%d min ago"] = "hace %d min",
+  ["%d h ago"] = "hace %d h",
 }

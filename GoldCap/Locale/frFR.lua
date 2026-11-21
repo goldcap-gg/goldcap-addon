@@ -2005,4 +2005,6 @@ GC.Locales.frFR = {
   ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Sous l'équipement, dans l'infobulle de l'objet : ce que vaut en moyenne un désenchantement aux prix de ton scan.",
   ["Disenchant materials"] = "Matériaux du désenchantement",
   ["Under the disenchant value: each material with how many, its price and its chance."] = "Sous la valeur au désenchantement : chaque matériau avec sa quantité, son prix et sa chance.",
+  ["%d min ago"] = "il y a %d min",
+  ["%d h ago"] = "il y a %d h",
 }

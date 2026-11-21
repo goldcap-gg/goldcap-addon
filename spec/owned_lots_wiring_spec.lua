@@ -118,6 +118,27 @@ describe("Owned lots event wiring", function()
     assert.equal(555, GC.SellState.ownedLots[1].auctionID)
   end)
 
+  -- A part-sold lot is one auctionID in two rows (owner's read, WoW: Forever, 2026-11-21): the sold
+  -- part is uploaded as nothing, and the lot as its 10 live units at their unit price.
+  it("records a part-sold lot as its live remainder, and its sold part as nothing", function()
+    _G.C_AuctionHouse.GetOwnedAuctions = function()
+      return { { auctionID = 198344858, itemKey = { itemID = 13545 }, quantity = 5, status = 1,
+          buyoutAmount = 1100, timeLeftSeconds = 3591 },
+        { auctionID = 198344858, itemKey = { itemID = 13545 }, quantity = 10, status = 0,
+          buyoutAmount = 220, timeLeftSeconds = 28776 } }
+    end
+    onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+    assert.equal(1, #_G.GoldCapDB.ownedLots)
+    local row = _G.GoldCapDB.ownedLots[1]
+    assert.equal(198344858, row.auctionID)
+    assert.equal(10, row.quantity)
+    assert.equal(220, row.unitPrice)
+    assert.is_nil(row.soldQty)
+    assert.equal(1, #GC.SellState.soldLots)
+    assert.equal(5, GC.SellState.soldLots[1].soldQty)
+    assert.equal(5, GC.SellState.ownedLots[1].soldQty)
+  end)
+
   it("stamps cancelledAt when AUCTION_CANCELED carries the auctionID", function()
     onEvent(nil, "OWNED_AUCTIONS_UPDATED")
     onEvent(nil, "AUCTION_CANCELED", 555)

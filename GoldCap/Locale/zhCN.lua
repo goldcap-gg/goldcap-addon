@@ -1885,4 +1885,6 @@ GC.Locales.zhCN = {
   ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "装备的物品提示下方：按你扫描的价格，分解一次平均值多少。",
   ["Disenchant materials"] = "分解材料",
   ["Under the disenchant value: each material with how many, its price and its chance."] = "分解价值下方：每种材料的数量、价格和几率。",
+  ["%d min ago"] = "%d 分钟前",
+  ["%d h ago"] = "%d 小时前",
 }

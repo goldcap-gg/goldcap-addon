@@ -1986,4 +1986,6 @@ GC.Locales.enUS = {
   ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices.",
   ["Disenchant materials"] = "Disenchant materials",
   ["Under the disenchant value: each material with how many, its price and its chance."] = "Under the disenchant value: each material with how many, its price and its chance.",
+  ["%d min ago"] = "%d min ago",
+  ["%d h ago"] = "%d h ago",
 }

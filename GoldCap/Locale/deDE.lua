@@ -2005,4 +2005,6 @@ GC.Locales.deDE = {
   ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Unter Ausrüstung im Gegenstandstooltip: was eine Entzauberung im Schnitt wert ist, zu den Preisen deines Scans.",
   ["Disenchant materials"] = "Entzauberungsmaterialien",
   ["Under the disenchant value: each material with how many, its price and its chance."] = "Unter dem Entzauberungswert: jedes Material mit Anzahl, Preis und Chance.",
+  ["%d min ago"] = "vor %d Min.",
+  ["%d h ago"] = "vor %d Std.",
 }

@@ -176,7 +176,9 @@ function GC.Sell.OnOwnedAuctions(answered)
     auctions = live
     if returned then View.status(GC.L["The cancel did not go through: the lot is still listed"]) end
   end
-  S.ownedLots = GC.SellPositions.NormalizeOwnedLots(Owned.Classify(auctions), time())
+  S.ownedLots, S.soldLots = GC.SellPositions.NormalizeOwnedLots(Owned.Classify(auctions), time())
+  if GC.SoldLots then GC.SoldLots.Stamp(S.soldSeen, S.soldLots, time(), S.soldReadAt) end
+  S.soldReadAt = time()
   S.ownedRead = true
   local scope = context()
   -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): the roster this
@@ -242,8 +244,10 @@ function GC.Sell.OnItemKeyInfo(itemID)
   if S.ownedAwaitingKind[itemID] then
     S.ownedAwaitingKind[itemID] = nil
     if C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots then
-      S.ownedLots = GC.SellPositions.NormalizeOwnedLots(
+      S.ownedLots, S.soldLots = GC.SellPositions.NormalizeOwnedLots(
         Owned.Classify(C_AuctionHouse.GetOwnedAuctions() or {}), time())
+      -- No read in between: a sold row keeps the date it had, a new one gets none.
+      if GC.SoldLots then GC.SoldLots.Stamp(S.soldSeen, S.soldLots, time(), nil) end
       Compose.Positions()
       View.render()
     end
