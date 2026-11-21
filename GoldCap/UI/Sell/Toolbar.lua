@@ -402,6 +402,20 @@ function Toolbar.Build()
   Toolbar.LayoutSearch()
 end
 
+-- The Sold tab's "14 MORE IN BAGS · SELL" (UI/SoldReceipt.lua): the post deck, the two chips
+-- off, the search holding the item's name. A view and a filter and nothing more: no post is made
+-- from here, the player posts from the row as always. Where the window is too narrow for the
+-- search box the filter goes with it (Toolbar.LayoutSearch), and the deck shows whole.
+function GC.Sell.FocusItem(name)
+  local container = UI.container
+  if not (container and container.search) or type(name) ~= "string" or name == "" then return end
+  S.filterMode, S.rowPlaces = "post", {}
+  for _, id in ipairs(CHIP_IDS) do UI.chips[id] = nil end
+  container.search:SetText(name)
+  applySearch()
+  Toolbar.PaintDeckSwitch(); Toolbar.PaintFilterChips(); UI.List.RenderRows()
+end
+
 GC.SellView.paintDeck = function()
   if UI.container and UI.container.deckButtons then UI.Toolbar.PaintDeckSwitch() end
 end

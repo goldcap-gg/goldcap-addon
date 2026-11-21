@@ -3708,6 +3708,24 @@ describe("Sell widget geometry and manual cost", function()
       GC.SellUI.List.RenderRows()
       assert.same({ "Arcanoweave", "Pygmy Oil" }, names(rows))
     end)
+
+    -- The Sold receipt's "N MORE IN BAGS · SELL": the post deck on that item, and no post made.
+    it("opens on one item for the Sold tab: the post deck, the chips off, the search holding its name", function()
+      local env = { calls = {} }
+      local GC = load(800, env)
+      local rows, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Pygmy Oil") })
+      GC.SellState.filterMode = "listed"
+      GC.SellUI.chips.nocost = true
+      -- Any auction house call from here is a post nobody clicked for.
+      _G.C_AuctionHouse = setmetatable({}, { __index = function(_, k) error("auction house call: " .. k) end })
+      GC.Sell.FocusItem("Pygmy Oil")
+      _G.C_AuctionHouse = nil
+      assert.equal("post", GC.SellState.filterMode)
+      assert.is_nil(GC.SellUI.chips.nocost)
+      assert.equal("Pygmy Oil", container.search.text)
+      assert.same({ "Pygmy Oil" }, names(rows))
+      assert.same({}, env.calls)                    -- and no cost recorded either
+    end)
   end)
   it("drops the bag line from the panel when it would only repeat the panel's own heading", function()
     local GC = load(620, { calls = {} })
