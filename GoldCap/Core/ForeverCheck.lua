@@ -35,7 +35,7 @@ local function realEnv()
     GoldCap_AppData = _G.GoldCap_AppData,
     now = function() return time() end,
     clock = function() return type(_G.GetTime) == "function" and _G.GetTime() or time() end,
-    realm = function() local ok, r = pcall(_G.GetRealmName) return ok and r or nil end,
+    realm = function() return GC.Game and GC.Game.RealmName and GC.Game.RealmName() or nil end,
     faction = function() local ok, f = pcall(_G.UnitFactionGroup, "player") return ok and f or nil end,
     portal = function() local ok, p = pcall(_G.GetCVar, "portal") return ok and p or nil end,
     store = function()

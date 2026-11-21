@@ -288,8 +288,8 @@ end
 --- The connected realm this character stands on, or nil.
 function GC.SellRoute.HereId()
   if GC.SellRoute._here == nil then
-    local ok, name = pcall(_G.GetRealmName)
-    local key = ok and GC.SellRoute.Key(name) or nil
+    local name = GC.Game and GC.Game.RealmName and GC.Game.RealmName() or nil
+    local key = name and GC.SellRoute.Key(name) or nil
     GC.SellRoute._here = key and GC.Data.RealmIdByKey and GC.Data.RealmIdByKey(key) or false
   end
   return GC.SellRoute._here or nil

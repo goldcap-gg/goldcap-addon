@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.31.1 (2026-11-21)
+
+- WoW: Forever: since the latest client patch the game no longer tells addons the realm's name.
+  Your scans stopped reaching goldcap.gg (the Companion stayed on "Waiting for your first scan"),
+  and costs you had recorded stopped matching your lots ("no cost for N"). GoldCap now finds your
+  realm from what it recorded on this character before and remembers it, puts the records written
+  without a realm back under it, and your next scan uploads again. A character GoldCap has never
+  seen with its realm still needs the game to say it once.
+
 ## 0.31.0 (2026-11-21)
 
 - SELL, MY LOTS: a lot that has partly sold no longer disappears. It shows how many of it sold and

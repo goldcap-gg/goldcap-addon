@@ -91,7 +91,7 @@ end
 -- carries. Nil under busted and before the player exists.
 local function playerChar()
   local name = UnitName and UnitName("player") or nil
-  local realm = GetRealmName and GetRealmName() or nil
+  local realm = GC.Game and GC.Game.RealmName and GC.Game.RealmName() or nil
   return (name and realm) and (name .. "-" .. realm) or name
 end
 
