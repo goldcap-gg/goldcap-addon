@@ -48,19 +48,21 @@ end
 
 --- The receipt's columns for a sale. RECEIPT always; AGAINST TODAY'S MARKET only with an exact
 --- market price (`market`, from R.Market on the sale's exact item -- never one found by its
---- name); the third whenever there is something left to do or to say about the profit. `note`
---- names that sentence: the money is still in the mail, profit is a Pro feature, or GoldCap
---- never saw the item bought. `title` is "finish" when the column holds an action, else "profit".
+--- name); the third always, since it is where the profit is either shown or explained. `note`
+--- names the sentence it says without a profit: the money is still in the mail, profit is a Pro
+--- feature, or GoldCap never saw the item bought (and it cannot be finished here). `title` is
+--- "finish" when the column holds an action (a cost to type, units in the bags to sell), else
+--- "profit".
 function R.Columns(row, opts)
   opts = opts or {}
-  local cols = { receipt = true, market = type(opts.market) == "number" and opts.market > 0,
+  local market = type(opts.market) == "number" and opts.market > 0 and opts.market or nil
+  local cols = { receipt = true, market = market ~= nil, marketPrice = market,
     save = opts.canSave == true, bags = math.max(0, math.floor(tonumber(opts.bags) or 0)) }
   if type(row.profit) ~= "number" then
     if row.pending then cols.note = "pending"
     elseif row.noBasis then cols.note = "pro"
     elseif not cols.save then cols.note = "unseen" end
   end
-  cols.finish = cols.save or cols.bags > 0 or cols.note ~= nil or opts.why == true
   cols.title = (cols.save or cols.bags > 0) and "finish" or "profit"
   return cols
 end

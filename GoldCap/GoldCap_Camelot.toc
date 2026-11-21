@@ -160,6 +160,7 @@ UI/Sell/Dock.lua
 UI/Sell/PostPanel.lua
 UI/SoldFrame.lua
 UI/SellPace_Camelot.lua
+UI/SoldReceipt.lua
 UI/BuyCapEditor.lua
 UI/BuyFrame.lua
 UI/BuyFrame_Camelot.lua

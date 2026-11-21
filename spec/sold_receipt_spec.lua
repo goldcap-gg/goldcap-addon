@@ -42,23 +42,21 @@ describe("SoldReceipt", function()
 
   describe("which receipt columns show", function()
     local cases = {
-      { name = "a costed sale with a market: receipt and market, nothing to finish",
+      { name = "a costed sale with a market: receipt, market, and where the profit came from",
         row = { profit = 10 }, opts = { market = 70 },
-        want = { market = true, finish = false } },
+        want = { market = true, marketPrice = 70, title = "profit", save = false, bags = 0 } },
       { name = "no exact market: the market column is left out",
-        row = { profit = 10 }, opts = {}, want = { market = false, finish = false } },
-      { name = "a sale it can finish: the cost box",
-        row = {}, opts = { canSave = true }, want = { finish = true, save = true, title = "finish" } },
+        row = { profit = 10 }, opts = {}, want = { market = false, marketPrice = nil } },
+      { name = "a sale it can finish: the cost box, and no SELL sentence",
+        row = {}, opts = { canSave = true }, want = { save = true, title = "finish", note = nil } },
       { name = "bags still hold the item: the way to SELL, even with a known profit",
-        row = { profit = 10 }, opts = { bags = 14 }, want = { finish = true, bags = 14, title = "finish" } },
+        row = { profit = 10 }, opts = { bags = 14 }, want = { bags = 14, title = "finish" } },
       { name = "money still in the mail: says so",
-        row = { pending = true }, opts = {}, want = { finish = true, note = "pending", title = "profit" } },
-      { name = "a free account: the Pro sentence",
-        row = { noBasis = true }, opts = {}, want = { finish = true, note = "pro", save = false } },
+        row = { pending = true }, opts = {}, want = { note = "pending", title = "profit" } },
+      { name = "a free account: the Pro sentence, never a cost box",
+        row = { noBasis = true }, opts = {}, want = { note = "pro", save = false } },
       { name = "never seen bought and not finishable here: the SELL sentence",
-        row = {}, opts = {}, want = { finish = true, note = "unseen" } },
-      { name = "a crafted cost with reagents at market: the why lines",
-        row = { profit = 10 }, opts = { why = true }, want = { finish = true, title = "profit" } },
+        row = {}, opts = {}, want = { note = "unseen", title = "profit" } },
     }
     for _, case in ipairs(cases) do
       it(case.name, function()
