@@ -3181,8 +3181,9 @@ describe("Sell widget geometry and manual cost", function()
     it("counts a live lot's standing in the watch blue, as stock under it", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 }) }, "listed")
-      -- rows[1] is the deck's section heading.
-      assert.equal("360 cheaper ahead of you", rows[2].priceStand.text)
+      -- rows[1] is the deck's section heading. MY LOTS says it on the stock line; the marks stay.
+      assert.equal("", rows[2].priceStand.text)
+      assert.matches("360 cheaper ahead of you", rows[2].itemStock.text, 1, true)
       local WATCH = GC.Theme.color.watch
       assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[2].standMarks[4].colorTexture)
     end)
@@ -3191,15 +3192,14 @@ describe("Sell widget geometry and manual cost", function()
     -- design, 2026-11-21: "92 cheaper ahead of you"), with the row's Cancel lot there when the
     -- cancel queue holds it. A lot priced far under the market wears its price in red -- that
     -- figure is the problem.
-    it("ambers the units ahead of a lot, and reddens a price that is far too low", function()
+    it("ambers the units ahead of a lot on its stock line, and reddens a price that is far too low", function()
       local GC = load(620, { calls = {} })
       local lot = stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 })
       GC.Theme.color.amber = { 0.96, 0.77, 0.41 }
       GC.SellState.cancelEntries = { { positionKey = lot.positionKey, auctionID = 1 } }
       local rows = topRows(GC, { lot }, "listed")
       local AMBER = GC.Theme.color.amber
-      assert.equal("360 cheaper ahead of you", rows[2].priceStand.text)
-      assert.same({ AMBER[1], AMBER[2], AMBER[3], 1 }, rows[2].priceStand.color)
+      assert.matches(GC.Sell._InlineColor(AMBER, "360 cheaper ahead of you"), rows[2].itemStock.text, 1, true)
       assert.equal("Cancel lot", rows[2].action.label)
       local FG = GC.Theme.color.fg
       assert.same({ FG[1], FG[2], FG[3], 1 }, rows[2].cells.price.color)

@@ -277,6 +277,22 @@ describe("MY LOTS with a part-sold lot", function()
       assert.matches("Sold-out lots leave once you open the mail", foot.soldFoot.right.text, 1, true)
     end)
 
+    -- A window too narrow for SOLD SO FAR sheds the column (UI/Sell/List.lua's DECK_SHED), and its
+    -- chip and line go with it rather than float over the columns left.
+    it("takes the chip and its line away with the column a narrow window sheds", function()
+      readRoster()
+      local row = rowsOf("position")[1]
+      assert.is_true(row.cells.sold.shown)
+      assert.is_true(row.soldChip.shown)
+      GC.SellUI.rowWidth = 560
+      GC.SellUI.List.RenderRows()
+      row = rowsOf("position")[1]
+      assert.is_false(row.cells.sold.shown)
+      assert.is_false(row.soldChip.shown)
+      assert.is_false(row.soldNote.shown)
+      assert.matches("5 of 15 sold · 10 left", row.itemStock.text, 1, true)
+    end)
+
     it("draws no sold side on the posting deck", function()
       OWNED[#OWNED + 1] = { auctionID = 7002, itemKey = { itemID = OTHER }, quantity = 62, status = 1,
         buyoutAmount = 10000, timeLeftSeconds = 3500 }
@@ -286,7 +302,7 @@ describe("MY LOTS with a part-sold lot", function()
       assert.equal(0, #rowsOf("soldBanner"))
       assert.equal(0, #rowsOf("soldOut"))
       for _, row in ipairs(GC.SellUI.rows) do
-        if row.shown then
+        if row.shown and row.soldChip then
           assert.is_false(row.soldChip.shown)
           assert.is_false(row.soldNote.shown)
           for _, seg in ipairs(row.soldRing.segments) do assert.is_false(seg.shown) end

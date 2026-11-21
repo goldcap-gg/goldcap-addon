@@ -350,7 +350,6 @@ local function createRow(parent)
   UI.Book.Decorate(row)
 
   UI.Inspector.Decorate(row)
-  UI.Sold.Decorate(row) -- MY LOTS' ring, SOLD SO FAR's chip and its line
   -- Sub-rows (detail/batch/lot/listing) write into their own widget, one size down from a
   -- position's name (11, not 12) -- the flex column's box is shared by three mutually
   -- exclusive widgets (this, row.cells.item, row.sectionLabel below), and UI.List.LayoutCells anchors
@@ -469,6 +468,9 @@ function Row.PaintPosition(row, entry, ctx)
     stockParts[#stockParts + 1] =
       (GC.L["paid %s each"]):format(moneyHex() .. formatCell(paidUnit) .. "|r")
   end
+  -- MY LOTS: where the lot stands, "first in line" or "92 cheaper ahead of you".
+  local standingText = onListed and listedQty > 0 and UI.Sold.StandingText(p, listedQty) or nil
+  if standingText then stockParts[#stockParts + 1] = standingText end
   -- The quality pip goes in the label rather than beside it: this row and
   -- the Sniper's deal row anchor their cells completely differently, and an
   -- inline atlas escape needs no layout in either. Empty for the vast
@@ -721,19 +723,17 @@ function Row.PaintPosition(row, entry, ctx)
       mark:SetColorTexture(ink[1], ink[2], ink[3], slot < standing.slot and 0.32 or 0.10)
     end
   end
-  if not standing then
+  -- MY LOTS says it in words on the stock line (UI/Sell/Sold.lua's StandingText): the marks stay.
+  if not standing or onListedDeck then
     row.priceStand:SetText("")
   elseif standing.ahead == 0 then
     row.priceStand:SetText(GC.L["first in line"])
     setColor(row.priceStand, Theme.color.green)
   else
-    row.priceStand:SetText((onListedDeck and GC.L["%s cheaper ahead of you"] or GC.L["%s ahead"]):format(
-      GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
-    -- On MY LOTS amber: cheaper units sell first, and the row's Cancel lot is there when the cancel
-    -- queue thinks it worth it. On the posting deck gold where those units are why the lot is worth
-    -- cancelling, quiet otherwise.
-    setColor(row.priceStand, onListedDeck and (Theme.color.amber or Theme.color.gold)
-      or (queuedLot and not queuedLot.urgent) and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
+    row.priceStand:SetText((GC.L["%s ahead"]):format(GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
+    -- Gold where those units are why the lot is worth cancelling; quiet on one being held.
+    setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
+      and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
   end
   if onListed and listedQty > 0 and UI.Sold.summary then UI.Sold.PaintLive(row, p) end
   -- Stock in the bags posts from the row's own Post or from the dock's POST, the same click

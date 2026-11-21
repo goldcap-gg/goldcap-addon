@@ -74,6 +74,7 @@ GC.Locales.ruRU = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    всего %s -> %s",
   ["%s ahead"] = "%s впереди",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s: нужно число, например /gc weights %s 1.5",
+  ["%s under you"] = "%s дешевле вас",
   ["%s units in %d prices"] = "%s шт. по %d ценам",
   ["%s · %s under market"] = "%s · на %s ниже рынка",
   ["%s · at market price"] = "%s · по рыночной цене",

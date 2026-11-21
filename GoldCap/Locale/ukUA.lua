@@ -78,6 +78,7 @@ GC.Locales.ukUA = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    разом %s -> %s",
   ["%s ahead"] = "%s попереду",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s: потрібне число, наприклад /gc weights %s 1.5",
+  ["%s under you"] = "%s дешевше за вас",
   ["%s units in %d prices"] = "%s шт. за %d цінами",
   ["%s · %s under market"] = "%s · на %s нижче ринку",
   ["%s · at market price"] = "%s · за ринковою ціною",

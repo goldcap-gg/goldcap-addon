@@ -356,11 +356,14 @@ function FIT.need(key, deck)
     for columnKey, word in pairs(words) do
       FIT.cache[columnKey] = FIT.width(9, GC.L[word])
     end
+    -- TO POST's stand line. MY LOTS writes its standing on the stock line (UI/Sell/Sold.lua) and
+    -- keeps only the marks here. "%s under you" was MY LOTS' line, and TO POST's price column has
+    -- always been as wide as it: still measured, so that column keeps the width it had.
     local count = "99.9k"
-    local stand = math.max(FIT.width(10, GC.L["first in line"]),
+    local stand = deck == "listed" and 0 or math.max(FIT.width(10, GC.L["first in line"]),
       FIT.width(10, (GC.L["%s ahead"]):format(count)),
       FIT.width(10, (GC.L["%s+ ahead"]):format(count)),
-      FIT.width(10, (GC.L["%s cheaper ahead of you"]):format(count)))
+      FIT.width(10, (GC.L["%s under you"]):format(count)))
     if stand > 0 then FIT.cache.price = math.max(FIT.cache.price or 0, stand + ROW.MARKS_W) end
     local margin = math.max(FIT.width(11, GC.L["no cost"]), FIT.width(11, (GC.L["no cost for %d"]):format(999)), FIT.width(11, "+9999%"))
     if margin > 0 then FIT.cache.gross = math.max(FIT.cache.gross or 0, margin) end

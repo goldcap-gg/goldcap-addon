@@ -81,6 +81,7 @@ GC.Locales.koKR = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 개당    총 %s -> %s",
   ["%s ahead"] = "앞에 %s",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s 뒤에 숫자가 필요합니다. 예: /gc weights %s 1.5",
+  ["%s under you"] = "내 가격보다 낮은 매물 %s",
   ["%s units in %d prices"] = "%s개 · 가격대 %d개",
   ["%s · %s under market"] = "%s · 시세보다 %s 저렴",
   ["%s · at market price"] = "%s · 시세와 같음",

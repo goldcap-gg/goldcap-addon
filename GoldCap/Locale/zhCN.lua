@@ -82,6 +82,7 @@ GC.Locales.zhCN = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 每件    合计 %s -> %s",
   ["%s ahead"] = "前面有 %s",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s 需要一个数字，例如 /gc weights %s 1.5",
+  ["%s under you"] = "%s 低于你的价格",
   ["%s units in %d prices"] = "%s 件 · %d 个价位",
   ["%s · %s under market"] = "%s · 比市场价低 %s",
   ["%s · at market price"] = "%s · 与市场价持平",

@@ -47,13 +47,15 @@ local function makeChip(parent)
   return chip
 end
 
---- The widgets a position row needs for its sold part, made with the row (Row.CreateRow): the
--- ring, the chip and the line under it. The banner's and the footer's are made the first time a
--- row is one.
-function Sold.Decorate(row)
-  row.soldNote = Theme.Num(row, 10)
+-- The widgets a row needs for its sold part, made the first time it has one (a pooled row that is
+-- only ever a TO POST row or a heading makes none): the ring, the chip and the line under it. The
+-- line wraps onto a second line inside its column rather than widen it: at the default window a
+-- column wide enough for "one sale · 51 min ago" on one line left no room for the item's name.
+local function ensure(row)
+  if row.soldNote then return end
+  row.soldNote = Theme.Num(row, 9)
   row.soldNote:SetJustifyH("RIGHT")
-  row.soldNote:SetWordWrap(false)
+  row.soldNote:SetWordWrap(true)
   row.soldNote:Hide()
   row.soldChip = makeChip(row)
   row.soldChip:Hide()
@@ -75,6 +77,19 @@ function Sold.Decorate(row)
   row.soldRing = ring
   -- The chip stands where SOLD SO FAR's figure would, its line under it (List.lua's SECOND_LINE).
   row.soldChip:SetPoint("RIGHT", row.cells.sold, "RIGHT", 0, 0)
+end
+
+--- MY LOTS' standing of a lot, for its stock line (Row.PaintPosition): "first in line" in green, or
+-- "92 cheaper ahead of you" in amber, from where its average price stands in the live book
+-- (GC.SellViewModel.Standing, the marks under the price). The row's own Cancel lot is how it is
+-- reposted when the cancel queue finds it worth it. nil with no book.
+function Sold.StandingText(position, listedQty)
+  if not (type(position.listedValue) == "number" and listedQty > 0 and GC.SellViewModel.Standing) then return nil end
+  local standing = GC.SellViewModel.Standing(position, math.floor(position.listedValue / listedQty))
+  if not standing then return nil end
+  if standing.ahead == 0 then return GC.Sell._InlineColor(green(), GC.L["first in line"]) end
+  return GC.Sell._InlineColor(Theme.color.amber or Theme.color.gold, (GC.L["%s cheaper ahead of you"]):format(
+    GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
 end
 
 -- `share` 0..1 lit, or nil for no ring; `done` puts the check mark on (sold out).
@@ -124,6 +139,7 @@ end
 --- A live position's sold part on MY LOTS (Row.PaintPosition): its ring, SOLD SO FAR's chip and
 -- the line under it, from the summary's sold rows of the position's lots.
 function Sold.PaintLive(row, position)
+  ensure(row)
   local net, sales, soldAt = nil, 0, nil
   local byAuction = Sold.summary and Sold.summary.byAuction or {}
   for _, lot in ipairs(position.ownedLots or {}) do
@@ -177,12 +193,15 @@ local function footBits(row)
   return bits
 end
 
--- SOLD SO FAR's widest line and chip, by `width(size, text)` (UI/Sell/List.lua's FIT.width).
+-- How wide SOLD SO FAR must be, by `width(size, text)` (UI/Sell/List.lua's FIT.width): for its line
+-- to break into no more than two, the sales over the time, and for a chip of up to some 9,999g (its
+-- condensed face draws "+9,999g 99s 99c" about as wide as the mono probe draws "+999g 99s 99c").
+-- Measured on the fonts, at the default window this leaves the item's name its room once the price
+-- column has squeezed to its minimum; a narrower window sheds the column (DECK_SHED).
 function Sold.Need(width)
-  return math.max(width(10, GC.L["nothing yet"]),
-    width(10, GC.L["one sale"] .. " · " .. (GC.L["%d min ago"]):format(59)),
-    width(10, (GC.L["%d sales"]):format(99) .. " · " .. (GC.L["%d h ago"]):format(99)),
-    width(11, "+" .. formatCell(99999999)) + 16)
+  return math.max(width(9, GC.L["nothing yet"]), width(9, GC.L["one sale"] .. " ·"),
+    width(9, (GC.L["%d sales"]):format(99) .. " ·"), width(9, (GC.L["%d min ago"]):format(59)),
+    width(9, (GC.L["%d h ago"]):format(99)), width(9, "+" .. formatCell(9999999)) + 16)
 end
 
 -- The search box, as it narrows every row: a plain substring of the lower-cased name.
@@ -224,6 +243,7 @@ end
 function Sold.Paint(row, entry)
   row.action:Hide()
   if entry.kind == "soldOut" then
+    ensure(row)
     local sold = entry.sold
     local named = Theme.WithQuality and Theme.WithQuality(entry.position.itemName, sold.itemID)
       or entry.position.itemName
@@ -305,8 +325,16 @@ function Sold.Sync(row, entry)
   local live = kind == "position" and not entry.panel and Sold.summary ~= nil
     and (entry.position.listedQty or 0) > 0
   local soldSide = live or kind == "soldOut"
-  shown(row.soldNote, soldSide)
-  shown(row.soldChip, soldSide and row.soldChipShown)
+  -- The column a narrow window sheds (UI/Sell/List.lua's DECK_SHED) takes its chip and line with it.
+  local column = soldSide and row.cells.sold:IsShown()
+  shown(row.soldNote, column)
+  shown(row.soldChip, column and row.soldChipShown)
+  if column then
+    -- Hung from the middle of the row down, so a second line grows down the card, clear of the chip.
+    row.soldNote:ClearAllPoints()
+    row.soldNote:SetPoint("TOPLEFT", row.cells.sold, "LEFT", 0, -ROW.LIFT - 2)
+    row.soldNote:SetPoint("TOPRIGHT", row.cells.sold, "RIGHT", 0, -ROW.LIFT - 2)
+  end
   local ring = row.soldRing
   if ring then
     local share = soldSide and row.soldShare or nil
