@@ -1820,15 +1820,15 @@ end
 function GC.Sniper._RareTooltip(row, draw)
   local entry = row.deal
   GC.Sniper._ShowItemTooltip(row, entry.itemID, draw or GC.Sniper._RareTooltip)
-  local standing, sales = GC.ItemsBoard.RareLines(entry)
-  local dim = GC.Kit.Tokens.blizzard.text3
-  GameTooltip:AddLine(" ")
-  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(GC.L["Rare find: seldom sold, so GoldCap puts no price on it"])),
-    GC.Kit.Tokens.blizzard.gold[1], GC.Kit.Tokens.blizzard.gold[2], GC.Kit.Tokens.blizzard.gold[3], true)
-  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(standing)), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
-  GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(sales)), dim[1], dim[2], dim[3], true)
-  GC.Sniper._TryOnHint(entry.itemID)
   GameTooltip:Show()
+  if not (GC.DealCardUI and GC.DealCard) then return end
+  local standing, sales = GC.ItemsBoard.RareLines(entry)
+  local B = GC.Kit.Tokens.blizzard
+  GC.DealCardUI.Show(row, { deal = entry, notes = {
+    { text = GC.L["Rare find: seldom sold, so GoldCap puts no price on it"], color = B.gold },
+    { text = standing, color = B.tipWhite },
+    { text = sales, color = B.text3 },
+  }, hints = GC.DealCard.Hints(entry, false, GC.Sniper._Dressable(entry.itemID)) }, frame)
 end
 
 -- ---------------------------------------------------------------------------
@@ -1887,10 +1887,9 @@ function GC.Sniper._EndInspect(row)
   ResetCursor()
 end
 
--- The tooltip line for an item the Dressing Room can put on the character.
-function GC.Sniper._TryOnHint(itemID)
-  if not (C_Item and C_Item.IsDressableItemByID and C_Item.IsDressableItemByID(itemID)) then return end
-  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Ctrl-click to try it on"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
+-- Whether the Dressing Room can put the item on the character: the card's "try it on" key hint.
+function GC.Sniper._Dressable(itemID)
+  return (C_Item and C_Item.IsDressableItemByID and C_Item.IsDressableItemByID(itemID)) and true or false
 end
 
 -- Forward-declared: createRow's real definition lives further down (it needs the row
@@ -6640,6 +6639,48 @@ function GC.Sniper._ForeverNote(kind, ceiling, ref, profit)
     and GC.L["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."]
     or GC.L["Buy at or under %s: a vendor pays %s each. This buy makes %s."]
   return text:format(GC.Util.FormatMoney(ceiling), GC.Util.FormatMoney(ref), GC.Util.FormatMoney(profit or 0))
+end
+
+-- The tooltip card's model for a DEALS row (UI/DealCard.lua draws it; Core/DealCard.lua decides
+-- each part). `verdict`: the row's live verdict (verdictFor); `pinned`: whether it is watched.
+-- Every note the row's tooltip used to carry keeps its meaning here, as a short line: a refusal's
+-- reason when there is no limit to measure it by, a cap's or a followed group's note, the Forever
+-- buy line when the scale cannot be drawn, a realm item with no reference, an Items board flip's
+-- facts, and a watched placeholder's. GoldCap's own item lines (the region price and its item
+-- level, the Forever sell verdict, data age) follow as facts, minus what the scale already shows.
+function GC.Sniper._CardModel(deal, verdict, pinned)
+  local DC, B = GC.DealCard, GC.Kit.Tokens.blizzard
+  local _, _, profit = GC.BoardRows.Figures(deal, verdict)
+  local cheapest = verdict and verdict.unitPrice or deal.unitPrice
+  local scale = deal.forever and deal.refSource ~= "group"
+    and DC.Scale(cheapest, deal.ceiling, deal.refUnit, deal.forever) or nil
+  local big = DC.Big(deal, verdict, profit)
+  local notes = {}
+  local function note(text, color) if text then notes[#notes + 1] = { text = text, color = color } end end
+  if DC.Refused(verdict) and not big then
+    note(GC.BoardRows.Reason(verdict) or GC.L["live verification required"], B.text2)
+  end
+  note(GC.Sniper._CapNote(deal), B.profit)
+  if deal.forever then
+    if not scale and deal.refSource ~= "group" then
+      local left, right = GC.Sniper._ForeverTipLine(deal)
+      if left then note(right and (left .. "  " .. right) or left, B.text2) end
+    end
+    note(GC.Sniper._GroupNote(deal), B.profit)
+  end
+  if not GC.Sniper._RealmValue(deal.itemID) and GC.Sniper._RealmNeedsReference(deal.itemID) then
+    note(GC.SniperDecision.ReasonText("realm_no_reference"), B.text3)
+  end
+  for _, detail in ipairs(GC.Sniper._RowDetails(deal)) do note(detail.text, detail.color) end
+  if deal.pinPlaceholder then
+    note(GC.L["Watching: pinned, but not a deal right now"], B.text3)
+    note(GC.Sniper._WatchNote(deal), B.text3)
+  end
+  local lines = GC.Tooltip and GC.Tooltip.ItemLines
+    and GC.Tooltip.ItemLines(deal.itemID, time(), GC.Sniper._RowItemLink(deal.itemID)) or nil
+  return { deal = deal, verdict = verdict, now = GetTime, big = big, scale = scale,
+    chips = DC.Chips(deal), notes = notes, facts = DC.Facts(lines, scale ~= nil),
+    hints = DC.Hints(deal, pinned, GC.Sniper._Dressable(deal.itemID)) }
 end
 
 -- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
@@ -11823,85 +11864,13 @@ createRow = function(parent, index)
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
     -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
     GC.Sniper._ShowItemTooltip(self, self.deal.itemID, drawRowTooltip)
-    -- What the background check found, in words. A refused row that the toolbar toggle has
-    -- brought back into view is otherwise a status code and nothing else.
-    local verdict = verdictFor(self.deal)
-    -- A cap row says what YOUR PRICE means and which group it came from, fresh verdict or not
-    -- (review M6: it waited on a cap verdict, and a verdict goes stale in two minutes). In place
-    -- of the verdict lines: "checked live -- safe to buy" is the market engine's word, and no
-    -- safety was judged here -- the player's own price was.
-    local capNote = GC.Sniper._CapNote(self.deal)
-    if capNote then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(capNote)), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true)
-    elseif verdict then
-      GameTooltip:AddLine(" ")
-      if verdict.buyable then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live, safe to buy"]), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3])
-      elseif verdict.needsGold then
-        GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText((GC.L["GoldCap: checked live. A deal, but you need %s on this character"])
-          :format(GC.Util.FormatGoldCeil(verdict.needsGold)))), GC.Kit.Tokens.blizzard.tipAmber[1], GC.Kit.Tokens.blizzard.tipAmber[2], GC.Kit.Tokens.blizzard.tipAmber[3], true)
-      else
-        -- The cell above says only WATCH; this is where the sentence behind it lives.
-        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: %s. %s"]):format(verdict.status or "refused",
-          GC.BoardRows.Reason(verdict) or GC.L["live verification required"])), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3])
-      end
-    elseif not self.deal.pinPlaceholder then
-      -- Saying nothing here read as approval. The row already shows a tier, a discount and a
-      -- profit -- all of it computed from the imported market snapshot, none of it confirmed
-      -- against the live auction house -- and the only thing separating it from a row a live
-      -- check HAD approved was the word on the button. That is too thin a line to carry the
-      -- difference between an estimate and a finding, so the tooltip states it outright.
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: not checked against the live auction house yet"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
-    end
-    if self.deal.forever then
-      -- A row measured against a followed group's usual price has no AH value for the note to name:
-      -- the group's sentence stands in for it.
-      if self.deal.refSource ~= "group" then
-        local left, right = GC.Sniper._ForeverTipLine(self.deal)
-        if left then
-          local dim, gain = GC.Kit.Tokens.blizzard.tipSoft, GC.Kit.Tokens.blizzard.tipSafe
-          GameTooltip:AddDoubleLine(GC.Util.ClientText(left), GC.Util.ClientText(right or " "), dim[1], dim[2], dim[3],
-            gain[1], gain[2], gain[3])
-        end
-      end
-      local groupNote = GC.Sniper._GroupNote(self.deal)
-      if groupNote then GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(groupNote)), GC.Kit.Tokens.blizzard.tipSafe[1], GC.Kit.Tokens.blizzard.tipSafe[2], GC.Kit.Tokens.blizzard.tipSafe[3], true) end
-    end
-    -- A realm row priced against the region says nothing more about it here: the verdict line
-    -- above says it is a realm item, and GoldCap's price block under the item names the region's
-    -- price and its item level (owner, 2026-10-25: the line read "region reference 77824g (ilvl 0)"
-    -- under its twin).
-    if not GC.Sniper._RealmValue(self.deal.itemID) and GC.Sniper._RealmNeedsReference(self.deal.itemID) then
-      -- A pinned realm item the region has no price for. It is on the board because the player
-      -- put it there, and the row cannot say anything about value -- so the tooltip says the
-      -- same sentence a Check on it would, rather than leaving the blank cells to be read as
-      -- "nothing to report".
-      GameTooltip:AddLine(GC.Util.ClientText(GC.SniperDecision.ReasonText("realm_no_reference")),
-        GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
-    end
-    -- An Items board flip's facts, which its one line under the name leaves out.
-    local details = GC.Sniper._RowDetails(self.deal)
-    if #details > 0 then GameTooltip:AddLine(" ") end
-    for _, detail in ipairs(details) do
-      GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(detail.text)), detail.color[1], detail.color[2], detail.color[3], true)
-    end
-    -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
-    -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
-    if self.deal.pinPlaceholder then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Watching: pinned, but not a deal right now"]),
-        GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
-      local watchNote = GC.Sniper._WatchNote(self.deal)
-      if watchNote then
-        GameTooltip:AddLine(GC.Util.ClientText(watchNote), GC.Kit.Tokens.blizzard.text3[1], GC.Kit.Tokens.blizzard.text3[2], GC.Kit.Tokens.blizzard.text3[3])
-      end
-    end
-    GC.Sniper._TryOnHint(self.deal.itemID)
-    GameTooltip:AddLine(GC.Util.ClientText(isPinned(self.deal.itemID)
-      and GC.L["Right-click to stop watching this item"]
-      or GC.L["Right-click to watch this item closely"]), GC.Kit.Tokens.blizzard.tipSoft[1], GC.Kit.Tokens.blizzard.tipSoft[2], GC.Kit.Tokens.blizzard.tipSoft[3])
+    -- The item's own lines and nothing else: what GoldCap says about the deal -- the live check,
+    -- the profit, the buy limit, a cap's or a group's note, an Items board flip's facts -- is the
+    -- card docked under it (UI/DealCard.lua, built by GC.Sniper._CardModel). Mixed into the item's
+    -- own lines and other addons', it read as clutter (owner, 2026-11-21).
     GameTooltip:Show()
+    if not (GC.DealCardUI and GC.DealCard) then return end
+    GC.DealCardUI.Show(self, GC.Sniper._CardModel(self.deal, verdictFor(self.deal), isPinned(self.deal.itemID)), frame)
   end
   row:SetScript("OnEnter", function(self)
     -- A section header or an empty section's line is a label, not a row to point at: no wash,
@@ -11910,9 +11879,10 @@ createRow = function(parent, index)
     self.highlight:Show()
     self.rail:Show()
     hoveredRow = self
-    -- GoldCap's own price block under the item's tooltip stands aside for a Rare finds row, which
-    -- has no price (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
-    self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil
+    -- GoldCap's own price block under the item's tooltip stands aside for every row: a deal row's
+    -- card carries its lines (GC.Sniper._CardModel), and a Rare finds row has no price
+    -- (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
+    self.goldcapOwnLines = self.deal and true or nil
     if not self.deal then return end
     GC.Sniper._BeginInspect(self)
     if self.deal.kind ~= "rare" then GC.Sniper._HoverPrewarm(self) end

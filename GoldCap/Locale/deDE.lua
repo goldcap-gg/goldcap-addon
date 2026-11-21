@@ -291,10 +291,6 @@ GC.Locales.deDE = {
   ["GoldCap's"] = "GoldCaps",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "GoldCaps Vorschlag für diesen Gegenstand und der Preis, den es nehmen würde.",
-  ["GoldCap: %s. %s"] = "GoldCap: %s. %s",
-  ["GoldCap: checked live. A deal, but you need %s on this character"] = "GoldCap: live geprüft: ein gutes Angebot, aber du brauchst %s auf diesem Charakter",
-  ["GoldCap: checked live, safe to buy"] = "GoldCap: live geprüft: Kauf ist sicher",
-  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: noch nicht gegen das laufende Auktionshaus geprüft",
   ["Gone"] = "Weg",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Ausgegraut heißt, der Kurs ist veraltet; Einstellen und Repost aktualisieren ihn vor dem Handeln.",
@@ -497,10 +493,6 @@ GC.Locales.deDE = {
   ["Removes this entered-by-hand purchase. Click again to confirm"] =
     "Löscht diesen von Hand eingetragenen Kauf. Zum Bestätigen erneut klicken",
   ["Repost confirmation expired"] = "Bestätigung zum Neueinstellen abgelaufen",
-  ["Right-click to stop watching this item"] =
-    "Rechtsklick, um diesen Gegenstand nicht mehr zu beobachten",
-  ["Right-click to watch this item closely"] =
-    "Rechtsklick, um diesen Gegenstand genau zu beobachten",
   ["SAFE +%s"] = "SICHER +%s",
   ["SAFE = the live check approved this buy, at the profit shown"] =
     "SICHER = die Live-Prüfung hat diesen Kauf freigegeben, zum angezeigten Gewinn",
@@ -1355,7 +1347,6 @@ GC.Locales.deDE = {
   ["Only what I lack"] = "Nur was mir fehlt",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "Zeigt nur, was dein Account noch nicht gesammelt hat: Aussehen, Haustiere, Spielzeuge und Reittiere, und Rezepte, die dieser Charakter nicht kennt.",
-  ["Ctrl-click to try it on"] = "Strg-Klick zum Anprobieren",
   ["Not collected"] = "Nicht gesammelt",
   ["Not known by this character"] = "Diesem Charakter unbekannt",
   ["Appearance known"] = "Aussehen bekannt",
@@ -2005,4 +1996,47 @@ GC.Locales.deDE = {
   ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Unter Ausrüstung im Gegenstandstooltip: was eine Entzauberung im Schnitt wert ist, zu den Preisen deines Scans.",
   ["Disenchant materials"] = "Entzauberungsmaterialien",
   ["Under the disenchant value: each material with how many, its price and its chance."] = "Unter dem Entzauberungswert: jedes Material mit Anzahl, Preis und Chance.",
+  ["%s listed"] = "%s gelistet",
+  ["%s too pricey"] = "%s zu teuer",
+  ["%s · CHECKED %s AGO"] = "%s · GEPRÜFT VOR %s",
+  ["%s · CHECKED LIVE %s AGO"] = "%s · LIVE GEPRÜFT VOR %s",
+  ["AH %s"] = "AH %s",
+  ["AH VALUE"] = "AH-WERT",
+  ["BUY LESS"] = "WENIGER KAUFEN",
+  ["CLICK"] = "KLICK",
+  ["CTRL"] = "STRG",
+  ["NEEDS %s ON THIS CHARACTER"] = "BRAUCHT %s AUF DIESEM CHARAKTER",
+  ["NEEDS GOLD"] = "GOLD FEHLT",
+  ["NOT CHECKED YET"] = "NOCH NICHT GEPRÜFT",
+  ["Over your limit by"] = "Über deinem Limit um",
+  ["RARE FIND"] = "SELTENER FUND",
+  ["RETURN"] = "RENDITE",
+  ["RMB"] = "RMT",
+  ["SAFE"] = "SICHER",
+  ["SAFE · LIVE %s AGO"] = "SICHER · LIVE VOR %s",
+  ["SELLS PER DAY"] = "VERKÄUFE PRO TAG",
+  ["The cheapest costs %s. It's a deal only under %s, %d%% of the AH value of %s."] =
+    "Das günstigste kostet %s. Ein Deal ist es erst unter %s, %d%% des AH-Werts von %s.",
+  ["The cheapest costs %s. It's a deal only under %s."] =
+    "Das günstigste kostet %s. Ein Deal ist es erst unter %s.",
+  ["The cheapest costs %s. It's a deal only under %s; a vendor pays %s."] =
+    "Das günstigste kostet %s. Ein Deal ist es erst unter %s; ein Händler zahlt %s.",
+  ["VENDOR PAYS"] = "HÄNDLER ZAHLT",
+  ["WATCHING"] = "BEOBACHTET",
+  ["WON'T BUY"] = "NICHT KAUFEN",
+  ["YOU PAY"] = "DU ZAHLST",
+  ["YOUR CALL"] = "DEINE ENTSCHEIDUNG",
+  ["You make"] = "Du verdienst",
+  ["You make about"] = "Du verdienst etwa",
+  ["cheapest %s"] = "günstigste %s",
+  ["limit %s"] = "Limit %s",
+  ["open details"] = "Details öffnen",
+  ["resale speed unknown"] = "Wiederverkaufstempo unbekannt",
+  ["stop watching"] = "nicht mehr beobachten",
+  ["try it on"] = "anprobieren",
+  ["unknown"] = "unbekannt",
+  ["vendor %s"] = "Händler %s",
+  ["watch it"] = "beobachten",
+  ["your limit %s"] = "dein Limit %s",
+  ["your limit %s · nothing under it"] = "dein Limit %s · nichts darunter",
 }

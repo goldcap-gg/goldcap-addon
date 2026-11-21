@@ -844,17 +844,12 @@ describe("Row click wiring (whole-row left-click acts)", function()
       assert.same({ "reset", "inspect", "reset" }, cursor)
     end)
 
-    it("says ctrl-click tries it on only for an item the Dressing Room can show", function()
+    it("offers try-on only for an item the Dressing Room can show", function()
       local ctx = load()
       clientFakes()
-      local lines = {}
-      _G.GameTooltip = { AddLine = function(_, text) lines[#lines + 1] = text end }
       _G.C_Item.IsDressableItemByID = function(id) return id == 7935 end
-
-      ctx.GC.Sniper._TryOnHint(7935)
-      ctx.GC.Sniper._TryOnHint(2553)
-
-      assert.same({ "Ctrl-click to try it on" }, lines)
+      assert.is_true(ctx.GC.Sniper._Dressable(7935))
+      assert.is_false(ctx.GC.Sniper._Dressable(2553))
     end)
   end)
 end)

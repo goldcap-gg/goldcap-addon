@@ -694,15 +694,16 @@ describe("Key poll wiring", function()
           assert.falsy(texts(GC.Sniper._RowDetails(deal(10))):find("Sell", 1, true))
         end)
 
-        it("hands the tooltip what the row leaves out", function()
-          local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
-          local text = f:read("*a")
-          f:close()
-          local enterAt = assert(text:find("local function drawRowTooltip(self)", 1, true))
-          local enter = text:sub(enterAt)
-          local at = assert(enter:find("local details = GC.Sniper._RowDetails(self.deal)", 1, true))
-          assert.truthy(enter:find("GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(detail.text))", at, true))
-          assert.truthy(at < assert(enter:find("GameTooltip:Show()", 1, true)))
+        it("hands the tooltip card what the row leaves out", function()
+          local GC = loadRouted({ { realmId = 1305, list = 2200 * G, days = 2.4, own = true },
+            { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
+          helper.loadModule("Core/BoardRows.lua", GC)
+          helper.loadModule("Core/DealCard.lua", GC)
+          local notes = {}
+          for _, n in ipairs(GC.Sniper._CardModel(deal(10), nil, false).notes) do notes[#notes + 1] = n.text end
+          local text = table.concat(notes, "\n")
+          assert.truthy(text:find("Sell on Kazzak for " .. GC.Util.FormatMoney(2200 * G), 1, true))
+          assert.truthy(text:find("Sold 6 times in 7 days on 3 realms", 1, true))
         end)
       end)
 
@@ -886,17 +887,18 @@ describe("Key poll wiring", function()
         assert.equal(1, freshDraws)
       end)
 
-      -- GoldCap's own price block under the item (UI/Tooltip.lua) stays on a flip row's tooltip
-      -- (owner, 2026-10-25: "в тултипе пусть будет", only the comparison windows were in the way)
-      -- and stands aside for a Rare finds row alone, which has no price. The realm line that
-      -- repeated the block's region price, with "(ilvl 0)" for a level it did not know, is gone.
-      it("keeps GoldCap's price block on a flip row's tooltip, without the realm line", function()
+      -- GoldCap's own price block under the item (UI/Tooltip.lua) stands aside for every board
+      -- row: a deal row's card carries its lines (GC.Sniper._CardModel, the owner's 2026-10-25
+      -- "в тултипе пусть будет" kept, now in the card), and a Rare finds row has no price. The realm
+      -- line that repeated the block's region price, with "(ilvl 0)", is gone.
+      it("moves GoldCap's price block off a row's tooltip into its card, without the realm line", function()
         local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
         local text = f:read("*a")
         f:close()
         local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))
         local enter = text:sub(enterAt)
-        assert.is_truthy(enter:find('self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil', 1, true))
+        assert.is_truthy(enter:find('self.goldcapOwnLines = self.deal and true or nil', 1, true))
+        assert.is_truthy(text:find("DC.Facts(lines, scale ~= nil)", 1, true))
         assert.is_nil(text:find("local realmValue = GC.Sniper._RealmValue(self.deal.itemID)", 1, true))
       end)
 

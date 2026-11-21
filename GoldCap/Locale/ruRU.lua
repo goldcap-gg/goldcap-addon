@@ -279,10 +279,6 @@ GC.Locales.ruRU = {
   ["GoldCap's"] = "от GoldCap",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Что GoldCap советует по этому предмету и по какой цене.",
-  ["GoldCap: %s. %s"] = "GoldCap: %s. %s",
-  ["GoldCap: checked live. A deal, but you need %s on this character"] = "GoldCap: проверено вживую. Выгодно, но на этом персонаже нужно %s",
-  ["GoldCap: checked live, safe to buy"] = "GoldCap: проверено вживую, покупать безопасно",
-  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ещё не проверено на живом аукционе",
   ["Gone"] = "Ушёл",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Серый цвет означает, что котировка устарела; «Выставить» и перевыставление обновят её перед действием.",
@@ -482,10 +478,6 @@ GC.Locales.ruRU = {
   ["Removes this entered-by-hand purchase. Click again to confirm"] =
     "Удаляет эту введённую вручную покупку. Нажмите ещё раз для подтверждения",
   ["Repost confirmation expired"] = "Подтверждение перевыставления просрочено",
-  ["Right-click to stop watching this item"] =
-    "Правый клик, чтобы перестать следить за предметом",
-  ["Right-click to watch this item closely"] =
-    "Правый клик, чтобы пристально следить за предметом",
   ["SAFE +%s"] = "БЕЗОПАСНО +%s",
   ["SAFE = the live check approved this buy, at the profit shown"] =
     "БЕЗОПАСНО = живая проверка одобрила эту покупку с показанной прибылью",
@@ -1422,7 +1414,6 @@ GC.Locales.ruRU = {
   ["Only what I lack"] = "Только то, чего нет",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "Показывает только то, чего ещё нет в коллекции вашей учётной записи: облики, питомцев, игрушки и транспорт, а также рецепты, которых не знает этот персонаж.",
-  ["Ctrl-click to try it on"] = "Ctrl+клик: примерить",
   ["Not collected"] = "Нет в коллекции",
   ["Not known by this character"] = "Этот персонаж не знает",
   ["Appearance known"] = "Облик уже собран",
@@ -2067,4 +2058,47 @@ GC.Locales.ruRU = {
   ["Under gear in the item tooltip: what one disenchant is worth on average at your scan's prices."] = "Под снаряжением в подсказке предмета: сколько в среднем даёт одно распыление по ценам вашего скана.",
   ["Disenchant materials"] = "Материалы распыления",
   ["Under the disenchant value: each material with how many, its price and its chance."] = "Под ценой распыления: каждый материал, его количество, цена и шанс.",
+  ["%s listed"] = "%s выставлено",
+  ["%s too pricey"] = "%s слишком дорого",
+  ["%s · CHECKED %s AGO"] = "%s · ПРОВЕРЕНО %s НАЗАД",
+  ["%s · CHECKED LIVE %s AGO"] = "%s · ПРОВЕРЕНО ВЖИВУЮ %s НАЗАД",
+  ["AH %s"] = "Аукцион %s",
+  ["AH VALUE"] = "ЦЕНА НА АУКЦИОНЕ",
+  ["BUY LESS"] = "КУПИТЬ МЕНЬШЕ",
+  ["CLICK"] = "КЛИК",
+  ["CTRL"] = "CTRL",
+  ["NEEDS %s ON THIS CHARACTER"] = "НУЖНО %s НА ЭТОМ ПЕРСОНАЖЕ",
+  ["NEEDS GOLD"] = "НЕ ХВАТАЕТ ЗОЛОТА",
+  ["NOT CHECKED YET"] = "ЕЩЁ НЕ ПРОВЕРЕНО",
+  ["Over your limit by"] = "Выше вашего лимита на",
+  ["RARE FIND"] = "РЕДКАЯ НАХОДКА",
+  ["RETURN"] = "ДОХОДНОСТЬ",
+  ["RMB"] = "ПКМ",
+  ["SAFE"] = "БЕЗОПАСНО",
+  ["SAFE · LIVE %s AGO"] = "БЕЗОПАСНО · ВЖИВУЮ %s НАЗАД",
+  ["SELLS PER DAY"] = "ПРОДАЖ В ДЕНЬ",
+  ["The cheapest costs %s. It's a deal only under %s, %d%% of the AH value of %s."] =
+    "Самый дешёвый стоит %s. Выгодно только дешевле %s — это %d%% от цены на аукционе %s.",
+  ["The cheapest costs %s. It's a deal only under %s."] =
+    "Самый дешёвый стоит %s. Выгодно только дешевле %s.",
+  ["The cheapest costs %s. It's a deal only under %s; a vendor pays %s."] =
+    "Самый дешёвый стоит %s. Выгодно только дешевле %s; торговец платит %s.",
+  ["VENDOR PAYS"] = "ТОРГОВЕЦ ПЛАТИТ",
+  ["WATCHING"] = "ОТСЛЕЖИВАЕТСЯ",
+  ["WON'T BUY"] = "НЕ ПОКУПАТЬ",
+  ["YOU PAY"] = "ВЫ ПЛАТИТЕ",
+  ["YOUR CALL"] = "РЕШАТЬ ВАМ",
+  ["You make"] = "Вы получите",
+  ["You make about"] = "Вы получите около",
+  ["cheapest %s"] = "дешевле всего %s",
+  ["limit %s"] = "лимит %s",
+  ["open details"] = "открыть подробности",
+  ["resale speed unknown"] = "скорость перепродажи неизвестна",
+  ["stop watching"] = "перестать следить",
+  ["try it on"] = "примерить",
+  ["unknown"] = "неизвестно",
+  ["vendor %s"] = "торговец %s",
+  ["watch it"] = "следить",
+  ["your limit %s"] = "ваш лимит %s",
+  ["your limit %s · nothing under it"] = "ваш лимит %s · ниже ничего",
 }

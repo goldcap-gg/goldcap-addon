@@ -1130,22 +1130,17 @@ describe("Deals background verification", function()
   -- An unverified row shows a tier, a discount and a profit, every one of them read off the
   -- imported market snapshot rather than confirmed against the live auction house. The only
   -- thing that separated it from a row a live check HAD approved was the word on the button,
-  -- which is too thin a line for that difference to rest on. Pinned as source text because the
-  -- branch lives in createRow's OnEnter, which needs the whole themed widget tree to reach.
+  -- which is too thin a line for that difference to rest on. The row's tooltip card says it in
+  -- its verdict pill (Core/DealCard.lua).
   it("tells the tooltip when nothing has checked the row yet", function()
-    local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
-    local text = file:read("*a")
-    file:close()
-    local from = assert(text:find("local verdict = verdictFor(self.deal)", 1, true))
-    local to = assert(text:find("if self.deal.pinPlaceholder then", from, true))
-    local branch = text:sub(from, to)
-
-    assert.is_truthy(branch:find("GoldCap: checked live, safe to buy", 1, true))
+    local GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/DealCard.lua", GC)
+    assert.equal("SAFE · LIVE 4s AGO", GC.DealCard.Pill({}, { buyable = true }, 4).text)
     -- The third state, the one that used to render as silence.
-    assert.is_truthy(branch:find("not checked against the live auction house yet", 1, true))
+    assert.equal("NOT CHECKED YET", GC.DealCard.Pill({}, nil).text)
     -- A pin that is not currently a deal has nothing to check, so it must not be told it is
-    -- unchecked -- its own line below says what it actually is.
-    assert.is_truthy(branch:find("elseif not self.deal.pinPlaceholder then", 1, true))
+    -- unchecked -- the card says what it actually is.
+    assert.equal("WATCHING", GC.DealCard.Pill({ pinPlaceholder = true }, nil).text)
   end)
 
   -- Owner report 2026-09-24: a character with no gold watched the board for an hour. Every
@@ -1275,10 +1270,10 @@ describe("Deals background verification", function()
       assert.is_false(primary.enabled)
       -- 5,322g 46s 80c: rounded up, the same figure the board's cell and the tooltip show.
       assert.equal("not enough gold on this character: you need 5323g", status.text)
-      local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local file = assert(io.open("GoldCap/Core/DealCard.lua", "r"))
       local src = file:read("*a")
       file:close()
-      assert.is_truthy(src:find("GC.Util.FormatGoldCeil(verdict.needsGold)", 1, true)) -- the tooltip
+      assert.is_truthy(src:find("GC.Util.FormatGoldCeil(verdict.needsGold)", 1, true)) -- the tooltip card
     end)
 
     -- A row the wallet limit alone held back ranks high on the board, and the walk reaches only
