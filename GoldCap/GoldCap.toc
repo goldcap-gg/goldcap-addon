@@ -153,6 +153,7 @@ UI/Sell/Row.lua
 UI/Sell/Tooltips.lua
 UI/Sell/Inspector.lua
 UI/Sell/List.lua
+UI/Sell/Sold.lua
 UI/Sell/CostDialog.lua
 UI/Sell/Toolbar.lua
 UI/Sell/Dock.lua

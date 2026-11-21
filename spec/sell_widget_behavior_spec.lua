@@ -3182,22 +3182,25 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 }) }, "listed")
       -- rows[1] is the deck's section heading.
-      assert.equal("360 under you", rows[2].priceStand.text)
+      assert.equal("360 cheaper ahead of you", rows[2].priceStand.text)
       local WATCH = GC.Theme.color.watch
       assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[2].standMarks[4].colorTexture)
     end)
 
-    -- The count under a lot says whether it matters: gold on a lot the cancel queue holds
-    -- (those units are why it is worth cancelling), quiet on one being held. A lot priced far
-    -- under the market wears its price in red -- that figure is the problem.
-    it("lights the units under a lot worth cancelling, and reddens a price that is far too low", function()
+    -- The count under a lot says that cheaper units sell first, in amber on MY LOTS (owner's
+    -- design, 2026-11-21: "92 cheaper ahead of you"), with the row's Cancel lot there when the
+    -- cancel queue holds it. A lot priced far under the market wears its price in red -- that
+    -- figure is the problem.
+    it("ambers the units ahead of a lot, and reddens a price that is far too low", function()
       local GC = load(620, { calls = {} })
       local lot = stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 })
+      GC.Theme.color.amber = { 0.96, 0.77, 0.41 }
       GC.SellState.cancelEntries = { { positionKey = lot.positionKey, auctionID = 1 } }
       local rows = topRows(GC, { lot }, "listed")
-      local GOLD = GC.Theme.color.goldHi or GC.Theme.color.gold
-      assert.equal("360 under you", rows[2].priceStand.text)
-      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[2].priceStand.color)
+      local AMBER = GC.Theme.color.amber
+      assert.equal("360 cheaper ahead of you", rows[2].priceStand.text)
+      assert.same({ AMBER[1], AMBER[2], AMBER[3], 1 }, rows[2].priceStand.color)
+      assert.equal("Cancel lot", rows[2].action.label)
       local FG = GC.Theme.color.fg
       assert.same({ FG[1], FG[2], FG[3], 1 }, rows[2].cells.price.color)
 

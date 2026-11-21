@@ -447,9 +447,9 @@ describe("Sell tab, the cancel queue control", function()
       assert.equal("position", rows[2].kind)
     end)
 
-    it("says how the stock is listed: how many, in how many lots", function()
+    it("says how much of the stock is listed, and that none of it has sold yet", function()
       compose(); render()
-      assert.matches("400 in 1 lot", shownRows()[2].itemStock.text, 1, true)
+      assert.matches("400 listed · none sold yet", shownRows()[2].itemStock.text, 1, true)
     end)
 
     it("puts Cancel lot on the row that is worth cancelling, and nothing on one that is not", function()

@@ -27,6 +27,8 @@ T.color = {
   zebra   = Tokens.alpha("ink", 0.035),
   hover   = Tokens.alpha("gold", 0.16),
   watch   = rgb("yours"),
+  -- A lot standing behind cheaper ones on MY LOTS: worth a look, not an alarm.
+  amber   = rgb("warn"),
 }
 
 T.tier = {
