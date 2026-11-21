@@ -937,6 +937,28 @@ end
 -- player is still reading the Check (`manual`, until GC.Sniper._LeavePane): its verdict is not
 -- forgotten under them (review M-1). A field, not a local: this chunk sits near its 200-local
 -- ceiling.
+-- The cheapest GC.DealCard.LADDER_ROWS levels of a book, copied: the verdict outlives the book.
+function GC.Sniper._KeepLevels(levels)
+  if type(levels) ~= "table" or #levels == 0 then return nil end
+  local sorted = {}
+  for i, level in ipairs(levels) do sorted[i] = level end
+  table.sort(sorted, function(a, b) return (a.unitPrice or 0) < (b.unitPrice or 0) end)
+  local kept = {}
+  for i = 1, math.min(#sorted, GC.DealCard and GC.DealCard.LADDER_ROWS or 5) do
+    kept[i] = { unitPrice = sorted[i].unitPrice, quantity = sorted[i].quantity }
+  end
+  return kept
+end
+
+-- The check panel's quantity stepper: one more or one less, committed the way a typed quantity is.
+function GC.Sniper._StepQty(d, delta)
+  local box = d and d.qtyBox
+  local eb = box and box.editBox
+  if not (eb and box.onCommit) then return end
+  eb:SetText(tostring(math.max(1, (tonumber(eb:GetText()) or 1) + delta)))
+  box.onCommit(eb)
+end
+
 function GC.Sniper._RefusalLapsed(v, now)
   return not v.buyable and not v.unverified and not v.cap and not v.manual
     and (now - v.at) > LIM.REFUSAL_TTL_SECONDS
@@ -955,6 +977,7 @@ local function renderList()
   local show = showRefused()
   local kept = {}
   refusedCount = 0
+  local hiddenItems = 0
   for i = 1, #list do
     local deal = list[i]
     local verdict = verdictFor(deal)
@@ -977,7 +1000,12 @@ local function renderList()
     -- A deal only the wallet limit refused is not one of them either, background or manual: it
     -- passed every other gate and needs gold, not hiding (owner report 2026-09-24 -- with no gold
     -- on the character, every row went to Hidden and the market read as empty).
-    if verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
+    -- An item the player hid from its check panel (HIDE ITEM) leaves the board the same way, and
+    -- the same toggle brings it back; it is counted on its own, never as one the check refused.
+    if GC.Sniper._ItemHidden(deal.itemID) and not pinned then
+      hiddenItems = hiddenItems + 1
+      if show then kept[#kept + 1] = deal end
+    elseif verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
         and not verdict.cap and not verdict.needsGold and not pinned then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
@@ -1086,9 +1114,18 @@ local function renderList()
     end
   end
   GC.Sniper._pendingRows = pendingRows
+  GC.Sniper._hiddenItemCount = hiddenItems
 
   return pinnedRows
 end
+
+-- Items the player hid from the board from their check panel (HIDE ITEM), saved with the
+-- settings. The board's Hidden toggle shows them again, and the panel's button un-hides one.
+function GC.Sniper._ItemHidden(itemID)
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  return (itemID and cfg and cfg.hiddenItems and cfg.hiddenItems[itemID]) and true or false
+end
+
 
 -- Dim suffix appended after the (possibly quality-colored) item name; a separate color code
 -- of its own so it never inherits the name's quality color.
@@ -3795,6 +3832,16 @@ local function repaintToggledRow(itemID)
   flashRow(row)
 end
 
+-- Hides `itemID` from the board, or shows it again; whether it is hidden now.
+function GC.Sniper._ToggleHidden(itemID)
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  if not (cfg and itemID) then return false end
+  cfg.hiddenItems = cfg.hiddenItems or {}
+  cfg.hiddenItems[itemID] = (not cfg.hiddenItems[itemID]) or nil
+  refreshRows()
+  return cfg.hiddenItems[itemID] == true
+end
+
 function GC.Sniper._TogglePin(itemID)
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   if not cfg or not itemID then return end
@@ -5118,6 +5165,8 @@ end
 -- an accent (green when armReady confirms Buy, red on refusal/expiry) message.
 local function setDialogStatus(text, r, g, b)
   if not dialog then return end
+  -- The panel's hero has said the reason already (UI/SniperInspector.lua); it is said once.
+  if dialog.quietReasons and text and dialog.quietReasons[text] then text = "" end
   dialog.status:SetText(text or "")
   -- Theme.color.fgDim's own literal values (0.55, 0.54, 0.52 -- Theme.lua), not a live table
   -- read: several purchase-wiring specs build a bare-bones GC.Theme fixture with no `color`
@@ -5274,7 +5323,8 @@ DG.TOGGLE_BLOCK_H = Theme.pad.xs + DG.TOGGLE_H -- 26
 DG.GRID_H = Theme.pad.s + DG.GRID_ROWS * DG.GRID_ROW_H
 
 -- bottom margin + cancel + gap + primary + gap-to-status, measured up from the dialog's own
--- bottom edge.
+-- bottom edge. The panel UI/SniperInspector.lua lays out has a taller footer, the quantity
+-- stepper over BUY: it sets d.footerH, which every anchor below prefers.
 -- 12 + 32 + 4 + 22 + 8 = 78
 DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
 -- Construction-time defaults, before any verdict is known: the TALLEST shape, a purchase with
@@ -5345,8 +5395,9 @@ local function resizeDialogDiagnostics()
     -- "price confirmed" right above BUY. The fixed banner slot (LIM.REQUOTE_BANNER_HEIGHT) is
     -- reserved ABOVE the status (see the banner's anchors in createDialog), so the two never
     -- overlap regardless of how much room the evidence grid above actually used.
-    dialog.status:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H)
-    dialog.status:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H)
+    local footerH = dialog.footerH or DG.CONTROLS_H
+    dialog.status:SetPoint("BOTTOMLEFT", Theme.pad.m, footerH)
+    dialog.status:SetPoint("BOTTOMRIGHT", -Theme.pad.m, footerH)
   end
   dialog.diagnosticHeight = height
 
@@ -5565,6 +5616,15 @@ local function drawVerdict(deal, decision, market)
     end
   end
 
+  if dialog.ladderBlock and GC.SniperInspector then
+    local kept = verdictFor(deal)
+    GC.SniperInspector.Paint(dialog, { cv = verdict, decision = decision, deal = deal, market = market,
+      figure = figure, figureColor = figureColor, caption = caption, sentence = sentence,
+      levels = dialog.bookLevels or (kept and kept.levels), checkedAt = kept and kept.at or GetTime(),
+      isPinned = function() return isPinned(deal.itemID) end,
+      isHidden = function() return GC.Sniper._ItemHidden(deal.itemID) end,
+      maxQty = function() return deal.isCommodity and GC.Sniper._QtyMax and GC.Sniper._QtyMax(deal) or nil end })
+  end
   if dialog.layoutBlocks then
     -- A realm lot of one item has no quantity to choose: "1 (whole lot)" was a row saying so.
     local candidate = type(decision.candidate) == "table" and decision.candidate or nil
@@ -7548,6 +7608,9 @@ stampVerdict = function(deal, data, manual)
     -- What the buy needs, when the wallet limit alone refused it (SniperDecision.Evaluate):
     -- renderList keeps the row, GC.BoardRows labels it "needs <gold>".
     needsGold = decision and decision.needsGold or nil,
+    -- The cheapest levels this check read, for the check panel's ladder when it opens on this
+    -- verdict after the book itself has gone (dialog.bookLevels is the panel's, and cleared).
+    levels = data and GC.Sniper._KeepLevels(data.levels) or nil,
   }
   refreshRows()
 
@@ -10161,6 +10224,8 @@ local function qtyMaxAvailable(deal)
   if not maxQty or maxQty < 1 then maxQty = 1 end
   return maxQty
 end
+-- The same ceiling, for the check panel's ALL chip (UI/SniperInspector.lua).
+GC.Sniper._QtyMax = qtyMaxAvailable
 
 -- Keeps the dialog's Quantity row (box + "of N" label + quick-fill buttons, or the
 -- non-commodity "(whole lot)" fallback) in sync with the CURRENT dialog.deal and
@@ -10553,8 +10618,16 @@ local function createDialog()
     nameText:SetText(nameText:GetText() or "") -- laid out at its width before it is measured
     local h = nameText:GetStringHeight() or 0
     nameText:ClearAllPoints()
-    nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", Theme.pad.s, -math.max(0, math.floor((DG.ICON - h) / 2)))
-    local headerH = math.max(DG.HEADER_H, math.ceil(Theme.pad.m + h + Theme.pad.s))
+    -- With the caps line under it (UI/SniperInspector.lua's "COMMODITY · 412 LISTED"), the two
+    -- are centred on the icon together.
+    local kindH = d.kindText and 12 or 0
+    nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", Theme.pad.s, -math.max(0, math.floor((DG.ICON - h - kindH) / 2)))
+    if d.kindText then
+      d.kindText:ClearAllPoints()
+      d.kindText:SetPoint("TOPLEFT", nameText, "BOTTOMLEFT", 0, -2)
+      d.kindText:SetWidth(DG.HEADER_NAME_W)
+    end
+    local headerH = math.max(DG.HEADER_H, math.ceil(Theme.pad.m + h + kindH + Theme.pad.s))
     if headerH ~= d.headerH then
       d.headerH = headerH
       if d.layoutBlocks then d.layoutBlocks() end
@@ -10937,6 +11010,25 @@ local function createDialog()
       block:Show()
       y = y - height
     end
+    -- The panel as UI/SniperInspector.lua draws it: the hero, the cheapest listings, the three
+    -- tiles, and the footer it pins to the bottom. The four facts, the reconciliation, the
+    -- quantity block and the transcript behind Details are not stacked: the facts and the
+    -- transcript were a column of dashes on most verdicts and said the reason a third and a
+    -- fourth time (owner, 2026-11-21), the quantity is the footer's stepper now. The stack below
+    -- this branch is the panel without that module, as the headless specs load it.
+    if d.ladderBlock then
+      local inspect = d.inspect or {}
+      place(heroBlock, inspect.heroH or DG.HERO_H, true)
+      for _, block in ipairs({ reconcileBlock, qtyBlock, factsBlock, gridBlock }) do block:Hide() end
+      detailsToggle:Hide()
+      place(d.ladderBlock, inspect.ladderH or 0, inspect.ladderH ~= nil)
+      place(d.tilesBlock, inspect.tilesH or 0, inspect.tilesH ~= nil)
+      d.evidenceTop = y - Theme.pad.xs
+      d.evidenceTopOpen, d.evidenceTopClosed = d.evidenceTop, d.evidenceTop
+      d.fixedHeightClosed = -y + DG.STATUS_H + (d.footerH or DG.CONTROLS_H)
+      d.fixedHeightOpen, d.fixedHeight = d.fixedHeightClosed, d.fixedHeightClosed
+      return
+    end
     local reconcile = shape.reconcile and true or false
     -- Default TRUE: the shape is only known once a decision has been stamped, and before that
     -- the panel is showing a quantity it fully intends to buy.
@@ -11208,6 +11300,19 @@ local function createDialog()
   primaryBtn:SetLabel(GC.L["Buy"])
   primaryBtn:SetScript("OnClick", onDialogPrimaryClick)
   d.primaryBtn = primaryBtn
+
+  -- The panel's ladder, tiles and footer (UI/SniperInspector.lua). WATCH pins the item, HIDE
+  -- hides it from the board and closes the panel, the stepper commits like a typed quantity.
+  if GC.SniperInspector then
+    GC.SniperInspector.Build(d, {
+      watch = function() if d.deal then GC.Sniper._TogglePin(d.deal.itemID) end end,
+      hide = function()
+        if d.deal and GC.Sniper._ToggleHidden(d.deal.itemID) then d.close() end
+      end,
+      step = function(delta) GC.Sniper._StepQty(d, delta) end,
+      all = function() applyQuickFillQty(100) end,
+    })
+  end
 
   -- Esc (via UISpecialFrames) hides the dialog. Before Confirm that follows the ordinary
   -- abort path; after Confirm abortRowPurchase deliberately preserves server ownership, so
@@ -12623,7 +12728,7 @@ local function createFrame()
     -- it came through here.
     -- Stamped every time, for the reason refreshAutoButton gives -- this button's remembered
     -- on/off is the very field the 3c beta's taint log named.
-    btn:SetLabel((show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount))
+    btn:SetLabel((show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount + (GC.Sniper._hiddenItemCount or 0)))
     btn:SetVariant(show and "active" or "ghost")
   end
   refreshVerifyButton(f)

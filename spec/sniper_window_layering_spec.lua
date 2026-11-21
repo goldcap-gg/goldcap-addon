@@ -388,7 +388,7 @@ describe("Sniper window layering", function()
       local drawer = drawerOf(GC)
       drawer.nameText.GetStringHeight = function() return 40 end
       drawer.fitHeader()
-      assert.equal(12 + 40 + 8, drawer.headerH)
+      assert.equal(12 + 40 + 12 + 8, drawer.headerH) -- the name, and the caps line under it
       drawer.nameText.GetStringHeight = function() return 18 end
       drawer.fitHeader()
       assert.equal(12 + 32 + 8, drawer.headerH)

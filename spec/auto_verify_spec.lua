@@ -663,6 +663,48 @@ describe("Deals background verification", function()
     assert.equal("ghost", api.rows[1].buy.variant)
   end)
 
+  -- HIDE ITEM, from the item's check panel: the row leaves the board like a refused one, the same
+  -- toggle shows it again, it is counted on its own, and the panel's button brings it back.
+  it("hides an item the player hid, counts it apart from refusals, and shows it again", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100), deal(2, 200) })
+
+    assert.is_true(api.GC.Sniper._ToggleHidden(1))
+    assert.is_true(api.GC.Sniper._ItemHidden(1))
+    local list = api.renderList()
+    assert.equal(1, #list)
+    assert.equal(2, list[1].itemID)
+    assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    assert.equal(1, api.GC.Sniper._hiddenItemCount)
+
+    api.GC.db.settings.sniper.showRefused = true
+    assert.equal(2, #api.renderList())
+    api.GC.db.settings.sniper.showRefused = false
+
+    assert.is_false(api.GC.Sniper._ToggleHidden(1))
+    assert.equal(2, #api.renderList())
+    assert.equal(0, api.GC.Sniper._hiddenItemCount)
+  end)
+
+  -- The check panel's ladder reads the book the check read; the verdict keeps its cheapest levels
+  -- for a panel opened after that book has gone.
+  it("keeps the cheapest levels the check read on its verdict", function()
+    local api = loadSniper(avoid)
+    board(api, { deal(1, 100) })
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.same({ { unitPrice = 100, quantity = 50 } }, api.verdicts[1].levels)
+
+    local kept = api.GC.Sniper._KeepLevels({
+      { unitPrice = 9, quantity = 1 }, { unitPrice = 3, quantity = 2 }, { unitPrice = 5, quantity = 1 },
+      { unitPrice = 1, quantity = 4 }, { unitPrice = 7, quantity = 1 }, { unitPrice = 8, quantity = 1 },
+    })
+    assert.equal(5, #kept)
+    assert.same({ 1, 3, 5, 7, 8 }, { kept[1].unitPrice, kept[2].unitPrice, kept[3].unitPrice,
+      kept[4].unitPrice, kept[5].unitPrice })
+    assert.is_nil(api.GC.Sniper._KeepLevels(nil))
+  end)
+
   it("voids a verdict when the asking price moves", function()
     local api = loadSniper(avoid)
     board(api, { deal(1, 100) })
