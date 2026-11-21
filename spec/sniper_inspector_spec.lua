@@ -60,7 +60,7 @@ describe("check panel inspector", function()
       cv = { tone = "refuse", reason = "profit_below_minimum" },
       decision = { reasons = { "profit_below_minimum" }, ceiling = 850, refUnit = 1700, entryUnitDisplay = 1520 },
       deal = { itemID = 7, forever = "market", isCommodity = true, avail = 412, refUnit = 1700 },
-      market = {}, levels = LEVELS, checkedAt = now - 19 * 60,
+      market = {}, levels = LEVELS, checkedAt = function() return now - 19 * 60 end,
       figure = "-12c", sentence = GC.SniperDecision.ReasonText("profit_below_minimum"),
       caption = "",
     }
@@ -75,7 +75,7 @@ describe("check panel inspector", function()
       decision = { reasons = {}, ceiling = 12, refUnit = 13, entryTotal = 100, quantity = 10, stressProfit = 30 },
       deal = { itemID = 8, forever = "vendor", isCommodity = true, avail = 40 },
       market = {}, levels = { { unitPrice = 10, quantity = 10 }, { unitPrice = 15, quantity = 4 } },
-      checkedAt = now - 4, figure = "+30c", figureColor = GC.Kit.Tokens.color.profit,
+      checkedAt = function() return 5000 - 4 end, figure = "+30c", figureColor = GC.Kit.Tokens.color.profit,
       caption = "sure profit: a vendor pays 13c each", sentence = "Checked against the live auction house a moment ago.",
       maxQty = function() return 10 end,
     }
@@ -153,6 +153,27 @@ describe("check panel inspector", function()
       assert.is_true(d.cancelBtn:IsShown())
       assert.is_true(d.primaryBtn:IsShown())
       assert.is_false(d.watchBtn:IsShown())
+    end)
+
+    it("says Checking... while the live check is on its way, and no age before any check", function()
+      local d = panel()
+      refusal(d, { checkedAt = function() return nil end })
+      assert.equal("WON'T BUY", d.verdictLabel:GetText())
+      SI.Pending(d)
+      assert.equal("Checking...", d.verdictLabel:GetText())
+      assert.is_false(d.verdictAmount:IsShown())
+      refusal(d) -- the answer
+      assert.equal("WON'T BUY · CHECKED 19m AGO", d.verdictLabel:GetText())
+    end)
+
+    it("keeps the panel's own button in one place whatever the verdict", function()
+      local d = panel()
+      refusal(d)
+      local refusedAt = { W.state(d.primaryBtn).points[1][5], d.primaryBtn:GetWidth() }
+      local watchAt = W.state(d.watchBtn).points[1][5]
+      buy(d)
+      assert.same(refusedAt, { W.state(d.primaryBtn).points[1][5], d.primaryBtn:GetWidth() })
+      assert.is_true(watchAt > refusedAt[1]) -- WATCH sits above it, where the stepper goes on a buy
     end)
 
     it("keeps the reason as the sentence when there is no limit to measure by", function()

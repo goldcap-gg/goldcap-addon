@@ -136,9 +136,6 @@ function UI.Layout()
   local f, m = card, card and card.model
   if not (f and m) then return end
   local T, B, DC = GC.Theme, GC.Kit.Tokens.blizzard, GC.DealCard
-  local width = math.max(MIN_W, math.floor((GameTooltip:GetWidth() or 0) + 0.5))
-  local inner = width - 2 * PAD
-  f:SetWidth(width)
   local refused = DC.Refused(m.verdict)
   local edge = refused and B.text4 or B.gold
   f.edge:SetColorTexture(edge[1], edge[2], edge[3], 1)
@@ -146,6 +143,21 @@ function UI.Layout()
   local pill = DC.Pill(m.deal, m.verdict, m.verdict and m.verdict.at and m.now and (m.now() - m.verdict.at) or nil)
   f.pill:SetLabel(pill.text, colour(pill.tone))
   f.pill:SetWidth(textWidth(f.pill.text, 60) + 14)
+  -- As wide as the tooltip, never under MIN_W, and wider still when a language's pill beside the
+  -- brand, or its three scale labels, need it: a cut word is never drawn.
+  local bar, s = f.bar, m.scale
+  local need = 14 + 5 + textWidth(f.brand, 60) + 12 + f.pill:GetWidth()
+  if s then
+    local sum = 0
+    for i, label in ipairs(bar.labels) do
+      label:SetText(s.labels[i])
+      sum = sum + textWidth(label, 60)
+    end
+    need = math.max(need, sum + 2 * 12)
+  end
+  local width = math.max(MIN_W, math.floor((GameTooltip:GetWidth() or 0) + 0.5), need + 2 * PAD)
+  local inner = width - 2 * PAD
+  f:SetWidth(width)
   local y = -PAD - HEAD_H - GAP
 
   if m.big then
@@ -164,7 +176,6 @@ function UI.Layout()
     f.bigValue:Hide()
   end
 
-  local bar, s = f.bar, m.scale
   if s then
     bar:ClearAllPoints()
     bar:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, y - 3)
@@ -177,9 +188,20 @@ function UI.Layout()
     paint(bar.labels[1], s.under and B.profit or B.loss)
     bar.cheap:SetColorTexture((s.under and B.profit or B.loss)[1], (s.under and B.profit or B.loss)[2],
       (s.under and B.profit or B.loss)[3], 1)
-    local third = math.floor(inner / 3)
+    -- The cheapest from the left edge, the AH value or vendor price to the right one, the limit
+    -- between them, each at its own width.
+    local labelY = y - BAR_H - 10
     for i, label in ipairs(bar.labels) do
-      placeText(label, PAD + (i - 1) * third, y - BAR_H - 10, third, s.labels[i])
+      label:ClearAllPoints()
+      label:SetWidth(textWidth(label, 60) + 2)
+      if i == 1 then
+        label:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, labelY)
+      elseif i == 3 then
+        label:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD, labelY)
+      else
+        label:SetPoint("TOP", f, "TOPLEFT", PAD + math.floor(inner / 2), labelY)
+      end
+      label:Show()
     end
     bar:Show()
     y = y - BAR_H - 10 - 12 - GAP
@@ -260,15 +282,21 @@ function UI.Layout()
       h.key:SetText(hint.key)
       paint(h.key, B.text1)
       h:SetWidth(textWidth(h.key, 20) + 8)
+      h.text:SetText(hint.text)
+      -- A hint that does not fit what is left of the row starts the next one.
+      local wide = h:GetWidth() + 4 + textWidth(h.text, 40)
+      if x > PAD and x + wide > width - PAD then
+        x = PAD
+        y = y - HINT_H - 2
+      end
       h:ClearAllPoints()
       h:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
       h:Show()
       h.text:ClearAllPoints()
       h.text:SetPoint("LEFT", h, "RIGHT", 4, 0)
-      h.text:SetText(hint.text)
       paint(h.text, B.text3)
       h.text:Show()
-      x = x + h:GetWidth() + 4 + textWidth(h.text, 40) + 10
+      x = x + wide + 10
     end
     for i = #m.hints + 1, #f.hints do f.hints[i]:Hide() f.hints[i].text:Hide() end
     y = y - HINT_H

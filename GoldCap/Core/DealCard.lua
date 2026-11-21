@@ -67,6 +67,15 @@ function DC.Pill(deal, verdict, age)
   return { tone = "refuse", text = GC.L["WON'T BUY"] }
 end
 
+--- The cheapest price the live check read for the row (the first of the levels its verdict kept),
+-- else the price the row was found at. A board row sits under its buy limit when it is found; a
+-- check that refused it over the limit saw a book that had moved.
+function DC.Cheapest(deal, verdict)
+  local levels = verdict and verdict.levels
+  local first = type(levels) == "table" and levels[1]
+  return first and first.unitPrice or verdict and verdict.unitPrice or deal and deal.unitPrice
+end
+
 --- The card's one big number, or nil: { label, text, tone } with tone "profit" or "loss".
 -- A refused row with a buy limit says how far over it the cheapest listing is; a deal says what
 -- it makes, "+" when the figure is exact (a vendor pays a fixed price) and "~+" when it is an
@@ -75,7 +84,7 @@ function DC.Big(deal, verdict, profit)
   deal = deal or {}
   if deal.kind == "rare" then return nil end
   if DC.Refused(verdict) then
-    local cheapest = verdict.unitPrice or deal.unitPrice
+    local cheapest = DC.Cheapest(deal, verdict)
     if positive(deal.ceiling) and positive(cheapest) and cheapest > deal.ceiling then
       return { label = GC.L["Over your limit by"], text = money(cheapest - deal.ceiling), tone = "loss" }
     end

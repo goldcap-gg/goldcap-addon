@@ -23,6 +23,10 @@ local PRICE_W, QTY_W = 72, 52
 local TILE_H, TILE_GAP = 40, 6
 local DASHES = 28
 local PRIMARY_H, SMALL_H, STEP_H, STATUS_H = 32, 22, 20, 32
+-- The footer's three rows, bottom up: HIDE (and Cancel), the panel's own button (BUY or CHECK),
+-- then WATCH or the quantity stepper. The panel's own button keeps one rectangle in every state,
+-- so a verdict that changes under the cursor never puts BUY where WATCH or CHECK was.
+local TOP_ROW_H = PRIMARY_H
 local KICKER_H, FIGURE_H = 12, 28
 -- How often the panel repaints the check's age and re-reads the purchase stage for its footer.
 local TICK_SECONDS = 0.2
@@ -126,8 +130,8 @@ function SI.Build(d, act)
   -- The quantity box moves into the footer's stepper, between - and +.
   if d.qtyBox then d.qtyBox:SetParent(d) end
   -- The footer's height, which the status line and the requote banner sit on:
-  -- margin + hide/cancel + gap + BUY + gap + stepper + gap = 102.
-  d.footerH = T.pad.m + SMALL_H + T.pad.xs + PRIMARY_H + T.pad.xs + STEP_H + T.pad.s
+  -- margin + hide/cancel + gap + BUY or CHECK + gap + WATCH or stepper + gap = 114.
+  d.footerH = T.pad.m + SMALL_H + T.pad.xs + PRIMARY_H + T.pad.xs + TOP_ROW_H + T.pad.s
   -- The requote banner's slot stays over the status line, as the panel reserves it.
   if d.banner then
     d.banner:ClearAllPoints()
@@ -280,14 +284,16 @@ local function facts(ctx)
     marketValue = market.marketValue or deal.refUnit, listed = listed,
     soldPerDay = market.soldPerDay or deal.soldPerDay,
     entryTotal = decision.entryTotal, quantity = decision.quantity,
-    refUnit = decision.refUnit or decision.exitUnit or deal.refUnit,
+    -- Forever's AH value or vendor price; retail's exit is a stress price, not a market value.
+    refUnit = decision.refUnit or (deal.forever and decision.exitUnit) or deal.refUnit,
     profit = decision.stressProfit, forever = deal.forever,
   }
 end
 
 --- Draws the verdict `ctx` holds: { cv (CheckVerdict.Build's answer), decision, deal, market,
--- levels (the book the check read), checkedAt (GetTime of the check), figure, figureColor,
--- caption, sentence (what drawVerdict worked out), pinned, hidden }.
+-- levels (the book the check read), checkedAt() (GetTime of the board's verdict for the row, nil
+-- before any check), figure, figureColor, caption, sentence (what drawVerdict worked out),
+-- isPinned(), isHidden(), maxQty() }.
 function SI.Paint(d, ctx)
   local DC = GC.DealCard
   local cv, decision, deal = ctx.cv or {}, ctx.decision or {}, ctx.deal or {}
@@ -306,6 +312,9 @@ function SI.Paint(d, ctx)
   local quiet = {}
   for _, reason in ipairs(decision.reasons or {}) do quiet[GC.SniperDecision.ReasonText(reason)] = true end
   quiet[GC.L["live verification required"]] = true
+  if type(decision.needsGold) == "number" then
+    quiet[(GC.L["not enough gold on this character: you need %s"]):format(GC.Util.FormatGoldCeil(decision.needsGold))] = true
+  end
   d.quietReasons = ctx.state ~= "buy" and quiet or nil
   if d.status and d.quietReasons and d.quietReasons[d.status:GetText() or ""] then d.status:SetText("") end
   SI.Refresh(d)
@@ -337,35 +346,34 @@ local function layoutFooter(d, flags)
     btn:SetSize(w, h)
     btn:Show()
   end
-  local refusal = flags.watch and not flags.buy
-  -- The bottom row: CHECK (the panel's own primary button, as a secondary) or Cancel while a
-  -- purchase is open on the server, beside HIDE.
-  local partner = flags.cancel and d.cancelBtn or flags.check and d.primaryBtn or nil
-  local rowH = refusal and PRIMARY_H or SMALL_H
-  if partner then
-    put(partner, 0, half, partner == d.primaryBtn and PRIMARY_H or SMALL_H)
-    put(d.hideBtn, half + T.pad.xs, width - half - T.pad.xs, rowH)
+  -- The bottom row: HIDE, with Cancel beside it while a purchase is open on the server.
+  if flags.cancel then
+    put(d.cancelBtn, 0, half, SMALL_H)
+    put(d.hideBtn, half + T.pad.xs, width - half - T.pad.xs, SMALL_H)
   else
-    put(d.hideBtn, 0, width, rowH)
+    d.cancelBtn:Hide()
+    put(d.hideBtn, 0, width, SMALL_H)
   end
-  if not flags.cancel then d.cancelBtn:Hide() end
-  y = y + rowH + T.pad.xs
-  -- Switched only when it changes: the purchase flow colours this button's label (a red
-  -- Confirm), and a variant change repaints it.
+  y = y + SMALL_H + T.pad.xs
+  -- The panel's own button, always here: BUY (or Confirm) on a buy, CHECK as a secondary on a
+  -- refusal. Switched only when it changes: the purchase flow colours its label (a red Confirm),
+  -- and a variant change repaints it.
+  local refusal = flags.watch and not flags.buy
   local variant = refusal and "ghost" or "primary"
   if d.inspectVariant ~= variant then
     d.inspectVariant = variant
     d.primaryBtn:SetVariant(variant)
   end
+  put(d.primaryBtn, 0, width, PRIMARY_H)
+  y = y + PRIMARY_H + T.pad.xs
+  -- The top row: WATCH on a refusal, the quantity stepper on a buy.
+  local steppers = { d.qtyMinus, d.qtyBox, d.qtyPlus, d.qtyAll }
   if refusal then
-    put(d.watchBtn, 0, width, PRIMARY_H)
+    put(d.watchBtn, 0, width, TOP_ROW_H)
   else
     d.watchBtn:Hide()
-    put(d.primaryBtn, 0, width, PRIMARY_H)
   end
-  y = y + PRIMARY_H + T.pad.xs
-  local steppers = { d.qtyMinus, d.qtyBox, d.qtyPlus, d.qtyAll }
-  if flags.qty and d.qtyBox then
+  if flags.qty and d.qtyBox and not refusal then
     local x = 0
     for _, w in ipairs(steppers) do
       local wide = w == d.qtyBox and 64 or w == d.qtyAll and 70 or STEP_H + 2
@@ -379,14 +387,16 @@ end
 
 --- Repaints what moves while the panel is up: the check's age and the footer, which follows the
 -- purchase stage (Cancel stays while a purchase is open on the server).
-function SI.Refresh(d)
+function SI.Refresh(d, force)
   local inspect = d.inspect
   local ctx = inspect and inspect.ctx
   if not ctx then return end
   local DC = GC.DealCard
-  local age = ctx.checkedAt and GetTime and math.max(0, GetTime() - ctx.checkedAt) or nil
+  -- Read live: the board records the check's verdict after the panel is stamped with it.
+  local at = ctx.checkedAt and ctx.checkedAt() or nil
+  local age = at and GetTime and math.max(0, GetTime() - at) or nil
   local cv = ctx.cv or {}
-  local label = DC.HeroLabel(cv.tone, age, cv.group)
+  local label = inspect.pending and GC.L["Checking..."] or DC.HeroLabel(cv.tone, age, cv.group)
   if d.verdictLabel:GetText() ~= label then d.verdictLabel:SetText(label) end
   d.kindText:SetText(kindLine(ctx.deal or {}, ctx.levels))
 
@@ -405,10 +415,19 @@ function SI.Refresh(d)
   d.qtyAll:SetLabel(most and (GC.L["ALL %s"]):format(GC.DealCard.Count(most)) or GC.L["ALL"])
   local sig = table.concat({ tostring(flags.watch), tostring(flags.check), tostring(flags.cancel),
     tostring(flags.buy), tostring(flags.qty), tostring(d:GetWidth()) }, "|")
-  if sig ~= inspect.footerSig then
+  if force or sig ~= inspect.footerSig then
     inspect.footerSig = sig
     layoutFooter(d, flags)
   end
+end
+
+--- The panel was stamped with what the board knew, and the live check is on its way: the label
+-- says so, and the figure waits for the answer (never a "-" in its place).
+function SI.Pending(d)
+  if not (d.inspect and d.inspect.ctx) then return end
+  d.inspect.pending = true
+  d.verdictAmount:Hide()
+  SI.Refresh(d)
 end
 
 -- For the specs: the footer flags the panel last laid out.

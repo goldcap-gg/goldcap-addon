@@ -97,10 +97,11 @@ WIN.CONTENT_RIGHT_GUTTER = 32
 -- aside while it is open: it used to lie over the list on any window under 990px, the docked
 -- auction house always, and covered the list's price column (owner, 2026-11-21). The list
 -- narrows instead, and drops its least important columns to keep the item readable
--- (computeHidden's `open` drops, WIN.PANEL_ITEM_MIN). The Buy column is never one of them: the
+-- (computeHidden's `open` drops, WIN.PANEL_ITEM_MIN). 88 keeps the unit price in the docked
+-- auction house (792px: the item gets 92px with it, its name on two lines). The Buy column is never one of them: the
 -- row's own left click acts through that button, and a hidden one would leave the rows of an
 -- open panel unclickable.
-WIN.PANEL_ITEM_MIN = 120
+WIN.PANEL_ITEM_MIN = 88
 
 WIN.TIER_W = 80          -- the verdict column on retail
 WIN.FOREVER_TIER_W = 112 -- and on WoW: Forever, whose verdicts are words (see createFrame)
@@ -5620,7 +5621,8 @@ local function drawVerdict(deal, decision, market)
     local kept = verdictFor(deal)
     GC.SniperInspector.Paint(dialog, { cv = verdict, decision = decision, deal = deal, market = market,
       figure = figure, figureColor = figureColor, caption = caption, sentence = sentence,
-      levels = dialog.bookLevels or (kept and kept.levels), checkedAt = kept and kept.at or GetTime(),
+      levels = dialog.bookLevels or (kept and kept.levels),
+      checkedAt = function() local v = verdictFor(deal) return v and v.at end,
       isPinned = function() return isPinned(deal.itemID) end,
       isHidden = function() return GC.Sniper._ItemHidden(deal.itemID) end,
       maxQty = function() return deal.isCommodity and GC.Sniper._QtyMax and GC.Sniper._QtyMax(deal) or nil end })
@@ -6716,7 +6718,7 @@ end
 function GC.Sniper._CardModel(deal, verdict, pinned)
   local DC, B = GC.DealCard, GC.Kit.Tokens.blizzard
   local _, _, profit = GC.BoardRows.Figures(deal, verdict)
-  local cheapest = verdict and verdict.unitPrice or deal.unitPrice
+  local cheapest = DC.Cheapest(deal, verdict)
   local scale = deal.forever and deal.refSource ~= "group"
     and DC.Scale(cheapest, deal.ceiling, deal.refUnit, deal.forever) or nil
   local big = DC.Big(deal, verdict, profit)
@@ -6741,7 +6743,9 @@ function GC.Sniper._CardModel(deal, verdict, pinned)
     note(GC.L["Watching: pinned, but not a deal right now"], B.text3)
     note(GC.Sniper._WatchNote(deal), B.text3)
   end
-  local lines = GC.Tooltip and GC.Tooltip.ItemLines
+  -- Only while the player keeps GoldCap's lines in item tooltips (Settings > TOOLTIP).
+  local shown = GC.db and GC.db.settings and GC.db.settings.tooltip
+  local lines = shown and GC.Tooltip and GC.Tooltip.ItemLines
     and GC.Tooltip.ItemLines(deal.itemID, time(), GC.Sniper._RowItemLink(deal.itemID)) or nil
   return { deal = deal, verdict = verdict, now = GetTime, big = big, scale = scale,
     chips = DC.Chips(deal), notes = notes, facts = DC.Facts(lines, scale ~= nil),
@@ -10286,6 +10290,12 @@ refreshQtyRow = function()
     eb:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3], 1)
     for _, btn in pairs(dialog.quickFillBtns) do btn:Disable() end
   end
+  -- The footer's stepper (UI/SniperInspector.lua) follows the box, and the box goes back where
+  -- the footer puts it: the Show above is for the panel without that module.
+  for _, btn in ipairs({ dialog.qtyMinus or false, dialog.qtyPlus or false, dialog.qtyAll or false }) do
+    if btn then if editable then btn:Enable() else btn:Disable() end end
+  end
+  if dialog.ladderBlock and GC.SniperInspector then GC.SniperInspector.Refresh(dialog, true) end
 end
 
 -- Only meaningful while the dialog is genuinely offering a "click Buy" decision (stage
@@ -11503,6 +11513,7 @@ local function openDialog(row, deal)
       dialog.verdictAmountNote:SetText("")
       dialog.verdictAmountNote:Show()
     end
+    if GC.SniperInspector then GC.SniperInspector.Pending(dialog) end
     setDialogStatus(GC.L["checking live safety..."])
     startRequery(row, deal) -- pins the row ("requerying"); only a SAFE commodity decision arms Buy
   end

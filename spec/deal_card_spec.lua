@@ -41,6 +41,14 @@ describe("DealCard", function()
       assert.same({ label = "Over your limit by", text = GC.Util.FormatMoney(670), tone = "loss" }, big)
     end)
 
+    it("measures the cheapest listing the check read, not the price the row was found at", function()
+      local verdict = { status = "WATCH", unitPrice = 800, levels = { { unitPrice = 1520, quantity = 3 } } }
+      assert.equal(1520, DC.Cheapest({ unitPrice = 800 }, verdict))
+      assert.equal(GC.Util.FormatMoney(670), DC.Big({ unitPrice = 800, ceiling = 850 }, verdict, 0).text)
+      -- Refused for another reason, under its limit: no number, the reason says why.
+      assert.is_nil(DC.Big({ unitPrice = 800, ceiling = 850 }, { status = "WATCH", unitPrice = 800 }, 0))
+    end)
+
     it("has no number for a refusal without a limit", function()
       assert.is_nil(DC.Big({ unitPrice = 1520 }, { status = "WATCH" }, 0))
     end)

@@ -108,6 +108,22 @@ describe("deal card", function()
     assert.equal("watch it", card.hints[1].text:GetText())
   end)
 
+  -- A language whose words run wider (CHAR_W stands in for one): the card grows to hold the pill
+  -- beside the brand rather than cut it, and a key hint that does not fit starts a new row.
+  it("widens for a wide pill and wraps its key hints", function()
+    local wide = W.CHAR_W
+    finally(function() W.CHAR_W = wide end)
+    W.CHAR_W = 9
+    local m = model()
+    m.verdict = { needsGold = 53224680, at = 100 }
+    m.hints = GC.DealCard.Hints({}, false, true)
+    GC.DealCardUI.Show(owner, m, window(100))
+    local card = GC.DealCardUI._Frame()
+    assert.is_true(card:GetWidth() > 300)
+    local first, third = W.state(card.hints[1]).points[1][5], W.state(card.hints[3]).points[1][5]
+    assert.is_true(third < first)
+  end)
+
   it("draws no scale and no number when the model has none", function()
     local m = model()
     m.scale, m.big = nil, nil

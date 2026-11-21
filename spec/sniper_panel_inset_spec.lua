@@ -273,7 +273,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     end)
   end
 
-  -- What the docked window keeps beside an open panel: the item, the price, the profit and Buy.
+  -- What the docked window keeps beside an open panel: the item, the unit price, the profit and Buy.
   -- The discount and the verdict word go first; Buy never does, the row's click acts through it.
   it("drops the discount and the verdict column for an open panel on a narrow window, never Buy", function()
     local function upvalue(fn, wanted)
@@ -286,11 +286,18 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     local frame = buildFrame()
     local apply = upvalue(frame.applyPanelInset, "applyColumnVisibility")
     local function hidden() return upvalue(apply, "hiddenColumns") end
-    frame.GetWidth = function() return 800 end
+    for _, width in ipairs({ 792, 800 }) do -- the docked auction house
+      frame.GetWidth = function() return width end
+      frame.applyPanelInset(true)
+      assert.is_true(hidden().disc)
+      assert.is_true(hidden().tier)
+      assert.is_nil(hidden().unit)
+      assert.is_nil(hidden().profit)
+      assert.is_nil(hidden().buy)
+    end
+    frame.GetWidth = function() return 640 end -- the smallest window: the unit price goes too
     frame.applyPanelInset(true)
-    assert.is_true(hidden().disc)
-    assert.is_true(hidden().tier)
-    assert.is_nil(hidden().profit)
+    assert.is_true(hidden().unit)
     assert.is_nil(hidden().buy)
 
     frame.applyPanelInset(false)
@@ -437,6 +444,61 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       end
     end)
 
+    -- The whole panel, through the real openDialog and stamp: a refusal, then a buy, then
+    -- another item. The inspector never enables, disables or relabels the panel's own button --
+    -- that stays the purchase flow's -- and a new item starts from its own state.
+    it("draws a refusal, a buy and the next item on the real panel, leaving BUY to the purchase flow", function()
+      local _, GC = buildFrame()
+      GC.db = { settings = { sniper = {}, tooltip = true } }
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = getUpvalue(clearDeals, "refreshRows")
+      local createRow = getUpvalue(refreshRows, "createRow")
+      local buildRowCell = getUpvalue(createRow, "buildRowCell")
+      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      local d = getUpvalue(openDialog, "createDialog")()
+      setUpvalue(openDialog, "dialog", d)
+      _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
+      finally(function() _G.Item = nil end)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
+        getKeyInfo = function() return nil end, isReady = function() return false end,
+        sendSearch = function() end, onStatus = function() end,
+      })
+      local stamp = getUpvalue(openDialog, "stampDialogFromDecision")
+      local deal = { itemID = 42, isCommodity = true, unitPrice = 1520, qty = 1, stale = true,
+        forever = "market", ceiling = 850, refUnit = 1700 }
+      openDialog({ deal = deal, purchaseToken = 1 }, deal)
+      assert.is_true(d.inspect.pending)
+
+      local touched = {}
+      for _, method in ipairs({ "Enable", "Disable", "SetLabel" }) do
+        local real = d.primaryBtn[method]
+        d.primaryBtn[method] = function(...)
+          touched[#touched + 1] = method
+          return real(...)
+        end
+      end
+      d.bookLevels = { { unitPrice = 1520, quantity = 30 }, { unitPrice = 1600, quantity = 300 } }
+      stamp(deal, { status = "AVOID", buyable = false, reasons = { "profit_below_minimum" },
+        ceiling = 850, refUnit = 1700, entryUnitDisplay = 1520, exitUnit = 1700, stressProfit = -100 })
+      assert.equal("refuse", d.inspect.ctx.state)
+      assert.is_nil(d.inspect.pending)
+      assert.is_true(d.inspect.ladderH > 0)
+
+      stamp(deal, { status = "SAFE", buyable = true, reasons = {}, ceiling = 850, refUnit = 1700,
+        quantity = 5, entryTotal = 4000, stressProfit = 2000, exitUnit = 1700 })
+      assert.equal("buy", d.inspect.ctx.state)
+      assert.same({}, touched)
+
+      d.row = nil
+      d.bookLevels = nil
+      local other = { itemID = 43, isCommodity = true, unitPrice = 100, qty = 1, stale = true }
+      openDialog({ deal = other, purchaseToken = 2 }, other)
+      assert.equal(43, d.inspect.ctx.deal.itemID)
+      assert.is_nil(d.inspect.ladderH) -- no book read for it yet: no ladder left over from 42
+      assert.is_true(d.inspect.pending)
+    end)
+
     it("leaves out a ladder with no book and tiles with no figure, without a hole", function()
       local d = realDialog(false)
       local rec = watchAll(d)
@@ -457,7 +519,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       local DOCKED_CEILING = 565 - 32 -- under the title bar
       assert.is_true(d.fixedHeight + 4 + 46 <= DOCKED_CEILING,
         ("the panel needs %d of %d"):format(d.fixedHeight + 50, DOCKED_CEILING)) -- with the banner slot
-      assert.equal(102, d.footerH)
+      assert.equal(114, d.footerH)
       assert.equal(78, DG.CONTROLS_H) -- the panel without UI/SniperInspector.lua keeps its own
     end)
   end)
