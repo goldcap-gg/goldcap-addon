@@ -52,6 +52,7 @@ Core/MailReturns.lua
 Core/MailClassify.lua
 Core/MailStock.lua
 Core/SoldView.lua
+Core/SoldReceipt.lua
 Core/QuoteCache.lua
 Core/Flips.lua
 Core/BagStock.lua
@@ -159,6 +160,7 @@ UI/Sell/Toolbar.lua
 UI/Sell/Dock.lua
 UI/Sell/PostPanel.lua
 UI/SoldFrame.lua
+UI/SoldReceipt.lua
 UI/BuyCapEditor.lua
 UI/BuyFrame.lua
 UI/BuyLists.lua
