@@ -960,6 +960,12 @@ GC.Locales.zhCN = {
     "低于商人价",
   ["Under market"] =
     "低于市场价",
+  ["stress exit, %s each"] = "紧急出售，每个 %s",
+  ["sold at the AH value, %s"] = "按拍卖行价值出售，%s",
+  ["Sold at the AH value of %s, the %d make %s."] = "按拍卖行价值 %s 出售，这 %d 个可赚 %s。",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "如果必须立即出售，比下一个挂单便宜 1 铜，按 %s：%s。",
+  ["STRESS EXIT"] = "紧急出售",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "本次 %s · 稳妥 %s · 购买 %d",
   ["buy at %s or less, vendor pays %s"] = "%s 或更低时买入，商人收购价 %s",
   ["buy at %s or less, AH value %s"] = "%s 或更低时买入，拍卖行价值 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

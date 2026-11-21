@@ -1001,6 +1001,12 @@ GC.Locales.ruRU = {
     "Ниже НПС",
   ["Under market"] =
     "Ниже рынка",
+  ["stress exit, %s each"] = "срочная продажа, %s за шт.",
+  ["sold at the AH value, %s"] = "по цене аукциона, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "По цене аукциона %s эти %d принесут %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "Если продавать сразу, на медяк дешевле следующего лота, по %s: %s.",
+  ["STRESS EXIT"] = "СРОЧНАЯ ПРОДАЖА",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "СЕССИЯ %s · НАВЕРНЯКА %s · ПОКУПОК %d",
   ["buy at %s or less, vendor pays %s"] = "покупать до %s, торговец платит %s",
   ["buy at %s or less, AH value %s"] = "покупать до %s, цена на аукционе %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

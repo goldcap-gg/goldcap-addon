@@ -211,12 +211,17 @@ local function resaleRow(itemID, e, ctx, isCommodity, refUnit, limit, maxUnits)
     if type(deposit) ~= "number" or deposit < 0 then return nil end
     local profit = gross - math.ceil(gross * 5 / 100) - cost - deposit
     if not best or profit > best.profit then
-      best = { units = units, cost = cost, profit = profit, deposit = deposit }
+      best = { units = units, cost = cost, profit = profit, deposit = deposit, exit = exit }
     end
   end
   if not best or best.profit <= 0 then return nil end
   local row = lead(itemID, e, "market", ceiling, refUnit, best.units, best.cost, best.profit)
   row.depositUnit = math.ceil(best.deposit / best.units)
+  -- What the same units make sold at the AH value, GoldCap's price for them, beside the profit at
+  -- the exit the row is admitted by: the card and the panel show both (Core/DealCard.lua Targets).
+  local atRef = refUnit * best.units
+  row.exitUnit = best.exit
+  row.targetProfit = atRef - math.ceil(atRef * 5 / 100) - best.cost - best.deposit
   return row
 end
 
@@ -450,6 +455,7 @@ local function shrink(row, taken)
   row.capTotal = math.floor(row.capTotal * share + 0.5)
   row.profit = math.floor(row.profit * share + 0.5)
   row.estProfit = row.profit
+  if row.targetProfit then row.targetProfit = math.floor(row.targetProfit * share + 0.5) end
 end
 
 -- A live sighting as a board row: one lot at `unit`, a "vendor" lead like the fold's (WATCH,

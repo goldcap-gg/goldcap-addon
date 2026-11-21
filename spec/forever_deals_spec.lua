@@ -361,6 +361,8 @@ describe("ForeverDeals", function()
       assert.equal(342, r.profit)             -- under the 1s level left: 99c x6 = 594, -30 cut, -210, -12 deposit
       assert.equal(2, r.depositUnit)
       assert.is_true(math.abs(r.discount - 0.7) < 1e-9)
+      assert.equal(99, r.exitUnit)            -- the stress exit the profit is priced at
+      assert.equal(600 - 30 - 210 - 12, r.targetProfit)   -- the same 6 sold at the AH value
     end)
 
     -- The owner's beta board (WoW: Forever, 2026-09-27 11:23): Linen Cloth "Under market", 73% off,

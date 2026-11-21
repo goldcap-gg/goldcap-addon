@@ -90,10 +90,97 @@ function DC.Big(deal, verdict, profit)
     end
     return nil
   end
+  local t = DC.Targets(deal, verdict)
+  if t and t.upside > 0 then
+    return { label = (GC.L["sold at the AH value, %s"]):format(money(t.ref)), text = "~+" .. money(t.upside),
+      tone = "profit", sub = DC.StressLine(t) }
+  end
   if not positive(profit) then return nil end
   local exact = deal.forever == "vendor"
   return { label = exact and GC.L["You make"] or GC.L["You make about"],
     text = (exact and "+" or "~+") .. money(profit), tone = "profit" }
+end
+
+--- What a market buy is priced on, from the book the Check read: the `units` the buy takes
+-- cheapest first, what they cost, the price they are resold at (one copper under the cheapest ask
+-- the buy leaves on the book, never above the AH value: GC.SniperDecision.EvaluateCeiling and
+-- Core/ForeverDeals.lua's resaleRow price it so), and what the same units would make sold at the AH
+-- value itself. nil when a figure is missing.
+--
+-- The board's profit is the first price, the safe one, and read alone it puzzled the owner: 18
+-- Greater Mender's Potions bought at 10c showed "+22c" against an AH value of 32c, because 260 more
+-- sat at 13c to 16c and the 18 are resold at 12c (2026-11-21). The card and the panel now say both.
+-- `depositUnit`: the post's deposit per unit, 0 when unknown.
+function DC.Resale(levels, units, ref, depositUnit)
+  if type(levels) ~= "table" or not positive(units) or not positive(ref) then return nil end
+  local sorted = {}
+  for _, level in ipairs(levels) do
+    if positive(level.unitPrice) and positive(level.quantity) then sorted[#sorted + 1] = level end
+  end
+  table.sort(sorted, function(a, b) return a.unitPrice < b.unitPrice end)
+  local left, cost, exit = units, 0, nil
+  for _, level in ipairs(sorted) do
+    if left <= 0 then
+      exit = level.unitPrice - 1
+      break
+    end
+    local take = math.min(left, level.quantity)
+    cost = cost + take * level.unitPrice
+    left = left - take
+    if left <= 0 and take < level.quantity then
+      exit = level.unitPrice - 1
+      break
+    end
+  end
+  if left > 0 then return nil end
+  exit = math.max(1, math.min(ref, exit or ref))
+  local deposit = (positive(depositUnit) and depositUnit or 0) * units
+  local function made(price)
+    local gross = price * units
+    return gross - math.ceil(gross * 5 / 100) - cost - deposit
+  end
+  return { units = units, cost = cost, exit = exit, ref = ref, profit = made(exit), upside = made(ref) }
+end
+
+--- What `units` bought for `cost` make sold at `ref` each, after the 5% cut and the deposit.
+function DC.AtPrice(units, cost, ref, depositUnit)
+  if not (positive(units) and type(cost) == "number" and positive(ref)) then return nil end
+  local gross = ref * units
+  return gross - math.ceil(gross * 5 / 100) - cost - (positive(depositUnit) and depositUnit or 0) * units
+end
+
+--- A market buy's two figures, or nil for any other row: the target (sold at the AH value,
+-- GoldCap's price for the item) and the stress exit (resold a copper under the next listing the buy
+-- leaves, the price it will sell at). From the book the Check read when there is one, else from the
+-- board row's own totals (Core/ForeverDeals.lua's resaleRow keeps exitUnit and targetProfit).
+function DC.Targets(deal, verdict)
+  if type(deal) ~= "table" or deal.forever ~= "market" or deal.refSource == "group" then return nil end
+  local units = verdict and positive(verdict.quantity) and verdict.quantity or deal.qty
+  local resale = verdict and DC.Resale(verdict.levels, units, deal.refUnit, deal.depositUnit)
+  if resale then return resale end
+  if not (positive(units) and positive(deal.refUnit) and type(deal.estProfit) == "number"
+      and type(deal.targetProfit) == "number") then return nil end
+  return { units = units, cost = deal.capTotal, exit = deal.exitUnit, ref = deal.refUnit,
+    profit = deal.estProfit, upside = deal.targetProfit }
+end
+
+--- The line under the card's big number: the stress exit's label and figure, or nil.
+function DC.StressLine(t)
+  if not t or not positive(t.exit) or t.exit >= t.ref then return nil end
+  return { label = (GC.L["stress exit, %s each"]):format(money(t.exit)),
+    text = (t.profit >= 0 and "+" or "") .. money(t.profit), tone = t.profit >= 0 and "profit" or "loss" }
+end
+
+--- The panel's one sentence for a market buy: the target, then the stress exit and why.
+function DC.TargetSentence(t)
+  if not t then return nil end
+  local text = (GC.L["Sold at the AH value of %s, the %d make %s."]):format(money(t.ref), t.units,
+    "+" .. money(t.upside))
+  if positive(t.exit) and t.exit < t.ref then
+    text = text .. " " .. (GC.L["If it must sell now, a copper under the next listing at %s: %s."]):format(
+      money(t.exit), (t.profit >= 0 and "+" or "") .. money(t.profit))
+  end
+  return text
 end
 
 -- The share of the scale past the largest figure: a marker at the very end reads as clipped.
@@ -183,7 +270,7 @@ DC.LADDER_ROWS = 5
 -- each { price, qty, share (of the largest shown quantity), under (at or under the limit) },
 -- and `limitAt`, how many rows sit at or under the limit (the gold line goes after that row;
 -- nil without a limit). nil when there is no book. Levels at one price are merged.
-function DC.Ladder(levels, limit, n)
+function DC.Ladder(levels, limit, n, units)
   if type(levels) ~= "table" or #levels == 0 then return nil end
   n = n or DC.LADDER_ROWS
   local byPrice, prices = {}, {}
@@ -204,10 +291,17 @@ function DC.Ladder(levels, limit, n)
   end
   local hasLimit = positive(limit)
   local limitAt = hasLimit and 0 or nil
+  local taken = 0
   for _, row in ipairs(rows) do
     row.share = row.qty / most
     row.under = hasLimit and row.price <= limit or false
     if row.under then limitAt = limitAt + 1 end
+    -- The levels the buy takes, when it takes fewer than the limit allows: under the limit is
+    -- not the same as bought (18 of 278 under it, 2026-11-21).
+    if positive(units) then
+      row.taken = row.under and taken < units
+      taken = taken + row.qty
+    end
   end
   return { rows = rows, limitAt = limitAt, limit = hasLimit and limit or nil,
     label = hasLimit and (limitAt == 0 and (GC.L["your limit %s · nothing under it"]):format(money(limit))
@@ -277,6 +371,11 @@ function DC.Tiles(state, facts)
   else
     local ref = positive(facts.refUnit) and facts.refUnit or facts.marketValue
     add(GC.L["AH VALUE"], positive(ref) and money(ref) or nil)
+  end
+  local t = facts.targets
+  if t and positive(t.exit) and t.exit < t.ref then
+    add(GC.L["STRESS EXIT"], (t.profit >= 0 and "+" or "") .. money(t.profit))
+    return out
   end
   if positive(facts.entryTotal) and type(facts.profit) == "number" then
     add(GC.L["RETURN"], ("%+d%%"):format(math.floor(facts.profit / facts.entryTotal * 100 + 0.5)))

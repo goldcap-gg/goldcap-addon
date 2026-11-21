@@ -14,7 +14,7 @@ local UI = GC.DealCardUI
 
 local MIN_W = 300
 local PAD, GAP = 10, 6
-local HEAD_H, BIG_H, BAR_H, CHIP_H, FACT_H, HINT_H = 18, 24, 4, 18, 14, 16
+local HEAD_H, BIG_H, SUB_H, BAR_H, CHIP_H, FACT_H, HINT_H = 18, 24, 14, 4, 18, 14, 16
 -- How often the card re-reads the tooltip's width and the check's age while it is up.
 local REFRESH_SECONDS = 0.5
 
@@ -72,6 +72,11 @@ local function build()
   paint(f.bigLabel, B.text2)
   f.bigValue = T.Num(f, 20, true)
   f.bigValue:SetJustifyH("RIGHT")
+  -- The stress exit under the target: what the buy makes if it has to sell now.
+  f.subLabel = T.Label(f, 10)
+  paint(f.subLabel, B.text3)
+  f.subValue = T.Num(f, 12, true)
+  f.subValue:SetJustifyH("RIGHT")
 
   -- The price scale: a thin track, green up to the buy limit, a mark for the cheapest listing and
   -- ticks for the limit and the reference.
@@ -174,6 +179,22 @@ function UI.Layout()
   else
     f.bigLabel:Hide()
     f.bigValue:Hide()
+  end
+  local sub = m.big and m.big.sub
+  if sub then
+    f.subLabel:ClearAllPoints()
+    f.subLabel:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, y - 1)
+    f.subLabel:SetText(sub.label)
+    f.subLabel:Show()
+    f.subValue:ClearAllPoints()
+    f.subValue:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD, y)
+    f.subValue:SetText(sub.text)
+    paint(f.subValue, colour(sub.tone))
+    f.subValue:Show()
+    y = y - SUB_H - GAP
+  else
+    f.subLabel:Hide()
+    f.subValue:Hide()
   end
 
   if s then

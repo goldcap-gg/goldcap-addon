@@ -961,6 +961,12 @@ GC.Locales.zhTW = {
     "低於商人價",
   ["Under market"] =
     "低於市場價",
+  ["stress exit, %s each"] = "緊急出售，每個 %s",
+  ["sold at the AH value, %s"] = "按拍賣場價值出售，%s",
+  ["Sold at the AH value of %s, the %d make %s."] = "按拍賣場價值 %s 出售，這 %d 個可賺 %s。",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "如果必須立即出售，比下一個掛單便宜 1 銅，按 %s：%s。",
+  ["STRESS EXIT"] = "緊急出售",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "本次 %s · 穩妥 %s · 購買 %d",
   ["buy at %s or less, vendor pays %s"] = "%s 或更低時買入，商人收購價 %s",
   ["buy at %s or less, AH value %s"] = "%s 或更低時買入，拍賣場價值 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

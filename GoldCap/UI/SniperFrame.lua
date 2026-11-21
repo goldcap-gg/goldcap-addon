@@ -1332,6 +1332,10 @@ local function setRowDeal(row, deal)
   -- cells below keep their own rules.
   local qty, total, profit = deal.qty, nil, deal.profit
   if not deal.pinPlaceholder then qty, total, profit = GC.BoardRows.Figures(deal, verdict) end
+  -- A market row's cell shows the target, sold at the AH value; the stress exit it is admitted
+  -- and sorted by is on its card and in its panel (Core/DealCard.lua Targets, 2026-11-21).
+  local targets = not deal.pinPlaceholder and GC.DealCard and GC.DealCard.Targets(deal, verdict) or nil
+  if targets and targets.upside > 0 then profit = targets.upside end
 
   -- refreshRows runs on every browse page while a full scan streams, on every watch-loop
   -- observation, on every verdict stamp, and off the 0.25s ticker -- with up to WIN.ROW_CAP
@@ -4944,8 +4948,14 @@ refreshSessionText = function()
   local s = GC.Sniper.session
   if not s or s.buys == 0 then fs:Hide() GC.Sniper._LayoutBoardRow() return end
   local c = s.estProfit >= 0 and Theme.color.green or Theme.color.red
-  fs:SetText((GC.L["SESSION %s%s · BUYS %d"]):format(s.estProfit >= 0 and "+" or "",
-    GC.Util.FormatMoney(s.estProfit), s.buys))
+  local target = s.targetProfit or s.estProfit
+  if target > s.estProfit then
+    fs:SetText((GC.L["SESSION %s · SAFE %s · BUYS %d"]):format("~+" .. GC.Util.FormatMoney(target),
+      (s.estProfit >= 0 and "+" or "") .. GC.Util.FormatMoney(s.estProfit), s.buys))
+  else
+    fs:SetText((GC.L["SESSION %s%s · BUYS %d"]):format(s.estProfit >= 0 and "+" or "",
+      GC.Util.FormatMoney(s.estProfit), s.buys))
+  end
   fs:SetTextColor(c[1], c[2], c[3])
   fs:Show()
   GC.Sniper._LayoutBoardRow()
@@ -5931,6 +5941,12 @@ local function recordPurchaseFacts(deal, purchase)
   session.buys = session.buys + 1
   session.spent = session.spent + purchase.total
   session.estProfit = session.estProfit + purchase.expectedProfit
+  -- What the buy makes at the AH value, for a market buy; anything else counts its own profit.
+  local board = deal.boardDeal or deal
+  local target = board.forever == "market" and board.refSource ~= "group" and GC.DealCard
+    and GC.DealCard.AtPrice(purchase.quantity, purchase.total, board.refUnit, board.depositUnit) or nil
+  session.targetProfit = (session.targetProfit or 0)
+    + ((target and target > purchase.expectedProfit) and target or purchase.expectedProfit)
   local now = time()
   -- `purchase` is the one immutable final-quote object shared by both stores.
   local context = GC.Ledger.Context()
@@ -13481,6 +13497,7 @@ function GC.Sniper.OnAuctionHouseClosed()
     GC.Print((GC.L["session: %d snipes, spent %s, ~%s est. profit"]):format(
       session.buys, GC.Util.CoinText(session.spent), GC.Util.CoinText(session.estProfit)))
     session.buys, session.spent, session.estProfit = 0, 0, 0
+    session.targetProfit = 0
   end
   -- The wipe above (or a no-op when buys was already 0) can leave f.sessionText showing a
   -- figure for a session that no longer exists -- re-derive right away rather than waiting for

@@ -184,6 +184,16 @@ local function paintHero(d, ctx, refusedHero)
   colour(head, K.text2)
   local h = sentence ~= "" and measured(head, 14) or 0
   head:SetHeight(math.max(1, h))
+  -- The owner's screenshot (2026-11-21) caught the sentence cut to one line with an ellipsis: grow
+  -- the box a line at a time while the client still says it is cut, up to four lines.
+  if sentence ~= "" and head.IsTruncated then
+    local line = measured(head, 14)
+    for _ = 1, 3 do
+      if not head:IsTruncated() then break end
+      h = h + math.max(14, math.floor(line))
+      head:SetHeight(h)
+    end
+  end
   return -y + h + T.pad.s
 end
 
@@ -220,7 +230,9 @@ local function paintLadder(d, ladder)
       row.price:ClearAllPoints()
       row.price:SetPoint("TOPLEFT", block, "TOPLEFT", T.pad.m, y - 2)
       row.price:SetText(GC.Util.FormatMoney(level.price))
-      colour(row.price, level.under and K.profit or K.text2)
+      -- Bought: green. Under the limit but past what the buy takes: green, dimmed.
+      local bought = level.under and level.taken ~= false
+      colour(row.price, bought and K.profit or K.text2)
       row.track:ClearAllPoints()
       row.track:SetPoint("TOPLEFT", block, "TOPLEFT", barX, y - 5)
       row.track:SetWidth(barW)
@@ -228,7 +240,7 @@ local function paintLadder(d, ladder)
       row.fill:SetPoint("TOPLEFT", block, "TOPLEFT", barX, y - 5)
       row.fill:SetWidth(math.max(1, math.floor(barW * level.share + 0.5)))
       local c = level.under and K.profit or K.text4
-      row.fill:SetColorTexture(c[1], c[2], c[3], 0.85)
+      row.fill:SetColorTexture(c[1], c[2], c[3], (level.under and not bought) and 0.3 or 0.85)
       row.qty:ClearAllPoints()
       row.qty:SetPoint("TOPRIGHT", block, "TOPRIGHT", -T.pad.m, y - 2)
       row.qty:SetText("×" .. GC.DealCard.Count(level.qty))
@@ -286,7 +298,7 @@ local function facts(ctx)
     entryTotal = decision.entryTotal, quantity = decision.quantity,
     -- Forever's AH value or vendor price; retail's exit is a stress price, not a market value.
     refUnit = decision.refUnit or (deal.forever and decision.exitUnit) or deal.refUnit,
-    profit = decision.stressProfit, forever = deal.forever,
+    profit = decision.stressProfit, forever = deal.forever, targets = ctx.targets,
   }
 end
 
@@ -302,10 +314,17 @@ function SI.Paint(d, ctx)
   local cheapest = ctx.levels and ctx.levels[1] and ctx.levels[1].unitPrice or decision.entryUnitDisplay or deal.unitPrice
   local refusedHero = ctx.state == "refuse"
     and DC.RefusedHero(cheapest, limit, decision.refUnit or deal.refUnit, deal.forever) or nil
+  -- A market buy: the target (sold at the AH value) is the figure, the stress exit the sentence.
+  ctx.targets = ctx.state == "buy"
+    and DC.Targets(deal, { quantity = decision.quantity, levels = ctx.levels }) or nil
+  if ctx.targets and ctx.targets.upside > 0 then
+    ctx.figure = "~+" .. GC.Util.FormatMoney(ctx.targets.upside)
+    ctx.caption = DC.TargetSentence(ctx.targets)
+  end
   d.inspect = {
     ctx = ctx, limit = limit,
     heroH = paintHero(d, ctx, refusedHero),
-    ladderH = paintLadder(d, DC.Ladder(ctx.levels, limit)),
+    ladderH = paintLadder(d, DC.Ladder(ctx.levels, limit, nil, ctx.state == "buy" and decision.quantity or nil)),
     tilesH = paintTiles(d, DC.Tiles(ctx.state, facts(ctx))),
   }
   -- The reason is said in the hero; the status line under it does not say it again.

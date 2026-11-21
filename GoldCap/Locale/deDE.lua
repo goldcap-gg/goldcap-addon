@@ -1036,6 +1036,12 @@ GC.Locales.deDE = {
     "Unter NPC",
   ["Under market"] =
     "Unter Markt",
+  ["stress exit, %s each"] = "Notverkauf, %s pro Stück",
+  ["sold at the AH value, %s"] = "zum AH-Wert verkauft, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "Zum AH-Wert von %s bringen die %d %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "Muss es sofort weg, einen Kupfer unter dem nächsten Angebot zu %s: %s.",
+  ["STRESS EXIT"] = "NOTVERKAUF",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "SITZUNG %s · SICHER %s · KÄUFE %d",
   ["buy at %s or less, vendor pays %s"] = "kaufen bis %s, Händler zahlt %s",
   ["buy at %s or less, AH value %s"] = "kaufen bis %s, AH-Wert %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

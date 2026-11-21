@@ -1040,6 +1040,12 @@ GC.Locales.esES = {
     "Bajo NPC",
   ["Under market"] =
     "Bajo mercado",
+  ["stress exit, %s each"] = "salida de emergencia, %s cada uno",
+  ["sold at the AH value, %s"] = "vendido al valor de subasta, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "Vendidos al valor de subasta de %s, los %d dan %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "Si hay que vender ya, un cobre por debajo del siguiente anuncio a %s: %s.",
+  ["STRESS EXIT"] = "SALIDA DE EMERGENCIA",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "SESIÓN %s · SEGURO %s · COMPRAS %d",
   ["buy at %s or less, vendor pays %s"] = "comprar a %s o menos, el vendedor paga %s",
   ["buy at %s or less, AH value %s"] = "comprar a %s o menos, valor en subasta %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =

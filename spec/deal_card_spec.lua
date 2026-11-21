@@ -66,6 +66,54 @@ describe("DealCard", function()
     end)
   end)
 
+  -- The owner's Greater Mender's Potion (2026-11-21): 18 at 10c, then 81 at 13c, AH value 32c.
+  describe("a market buy's target and stress exit", function()
+    local levels = { { unitPrice = 13, quantity = 81 }, { unitPrice = 10, quantity = 18 },
+      { unitPrice = 14, quantity = 83 } }
+
+    it("resells a copper under the next listing the buy leaves, and also prices it at the AH value", function()
+      local r = DC.Resale(levels, 18, 32, 0)
+      assert.same({ units = 18, cost = 180, exit = 12, ref = 32 }, { units = r.units, cost = r.cost, exit = r.exit, ref = r.ref })
+      assert.equal(216 - 11 - 180, r.profit)        -- +25c at 12c each
+      assert.equal(576 - 29 - 180, r.upside)        -- +3s 67c at 32c each
+      assert.equal(r.upside, DC.AtPrice(18, 180, 32, 0))
+    end)
+
+    it("stays at a level the buy only takes part of, and takes the deposit off both", function()
+      local r = DC.Resale(levels, 10, 32, 2)
+      assert.equal(9, r.exit)
+      assert.equal(90 - 5 - 100 - 20, r.profit)
+      assert.is_nil(DC.Resale(levels, 500, 32, 0))  -- more than the book holds
+    end)
+
+    it("puts the target in the big number and the stress exit under it", function()
+      local deal = { forever = "market", refUnit = 32, qty = 18, depositUnit = 0 }
+      local big = DC.Big(deal, { buyable = true, quantity = 18, levels = levels }, 25)
+      assert.equal("~+" .. GC.Util.FormatMoney(367), big.text)
+      assert.equal("sold at the AH value, " .. GC.Util.FormatMoney(32), big.label)
+      assert.equal("+" .. GC.Util.FormatMoney(25), big.sub.text)
+      assert.equal("stress exit, " .. GC.Util.FormatMoney(12) .. " each", big.sub.label)
+    end)
+
+    it("falls back to the board row's own figures before any check", function()
+      local t = DC.Targets({ forever = "market", refUnit = 32, qty = 18, capTotal = 180, estProfit = 22,
+        targetProfit = 364, exitUnit = 12 }, nil)
+      assert.same({ 22, 364, 12 }, { t.profit, t.upside, t.exit })
+      assert.is_nil(DC.Targets({ forever = "vendor", refUnit = 32, qty = 18 }, nil))
+      assert.is_nil(DC.Targets({ forever = "market", refSource = "group", refUnit = 32, qty = 18 }, nil))
+    end)
+
+    it("says both in the panel's sentence, and marks in the ladder only what the buy takes", function()
+      local t = DC.Resale(levels, 18, 32, 0)
+      local text = DC.TargetSentence(t)
+      assert.truthy(text:find("+" .. GC.Util.FormatMoney(367), 1, true))
+      assert.truthy(text:find(GC.Util.FormatMoney(12) .. ": +" .. GC.Util.FormatMoney(25), 1, true))
+      local ladder = DC.Ladder(levels, 27, nil, 18)
+      assert.same({ true, false, false }, { ladder.rows[1].taken, ladder.rows[2].taken, ladder.rows[3].taken })
+      assert.is_nil(DC.Ladder(levels, 27).rows[1].taken)
+    end)
+  end)
+
   describe("Scale", function()
     it("places the three marks as shares of the bar", function()
       local s = DC.Scale(500, 850, 1700, "market")

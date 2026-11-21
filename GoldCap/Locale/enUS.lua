@@ -1039,6 +1039,12 @@ GC.Locales.enUS = {
   -- two empty states. No "≤": the bundled monospace font has no glyph for it.
   ["Below vendor"] = "Below vendor",
   ["Under market"] = "Under market",
+  ["stress exit, %s each"] = "stress exit, %s each",
+  ["sold at the AH value, %s"] = "sold at the AH value, %s",
+  ["Sold at the AH value of %s, the %d make %s."] = "Sold at the AH value of %s, the %d make %s.",
+  ["If it must sell now, a copper under the next listing at %s: %s."] = "If it must sell now, a copper under the next listing at %s: %s.",
+  ["STRESS EXIT"] = "STRESS EXIT",
+  ["SESSION %s · SAFE %s · BUYS %d"] = "SESSION %s · SAFE %s · BUYS %d",
   ["buy at %s or less, vendor pays %s"] = "buy at %s or less, vendor pays %s",
   ["buy at %s or less, AH value %s"] = "buy at %s or less, AH value %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
