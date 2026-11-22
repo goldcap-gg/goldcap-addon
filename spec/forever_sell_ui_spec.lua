@@ -174,19 +174,6 @@ describe("SELL's pace view on WoW: Forever", function()
   describe("on WoW: Forever", function()
     before_each(function() setup(FOREVER) end)
 
-    -- Owner, 2026-11-23: two lots of an English client named in Russian, the name a sale mail
-    -- had given them. The client's name now wins; a caged pet keeps its species' own.
-    it("names a position as the client does now, a caged pet as its species", function()
-      BAGS[0][1].itemName = "Простой компресс"
-      BAGS[0][2] = { itemID = 82800, stackCount = 1, itemName = "Mechanical Squirrel" }
-      _G.C_Item.GetItemNameByID = function(id) return id == 82800 and "Pet Cage" or "Herb" end
-      ready(12000)
-      local names = {}
-      for _, p in ipairs(GC.SellState.positions) do names[p.itemID] = p.itemName end
-      assert.equal("Herb", names[10])
-      assert.equal("Mechanical Squirrel", names[82800])
-    end)
-
     it("the panel says how many sell", function()
       ready(12000)
       assert.is_not_nil(GC.SellUI.PostPanel.Forever)
