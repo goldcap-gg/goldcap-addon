@@ -47,15 +47,20 @@ end
 --   soldOut  the lots sold out, one per position in the order first seen: { positionKey, itemID,
 --            soldQty, net, sales, soldAt (the latest dated sale) },
 --   byAuction  each live lot's sold part by auctionID: { net, sales, soldAt },
+--   byPosition the sold rows of a position that is still listed under OTHER auctions, by position
+--            key: { soldQty, net, sales, soldAt }. A commodity posted again is a new auction, so
+--            its earlier lots sell out while the item is still on the auction house: that is no
+--            SOLD OUT (owner's Shellfish, 2026-11-22: "all 25 sold" beside 106 still listed).
 --   chips    up to two items by what they brought, most first: { positionKey, itemID, net },
 --   more     how many items more brought something.
 -- `keep` (optional) narrows the rows counted, by position key (the GROUPS row's pick).
 function SoldLots.Summary(sold, lots, keep)
-  local live = {}
+  local live, listedPosition = {}, {}
   for _, lot in ipairs(type(lots) == "table" and lots or {}) do
     if type(lot) == "table" and lot.auctionID ~= nil then live[lot.auctionID] = true end
+    if type(lot) == "table" and type(lot.positionKey) == "string" then listedPosition[lot.positionKey] = true end
   end
-  local out = { sales = 0, net = nil, soldOut = {}, byAuction = {}, chips = {}, more = 0 }
+  local out = { sales = 0, net = nil, soldOut = {}, byAuction = {}, byPosition = {}, chips = {}, more = 0 }
   local outByKey, itemNet, itemOrder = {}, {}, {}
   for _, row in ipairs(type(sold) == "table" and sold or {}) do
     if type(row) == "table" and type(row.positionKey) == "string" and whole(row.soldQty)
@@ -67,6 +72,10 @@ function SoldLots.Summary(sold, lots, keep)
       if live[row.auctionID] then
         entry = out.byAuction[row.auctionID] or { sales = 0 }
         out.byAuction[row.auctionID] = entry
+      elseif listedPosition[row.positionKey] then
+        entry = out.byPosition[row.positionKey] or { soldQty = 0, sales = 0 }
+        out.byPosition[row.positionKey] = entry
+        entry.soldQty = entry.soldQty + row.soldQty
       else
         entry = outByKey[row.positionKey]
         if not entry then

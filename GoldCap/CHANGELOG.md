@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.31.3 (2026-11-22)
+
+- WoW: Forever: costs again follow what you sell. Sales made while the game was not naming your
+  realm (from 19 November) were never taken off the stock you had bought, and after 0.31.1 no sale
+  was taken off at all: an item showed the old, higher price you paid and a loss where there was
+  none. GoldCap now takes those sales off once, and every new sale again.
+- SELL, MY LOTS: an item you posted again no longer shows under SOLD OUT because its earlier lots
+  sold. Those sales now count on the item still listed ("25 of 131 sold · 106 left").
+
 ## 0.31.2 (2026-11-22)
 
 - WoW: Forever: a character GoldCap never saw with its realm name (one made or first played after
