@@ -231,6 +231,23 @@ describe("MY LOTS with a part-sold lot", function()
       assert.equal("MY LOTS 1", helper.plain(GC.SellUI.container.deckButtons.listed.label))
     end)
 
+    -- The owner's Shellfish (2026-11-22): earlier posts of it sold out (5, 10, 10) while 106 stood
+    -- under a newer post, and MY LOTS put "all 25 sold" under SOLD OUT as if nothing were left.
+    it("counts an earlier post's sold-out lots on the item still listed, not under SOLD OUT", function()
+      OWNED = {
+        { auctionID = 501, itemKey = { itemID = SHELLFISH }, quantity = 10, status = 1, buyoutAmount = 2200 },
+        { auctionID = 502, itemKey = { itemID = SHELLFISH }, quantity = 10, status = 1, buyoutAmount = 2200 },
+        { auctionID = 600, itemKey = { itemID = SHELLFISH }, quantity = 106, status = 0, buyoutAmount = 30,
+          timeLeftSeconds = 28000 },
+      }
+      readRoster()
+      assert.equal(0, #rowsOf("soldOut"))
+      local row = rowsOf("position")[1]
+      assert.matches("20 of 126 sold · 106 left", row.itemStock.text, 1, true)
+      assert.equal(net(2090 + 2090), row.soldChip.goldcapText)
+      assert.equal("2 sales", row.soldNote.text)
+    end)
+
     it("keeps a sold-out lot under SOLD OUT, with no button, until the client stops returning it", function()
       readRoster()
       _G.time = function() return NOW + 60 end

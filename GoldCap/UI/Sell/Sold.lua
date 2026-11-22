@@ -117,8 +117,20 @@ function Sold.Count()
 end
 
 --- MY LOTS' line about a lot under its name: "28 of 48 sold · 20 left", or "48 listed · none sold yet".
+-- The units of a still-listed position sold under its earlier auctions (SoldLots' byPosition).
+local function earlierPart(position)
+  local byPosition = Sold.summary and Sold.summary.byPosition or {}
+  return type(position) == "table" and byPosition[position.positionKey] or nil
+end
+
+--- What a still-listed position has sold: its live lots' sold parts and its earlier lots'.
+function Sold.SoldQty(position)
+  local earlier = earlierPart(position)
+  return (position.soldQty or 0) + (earlier and earlier.soldQty or 0)
+end
+
 function Sold.ListedText(position, listedQty)
-  local sold = position.soldQty or 0
+  local sold = Sold.SoldQty(position)
   if sold > 0 then return (GC.L["%d of %d sold · %d left"]):format(sold, listedQty + sold, listedQty) end
   return (GC.L["%d listed · none sold yet"]):format(listedQty)
 end
@@ -137,7 +149,13 @@ function Sold.PaintLive(row, position)
       if part.soldAt and (not soldAt or part.soldAt > soldAt) then soldAt = part.soldAt end
     end
   end
-  local listed, sold = position.listedQty or 0, position.soldQty or 0
+  local earlier = earlierPart(position)
+  if earlier then
+    sales = sales + earlier.sales
+    if earlier.net then net = (net or 0) + earlier.net end
+    if earlier.soldAt and (not soldAt or earlier.soldAt > soldAt) then soldAt = earlier.soldAt end
+  end
+  local listed, sold = position.listedQty or 0, Sold.SoldQty(position)
   paintRing(row, listed + sold > 0 and sold / (listed + sold) or 0, false)
   row.soldChipShown = net ~= nil
   if net then setChip(row.soldChip, money(net), green()) end

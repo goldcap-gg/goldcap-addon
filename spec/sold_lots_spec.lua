@@ -140,6 +140,20 @@ describe("Sold lots", function()
       end)
     end
 
+    -- The owner's Shellfish (2026-11-22): lots of 5, 10 and 10 sold out while 106 more stood on
+    -- the auction house under a newer post. "all 25 sold" in SOLD OUT read as nothing left.
+    it("keeps an item still listed under another auction off SOLD OUT, its sales on the item", function()
+      local lots = { { auctionID = 9, positionKey = "commodity:13545" } }
+      local summary = GC.SoldLots.Summary({ row(5, "commodity:13545", 5, 1100), row(6, "commodity:13545", 10, 2200),
+        row(7, "commodity:13545", 10, 2200), row(8, "commodity:43", 2, 100) }, lots)
+      assert.equal(1, #summary.soldOut)                      -- only the item with nothing listed
+      assert.equal("commodity:43", summary.soldOut[1].positionKey)
+      local part = summary.byPosition["commodity:13545"]
+      assert.same({ 25, 3 }, { part.soldQty, part.sales })
+      assert.equal(1045 + 2090 + 2090, part.net)
+      assert.equal(4, summary.sales)
+    end)
+
     it("the banner's money is the chips' money and the rest, so they add up", function()
       local summary = GC.SoldLots.Summary({ row(2, "commodity:43", 1, 333), row(3, "commodity:44", 1, 777) }, {})
       assert.equal(summary.chips[1].net + summary.chips[2].net, summary.net)
