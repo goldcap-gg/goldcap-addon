@@ -1352,6 +1352,24 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(drawer.bookLines[4].bar.shown)
     end)
 
+    -- Owner, 2026-11-22: a price picked by clicking its level in the book.
+    it("sets the price a copper under a clicked level, or on it when the level is yours", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, BOOK), "drawer")
+      local key = drawer.position.positionKey
+      local first = drawer.bookLines[1].hit
+      assert.is_true(first.shown)
+      first.scripts.OnClick(first)
+      assert.equal(418800 - 1, GC.SellState.priceOverrides[key])
+      drawer = nth(bookRows(GC, BOOK), "drawer")
+      local own
+      for _, line in ipairs(drawer.bookLines) do
+        if line.hit.shown and line.hit.mine then own = line.hit end
+      end
+      own.scripts.OnClick(own)
+      assert.equal(426000, GC.SellState.priceOverrides[key])
+    end)
+
     -- Colour carries the two things a seller cannot work out from one recommended number.
     -- Deliberately not a diamond/arrow glyph: the bundled face has neither, and they drew as
     -- empty boxes in game.
