@@ -1,5 +1,13 @@
 # GoldCap
 
+## 0.32.0 (unreleased)
+
+- WoW: Forever: DEALS has a third board, BLACKWATER. It lists what the neutral auction house in
+  Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house: the price
+  there, the price at home, what you make after the 5% cut and how fast it sells at home. Uncheck
+  what you do not want, and ADD TO BUY puts the rest on a BUY list, one of each, that never pays
+  more than still leaves a profit. The prices come from goldcap.gg with the Companion, every hour.
+
 ## 0.31.4 (2026-11-22)
 
 - WoW: Forever: a lot that has partly sold no longer vanishes from MY LOTS until /reload, with its
