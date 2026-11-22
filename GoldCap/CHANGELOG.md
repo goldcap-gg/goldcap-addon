@@ -1,5 +1,16 @@
 # GoldCap
 
+## 0.31.4 (2026-11-22)
+
+- WoW: Forever: a lot that has partly sold no longer vanishes from MY LOTS until /reload, with its
+  sales under SOLD OUT ("all 13 sold" while 50 were still up). The game tells addons such a lot was
+  cancelled when it was not; GoldCap now believes a cancel only when it sent it, or when the auction
+  house no longer lists the lot. Those lots also no longer book a lost deposit.
+- SELL, MY LOTS: the list no longer jumps on REFRESH. A lot stays in UNDERCUT or HOLDING, with its
+  Cancel lot button, while its price is checked again, and moves only when the new price says so.
+- SELL: click a price in THE BOOK to post just under it (a copper less), or on it when it is your own.
+- SELL: the hover lights the whole card, and only the one under the cursor.
+
 ## 0.31.3 (2026-11-22)
 
 - WoW: Forever: costs again follow what you sell. Sales made while the game was not naming your
