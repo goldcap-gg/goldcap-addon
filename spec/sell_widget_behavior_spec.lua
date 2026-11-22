@@ -1308,6 +1308,13 @@ describe("Sell widget geometry and manual cost", function()
       local head = rows[2]
       assert.equal("drawer", head.kind)
       assert.is_true(head.drawerBookHead.shown)
+      -- The cursor rests on a level when the panel shuts, as it does after a price is clicked.
+      local level
+      for _, line in ipairs(head.bookLines) do
+        if line.hit.shown then level = line break end
+      end
+      level.hit.scripts.OnEnter(level.hit)
+      assert.is_true(level.hover.shown)
       GC.SellUI.expanded = {}
       GC.SellUI.List.RenderRows()
       assert.equal("position", head.kind)
@@ -1318,6 +1325,9 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_falsy(head.headRules[1].shown)
       for _, chip in ipairs(head.priceChips) do assert.is_falsy(chip.shown) end
       for _, line in ipairs(head.bookLines) do assert.is_falsy(line.price.shown or line.bar.shown) end
+      -- Seen in the game 2026-11-22/23: the hover stayed as a band across the card the row became,
+      -- and its click stayed under it unseen.
+      for _, line in ipairs(head.bookLines) do assert.is_falsy(line.hover.shown or line.hit.shown) end
     end)
 
     -- The heading and its hint are the drawer's own, not a group row: the whole point of the
