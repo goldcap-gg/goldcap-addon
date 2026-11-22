@@ -18,7 +18,8 @@ describe("ForeverScan", function()
       startBrowse = function(kind) d.browse = kind; return d.browseAnswer end,
       store = function() return store end,
       passport = function()
-        return { interface = 16001, build = "1.60.1.70009", region = 90, realm = "Forever", faction = "Horde" }
+        return { interface = 16001, build = "1.60.1.70009", region = 90, realm = "Forever", faction = "Horde",
+          server = "6949" }
       end,
       notify = function(kind, a, b) notes[#notes + 1] = { kind, a, b } end,
     }
@@ -81,6 +82,7 @@ describe("ForeverScan", function()
     assert.equal(16001, fold.interface)
     assert.equal(90, fold.region)
     assert.equal("Forever", fold.realm)
+    assert.equal("6949", fold.server)             -- goldcap.gg names the realm from it when none is
     assert.equal("Horde", fold.faction)
     assert.is_nil(fold.ruleset)
     assert.is_nil(fold.partial)

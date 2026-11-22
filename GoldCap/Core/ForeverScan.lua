@@ -221,14 +221,14 @@ function GC.ForeverScan.New(driver)
         -- throttle is a separate stamp -- `s.requestedAt`, set in Request/OnReplicateUpdate -- and
         -- keeps ticking off driver.now() exactly as before; nothing here touches it.)
         s.fold = { v = GC.ForeverFold.VERSION, interface = p.interface, build = p.build, region = p.region,
-          realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = existing.at,
+          realm = p.realm, server = p.server, faction = p.faction, ruleset = p.ruleset, at = existing.at,
           source = existing.source, rows = existing.rows, itemCount = mergedCount, partial = true,
           rev = rev, items = merged }
         -- Plan 3e: the gear lots came from the very dump the merged fold keeps; they follow its stamp.
         if type(s.gear) == "table" then s.gear.at = s.fold.at end
       else
         s.fold = { v = GC.ForeverFold.VERSION, interface = p.interface, build = p.build, region = p.region,
-          realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
+          realm = p.realm, server = p.server, faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
           rows = a.replicated and a.rows or nil, itemCount = count, partial = partial or nil,
           rev = rev, items = items }
         -- A new stamp: the one the Companion will answer for. The merge above keeps the old `at`,
@@ -873,6 +873,9 @@ local function realDriver()
       local okF, faction = pcall(UnitFactionGroup, "player")
       return { interface = p.interface, build = p.build, region = p.regionId,
         realm = realm,
+        -- The server number in the player's GUID: goldcap.gg names the realm from it when the
+        -- client names none and GoldCap never saw it (a character first played after the patch).
+        server = GC.Game and GC.Game.ServerId and GC.Game.ServerId((select(2, pcall(_G.UnitGUID, "player")))) or nil,
         faction = okF and type(faction) == "string" and faction or nil,
         ruleset = nil } -- no API names the ruleset yet (spec §Facts); nil, never a guess
     end,
