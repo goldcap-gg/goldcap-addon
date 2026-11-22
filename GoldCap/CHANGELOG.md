@@ -12,6 +12,7 @@
 - An item's name no longer turns into "Item 12345" on SELL, in the status line or in the crafting
   lists while a scan runs: once the game has named an item, GoldCap keeps the name. On WoW: Forever
   it also uses the names its full scan saw, so a lot that sold out keeps its name too.
+- SELL names an item in the language your game runs in now, not the one a sale mail was written in.
 - SELL: after you pick a price by clicking it in THE BOOK, no grey band stays across a card of
   MY LOTS or TO POST.
 

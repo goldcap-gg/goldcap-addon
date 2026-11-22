@@ -6,6 +6,8 @@ local _, GC = ...
 local S, View = GC.SellState, GC.SellView
 local Quotes, Bags, Compose = GC.SellQuotes, GC.SellBags, GC.SellCompose
 local context, itemName = GC.SellUtil.context, GC.SellUtil.itemName
+-- Every caged pet, whatever species is inside.
+local PET_CAGE = 82800
 local SELL_QUOTE_ACTION_AGE = GC.Sell.SELL_QUOTE_ACTION_AGE
 
 -- Stamped by Compose.Positions() as it walks every position, so SellableCount() can read it
@@ -152,10 +154,15 @@ function Compose.Positions(skipPaint)
   -- that may not even be the one currently shown).
   local sellable = 0
   for _, position in ipairs(S.positions) do
-    -- "" is no name (S.knownNames says why): the name this position was last shown under, else
-    -- the client's for the item, else "Item N" until it loads.
+    -- The item's name as the client says it now (GC.Util.ItemName), over the one the position was
+    -- put together with: that one can come from a sale mail read under another language (owner,
+    -- 2026-11-23: two lots of an English client named in Russian). A caged pet keeps its own, every
+    -- species being item 82800, "Pet Cage". Else, "" being no name (S.knownNames says why), the name
+    -- this position was last shown under, else "Item N" until it loads.
     if position.itemID then
       local key, name = position.positionKey or position.itemID, position.itemName
+      local said = position.itemID ~= PET_CAGE and GC.Util.ItemName(position.itemID) or nil
+      if said then name = said; position.itemName = said end
       if type(name) == "string" and name ~= "" then S.knownNames[key] = name
       else position.itemName = S.knownNames[key] or itemName(position.itemID) end
     end

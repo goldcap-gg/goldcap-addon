@@ -67,7 +67,9 @@ describe("Sell tab, every tradeable bag item gets a row", function()
       GetContainerItemLink = function(bag, slot) return ((bags[bag] or {})[slot] or {}).hyperlink end,
     }
     _G.C_Item = {
-      GetItemNameByID = function(id) return "Item " .. id end,
+      -- Not loaded: the real client says an item's own name or nothing, never "Item N" (that is
+      -- GoldCap's own stand-in, GC.SellUtil.itemName).
+      GetItemNameByID = function() return nil end,
       GetDetailedItemLevelInfo = function() return 100 end,
     }
     _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
