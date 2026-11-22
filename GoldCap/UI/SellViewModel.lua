@@ -234,8 +234,12 @@ end
 -- own entries (GC.CancelQueue.Build; `urgent` is its word for an underpriced lot) rather than
 -- judged again here, so a heading's count and the dock's CANCEL n cannot disagree. Positions
 -- keep the order they came in inside a section; an empty section is not returned at all.
+-- `memory` (optional, by positionKey) keeps the section a position was last filed under with a live
+-- price. A refresh drops every lot's live price for a moment, and the queue judges none of them
+-- then: each fell to HOLDING and jumped back once its price came in, the whole deck moving under
+-- the cursor (owner, 2026-11-22). A position with no live price stays where it last was.
 local LOT_SECTIONS = { "undercut", "low", "hold" }
-function GC.SellViewModel.LotSections(positions, cancelEntries)
+function GC.SellViewModel.LotSections(positions, cancelEntries, memory)
   local class = {}
   for _, entry in ipairs(cancelEntries or {}) do
     local key = entry.positionKey
@@ -245,7 +249,17 @@ function GC.SellViewModel.LotSections(positions, cancelEntries)
   end
   local byId = {}
   for _, position in ipairs(positions or {}) do
-    local id = class[position.positionKey] or "hold"
+    local key = position.positionKey
+    local id = class[key]
+    if memory and type(key) == "string" then
+      local live = type(position.freshMarketUnit) == "number" and position.freshMarketUnit > 0
+      if live then
+        memory[key] = id or "hold"
+      elseif not id then
+        id = memory[key]
+      end
+    end
+    id = id or "hold"
     byId[id] = byId[id] or { id = id, positions = {} }
     byId[id].positions[#byId[id].positions + 1] = position
   end

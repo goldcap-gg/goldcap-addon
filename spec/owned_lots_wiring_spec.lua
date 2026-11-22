@@ -139,10 +139,20 @@ describe("Owned lots event wiring", function()
     assert.equal(5, GC.SellState.ownedLots[1].soldQty)
   end)
 
-  it("stamps cancelledAt when AUCTION_CANCELED carries the auctionID", function()
+  it("stamps cancelledAt once a read after AUCTION_CANCELED no longer lists the lot", function()
     onEvent(nil, "OWNED_AUCTIONS_UPDATED")
     onEvent(nil, "AUCTION_CANCELED", 555)
+    assert.is_nil(_G.GoldCapDB.ownedLots[1].cancelledAt)
+    _G.C_AuctionHouse.GetOwnedAuctions = function() return {} end
+    onEvent(nil, "OWNED_AUCTIONS_UPDATED")
     assert.equal(5000, _G.GoldCapDB.ownedLots[1].cancelledAt)
+  end)
+
+  it("stamps nothing when the read after AUCTION_CANCELED still lists the lot", function()
+    onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+    onEvent(nil, "AUCTION_CANCELED", 555)
+    onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+    for _, row in ipairs(_G.GoldCapDB.ownedLots) do assert.is_nil(row.cancelledAt) end
   end)
 
   it("does not stamp anything when AUCTION_CANCELED carries no usable payload", function()

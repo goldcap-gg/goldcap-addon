@@ -52,6 +52,11 @@ local function paintLadder(row, book)
   for lineIndex = 1, DR.LINES do
     local line, entry = row.bookLines[lineIndex], book.rows[lineIndex]
     line.tag:Hide(); line.note:Hide()
+    -- A level is a price to pick (Book.PickLevel); the marker and the gap are not.
+    local level = entry and entry.kind ~= "yours" and entry.kind ~= "gap" and type(entry.unit) == "number"
+      and entry.unit > 0
+    line.hit.unit, line.hit.mine = level and entry.unit or nil, level and entry.mine or nil
+    if level then line.hit:Show() else line.hit:Hide(); line.hover:Hide() end
     if entry and entry.kind == "yours" then
       -- The player's own price at its sorted place, after the levels at an equal price: it
       -- would join their tail. What stands ahead of it is the one number this panel is for.
@@ -149,6 +154,19 @@ local function wallWords(book)
   return words
 end
 
+--- A click on a level of THE BOOK: the row's price becomes a copper under `unit`, or `unit` itself
+-- when the level is the seller's own, written where the price chips write theirs (Inspector.lua).
+function Book.PickLevel(row, unit, mine)
+  local key = row and row.position and GC.SellUtil.overrideKey(row.position)
+  if not key or type(unit) ~= "number" or unit <= 0 then return end
+  local price = mine and unit or math.max(1, unit - 1)
+  -- A Confirm armed with the old price is let go: it would send that one.
+  if GC.SellState.priceOverrides[key] ~= price then GC.SellPost.WalkAway() end
+  GC.SellState.priceOverrides[key] = price
+  if not GC.SellState.postingRow then GC.SellCompose.Queue() end
+  UI.List.RenderRows()
+end
+
 -- The book lines and the drawer's headings, on every pooled row: createRow (UI/Sell/Row.lua) calls
 -- this. See the first comment inside for why they are built up front.
 function Book.Decorate(row)
@@ -187,7 +205,17 @@ function Book.Decorate(row)
     line.note = Theme.Num(row, 10)
     line.note:SetJustifyH("LEFT"); line.note:SetWordWrap(false); line.note:SetMaxLines(1)
     line.wash = row:CreateTexture(nil, "BACKGROUND", nil, 2)
+    -- The whole line is a button: a click puts the price a copper under that level, so the post
+    -- stands first in front of it, or on the level itself when the level is the seller's own
+    -- (owner, 2026-11-22: "pick the price in the book by clicking it").
+    line.hover = row:CreateTexture(nil, "BACKGROUND", nil, 3)
+    line.hover:SetColorTexture(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 0.06)
+    line.hit = CreateFrame("Button", nil, row)
+    line.hit:SetScript("OnClick", function(self) Book.PickLevel(row, self.unit, self.mine) end)
+    line.hit:SetScript("OnEnter", function() line.hover:Show() end)
+    line.hit:SetScript("OnLeave", function() line.hover:Hide() end)
     line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
+    line.hit:Hide(); line.hover:Hide()
     row.bookLines[i] = line
   end
   -- Column headings and the bottom line. Separate FontStrings rather than reusing subItem and
@@ -280,6 +308,8 @@ function Book.Layout(row, top)
     line.wash:ClearAllPoints()
     line.wash:SetPoint("TOPLEFT", row, "TOPLEFT", left - 4, y + 4)
     line.wash:SetPoint("BOTTOMRIGHT", row, "TOPRIGHT", right + 4, y - DR.LINE_H + 4)
+    line.hover:ClearAllPoints(); line.hover:SetAllPoints(line.wash)
+    line.hit:ClearAllPoints(); line.hit:SetAllPoints(line.wash)
   end
 
   -- No book: the foot follows the heading directly, and its first line -- the sentence saying

@@ -201,11 +201,14 @@ local function createRow(parent)
   local phc = Theme.color.panelHi
   row.well:SetVertexColor(phc[1], phc[2], phc[3], 0.5)
   row.well:Hide()
-  row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
+  -- The hover: the open card's own gold, fainter, over the whole card. A grey wash under the
+  -- card's glass showed as a band across half of it (owner, 2026-11-22, Magic Resistance Potion);
+  -- on the BORDER layer, under the rings, it covers the card the open position's gold does.
+  row.highlight = row:CreateTexture(nil, "BORDER", nil, -1)
   Theme.SetShape(row.highlight, "control")
   row.highlight:SetPoint("TOPLEFT", 2, -inset); row.highlight:SetPoint("BOTTOMRIGHT", -2, inset)
-  local hc = Theme.color.hover
-  row.highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
+  local hc = Theme.color.gold
+  row.highlight:SetVertexColor(hc[1], hc[2], hc[3], 0.07)
   row.highlight:Hide()
   row.divider = row:CreateTexture(nil, "ARTWORK")
   row.divider:SetHeight(1)
@@ -287,7 +290,7 @@ local function createRow(parent)
   end)
   -- Belt and braces: a row hidden under a stationary cursor (Escape, the auction house closing,
   -- a re-render) never gets its OnLeave.
-  row:SetScript("OnHide", function(self) self.goldcapVariant = nil end)
+  row:SetScript("OnHide", function(self) self.goldcapVariant = nil; self.highlight:Hide() end)
   row:SetScript("OnLeave", function(self)
     self.highlight:Hide()
     self.goldcapVariant = nil
@@ -796,6 +799,11 @@ function Row.Style(row, entry)
   -- An OPEN position and the panel beside it are one block, so its card wears the gold the
   -- panel's own rail does in place of the glass. Without it the pair read as two unrelated things.
   local open = entry.kind == "position" and UI.expanded[p.positionKey]
+  -- A render rebinds pooled rows under a cursor that has not moved, and no OnLeave comes: the
+  -- hover stayed lit on whatever row the slot now holds, a band over the wrong card after a
+  -- refresh moved the list (owner, 2026-11-22). Lit only where the cursor is.
+  local hovered = not row.inPanel and row.IsMouseOver ~= nil and row:IsMouseOver() or false
+  if hovered then row.highlight:Show() else row.highlight:Hide() end
   if open then
     local gc3 = Theme.color.gold
     row.zebra:SetVertexColor(gc3[1], gc3[2], gc3[3], 0.10)

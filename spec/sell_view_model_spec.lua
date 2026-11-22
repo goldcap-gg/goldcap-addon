@@ -246,6 +246,22 @@ describe("Sell view model", function()
       assert.equal("hold", sections[3].id); assert.same({ a, d }, sections[3].positions)
     end)
 
+    it("keeps a lot whose live price is gone for a refresh in the section it last had", function()
+      local memory = {}
+      local live = { positionKey = "commodity:1", freshMarketUnit = 30 }
+      local other = { positionKey = "commodity:2", freshMarketUnit = 30 }
+      GC.SellViewModel.LotSections({ live, other }, { { positionKey = "commodity:1", auctionID = 1 } }, memory)
+      -- The refresh: no price, nothing in the queue.
+      local stale = { positionKey = "commodity:1" }
+      local staleOther = { positionKey = "commodity:2" }
+      local sections = GC.SellViewModel.LotSections({ stale, staleOther }, {}, memory)
+      assert.equal("undercut", sections[1].id); assert.same({ stale }, sections[1].positions)
+      assert.equal("hold", sections[2].id); assert.same({ staleOther }, sections[2].positions)
+      -- A live price that says hold moves it.
+      sections = GC.SellViewModel.LotSections({ { positionKey = "commodity:1", freshMarketUnit = 30 } }, {}, memory)
+      assert.equal("hold", sections[1].id)
+    end)
+
     it("keeps the order it was given inside a section, and leaves out an empty one", function()
       local sections = GC.SellViewModel.LotSections({ d, a, b }, {
         { positionKey = "commodity:1", auctionID = 1 }, { positionKey = "commodity:4", auctionID = 2 },
