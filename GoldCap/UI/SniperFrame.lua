@@ -12270,6 +12270,8 @@ local function setView(v)
   elseif GC.Hero and GC.Hero.Hide then
     GC.Hero.Hide()
   end
+  -- WoW: Forever's BLACKWATER board follows the rail: up on Deals while it is chosen, gone elsewhere.
+  if GC.Blackwater and GC.Blackwater.OnView then GC.Blackwater.OnView(v) end
 end
 
 -- Another tab's own control taking the player to a view, the same way that view's rail button
@@ -13046,6 +13048,17 @@ local function createFrame()
       bottom = scrollBottom,
       rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
       rowHeight = WIN.ROW_HEIGHT,
+    })
+  end
+
+  -- WoW: Forever's BLACKWATER board (UI/SniperBlackwater_Camelot.lua): a third chip, and its own
+  -- board over the headings and the rows.
+  if GC.Blackwater and GC.Blackwater.Attach then
+    GC.Blackwater.Attach(f, {
+      panelLeft = WIN.CONTENT_LEFT,
+      panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
+      top = f.headerY,
+      bottom = scrollBottom,
     })
   end
 

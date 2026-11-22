@@ -2080,4 +2080,49 @@ GC.Locales.deDE = {
   ["STOP WATCHING"] = "NICHT MEHR BEOBACHTEN",
   ["WATCH FOR UNDER %s"] = "UNTER %s BEOBACHTEN",
   ["WATCH THIS ITEM"] = "DIESEN GEGENSTAND BEOBACHTEN",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "%d markiert, je eins",
+  ["%d sold at home in %d days"] =
+    "%d daheim verkauft in %d Tagen",
+  ["%d cheap at Blackwater · %d listed at home"] =
+    "%d günstig bei den Schwarzmeerräubern · %d daheim im Angebot",
+  ["ADD %d TO BUY"] =
+    "%d ZU BUY HINZUFÜGEN",
+  ["after the 5% cut at home"] =
+    "nach 5% Gebühr daheim",
+  ["BLACKWATER %d"] =
+    "SCHWARZMEERRÄUBER %d",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "AUKTIONSHAUS DER SCHWARZMEERRÄUBER · BEUTEBUCHT, GADGETZAN, EWIGE WARTE",
+  ["Blackwater flips"] =
+    "Schwarzmeerräuber-Flips",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "Schwarzmeerräuber: was das neutrale Auktionshaus in Beutebucht, Gadgetzan und Ewige Warte günstiger verkauft als das Auktionshaus deiner Fraktion. Dort kaufen, daheim einstellen.",
+  ["BLACKWATER"] =
+    "SCHWARZMEERRÄUBER",
+  ["buy one of each of these %d at Blackwater, sell them at home"] =
+    "kauf je eins dieser %d bei den Schwarzmeerräubern und verkauf sie daheim",
+  ["HOME"] =
+    "DAHEIM",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "Noch keine Preise der Schwarzmeerräuber. goldcap.gg schickt sie mit dem nächsten Abgleich des Companion.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "Bei den Schwarzmeerräubern ist gerade nichts 1g oder mehr günstiger als daheim.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "Preise von goldcap.gg um %s. BUY prüft jeden noch einmal beim Auktionator der Schwarzmeerräuber.",
+  ["Slow: under one a day sells at home"] =
+    "Langsam: daheim verkauft sich weniger als eins am Tag",
+  ["SLOW"] =
+    "LANGSAM",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "Diese Preise sind %s alt. Der Companion holt neue von goldcap.gg.",
+  ["they cost %s"] =
+    "sie kosten %s",
+  ["They go to BUY as the list %s"] =
+    "Sie kommen als Liste %s in BUY",
+  ["YOU MAKE"] =
+    "DU VERDIENST",
+  ["YOU SPEND"] =
+    "DU GIBST AUS",
 }

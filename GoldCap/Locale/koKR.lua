@@ -1999,4 +1999,49 @@ GC.Locales.koKR = {
   ["STOP WATCHING"] = "주시 해제",
   ["WATCH FOR UNDER %s"] = "%s 미만 주시",
   ["WATCH THIS ITEM"] = "이 아이템 주시",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "%d개 선택, 종류별 1개",
+  ["%d sold at home in %d days"] =
+    "진영 경매장 판매 %d개 (%d일)",
+  ["%d cheap at Blackwater · %d listed at home"] =
+    "검은바다 저가 %d개 · 진영 경매장 %d개",
+  ["ADD %d TO BUY"] =
+    "BUY에 %d개 추가",
+  ["after the 5% cut at home"] =
+    "진영 경매장 수수료 5% 제외 후",
+  ["BLACKWATER %d"] =
+    "검은바다 %d",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "검은바다 경매장 · 무법항, 가젯잔, 눈망루 마을",
+  ["Blackwater flips"] =
+    "검은바다 되팔기",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "검은바다: 무법항, 가젯잔, 눈망루 마을의 중립 경매장이 내 진영 경매장보다 싸게 파는 물품입니다. 거기서 사서 진영 경매장에 올리세요.",
+  ["BLACKWATER"] =
+    "검은바다",
+  ["buy one of each of these %d at Blackwater, sell them at home"] =
+    "이 %d종을 검은바다에서 1개씩 사서 진영 경매장에서 판매",
+  ["HOME"] =
+    "진영",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "아직 검은바다 가격이 없습니다. goldcap.gg가 다음 Companion 동기화 때 보냅니다.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "지금은 검은바다에 진영 경매장보다 1골드 이상 싼 물품이 없습니다.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "goldcap.gg 가격 (%s 기준). BUY가 검은바다 경매인에게서 하나씩 다시 확인합니다.",
+  ["Slow: under one a day sells at home"] =
+    "느림: 진영 경매장에서 하루 1개 미만 판매",
+  ["SLOW"] =
+    "느림",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "이 가격은 %s 전 가격입니다. Companion이 goldcap.gg에서 새 가격을 가져옵니다.",
+  ["they cost %s"] =
+    "구매 비용 %s",
+  ["They go to BUY as the list %s"] =
+    "BUY에 %s 목록으로 들어갑니다",
+  ["YOU MAKE"] =
+    "수익",
+  ["YOU SPEND"] =
+    "지출",
 }

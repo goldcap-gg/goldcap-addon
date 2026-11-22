@@ -2073,4 +2073,49 @@ GC.Locales.itIT = {
   ["STOP WATCHING"] = "SMETTI DI OSSERVARE",
   ["WATCH FOR UNDER %s"] = "OSSERVA SOTTO %s",
   ["WATCH THIS ITEM"] = "OSSERVA QUESTO OGGETTO",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "%d spuntati, uno per tipo",
+  ["%d sold at home in %d days"] =
+    "%d venduti a casa in %d giorni",
+  ["%d cheap at Blackwater · %d listed at home"] =
+    "%d economici ad Acquanera · %d in vendita a casa",
+  ["ADD %d TO BUY"] =
+    "AGGIUNGI %d A BUY",
+  ["after the 5% cut at home"] =
+    "dopo la commissione del 5% a casa",
+  ["BLACKWATER %d"] =
+    "ACQUANERA %d",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "CASA D'ASTE DI ACQUANERA · BAIA DEL BOTTINO, MECCANIA, LUNGAVISTA",
+  ["Blackwater flips"] =
+    "Rivendite da Acquanera",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "Acquanera: ciò che la casa d'aste neutrale di Baia del Bottino, Meccania e Lungavista vende a meno di quella della tua fazione. Compra lì, metti all'asta a casa.",
+  ["BLACKWATER"] =
+    "ACQUANERA",
+  ["buy one of each of these %d at Blackwater, sell them at home"] =
+    "compra uno per ciascuno di questi %d ad Acquanera e rivendili a casa",
+  ["HOME"] =
+    "A CASA",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "Ancora nessun prezzo di Acquanera. goldcap.gg li invia alla prossima sincronizzazione del Companion.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "Al momento niente ad Acquanera costa 1 oro o più in meno che a casa.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "Prezzi di goldcap.gg alle %s. BUY ricontrolla ciascuno dal banditore di Acquanera.",
+  ["Slow: under one a day sells at home"] =
+    "Lento: a casa se ne vende meno di uno al giorno",
+  ["SLOW"] =
+    "LENTO",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "Questi prezzi hanno %s. Il Companion ne porta di nuovi da goldcap.gg.",
+  ["they cost %s"] =
+    "costano %s",
+  ["They go to BUY as the list %s"] =
+    "Finiscono in BUY come lista %s",
+  ["YOU MAKE"] =
+    "GUADAGNI",
+  ["YOU SPEND"] =
+    "SPENDI",
 }

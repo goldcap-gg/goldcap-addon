@@ -1961,4 +1961,49 @@ GC.Locales.zhTW = {
   ["STOP WATCHING"] = "取消關注",
   ["WATCH FOR UNDER %s"] = "關注低於 %s",
   ["WATCH THIS ITEM"] = "關注此物品",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "已勾選 %d 件，每樣一件",
+  ["%d sold at home in %d days"] =
+    "本陣營賣出 %d 件（%d 天）",
+  ["%d cheap at Blackwater · %d listed at home"] =
+    "黑水灣低價 %d 件 · 本陣營在售 %d 件",
+  ["ADD %d TO BUY"] =
+    "將 %d 件加入 BUY",
+  ["after the 5% cut at home"] =
+    "扣除本陣營 5% 手續費後",
+  ["BLACKWATER %d"] =
+    "黑水灣 %d",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "黑水灣拍賣場 · 藏寶海灣、加基森、永望鎮",
+  ["Blackwater flips"] =
+    "黑水灣倒賣",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "黑水灣：藏寶海灣、加基森和永望鎮的中立拍賣場比你陣營的拍賣場賣得便宜的東西。在那裡買，回本陣營上架。",
+  ["BLACKWATER"] =
+    "黑水灣",
+  ["buy one of each of these %d at Blackwater, sell them at home"] =
+    "在黑水灣各買一件這 %d 樣，回本陣營賣出",
+  ["HOME"] =
+    "本陣營",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "還沒有黑水灣的價格。goldcap.gg 會在 Companion 下次同步時送來。",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "目前黑水灣沒有比本陣營便宜 1 金以上的東西。",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "goldcap.gg 的價格（%s）。BUY 會在黑水灣拍賣師處逐一再核對。",
+  ["Slow: under one a day sells at home"] =
+    "慢：本陣營每天賣出不到一件",
+  ["SLOW"] =
+    "慢",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "這些價格已過去 %s。Companion 會從 goldcap.gg 帶來新價格。",
+  ["they cost %s"] =
+    "花費 %s",
+  ["They go to BUY as the list %s"] =
+    "以清單 %s 加入 BUY",
+  ["YOU MAKE"] =
+    "你能賺",
+  ["YOU SPEND"] =
+    "你花費",
 }

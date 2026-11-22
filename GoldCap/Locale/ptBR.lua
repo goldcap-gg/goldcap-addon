@@ -2070,4 +2070,49 @@ GC.Locales.ptBR = {
   ["STOP WATCHING"] = "PARAR DE OBSERVAR",
   ["WATCH FOR UNDER %s"] = "OBSERVAR ABAIXO DE %s",
   ["WATCH THIS ITEM"] = "OBSERVAR ESTE ITEM",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "%d marcados, um de cada",
+  ["%d sold at home in %d days"] =
+    "%d vendidos em casa em %d dias",
+  ["%d cheap at Blackwater · %d listed at home"] =
+    "%d baratos em Aguanegra · %d à venda em casa",
+  ["ADD %d TO BUY"] =
+    "ADICIONAR %d AO BUY",
+  ["after the 5% cut at home"] =
+    "após a taxa de 5% em casa",
+  ["BLACKWATER %d"] =
+    "AGUANEGRA %d",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "CASA DE LEILÕES DE AGUANEGRA · ANGRA DO BUTIM, GERINGONTZAN, VISTETERNA",
+  ["Blackwater flips"] =
+    "Revendas de Aguanegra",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "Aguanegra: o que a casa de leilões neutra de Angra do Butim, Geringontzan e Visteterna vende mais barato que a da sua facção. Compre lá, anuncie em casa.",
+  ["BLACKWATER"] =
+    "AGUANEGRA",
+  ["buy one of each of these %d at Blackwater, sell them at home"] =
+    "compre um de cada um destes %d em Aguanegra e venda em casa",
+  ["HOME"] =
+    "EM CASA",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "Ainda não há preços de Aguanegra. O goldcap.gg os envia na próxima sincronização do Companion.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "Agora nada em Aguanegra está 1 de ouro ou mais abaixo do preço em casa.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "Preços do goldcap.gg às %s. O BUY confere cada um de novo no leiloeiro de Aguanegra.",
+  ["Slow: under one a day sells at home"] =
+    "Lento: em casa vende menos de um por dia",
+  ["SLOW"] =
+    "LENTO",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "Estes preços têm %s. O Companion traz novos do goldcap.gg.",
+  ["they cost %s"] =
+    "custam %s",
+  ["They go to BUY as the list %s"] =
+    "Vão para o BUY como a lista %s",
+  ["YOU MAKE"] =
+    "VOCÊ GANHA",
+  ["YOU SPEND"] =
+    "VOCÊ GASTA",
 }

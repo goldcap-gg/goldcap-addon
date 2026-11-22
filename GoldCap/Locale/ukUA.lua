@@ -2145,4 +2145,49 @@ GC.Locales.ukUA = {
   ["STOP WATCHING"] = "ПЕРЕСТАТИ СТЕЖИТИ",
   ["WATCH FOR UNDER %s"] = "ЧЕКАТИ ДЕШЕВШЕ ЗА %s",
   ["WATCH THIS ITEM"] = "СТЕЖИТИ ЗА ПРЕДМЕТОМ",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "Позначено: %d, по одній штуці",
+  ["%d sold at home in %d days"] =
+    "Продано вдома: %d за %d дн.",
+  ["%d cheap at Blackwater · %d listed at home"] =
+    "%d дешево в Чорноводді · %d виставлено вдома",
+  ["ADD %d TO BUY"] =
+    "ДОДАТИ %d ДО BUY",
+  ["after the 5% cut at home"] =
+    "після 5% комісії вдома",
+  ["BLACKWATER %d"] =
+    "ЧОРНОВОДДЯ %d",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "АУКЦІОННИЙ ДІМ ЧОРНОВОДДЯ · ПІРАТСЬКА БУХТА, ПРИБАМБАСЬК, КРУГОЗІР",
+  ["Blackwater flips"] =
+    "Перепродаж із Чорноводдя",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "Чорноводдя: що нейтральний аукціон у Піратській Бухті, Прибамбаську та Кругозорі продає дешевше, ніж аукціон вашої фракції. Купіть там, виставте вдома.",
+  ["BLACKWATER"] =
+    "ЧОРНОВОДДЯ",
+  ["buy one of each of these %d at Blackwater, sell them at home"] =
+    "купіть по одній із цих %d у Чорноводді й продайте вдома",
+  ["HOME"] =
+    "ВДОМА",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "Цін Чорноводдя ще немає. goldcap.gg надішле їх із наступною синхронізацією Companion.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "Зараз у Чорноводді немає нічого дешевшого, ніж удома, на 1 золотий і більше.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "Ціни goldcap.gg на %s. BUY перевірить кожну ще раз в аукціоніста Чорноводдя.",
+  ["Slow: under one a day sells at home"] =
+    "Повільно: вдома продається менше однієї на день",
+  ["SLOW"] =
+    "ПОВІЛЬНО",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "Ціни отримано %s тому. Нові привезе Companion з goldcap.gg.",
+  ["they cost %s"] =
+    "коштують %s",
+  ["They go to BUY as the list %s"] =
+    "Потраплять до BUY списком «%s»",
+  ["YOU MAKE"] =
+    "ВИ ОТРИМАЄТЕ",
+  ["YOU SPEND"] =
+    "ВИ ВИТРАТИТЕ",
 }
