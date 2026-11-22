@@ -100,7 +100,31 @@ GC.Sell.cancelledLots = {}
 -- How long a cancel nothing confirmed is believed over a list that still holds the lot.
 GC.Sell.CANCEL_SENT_WAIT = 15
 
--- Returns the auction ID it settled on (the event's own, or the one cancel waiting), or nil.
+-- Lots an AUCTION_CANCELED named that this tab did not cancel, by auction ID: the time it came.
+-- WoW: Forever sends that event for a lot that stays listed (owner's save, 2026-11-22: Shellfish
+-- 214319252 posted at 11:57, "cancelled" at 12:00 with nobody cancelling it, and still listed with
+-- 45 left hours later; Lodestone 220205570 the same). Believed on the spot, it hid the lot from
+-- MY LOTS until /reload, put its sales under SOLD OUT and booked its deposit as lost. So such a
+-- claim waits for the next read that answers a query (asked for here): a lot that read still lists
+-- was not cancelled, one it no longer lists was, and only then is the cancel booked (SettleCancel).
+GC.Sell.claimedCancels = {}
+
+-- What a cancel the server answered costs, once it is certain: the deposit's ledger row on WoW:
+-- Forever (Core/ForeverDeposits.lua) and the stamp on the saved owned list. Before a read drops the
+-- lot from that list, which GC.Sell.OwnedLot reads it from.
+function GC.Sell.SettleCancel(auctionID)
+  local scope = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context()
+  if GC.ForeverDeposits and scope then
+    local lot = GC.Sell.OwnedLot(auctionID)
+    GC.ForeverDeposits.Cancelled(auctionID, lot, lot and GC.Sell.LotForfeit(lot), scope, time())
+  end
+  if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
+    GC.Data.MarkOwnedLotCancelled(GC.db, auctionID, scope, time())
+  end
+end
+
+-- Returns the auction ID of a cancel this tab sent that the event settles (the event's own, or the
+-- one cancel waiting), or nil: no lot, or a lot this tab did not cancel (held in claimedCancels).
 function GC.Sell.OnAuctionCanceled(auctionID)
   local lots = GC.Sell.cancelledLots
   if not exact(auctionID) or auctionID <= 0 then
@@ -116,9 +140,13 @@ function GC.Sell.OnAuctionCanceled(auctionID)
     auctionID = waiting
   end
   if not auctionID then return end
-  local known = lots[auctionID] ~= nil
+  if lots[auctionID] == nil then
+    GC.Sell.claimedCancels[auctionID] = time()
+    Owned.Request()
+    return nil
+  end
   lots[auctionID] = { at = time(), confirmed = true }
-  if known then View.status(GC.L["Lot cancelled; wait for it to return to bags"]) end
+  View.status(GC.L["Lot cancelled; wait for it to return to bags"])
   return auctionID
 end
 
@@ -153,6 +181,17 @@ end
 -- re-read the client's cache, which a query alone refreshes, so a lot posted since may be missing.
 function GC.Sell.OnOwnedAuctions(answered)
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
+  -- A cancel nobody here sent is settled by the first answered read after it (claimedCancels).
+  if answered and next(GC.Sell.claimedCancels) then
+    local listed = {}
+    for _, auction in ipairs(auctions) do
+      if auction.status ~= GC.SellPositions.AUCTION_SOLD then listed[auction.auctionID] = true end
+    end
+    for auctionID in pairs(GC.Sell.claimedCancels) do
+      GC.Sell.claimedCancels[auctionID] = nil
+      if not listed[auctionID] then GC.Sell.SettleCancel(auctionID) end
+    end
+  end
   -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): a recorded lot an
   -- answered read shows sold, or no longer holds before its end, joins no lot that comes back. The
   -- whole roster, before the cancels on their way are left out below, and with them named.

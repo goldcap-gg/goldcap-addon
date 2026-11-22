@@ -480,7 +480,10 @@ describe("lost deposits on WoW: Forever, wired", function()
 
     it("loses the recorded deposit for the units GoldCap cancelled", function()
       assert.is_true(GC.ForeverScan.Enabled())
-      postedAndPartlySold()
+      local row, pin = postedAndPartlySold()
+      -- The click's own follow-up (UI/Sell/Dock.lua): the lot is one GoldCap cancelled.
+      GC.SellState.repostingRow, GC.SellState.repostPin = row, pin
+      GC.SellPost.CancelSent()
       assert.same({}, cancelled())
       rig.onEvent(nil, "AUCTION_CANCELED", 501)
       -- The record: 7 a unit for each duration step, twenty at 8 h, twelve of them cancelled.
@@ -507,10 +510,32 @@ describe("lost deposits on WoW: Forever, wired", function()
       assert.same({ auctionID = 555, itemID = 190316, quantity = 20, positionKey = "commodity:190316" },
         GC.Sell.OwnedLot(555))
       rig.onEvent(nil, "AUCTION_CANCELED", 555)
+      -- Not booked until a read the query answers no longer lists the lot.
+      assert.same({}, cancelled())
+      rig.owned = {}
+      rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
       -- Quoted again at the setting (8 h), and the cancel fee on top.
       assert.same({ { key = "deposit\1" .. 555, kind = "cancelled", source = "auction", itemID = 190316,
         qty = 20, total = 0, deposit = 7 * 20 * 2 + 15, cut = 0, pending = false, at = 5000,
         char = "Aiyana-Dentarg", region = "eu", faction = "Horde" } }, cancelled())
+    end)
+
+    -- WoW: Forever sends AUCTION_CANCELED for a lot that stays listed (owner's save, 2026-11-22:
+    -- Shellfish 214319252, "cancelled" three minutes after it went up, still listed hours later).
+    it("books nothing, and hides nothing, for a cancel event about a lot still listed", function()
+      GC.ForeverDeposits.RecordPost(555, { itemID = 190316, quantity = 20, duration = 2, isCommodity = true },
+        GC.Ledger.Context(), 4000)
+      rig.owned = { ownedLot(555, 20) }
+      rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+      rig.onEvent(nil, "AUCTION_CANCELED", 555)
+      rig.owned = { ownedLot(555, 12), { auctionID = 555, itemKey = { itemID = 190316 }, status = 1,
+        quantity = 8, buyoutAmount = 800 } }
+      rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+      assert.same({}, cancelled())
+      assert.is_nil(_G.GoldCapDB.foreverDeposits.posts[555].cancelledAt)
+      assert.is_nil(GC.Sell.cancelledLots[555])
+      assert.equal(555, GC.SellState.ownedLots[1].auctionID)
+      for _, row in ipairs(_G.GoldCapDB.ownedLots) do assert.is_nil(row.cancelledAt) end
     end)
 
     it("books an expired lot under the character's faction", function()
@@ -583,9 +608,9 @@ describe("lost deposits on WoW: Forever, wired", function()
       rig.owned = { ownedLot(555, 20) }
       rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
       rig.onEvent(nil, "AUCTION_CANCELED", 555)
-      assert.equal(5000, _G.GoldCapDB.ownedLots[1].cancelledAt)
       rig.owned = {}
       rig.onEvent(nil, "OWNED_AUCTIONS_UPDATED")
+      assert.equal(5000, _G.GoldCapDB.ownedLots[1].cancelledAt)
       for _, entry in ipairs(GC.Ledger.GetEntries()) do
         assert.is_true(entry.kind ~= "expired" and entry.kind ~= "cancelled", entry.kind)
       end

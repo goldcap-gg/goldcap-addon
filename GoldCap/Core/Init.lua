@@ -1041,27 +1041,19 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "AUCTION_CANCELED" then
     -- The lot the event names goes to the Sell tab FIRST: the owned-auctions list it re-reads
-    -- next is a cache that still holds that lot (see GC.Sell.OnAuctionCanceled).
+    -- next is a cache that still holds that lot (see GC.Sell.OnAuctionCanceled). A cancel GoldCap
+    -- sent is booked now (its deposit on WoW: Forever, the stamp on the saved owned list); one it
+    -- did not send waits for a read that no longer lists the lot, since WoW: Forever also sends this
+    -- event for a lot that stays up (GC.Sell.claimedCancels).
     local cancelledID
     if GC.Sell.OnAuctionCanceled then
       cancelledID = GC.Sell.OnAuctionCanceled((...))
     end
-    -- WoW: Forever (Core/ForeverDeposits.lua, which only GoldCap_Camelot.toc loads): the cancel
-    -- the server answered loses its deposit, one ledger row, whoever sent it -- GoldCap's own cancel
-    -- left a note of its lot, a cancel from Blizzard's window is read off the saved owned list.
-    if GC.ForeverDeposits and cancelledID then
-      local lot = GC.Sell.OwnedLot(cancelledID)
-      GC.ForeverDeposits.Cancelled(cancelledID, lot, lot and GC.Sell.LotForfeit(lot), GC.Ledger.Context(), time())
+    if cancelledID and GC.Sell.SettleCancel then
+      GC.Sell.SettleCancel(cancelledID)
     end
     if GC.Sell.OnOwnedAuctions then
       GC.Sell.OnOwnedAuctions()
-    end
-    -- My-auctions: the payload is not documented on every build (see the RegisterEvent
-    -- comment above), so only stamp a cancellation when the first arg is a genuine auctionID.
-    local auctionID = ...
-    if GC.Data and GC.Data.MarkOwnedLotCancelled and type(auctionID) == "number"
-        and auctionID == math.floor(auctionID) and auctionID > 0 and GC.Ledger and GC.Ledger.Context then
-      GC.Data.MarkOwnedLotCancelled(GC.db, auctionID, GC.Ledger.Context(), time())
     end
   elseif event == "MAIL_SHOW" or event == "MAIL_INBOX_UPDATE" then
     if GC.Ledger then
