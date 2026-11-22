@@ -6,6 +6,8 @@
   realm (from 19 November) were never taken off the stock you had bought, and after 0.31.1 no sale
   was taken off at all: an item showed the old, higher price you paid and a loss where there was
   none. GoldCap now takes those sales off once, and every new sale again.
+- SELL, MY LOTS: an item you posted again no longer shows under SOLD OUT because its earlier lots
+  sold. Those sales now count on the item still listed ("25 of 131 sold · 106 left").
 
 ## 0.31.2 (2026-11-22)
 
