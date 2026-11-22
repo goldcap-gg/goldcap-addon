@@ -209,7 +209,7 @@ function Book.Decorate(row)
     -- stands first in front of it, or on the level itself when the level is the seller's own
     -- (owner, 2026-11-22: "pick the price in the book by clicking it").
     line.hover = row:CreateTexture(nil, "BACKGROUND", nil, 3)
-    line.hover:SetColorTexture(1, 1, 1, 0.06)
+    line.hover:SetColorTexture(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 0.06)
     line.hit = CreateFrame("Button", nil, row)
     line.hit:SetScript("OnClick", function(self) Book.PickLevel(row, self.unit, self.mine) end)
     line.hit:SetScript("OnEnter", function() line.hover:Show() end)
