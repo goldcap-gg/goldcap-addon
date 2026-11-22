@@ -428,7 +428,6 @@ GC.Locales.enUS = {
   ["IN THE LOT"] = "IN THE LOT",
   ["ITEM"] = "ITEM",
   ["ITEMS"] = "ITEMS",
-  ["ITEMS %d"] = "ITEMS %d",
   ["If it clears"] = "If it clears",
   ["Import"] = "Import",
   ["Import failed:"] = "Import failed:",
@@ -2072,8 +2071,9 @@ GC.Locales.enUS = {
     "%d sold at home in %d days",
   ["ADD %d TO BUY"] =
     "ADD %d TO BUY",
-  ["BLACKWATER %d"] =
-    "BLACKWATER %d",
+  ["herbs, ore, potions"] = "herbs, ore, potions",
+  ["gear, pets, recipes"] = "gear, pets, recipes",
+  ["buy there, sell here"] = "buy there, sell here",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK",
   ["Blackwater flips"] =

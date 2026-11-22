@@ -2091,8 +2091,9 @@ GC.Locales.esMX = {
     "%d vendidos en casa en %d días",
   ["ADD %d TO BUY"] =
     "AGREGAR %d A BUY",
-  ["BLACKWATER %d"] =
-    "AGUASNEGRAS %d",
+  ["herbs, ore, potions"] = "hierbas, mineral, pociones",
+  ["gear, pets, recipes"] = "equipo, mascotas, recetas",
+  ["buy there, sell here"] = "compra allá, vende aquí",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "CASA DE SUBASTAS: AGUASNEGRAS · BAHÍA DEL BOTÍN, GADGETZAN, VISTA ETERNA",
   ["Blackwater flips"] =

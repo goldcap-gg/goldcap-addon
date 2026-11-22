@@ -92,6 +92,8 @@ WIN.RESIZE_MAX_HEIGHT = 900
 WIN.RAIL_W = Theme.RAIL_W                     -- left navigation rail (Theme.Rail)
 WIN.CONTENT_LEFT = WIN.RAIL_W + Theme.pad.m   -- content starts right of the rail
 WIN.CONTENT_RIGHT_GUTTER = 32
+-- What DEALS' board tabs leave beside them for the gold line and the session total, at least.
+WIN.BOARD_LINE_MIN = 160
 
 -- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) always shifts the deals list
 -- aside while it is open: it used to lie over the list on any window under 990px, the docked
@@ -2324,17 +2326,11 @@ function GC.Sniper._PaintBoardChips(target)
       if deal.board == "items" then count = count + 1 end
     end
   end
-  -- Two keys, not one with a conditional count: "ITEMS 0" is a promise of a number that is
-  -- not there, and a chip reading "ITEMS" says the same thing without pretending to count.
-  local labels = {
-    commodities = GC.L["COMMODITIES"],
-    items = count > 0 and (GC.L["ITEMS %d"]):format(count) or GC.L["ITEMS"],
-  }
+  -- The count on the ITEMS tab's icon, none at 0: "0" is a promise of a number that is not there.
+  if chips.items and chips.items.SetCount then chips.items:SetCount(count) end
   local board = GC.Sniper._Board()
   -- Stamped every time, for the reason refreshAutoButton gives.
   for id, chip in pairs(chips) do
-    local text = labels[id]
-    if text then chip:SetLabel(text) end
     chip:SetVariant(board == id and "active" or "ghost")
   end
   -- "Only what I lack" is the Items board's (of realm rows) alone. The gold line beside the chips
@@ -2359,9 +2355,28 @@ function GC.Sniper._LayoutBoardRow(target)
   local lack, session, line = owner.lackToggle, owner.sessionText, owner.goldLine
   local lackShown = lack ~= nil and lack:IsShown() and true or false
   local lineShown = line ~= nil and line:IsShown() and true or false
-  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-")
+  local width = math.floor(owner.GetWidth and owner:GetWidth() or 0)
+  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-") .. width
   if owner._boardRowLayout == key then return end
   owner._boardRowLayout = key
+  -- The tabs' lines (what is on each board) go, all of them and whole, when the row is short of
+  -- room: the gold line and the session total beside the tabs keep WIN.BOARD_LINE_MIN.
+  if width > 0 then
+    local room = width - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - WIN.BOARD_LINE_MIN
+      - (lackShown and (lack:GetWidth() or 0) + Theme.pad.m or 0)
+    local function tabsWidth(withLines)
+      local sum = 0
+      for _, chip in pairs(chips) do
+        if chip.ShowSub then
+          chip:ShowSub(withLines)
+          chip:Fit()
+          sum = sum + (chip:GetWidth() or 0) + Theme.pad.xs
+        end
+      end
+      return sum
+    end
+    if tabsWidth(true) > room then tabsWidth(false) end
+  end
   local rowY = owner.boardY - owner.boardRowH / 2
   -- Both texts take the whole room between the ITEMS chip and the toggle (or the window's edge)
   -- and wrap in it. The session total right-aligned there used to grow left over the chips once
@@ -10503,6 +10518,12 @@ end
 local CH = {}
 CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
 CH.BTN_H = 26 -- toolbar row: Auto / Scan / Refused-Hidden, all "plaque" buttons
+-- The boards' tabs, in their order: the game's icon for each (a kit glyph where the client lacks the
+-- file), the name, and the line under it. WoW: Forever's BLACKWATER tab is UI/SniperBlackwater_Camelot.lua's.
+CH.BOARD_TABS = {
+  { id = "commodities", icon = "Interface\\Icons\\INV_Misc_Bag_10", glyph = "bag" },
+  { id = "items", icon = "Interface\\Icons\\INV_Sword_39", glyph = "hero" },
+}
 CH.HEADER = 16      -- column header row height
 -- Docked into the Auction House, the host's portrait overhangs the rail's top-left corner
 -- (measured in the 2026-08-24 screenshot: logo top ~= 59px, portrait bottom ~= 70px at 1x);
@@ -12809,15 +12830,21 @@ local function createFrame()
   -- the longest, most useful messages would be the ones that vanished. One list row is the
   -- cheaper price.
   local boardY = row2Y - (CH.BTN_H + Theme.pad.s)
-  f.boardY, f.boardRowH = boardY, CH.BTN_H -- for GC.Sniper._LayoutBoardRow, above CH's own line
+  -- The boards are tabs (Theme.BoardTab, owner 2026-11-23): the game's icon for the board, its
+  -- name, a line saying what is on it, and its count on the icon. The row is a tab tall.
+  f.boardY, f.boardRowH = boardY, Theme.BOARD_TAB.H -- for GC.Sniper._LayoutBoardRow
   f.boardChips = {}
+  local tabWords = {
+    commodities = { GC.L["COMMODITIES"], GC.L["herbs, ore, potions"] },
+    items = { GC.L["ITEMS"], GC.L["gear, pets, recipes"] },
+  }
   local chipPrevious
-  for _, id in ipairs({ "commodities", "items" }) do
-    local chip = Theme.Button(f, "ghost", "plaque")
-    -- 132/96, sized the way every other label on this toolbar is: mono-10 at Theme.Scale()
-    -- 1.3 is ~7.8px a character, so "COMMODITIES" is 86px and "ITEMS 100" 70px, plus the
-    -- rounded plaque's own inset.
-    chip:SetSize(id == "commodities" and 132 or 96, CH.BTN_H)
+  for _, tab in ipairs(CH.BOARD_TABS) do
+    local id = tab.id
+    local chip = Theme.BoardTab(f, tab.icon, tab.glyph)
+    chip:SetLabel(tabWords[id][1])
+    chip:SetSub(tabWords[id][2])
+    chip:Fit()
     if chipPrevious then chip:SetPoint("LEFT", chipPrevious, "RIGHT", Theme.pad.xs, 0)
     else chip:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, boardY) end
     chip:SetScript("OnClick", function() GC.Sniper._SetBoard(id) end)
@@ -12849,7 +12876,7 @@ local function createFrame()
   -- Items board only and paints it on or off. As wide as its words in the player's language.
   local lack = Theme.Button(f.boardChips.items, "ghost", "plaque")
   lack:SetSize(150, CH.BTN_H)
-  lack:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, boardY)
+  lack:SetPoint("RIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, boardY - Theme.BOARD_TAB.H / 2)
   lack:SetUppercase(true)
   lack:SetLabel(GC.L["Only what I lack"])
   lack:FitLabels({ GC.L["Only what I lack"] }, 96)
@@ -12870,7 +12897,7 @@ local function createFrame()
     f.boardChips.commodities, f.boardChips.items }
 
   -- Row 4: column headers, sticky above the scroll area.
-  f.headerY = boardY - (CH.BTN_H + Theme.pad.xs)
+  f.headerY = boardY - (Theme.BOARD_TAB.H + Theme.pad.xs)
   createHeaderRow(f)
 
   local scrollTop = f.headerY - (CH.HEADER + Theme.pad.xs)

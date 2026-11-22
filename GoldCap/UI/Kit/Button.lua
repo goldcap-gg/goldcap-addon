@@ -572,3 +572,122 @@ function T.Button(parent, variant, rounded)
 
   return b
 end
+
+-- A game icon (Interface\Icons) on `tx`, trimmed of its own border. Where the client has no such
+-- file the kit's glyph `glyph` stands in: SetTexture answers true for a file the client lacks too,
+-- and GetTextureFileID says nil for it (measured in WoW: Forever 1.60.1, the skin probe 2026-11-10).
+function T.GameIcon(tx, file, glyph)
+  tx:SetTexture(file)
+  tx:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  if glyph and tx.GetTextureFileID and not tx:GetTextureFileID() then
+    T.SetIcon(tx, glyph, K.text1)
+  end
+end
+
+-- DEALS' boards (COMMODITIES, ITEMS, WoW: Forever's BLACKWATER) as tabs: the game's icon for the
+-- board, its name, a line under it saying what is on it, and how many rows it holds on the icon's
+-- corner, the way a stack count reads in the bags (owner, 2026-11-23: variant B of the toolbar
+-- board on the Blackwater canvas). A plaque button underneath, so the skin, the hover and the active
+-- look are the kit's own and only the face is laid out here.
+--   SetLabel(name)  the name; `.label` stays exactly what was passed, as on every kit button
+--   SetSub(text)    the line under it
+--   SetCount(n)     the number on the icon (nil or 0: none), kept as `.countValue`
+--   ShowSub(on)     false drops the line where the row is short of room (never cut: no "...")
+--   Fit()           as wide as its words in the player's language
+T.BOARD_TAB = { H = 36, ICON = 24, PAD = 6, GAP = 8 }
+function T.BoardTab(parent, iconFile, glyph)
+  local L = T.BOARD_TAB
+  local b = T.Button(parent, "ghost", "plaque")
+  b:SetHeight(L.H)
+  b:SetUppercase(true)
+  b.iconEdge = b:CreateTexture(nil, "BORDER")
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetSize(L.ICON, L.ICON)
+  b.icon:SetPoint("LEFT", b, "LEFT", L.PAD, 0)
+  b.iconEdge:SetPoint("TOPLEFT", b.icon, "TOPLEFT", -1, 1)
+  b.iconEdge:SetPoint("BOTTOMRIGHT", b.icon, "BOTTOMRIGHT", 1, -1)
+  T.GameIcon(b.icon, iconFile, glyph)
+  -- The kit's count over an icon (Theme.Parts), as the game writes a stack's count over its slot.
+  b.count = T.Parts.CountText(b, 8)
+  b.count:SetPoint("BOTTOMRIGHT", b.icon, "BOTTOMRIGHT", 1, 0)
+  b.count:Hide()
+  b.sub = T.Label(b, 9)
+  b.sub:SetJustifyH("LEFT")
+  b.sub:SetWordWrap(false)
+  b.sub:SetMaxLines(1)
+  local subShown = true
+
+  -- The name over its line, or alone in the middle when there is no line.
+  local function place()
+    local x = L.PAD + L.ICON + L.GAP
+    b.text:ClearAllPoints()
+    b.text:SetJustifyH("LEFT")
+    b.sub:ClearAllPoints()
+    if subShown and (b.sub:GetText() or "") ~= "" then
+      b.text:SetPoint("TOPLEFT", b, "TOPLEFT", x, -6)
+      b.text:SetPoint("TOPRIGHT", b, "TOPRIGHT", -L.PAD, -6)
+      b.sub:SetPoint("TOPLEFT", b.text, "BOTTOMLEFT", 0, -2)
+      b.sub:SetPoint("TOPRIGHT", b.text, "BOTTOMRIGHT", 0, -2)
+      b.sub:Show()
+    else
+      b.text:SetPoint("LEFT", b, "LEFT", x, 0)
+      b.text:SetPoint("RIGHT", b, "RIGHT", -L.PAD, 0)
+      b.sub:Hide()
+    end
+  end
+
+  -- The kit's label sits across the whole plaque: the tab's goes beside the icon.
+  local setLabel = b.SetLabel
+  function b:SetLabel(text)
+    setLabel(self, text)
+    place()
+  end
+  function b:SetSub(text)
+    b.sub:SetText(text or "")
+    place()
+  end
+  function b:ShowSub(on)
+    subShown = on and true or false
+    place()
+  end
+  function b:SetCount(n)
+    b.countValue = type(n) == "number" and n > 0 and n or nil
+    if b.countValue then
+      T.Parts.FitCount(b.count, b.countValue, L.ICON)
+      b.count:Show()
+    else
+      b.count:SetText("")
+      b.count:Hide()
+    end
+  end
+
+  -- The face follows the plaque: the line dim, gold on the board that is up; the icon in colour
+  -- with a gold edge on that board, greyed on the others.
+  local setVariant = b.SetVariant
+  function b:SetVariant(name)
+    setVariant(self, name)
+    local on = name == "active"
+    local line = on and T.color.gold or T.color.fgDim
+    b.sub:SetTextColor(line[1], line[2], line[3], on and 0.85 or 1)
+    b.icon:SetDesaturated(not on)
+    local shade = on and 1 or 0.78
+    b.icon:SetVertexColor(shade, shade, shade, 1)
+    local edge = on and K.gold or { 0, 0, 0 }
+    b.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], on and 0.9 or 0.7)
+  end
+  b:SetVariant("ghost")
+
+  -- As wide as the name or the line, whichever is longer, measured by the client.
+  function b:Fit()
+    local function width(fs)
+      if not (fs:IsShown() and fs.GetUnboundedStringWidth) then return 0 end
+      return fs:GetUnboundedStringWidth() or 0
+    end
+    local words = math.max(width(b.text), width(b.sub))
+    if words <= 0 then return end
+    b:SetWidth(math.ceil(L.PAD + L.ICON + L.GAP + words + L.PAD + 4))
+  end
+
+  place()
+  return b
+end

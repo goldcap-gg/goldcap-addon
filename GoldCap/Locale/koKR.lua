@@ -2009,8 +2009,9 @@ GC.Locales.koKR = {
     "진영 경매장 판매 %d개 (%d일)",
   ["ADD %d TO BUY"] =
     "BUY에 %d개 추가",
-  ["BLACKWATER %d"] =
-    "검은바다 %d",
+  ["herbs, ore, potions"] = "약초, 광석, 물약",
+  ["gear, pets, recipes"] = "장비, 애완동물, 제조법",
+  ["buy there, sell here"] = "거기서 사서 여기서 팔기",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "검은바다 경매장 · 무법항, 가젯잔, 눈망루 마을",
   ["Blackwater flips"] =

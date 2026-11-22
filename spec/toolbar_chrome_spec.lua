@@ -277,8 +277,10 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
       Hide = function() end,
       IsShown = function() return false end,
       SetText = function() end,
+      GetStringWidth = function() return 0 end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetDesaturated = function() end,
       SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
@@ -535,22 +537,25 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
   end)
 
   -- The count is what the switch is FOR while the player is on Commodities: it says how much
-  -- is waiting on the other board without moving any of it onto this one. An empty board says
-  -- so in words rather than promising a number that is not there ("ITEMS 0").
-  it("carries the Items store's count on its chip, and no number when it is empty", function()
+  -- is waiting on the other board without moving any of it onto this one. An empty board shows
+  -- no number rather than promising one that is not there ("0"). Since 2026-11-23 the boards are
+  -- tabs (Theme.BoardTab): the count sits on the tab's icon, and the name stays the name.
+  it("carries the Items store's count on its tab, and no number when it is empty", function()
     local frame, GC = buildFrame()
     assert.equal("ITEMS", frame.boardChips.items.label)
     assert.equal("COMMODITIES", frame.boardChips.commodities.label)
+    assert.is_nil(frame.boardChips.items.countValue)
 
     GC.Sniper._realmDeals[900] = { itemID = 900 }
     GC.Sniper._realmDeals[901] = { itemID = 901 }
     GC.Sniper._PaintBoardChips()
-    assert.equal("ITEMS 2", frame.boardChips.items.label)
+    assert.equal("ITEMS", frame.boardChips.items.label)
+    assert.equal(2, frame.boardChips.items.countValue)
 
     GC.Sniper._realmDeals[900] = nil
     GC.Sniper._realmDeals[901] = nil
     GC.Sniper._PaintBoardChips()
-    assert.equal("ITEMS", frame.boardChips.items.label)
+    assert.is_nil(frame.boardChips.items.countValue)
   end)
 
   -- Review 2026-11-06: the session total, right-aligned with only its right edge pinned, grew
@@ -585,6 +590,31 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
     assert.equal(1, owner.sessionText.alpha)
   end)
 
+  -- The tabs' lines (what is on each board) go whole when the row is short of room: the gold line
+  -- and the session total keep their minimum beside the tabs, and nothing is cut.
+  it("drops the tabs' lines on a narrow window and keeps them on a wide one", function()
+    local _, GC = buildFrame()
+    local function tab()
+      local t = { lines = true, points = {} }
+      function t:ShowSub(on) self.lines = on end
+      function t:Fit() end
+      function t:GetWidth() return self.lines and 190 or 120 end
+      function t:ClearAllPoints() self.points = {} end
+      function t:SetPoint(point, rel) self.points[point] = rel end
+      function t:IsShown() return true end
+      return t
+    end
+    local chips = { commodities = tab(), items = tab(), blackwater = tab() }
+    local owner = { boardChips = chips, boardY = -60, boardRowH = 36, width = 640 }
+    function owner:GetWidth() return self.width end
+    GC.Sniper._LayoutBoardRow(owner)
+    assert.is_false(chips.items.lines)
+    owner.width = 1100
+    GC.Sniper._LayoutBoardRow(owner)
+    assert.is_true(chips.items.lines)
+    assert.is_true(chips.blackwater.lines)
+  end)
+
   -- Review 2026-11-06: WoW: Forever's Items board is its own scan's non-commodity rows
   -- (GC.ForeverDeals.Rows, board "items"), which the chip never counted.
   it("counts WoW: Forever's own Items rows on the chip", function()
@@ -598,7 +628,7 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
       end }
     GC.Sniper._PaintBoardChips()
     GC.ForeverScan, GC.ForeverDeals = saved.scan, saved.deals
-    assert.equal("ITEMS 2", frame.boardChips.items.label)
+    assert.equal(2, frame.boardChips.items.countValue)
   end)
 
   it("switches the board on a chip click and paints the one that is up", function()

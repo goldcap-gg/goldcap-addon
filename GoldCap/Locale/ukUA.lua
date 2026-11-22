@@ -1171,7 +1171,6 @@ GC.Locales.ukUA = {
   ["HAVE"] = "Є",
   ["HIDDEN %d"] = "СХОВАНО %d",
   ["ITEMS"] = "ПРЕДМЕТИ",
-  ["ITEMS %d"] = "ПРЕДМЕТИ %d",
   ["NEED"] = "ТРЕБА",
   ["NOW"] = "ЗАРАЗ",
   ["No gear, pets or recipes under their region price right now."] =
@@ -2155,8 +2154,9 @@ GC.Locales.ukUA = {
     "Продано вдома: %d за %d дн.",
   ["ADD %d TO BUY"] =
     "ДОДАТИ %d ДО BUY",
-  ["BLACKWATER %d"] =
-    "ЧОРНОВОДДЯ %d",
+  ["herbs, ore, potions"] = "трави, руда, зілля",
+  ["gear, pets, recipes"] = "спорядження, вихованці, рецепти",
+  ["buy there, sell here"] = "купити там, продати тут",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "АУКЦІОННИЙ ДІМ ЧОРНОВОДДЯ · ПІРАТСЬКА БУХТА, ПРИБАМБАСЬК, КРУГОЗІР",
   ["Blackwater flips"] =

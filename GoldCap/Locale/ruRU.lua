@@ -1159,7 +1159,6 @@ GC.Locales.ruRU = {
   ["HIDDEN %d"] = "СКРЫТО %d",
   ["IN THE LOT"] = "В ЛОТЕ",
   ["ITEMS"] = "ПРЕДМЕТЫ",
-  ["ITEMS %d"] = "ПРЕДМЕТЫ %d",
   ["LISTED AS"] = "ВЫСТАВЛЕНО",
   ["MY LOTS %d"] = "МОИ ЛОТЫ %d",
   ["NEED"] = "НУЖНО",
@@ -2152,8 +2151,9 @@ GC.Locales.ruRU = {
     "Продано дома: %d за %d дн.",
   ["ADD %d TO BUY"] =
     "ДОБАВИТЬ %d В BUY",
-  ["BLACKWATER %d"] =
-    "ЧЕРНОВОДЬЕ %d",
+  ["herbs, ore, potions"] = "травы, руда, зелья",
+  ["gear, pets, recipes"] = "снаряжение, питомцы, рецепты",
+  ["buy there, sell here"] = "купить там, продать здесь",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "АУКЦИОННЫЙ ДОМ ЧЕРНОВОДЬЯ · ПИРАТСКАЯ БУХТА, ПРИБАМБАССК, КРУГОВЗОР",
   ["Blackwater flips"] =

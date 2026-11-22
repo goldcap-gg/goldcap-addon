@@ -2080,8 +2080,9 @@ GC.Locales.ptBR = {
     "%d vendidos em casa em %d dias",
   ["ADD %d TO BUY"] =
     "ADICIONAR %d AO BUY",
-  ["BLACKWATER %d"] =
-    "AGUANEGRA %d",
+  ["herbs, ore, potions"] = "ervas, minério, poções",
+  ["gear, pets, recipes"] = "equipamento, mascotes, receitas",
+  ["buy there, sell here"] = "compre lá, venda aqui",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "CASA DE LEILÕES DE AGUANEGRA · ANGRA DO BUTIM, GERINGONTZAN, VISTETERNA",
   ["Blackwater flips"] =

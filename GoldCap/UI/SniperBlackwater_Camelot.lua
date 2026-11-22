@@ -20,7 +20,7 @@ GC.Blackwater = BW
 
 local Theme
 local LY = {
-  CHIP_W = 128, BANNER_H = 58, HEAD_H = 18, ROW_H = 42, ICON = 28, DOCK_H = 70, PAD = 8,
+  BANNER_H = 58, HEAD_H = 18, ROW_H = 42, ICON = 28, DOCK_H = 70, PAD = 8,
   COL_BW = 92, COL_HOME = 92, COL_MAKE = 100, COL_TAKE = 26, STACK = 6, STACK_ICON = 24,
   -- The goblin of Booty Bay, or, where the client has no such file, the coin HERO already shows.
   GOBLIN = "Interface\\Icons\\Achievement_Goblinhead", COIN = "Interface\\Icons\\INV_Misc_Coin_01",
@@ -563,7 +563,7 @@ S._PaintBoardChips = function(target)
   if not chip then return end
   local list = readList()
   local n = list and Flips.Totals(list.rows) or 0
-  chip:SetLabel(n > 0 and GC.L["BLACKWATER %d"]:format(n) or GC.L["BLACKWATER"])
+  chip:SetCount(n)
   chip:SetVariant(state.active and "active" or "ghost")
   if not state.active then return end
   for id, c in pairs(chips) do
@@ -595,18 +595,21 @@ function BW.Attach(f, geo)
   ui.frame = f
   local items = f.boardChips and f.boardChips.items
   if items then
-    local chip = Theme.Button(f, "ghost", "plaque")
-    chip:SetSize(LY.CHIP_W, items:GetHeight())
-    chip:FitLabels({ GC.L["BLACKWATER"], GC.L["BLACKWATER %d"]:format(99) }, LY.CHIP_W)
+    -- A tab like the other two (Theme.BoardTab): Blackwater's goblin, its name, what it is for.
+    local chip = Theme.BoardTab(f, LY.GOBLIN, "bank")
+    chip:SetLabel(GC.L["BLACKWATER"])
+    chip:SetSub(GC.L["buy there, sell here"])
+    chip:Fit()
     chip:SetPoint("LEFT", items, "RIGHT", Theme.pad.xs, 0)
     chip:SetScript("OnClick", function() BW.SetActive(not state.active) end)
-    chip:SetScript("OnEnter", function(self)
+    -- HookScript: the kit's button keeps its own hover on OnEnter and OnLeave.
+    chip:HookScript("OnEnter", function(self)
       if not _G.GameTooltip then return end
       _G.GameTooltip:SetOwner(self, Theme.TooltipAnchor and Theme.TooltipAnchor(self) or "ANCHOR_RIGHT")
       _G.GameTooltip:SetText(GC.Util.ClientText(GC.L["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."]), 1, 1, 1, 1, true)
       _G.GameTooltip:Show()
     end)
-    chip:SetScript("OnLeave", function() if _G.GameTooltip then _G.GameTooltip:Hide() end end)
+    chip:HookScript("OnLeave", function() if _G.GameTooltip then _G.GameTooltip:Hide() end end)
     f.boardChips.blackwater = chip
     if type(f.dealsChrome) == "table" then f.dealsChrome[#f.dealsChrome + 1] = chip end
     f._boardRowLayout = nil

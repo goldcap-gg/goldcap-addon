@@ -2090,8 +2090,9 @@ GC.Locales.deDE = {
     "%d daheim verkauft in %d Tagen",
   ["ADD %d TO BUY"] =
     "%d ZU BUY HINZUFÜGEN",
-  ["BLACKWATER %d"] =
-    "SCHWARZMEERRÄUBER %d",
+  ["herbs, ore, potions"] = "Kräuter, Erz, Tränke",
+  ["gear, pets, recipes"] = "Ausrüstung, Haustiere, Rezepte",
+  ["buy there, sell here"] = "dort kaufen, hier verkaufen",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "AUKTIONSHAUS DER SCHWARZMEERRÄUBER · BEUTEBUCHT, GADGETZAN, EWIGE WARTE",
   ["Blackwater flips"] =

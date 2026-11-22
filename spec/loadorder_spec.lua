@@ -31,6 +31,7 @@ describe("TOC load order", function()
         SetText = function() end,
         SetTexture = function() end,
         SetTexCoord = function() end,
+        SetDesaturated = function() end,
         SetGradient = function() end,
         SetTextColor = function() end,
         SetJustifyH = function() end,

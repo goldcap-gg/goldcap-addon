@@ -1970,8 +1970,9 @@ GC.Locales.zhCN = {
     "本阵营卖出 %d 件（%d 天）",
   ["ADD %d TO BUY"] =
     "将 %d 件加入 BUY",
-  ["BLACKWATER %d"] =
-    "黑水 %d",
+  ["herbs, ore, potions"] = "草药、矿石、药水",
+  ["gear, pets, recipes"] = "装备、宠物、配方",
+  ["buy there, sell here"] = "那边买，这边卖",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "黑水拍卖行 · 藏宝海湾、加基森、永望镇",
   ["Blackwater flips"] =

@@ -26,6 +26,7 @@ describe("Sell tab, a Sniper request still out after the switch", function()
       SetText = function() end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetDesaturated = function() end,
       SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,

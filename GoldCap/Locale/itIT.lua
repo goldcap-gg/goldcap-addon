@@ -2083,8 +2083,9 @@ GC.Locales.itIT = {
     "%d venduti a casa in %d giorni",
   ["ADD %d TO BUY"] =
     "AGGIUNGI %d A BUY",
-  ["BLACKWATER %d"] =
-    "ACQUANERA %d",
+  ["herbs, ore, potions"] = "erbe, minerali, pozioni",
+  ["gear, pets, recipes"] = "equipaggiamento, mascotte, ricette",
+  ["buy there, sell here"] = "compra lì, vendi qui",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "CASA D'ASTE DI ACQUANERA · BAIA DEL BOTTINO, MECCANIA, LUNGAVISTA",
   ["Blackwater flips"] =

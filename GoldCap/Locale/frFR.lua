@@ -2091,8 +2091,9 @@ GC.Locales.frFR = {
     "%d vendus chez vous en %d jours",
   ["ADD %d TO BUY"] =
     "AJOUTER %d À BUY",
-  ["BLACKWATER %d"] =
-    "FLOTS NOIRS %d",
+  ["herbs, ore, potions"] = "herbes, minerai, potions",
+  ["gear, pets, recipes"] = "équipement, mascottes, recettes",
+  ["buy there, sell here"] = "acheter là-bas, vendre ici",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
     "HÔTEL DES VENTES DES FLOTS NOIRS · BAIE-DU-BUTIN, GADGETZAN, LONG-GUET",
   ["Blackwater flips"] =

@@ -82,8 +82,8 @@ describe("Blackwater board", function()
     host:SetSize(720, 540)
     host.boardChips = {}
     for _, id in ipairs({ "commodities", "items" }) do
-      local chip = GC.Theme.Button(host, "ghost", "plaque")
-      chip:SetSize(id == "commodities" and 132 or 96, 22)
+      local chip = GC.Theme.BoardTab(host, "Interface\\Icons\\INV_Misc_Bag_10", "bag")
+      chip:SetLabel(id == "commodities" and "COMMODITIES" or "ITEMS")
       host.boardChips[id] = chip
     end
     host.scroll = CreateFrame("ScrollFrame", nil, host)
@@ -113,10 +113,13 @@ describe("Blackwater board", function()
     for _, k in ipairs(KEYS) do _G[k] = saved[k] end
   end)
 
-  it("adds a third chip after ITEMS that counts the flips worth a line", function()
+  it("adds a third tab after ITEMS, the goblin's, that counts the flips worth a line", function()
     local chip = host.boardChips.blackwater
     assert.is_truthy(chip)
-    assert.equal("BLACKWATER 3", plain(chip.label))
+    assert.equal("BLACKWATER", plain(chip.label))
+    assert.equal(3, chip.countValue)
+    assert.equal("buy there, sell here", textOf(chip.sub))
+    assert.equal("Interface\\Icons\\Achievement_Goblinhead", W.state(chip.icon).file)
     assert.same({ "LEFT", host.boardChips.items, "RIGHT" }, { W.state(chip).points[1][1], W.state(chip).points[1][2],
       W.state(chip).points[1][3] })
     -- setView shows and hides it with the rest of the Deals chrome.
@@ -234,6 +237,7 @@ describe("Blackwater board", function()
     payload = { items = {} }
     press(host.boardChips.blackwater)
     assert.equal("BLACKWATER", plain(host.boardChips.blackwater.label))
+    assert.is_nil(host.boardChips.blackwater.countValue)
     assert.is_true(shown(ui().empty))
     assert.equal("No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync.", textOf(ui().empty))
     assert.is_false(shown(ui().dock))
