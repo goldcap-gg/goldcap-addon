@@ -1175,6 +1175,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
         GC.Game._repaired = true
         local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or {}
         pcall(GC.Game.RepairRealmless, GC.db, UnitName("player"), realm, context.region)
+        -- A sale that arrived while the realm was unnamed found no stock to consume (its
+        -- character matched no batch), and nothing retries it: mail reconciliation only runs for
+        -- rows a fresh inbox scan makes. Offered back once, the way the region repair above does.
+        if GC.Game.ReconcileRealmlessSales then
+          pcall(GC.Game.ReconcileRealmlessSales, GC.db, context.char)
+        end
       end
     end
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from

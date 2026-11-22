@@ -118,3 +118,47 @@ describe("Realm name", function()
     assert.is_nil(GC.Game.ServerId("Creature-0-1"))
   end)
 end)
+
+-- The owner's Shellfish (2026-11-22): 12 sold on 21.11 while the realm was unnamed consumed
+-- nothing, and the activity keyed "eu\1Meolys-\1..." made Acquisitions refuse every sale after.
+describe("Realm repair, scope keys and the sales it left open", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Game.lua")
+  end)
+
+  it("moves a scope-keyed activity under the realm and merges it with its twin", function()
+    local bare, full = "eu\1Meolys-\1commodity:1", "eu\1Meolys-R\1commodity:1"
+    local db = { acquisitionActivity = {
+      [bare] = { character = "Meolys-R", scopeKey = bare, firstSeenAt = 300, lastSeenAt = 900, lastPostedQty = 15 },
+      [full] = { character = "Meolys-R", scopeKey = full, firstSeenAt = 100, lastSeenAt = 500, lastPostedQty = 3 },
+    }, acquisitions = { { character = "Meolys-", scopeKey = bare } } }
+    GC.Game.RepairRealmless(db, "Meolys", "R", "eu")
+    assert.is_nil(db.acquisitionActivity[bare])
+    assert.same({ character = "Meolys-R", scopeKey = full, firstSeenAt = 100, lastSeenAt = 900, lastPostedQty = 15 },
+      db.acquisitionActivity[full])
+    assert.same({ character = "Meolys-R", scopeKey = full }, db.acquisitions[1])
+  end)
+
+  it("offers this character's unconsumed sales since the break back, oldest first, once", function()
+    local T = GC.Game.REALMLESS_SINCE
+    local db = { ledger = {
+      { kind = "sale", source = "mail", char = "M-R", at = T + 20, key = "b" },
+      { kind = "sale", source = "mail", char = "M-R", at = T + 10, key = "a" },
+      { kind = "sale", source = "mail", char = "M-R", at = T - 10, key = "old" },   -- before the break
+      { kind = "sale", source = "mail", char = "M-R", at = T + 30, key = "done" },  -- already consumed
+      { kind = "sale", source = "mail", char = "X-R", at = T + 40, key = "alt" },   -- another character
+      { kind = "buy", source = "mail", char = "M-R", at = T + 50, key = "buy" },
+    }, acquisitionConsumptionEvidence = { done = true } }
+    local offered = {}
+    local function reconcile(entry)
+      offered[#offered + 1] = entry.key
+      return { status = entry.key == "a" and "applied" or "unresolved" }
+    end
+    assert.equal(1, GC.Game.ReconcileRealmlessSales(db, "M-R", reconcile))
+    assert.same({ "a", "b" }, offered)
+    assert.equal(0, GC.Game.ReconcileRealmlessSales(db, "M-R", reconcile))
+    assert.same({ "a", "b" }, offered)
+  end)
+end)

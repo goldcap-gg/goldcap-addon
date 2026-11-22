@@ -138,14 +138,37 @@ function GC.Game.NormalizedRealmName(api)
 end
 
 --- Rewrites what this character wrote without a realm ("Name-") to "Name-Realm", once the realm
--- is known: a `char` or `character` field of this region (or with none: another region's "Name-"
--- is someone else), and a table keyed "Name-" or "Name-<region>" (craft.chars, buyProgress,
--- foreverDeposits.streaks), merged into its "Name-Realm" twin with the realmless side winning,
--- as the newer. Returns how many it rewrote.
+-- is known:
+--   - a `char` or `character` field of this region (or with none: another region's "Name-" is
+--     someone else);
+--   - a table keyed "Name-" or "Name-<region>" (craft.chars, buyProgress, foreverDeposits.streaks);
+--   - a scope key "<region>\1Name-\1<position>" (GC.Acquisitions.ScopeKey), as a table key
+--     (acquisitionActivity) or a `scopeKey` field: Acquisitions refuses every sale while one
+--     activity's key and character disagree (validStoredActivity), so the field alone is not enough.
+-- A key that already has its "Name-Realm" twin is merged into it: the realmless side wins, as the
+-- newer, except that a `firstSeenAt` keeps the earlier stamp and another `...At` the later one.
+-- Returns how many it rewrote.
 function GC.Game.RepairRealmless(db, name, realm, region)
   if type(db) ~= "table" or not named(name) or not named(realm) then return 0 end
   local bare, full, fixed, seen = name .. "-", name .. "-" .. realm, 0, {}
   local suffix = named(region) and region or nil
+  local scopedBare, scopedFull = "\1" .. bare .. "\1", "\1" .. full .. "\1"
+  local function rescoped(value)
+    if type(value) ~= "string" then return nil end
+    local at = value:find(scopedBare, 1, true)
+    if not at then return nil end
+    return value:sub(1, at - 1) .. scopedFull .. value:sub(at + #scopedBare)
+  end
+  local function merge(into, from)
+    for k, v in pairs(from) do
+      local old = into[k]
+      if type(k) == "string" and type(v) == "number" and type(old) == "number" and k:match("At$") then
+        into[k] = (k == "firstSeenAt") and math.min(old, v) or math.max(old, v)
+      else
+        into[k] = v
+      end
+    end
+  end
   local function walk(t, depth)
     if depth > 6 or seen[t] then return end
     seen[t] = true
@@ -156,18 +179,23 @@ function GC.Game.RepairRealmless(db, name, realm, region)
         moves[#moves + 1] = { key, full }
       elseif suffix and key == bare .. suffix then
         moves[#moves + 1] = { key, full .. suffix }
+      elseif rescoped(key) then
+        moves[#moves + 1] = { key, rescoped(key) }
       end
       if type(value) == "table" then
         walk(value, depth + 1)
       elseif sameRegion and (key == "char" or key == "character") and value == bare then
         t[key] = full
         fixed = fixed + 1
+      elseif key == "scopeKey" and rescoped(value) then
+        t[key] = rescoped(value)
+        fixed = fixed + 1
       end
     end
     for _, move in ipairs(moves) do
       local from, to = t[move[1]], move[2]
       if type(from) == "table" and type(t[to]) == "table" then
-        for k, v in pairs(from) do t[to][k] = v end
+        merge(t[to], from)
       elseif t[to] == nil then
         t[to] = from
       end
@@ -177,4 +205,36 @@ function GC.Game.RepairRealmless(db, name, realm, region)
   end
   walk(db, 0)
   return fixed
+end
+
+-- WoW: Forever's client stopped naming the realm on 2026-11-19 (00:00 UTC). Sales before it
+-- matched their stock when they arrived.
+GC.Game.REALMLESS_SINCE = 1795046400
+
+--- Offers this character's sales since REALMLESS_SINCE that consumed no stock back to
+-- GC.Acquisitions.ReconcileSale, once per character (db.realmSalesReconciled). ReconcileSale
+-- refuses a duplicate and changes nothing on any refusal. Returns how many it applied.
+function GC.Game.ReconcileRealmlessSales(db, char, reconcile)
+  reconcile = reconcile or (GC.Acquisitions and GC.Acquisitions.ReconcileSale)
+  if type(db) ~= "table" or not named(char) or type(reconcile) ~= "function" then return 0 end
+  db.realmSalesReconciled = type(db.realmSalesReconciled) == "table" and db.realmSalesReconciled or {}
+  if db.realmSalesReconciled[char] then return 0 end
+  local consumed = type(db.acquisitionConsumptionEvidence) == "table" and db.acquisitionConsumptionEvidence or {}
+  local sales = {}
+  for _, entry in ipairs(type(db.ledger) == "table" and db.ledger or {}) do
+    if type(entry) == "table" and entry.kind == "sale" and entry.source == "mail" and entry.char == char
+        and type(entry.at) == "number" and entry.at >= GC.Game.REALMLESS_SINCE
+        and type(entry.key) == "string" and not consumed[entry.key] then
+      sales[#sales + 1] = entry
+    end
+  end
+  -- Oldest first: the stock they consume goes oldest first too.
+  table.sort(sales, function(a, b) return a.at < b.at end)
+  local applied = 0
+  for _, entry in ipairs(sales) do
+    local result = reconcile(entry)
+    if type(result) == "table" and result.status == "applied" then applied = applied + 1 end
+  end
+  db.realmSalesReconciled[char] = true
+  return applied
 end
