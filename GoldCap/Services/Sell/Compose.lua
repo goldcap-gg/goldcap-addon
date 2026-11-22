@@ -192,6 +192,9 @@ function Compose.CancelQueue()
     local pct = sniper and sniper.cancelUndercutPct
     pct = (type(pct) == "number" and pct == pct) and math.max(0, math.min(20, math.floor(pct))) or 0
     local entries, skipped = GC.CancelQueue.Build(S.positions, { undercutPct = pct })
+    if GC.CancelQueue.Carry then
+      entries, skipped = GC.CancelQueue.Carry(S.cancelEntries, entries, skipped, S.ownedLots)
+    end
     if S.group then
       local function picked(list)
         local out = {}

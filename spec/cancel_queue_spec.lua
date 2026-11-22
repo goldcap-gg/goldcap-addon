@@ -544,4 +544,26 @@ describe("CancelQueue", function()
       assert.is_nil(positions[1].facts.raise)
     end)
   end)
+
+  -- Owner, 2026-11-22: a refresh drops every live price for a moment, and the Cancel lot buttons
+  -- went with it.
+  describe("Carry", function()
+    local entry = { positionKey = "commodity:42", auctionID = 7, quantity = 5, listedUnit = 300 }
+    local lots = { { positionKey = "commodity:42", auctionID = 7, quantity = 5, unitPrice = 300 } }
+    local stale = { { positionKey = "commodity:42", reason = "no_fresh_price" } }
+
+    it("keeps a lot's place while its position has no live price", function()
+      local entries, skipped = GC.CancelQueue.Carry({ entry }, {}, stale, lots)
+      assert.same({ entry }, entries)
+      assert.same({}, skipped)
+    end)
+
+    it("drops it once the lot changed, left, or a live price judged the position", function()
+      local changed = { { positionKey = "commodity:42", auctionID = 7, quantity = 4, unitPrice = 300 } }
+      assert.same({}, (GC.CancelQueue.Carry({ entry }, {}, stale, changed)))
+      assert.same({}, (GC.CancelQueue.Carry({ entry }, {}, stale, {})))
+      local held = { { positionKey = "commodity:42", reason = "advised_hold" } }
+      assert.same({}, (GC.CancelQueue.Carry({ entry }, {}, held, lots)))
+    end)
+  end)
 end)

@@ -154,6 +154,36 @@ function GC.CancelQueue.Build(positions, opts)
   return entries, skipped
 end
 
+--- entries, skipped with the lots `previous` (the queue built before) held for positions that have no
+-- live price this time: the same lot (auctionID, quantity and price) still in `ownedLots` keeps its
+-- place, and its position leaves `skipped`. A refresh drops every live price for a moment; the
+-- rows' Cancel lot buttons and the dock's CANCEL n went with it and came back seconds later
+-- (owner, 2026-11-22). A lot the next live price judges again is judged by that price.
+function GC.CancelQueue.Carry(previous, entries, skipped, ownedLots)
+  local stale = {}
+  for _, item in ipairs(skipped or {}) do
+    if item.reason == "no_fresh_price" then stale[item.positionKey] = true end
+  end
+  if not next(stale) then return entries, skipped end
+  local owned = {}
+  for _, lot in ipairs(ownedLots or {}) do owned[lot.auctionID] = lot end
+  local outEntries, carried = {}, {}
+  for _, entry in ipairs(entries or {}) do outEntries[#outEntries + 1] = entry end
+  for _, entry in ipairs(previous or {}) do
+    local lot = owned[entry.auctionID]
+    if stale[entry.positionKey] and lot and lot.positionKey == entry.positionKey
+        and lot.quantity == entry.quantity and lot.unitPrice == entry.listedUnit then
+      outEntries[#outEntries + 1] = entry
+      carried[entry.positionKey] = true
+    end
+  end
+  local outSkipped = {}
+  for _, item in ipairs(skipped or {}) do
+    if not (item.reason == "no_fresh_price" and carried[item.positionKey]) then outSkipped[#outSkipped + 1] = item end
+  end
+  return outEntries, outSkipped
+end
+
 -- A new array minus that lot, so the UI never mutates a list it is rendering from -- the same
 -- contract as PostQueue.Without, keyed by auctionID because that is a lot's identity.
 function GC.CancelQueue.Without(entries, auctionID)
