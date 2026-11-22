@@ -9,6 +9,9 @@
   that never pays more than still leaves a profit. The prices come from goldcap.gg with the Companion, every hour.
 - WoW: Forever: at the neutral auction house in Booty Bay, Gadgetzan and Everlook GoldCap no longer
   scans. What it lists was counted as your own faction's prices, on DEALS and on goldcap.gg.
+- An item's name no longer turns into "Item 12345" on SELL, in the status line or in the crafting
+  lists while a scan runs: once the game has named an item, GoldCap keeps the name. On WoW: Forever
+  it also uses the names its full scan saw, so a lot that sold out keeps its name too.
 
 ## 0.31.4 (2026-11-22)
 

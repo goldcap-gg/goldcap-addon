@@ -290,15 +290,10 @@ local function exactRenderEntry(row, pin)
     and pin.position == row.position
 end
 
+-- The name GC.Util.ItemName knows (it asks the client to load one nobody can say yet: the walk's
+-- next pass, five seconds on, finds it), else "Item N".
 local function itemName(itemID)
-  if C_Item and C_Item.GetItemNameByID then
-    local ok, name = pcall(C_Item.GetItemNameByID, itemID)
-    if ok and type(name) == "string" and name ~= "" then return name end
-  end
-  -- Not loaded yet. Nothing else asks the client for it, so ask here: the walk's next pass, five
-  -- seconds on, finds the name.
-  if itemID and C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, itemID) end
-  return (GC.L["Item %d"]):format(itemID or 0)
+  return GC.Util.ItemName(itemID) or (GC.L["Item %d"]):format(itemID or 0)
 end
 
 GC.SellUtil = { exact = exact, safeAdd = safeAdd, safeMultiply = safeMultiply, overrideKey = overrideKey,

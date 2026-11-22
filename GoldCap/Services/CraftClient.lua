@@ -527,13 +527,8 @@ function CC.MissingName(m)
     if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name, true end
     return GC.L["Currency %d"]:format(m.currencyID), false
   end
-  local item = _G.C_Item
-  local ok, name = false, nil
-  if type(item) == "table" and type(item.GetItemNameByID) == "function" then ok, name = pcall(item.GetItemNameByID, m.itemID) end
-  if ok and type(name) == "string" and name ~= "" then return name, true end
-  if type(item) == "table" and type(m.itemID) == "number" then
-    pcall(function() item.RequestLoadItemDataByID(m.itemID) end)
-  end
+  local name = GC.Util.ItemName(m.itemID)
+  if name then return name, true end
   return GC.L["Item %d"]:format(tonumber(m.itemID) or 0), false
 end
 

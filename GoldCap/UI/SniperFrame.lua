@@ -1901,9 +1901,7 @@ end
 -- line used to read "bought 1 x item 192883" (in game 2026-10-17). A field, not a local: this
 -- chunk sits near its 200-local ceiling.
 function GC.Sniper._ItemLabel(itemID)
-  local name = C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(itemID)
-  if type(name) == "string" and name ~= "" then return name end
-  return (GC.L["item %d"]):format(itemID)
+  return GC.Util.ItemName(itemID) or (GC.L["item %d"]):format(itemID)
 end
 
 -- A modified left click is the item's, never the row's Check or Buy: true when it was one.

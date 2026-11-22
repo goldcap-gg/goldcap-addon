@@ -353,4 +353,65 @@ describe("GC.Util.SlashArgs", function()
     assert.same({ "", "" }, { GC.Util.SlashArgs("") })
     assert.same({ "", "" }, { GC.Util.SlashArgs(nil) })
   end)
+
+  -- The client keeps about two thousand names and lets the rest go while a scan loads thousands:
+  -- a sold-out Magic Resistance Potion read "Item 9036" on MY LOTS while the save held its name
+  -- (in game 2026-11-22).
+  describe("ItemName", function()
+    local saved, now, known, asked
+    local POTION, SHIRT = 9036, 3427
+
+    before_each(function()
+      saved = { C_Item = _G.C_Item, GetTime = _G.GetTime, GetLocale = _G.GetLocale }
+      now, known, asked = 100, {}, {}
+      _G.C_Item = {
+        GetItemNameByID = function(id) return known[id] end,
+        RequestLoadItemDataByID = function(id) asked[#asked + 1] = id end,
+      }
+      _G.GetTime = function() return now end
+      _G.GetLocale = function() return "enUS" end
+    end)
+
+    after_each(function()
+      for k, v in pairs(saved) do _G[k] = v end
+    end)
+
+    it("says the client's name, and keeps saying it once the client has let it go", function()
+      known[POTION] = "Magic Resistance Potion"
+      assert.equal("Magic Resistance Potion", GC.Util.ItemName(POTION))
+      known[POTION] = nil
+      assert.equal("Magic Resistance Potion", GC.Util.ItemName(POTION))
+      assert.same({}, asked)
+    end)
+
+    it("reads the name the Forever scan kept, in the client's language only", function()
+      helper.loadModule("Core/ForeverNames.lua", GC)
+      GC.db = { foreverNames = { v = 1, locale = "enUS", names = { [POTION] = "Magic Resistance Potion" } } }
+      assert.equal("Magic Resistance Potion", GC.Util.ItemName(POTION))
+      _G.GetLocale = function() return "deDE" end
+      assert.is_nil(GC.Util.ItemName(SHIRT))
+      GC.db.foreverNames.locale = "deDE"
+      known[SHIRT] = "Stylisches schwarzes Hemd"
+      assert.equal("Stylisches schwarzes Hemd", GC.Util.ItemName(SHIRT))
+      -- What the client says is kept there too.
+      assert.equal("Stylisches schwarzes Hemd", GC.db.foreverNames.names[SHIRT])
+    end)
+
+    it("asks the client to load a name nobody can say, once every few seconds", function()
+      assert.is_nil(GC.Util.ItemName(POTION))
+      assert.is_nil(GC.Util.ItemName(POTION))
+      assert.same({ POTION }, asked)
+      now = now + GC.Util.ITEM_NAME_ASK_AGAIN
+      assert.is_nil(GC.Util.ItemName(POTION))
+      assert.same({ POTION, POTION }, asked)
+    end)
+
+    it("is nil for no item, and without the Forever store (retail) asks the client alone", function()
+      assert.is_nil(GC.Util.ItemName(nil))
+      assert.is_nil(GC.Util.ItemName("9036"))
+      GC.db = { foreverNames = { v = 1, locale = "enUS", names = { [POTION] = "Magic Resistance Potion" } } }
+      assert.is_nil(GC.Util.ItemName(POTION))
+      assert.same({ POTION }, asked)
+    end)
+  end)
 end)

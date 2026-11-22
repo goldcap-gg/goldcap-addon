@@ -30,11 +30,7 @@ local LY = {
 -- yours), which every skin sets, the paper ones too, where a pale sea green would not read.
 local function sea(a) return GC.Kit.Tokens.alpha("yours", a or 1) end
 
-local state = { active = false, view = "deals", checked = {}, rows = {}, at = nil, stale = false, loadAsked = {},
-  names = {}, missing = {} }
--- A name the client does not have is asked for again after this long: it keeps about two thousand
--- and lets the rest go (Core/ForeverNames.lua), and a scan running beside the board loads thousands.
-local LOAD_AGAIN_S = 5
+local state = { active = false, view = "deals", checked = {}, rows = {}, at = nil, stale = false, missing = {} }
 local ui = {}
 BW._ui = ui -- what is on screen, for the spec (spec/blackwater_board_spec.lua)
 
@@ -56,35 +52,9 @@ local function readList()
   return cache.list
 end
 
--- The names the full scan kept for good (Core/ForeverNames.lua), in the client's language, or nil.
-local function keptNames()
-  local N = GC.ForeverNames
-  local store = N and N.Store and N.Store(GC.db, _G.GetLocale and _G.GetLocale() or "enUS", false) or nil
-  return store and store.names or nil
-end
-
--- An item's name: once the client has said it, it stays said (seen in the game 2026-11-22: with a
--- scan loading items beside the board, the names came and went). The client first, then what the
--- scan kept; a name the client gives is kept there too. With neither, the client is asked to load it.
-local function itemName(itemID)
-  local name = state.names[itemID]
-  if name then return name end
-  local api, kept = _G.C_Item, keptNames()
-  name = api and api.GetItemNameByID and api.GetItemNameByID(itemID) or nil
-  if name and kept then kept[itemID] = name end
-  name = name or (kept and kept[itemID]) or nil
-  if name then
-    state.names[itemID] = name
-    return name
-  end
-  local now = _G.GetTime and _G.GetTime() or 0
-  local asked = state.loadAsked[itemID]
-  if api and api.RequestLoadItemDataByID and (asked == nil or now - asked >= LOAD_AGAIN_S) then
-    state.loadAsked[itemID] = now
-    pcall(api.RequestLoadItemDataByID, itemID)
-  end
-  return nil
-end
+-- An item's name once anybody can say it (GC.Util.ItemName: seen in the game 2026-11-22, with a
+-- scan loading items beside the board the names came and went), else nil.
+local itemName = GC.Util.ItemName
 
 local function itemIcon(itemID)
   local api = _G.C_Item

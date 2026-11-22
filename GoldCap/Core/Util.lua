@@ -12,6 +12,46 @@ function GC.Util.Ask(fn, ...)
   return nil
 end
 
+--- An item's name, or nil while nobody can say it yet: the client's, else the one the client said
+--- earlier this session, else (WoW: Forever) the one the full scan kept (Core/ForeverNames.lua).
+--- With none, the client is asked to load the item, once every ITEM_NAME_ASK_AGAIN seconds an item.
+--- The client keeps about two thousand names and lets the rest go, and a scan loads thousands
+--- (measured 2026-11-16, Core/ForeverNames.lua): a name the client had a minute ago can be gone
+--- now. Seen in the game 2026-11-22: the BLACKWATER board's names came and went, and a sold-out
+--- Magic Resistance Potion read "Item 9036" on MY LOTS while the save held its name.
+GC.Util.ITEM_NAME_ASK_AGAIN = 5
+local saidNames, nameAsked = {}, {}
+local function keptNames()
+  local N = GC.ForeverNames
+  local locale = type(_G.GetLocale) == "function" and _G.GetLocale() or nil
+  local store = N and N.Store and locale and N.Store(GC.db, locale, false) or nil
+  return store and store.names or nil
+end
+function GC.Util.ItemName(itemID)
+  if type(itemID) ~= "number" then return nil end
+  local api = _G.C_Item
+  local name = api and GC.Util.Ask(api.GetItemNameByID, itemID) or nil
+  if type(name) == "string" and name ~= "" then
+    saidNames[itemID] = name
+    local kept = keptNames()
+    if kept then kept[itemID] = name end
+    return name
+  end
+  name = saidNames[itemID]
+  if not name then
+    local kept = keptNames()
+    name = kept and kept[itemID] or nil
+  end
+  if name then return name end
+  local now = type(_G.GetTime) == "function" and _G.GetTime() or 0
+  local at = nameAsked[itemID]
+  if api and (at == nil or now - at >= GC.Util.ITEM_NAME_ASK_AGAIN) then
+    nameAsked[itemID] = now
+    GC.Util.Ask(api.RequestLoadItemDataByID, itemID)
+  end
+  return nil
+end
+
 --- Whether the client says the mailbox is open now (C_PlayerInteractionManager's
 --- IsInteractingWithNpcOfType(Enum.PlayerInteractionType.MailInfo), in both games): true or false,
 --- nil where it cannot say. Walking from the mailbox straight to an auctioneer can shut it with no
