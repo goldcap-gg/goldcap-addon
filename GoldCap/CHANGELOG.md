@@ -7,6 +7,8 @@
   there, the price at home, what you make after the 5% cut and how fast it sells at home. Uncheck
   what you do not want, and ADD TO BUY puts the rest on a BUY list, one of each, that never pays
   more than still leaves a profit. The prices come from goldcap.gg with the Companion, every hour.
+- WoW: Forever: at the neutral auction house in Booty Bay, Gadgetzan and Everlook GoldCap no longer
+  scans. What it lists was counted as your own faction's prices, on DEALS and on goldcap.gg.
 
 ## 0.31.4 (2026-11-22)
 

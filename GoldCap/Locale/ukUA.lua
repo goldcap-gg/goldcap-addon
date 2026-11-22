@@ -2190,4 +2190,6 @@ GC.Locales.ukUA = {
     "у продажу: %d",
   ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
     "після 5%% комісії, якщо купити по одній із цих %d у Чорноводді й продати вдома",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "Це Чорноводдя, нейтральний аукціон. GoldCap його не сканує: тутешні ціни не ціни вашої фракції.",
 }

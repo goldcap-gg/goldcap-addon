@@ -78,11 +78,34 @@ local function rememberAt(s, at)
   while #list > C.KEEP_FOLD_ATS do table.remove(list, 1) end
 end
 
+-- WoW: Forever's neutral auction house, Blackwater (Booty Bay, Gadgetzan, Everlook), shared by
+-- both factions: what it lists is not this character's faction's market, and a scan read there was
+-- filed under that faction and sent to goldcap.gg as its prices. It is the only auction house
+-- outside the capitals, so the zone says which one is open: Stranglethorn Vale, Tanaris and
+-- Winterspring, by the client's map ids. Forever keeps classic's numbering (Undercity is 1458 in the
+-- owner's loot log, Core/ForeverLoot.lua, 2026-11-22); a town's own map, should it have one, is
+-- walked up to its zone.
+GC.ForeverScan.NEUTRAL_MAPS = { [1434] = true, [1446] = true, [1452] = true }
+
+--- Whether map `mapID`, or a map above it (`parentOf(mapID)`, the parent's id or nil), is one of
+--- Blackwater's zones.
+function GC.ForeverScan.IsNeutralMap(mapID, parentOf)
+  for _ = 1, 8 do
+    if type(mapID) ~= "number" or mapID <= 0 then return false end
+    if GC.ForeverScan.NEUTRAL_MAPS[mapID] then return true end
+    mapID = parentOf and parentOf(mapID) or nil
+  end
+  return false
+end
+
 function GC.ForeverScan.New(driver)
   local obj = {}
   local state = "idle" -- idle | waiting | reading | browsing | saving
   local token = 0
   local ahOpen = false
+  -- The auction house open is Blackwater (driver.neutral, asked as it opens): nothing read there is
+  -- scanned, folded or saved.
+  local neutral = false
   local acc, total, readIndex
   -- The dump this scanner last read: its row count and when. The client can fire
   -- REPLICATE_ITEM_LIST_UPDATE again for a dump already read (another addon's request inside the
@@ -559,6 +582,11 @@ function GC.ForeverScan.New(driver)
       if reason == "button" then driver.notify("closed") end
       return "closed"
     end
+    if neutral then
+      note("refused", "neutral")
+      if reason == "button" then driver.notify("neutral") end
+      return "neutral"
+    end
     local s = driver.store() or {}
     local now = driver.now()
     local since = type(s.requestedAt) == "number" and now - s.requestedAt or math.huge
@@ -605,7 +633,7 @@ function GC.ForeverScan.New(driver)
       end
       return
     end
-    if state ~= "idle" or not ahOpen then return end
+    if state ~= "idle" or not ahOpen or neutral then return end
     -- Somebody else's full scan (another addon, /gc forever): the account's throttle is spent
     -- either way, so the dump is folded rather than asked for again.
     local n = driver.numRows() or 0
@@ -641,12 +669,13 @@ function GC.ForeverScan.New(driver)
 
   function obj:OnAuctionHouseShow()
     ahOpen = true
-    note("opened")
+    neutral = driver.neutral ~= nil and driver.neutral() == true
+    note("opened", neutral and "neutral" or nil)
     return self:Request("auto")
   end
 
   function obj:OnAuctionHouseClosed()
-    ahOpen = false
+    ahOpen, neutral = false, false
     note("closed", state)
     -- The late-link pass reads the dump this auction house handed over: it ends here, with what it found.
     if late then finishLate(late) end
@@ -759,6 +788,10 @@ local function notify(kind, a, b)
     end
   elseif kind == "closed" then
     GC.Print(GC.L["Open the Auction House first."])
+  elseif kind == "neutral" then
+    local text = GC.L["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."]
+    GC.Print(text)
+    if GC.Sniper and GC.Sniper.SetScanStatus then GC.Sniper.SetScanStatus(text, 6) end
   elseif kind == "cooldown" then
     local text = GC.L["The full scan is cooling down (%d min left). Scanning by browsing instead"]:format(a)
     GC.Print(text)
@@ -866,6 +899,16 @@ local function realDriver()
       return GC.Sniper ~= nil and GC.Sniper.BrowseHeld ~= nil and GC.Sniper.BrowseHeld() == true
     end,
     store = function() return GC.ForeverScan.Store() end,
+    -- Blackwater's zones (GC.ForeverScan.IsNeutralMap), from where the player stands.
+    neutral = function()
+      local map = _G.C_Map
+      if type(map) ~= "table" or type(map.GetBestMapForUnit) ~= "function" then return false end
+      local ok, id = pcall(map.GetBestMapForUnit, "player")
+      return GC.ForeverScan.IsNeutralMap(ok and id or nil, function(m)
+        local okI, info = pcall(map.GetMapInfo, m)
+        return okI and type(info) == "table" and info.parentMapID or nil
+      end)
+    end,
     passport = function()
       local p = GC.Game and GC.Game.Passport and GC.Game.Passport() or {}
       -- GetRealmName() answers "" on Forever's 1.60.1.71037 (Core/Game.lua RealmName).

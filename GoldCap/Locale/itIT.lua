@@ -2118,4 +2118,6 @@ GC.Locales.itIT = {
     "%d in vendita",
   ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
     "dopo la commissione del 5%%, comprando uno per ciascuno di questi %d ad Acquanera e rivendendoli a casa",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "Questa è la casa d'aste di Acquanera, quella neutrale. GoldCap non la scansiona: i suoi prezzi non sono quelli della tua fazione.",
 }

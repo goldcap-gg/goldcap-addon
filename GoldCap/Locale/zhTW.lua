@@ -2006,4 +2006,6 @@ GC.Locales.zhTW = {
     "在售 %d 件",
   ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
     "在黑水灣各買一件這 %d 樣、回本陣營賣出，扣除 5%% 手續費後",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "這裡是中立的黑水灣拍賣場。GoldCap 不掃描這裡：這裡的價格不是你陣營的價格。",
 }

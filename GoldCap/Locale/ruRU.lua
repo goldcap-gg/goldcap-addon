@@ -2187,4 +2187,6 @@ GC.Locales.ruRU = {
     "в продаже: %d",
   ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
     "после 5%% комиссии, если купить по одной из этих %d в Черноводье и продать дома",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "Это Черноводье, нейтральный аукцион. GoldCap его не сканирует: здешние цены не цены вашей фракции.",
 }

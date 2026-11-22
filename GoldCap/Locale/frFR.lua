@@ -2126,4 +2126,6 @@ GC.Locales.frFR = {
     "%d en vente",
   ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
     "après la taxe de 5%%, en achetant un de chacun de ces %d aux Flots noirs et en les revendant chez vous",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "Ici, c'est l'hôtel des ventes des Flots noirs, le neutre. GoldCap ne le scanne pas : ses prix ne sont pas ceux de votre faction.",
 }

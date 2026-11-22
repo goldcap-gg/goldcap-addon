@@ -2115,4 +2115,6 @@ GC.Locales.ptBR = {
     "%d à venda",
   ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
     "após a taxa de 5%%, comprando um de cada um destes %d em Aguanegra e vendendo em casa",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "Esta é a Casa de Leilões de Aguanegra, a neutra. O GoldCap não a escaneia: os preços dela não são os da sua facção.",
 }
