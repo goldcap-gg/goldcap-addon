@@ -21,8 +21,9 @@ local Theme
 local LY = {
   CHIP_W = 128, BANNER_H = 58, HEAD_H = 18, ROW_H = 42, ICON = 28, DOCK_H = 70, PAD = 8,
   COL_BW = 92, COL_HOME = 92, COL_MAKE = 100, COL_TAKE = 26, STACK = 6, STACK_ICON = 24,
-  GOBLIN = "Interface\\Icons\\Achievement_Goblinhead",
-  CHECK = "Interface\\Buttons\\UI-CheckBox-Check",
+  -- The goblin of Booty Bay, or, where the client has no such file, the coin HERO already shows.
+  GOBLIN = "Interface\\Icons\\Achievement_Goblinhead", COIN = "Interface\\Icons\\INV_Misc_Coin_01",
+  BOX = 16, BOX_GLYPH = 12,
 }
 -- Blackwater's own colour, its banner and the line over it: the skin's blue (the token of what is
 -- yours), which every skin sets, the paper ones too, where a pale sea green would not read.
@@ -132,7 +133,8 @@ end
 
 local function showItemTip(row)
   if not row.itemID or not _G.GameTooltip then return end
-  _G.GameTooltip:SetOwner(row, Theme.TooltipAnchor and Theme.TooltipAnchor(row) or "ANCHOR_RIGHT")
+  -- Beside the window rather than over the list, as BUY's rows open theirs.
+  Theme.ItemTooltipOutside(row, ui.frame)
   _G.GameTooltip:SetItemByID(row.itemID)
   _G.GameTooltip:Show()
 end
@@ -174,15 +176,19 @@ local function createRow(parent)
   row.tag:SetJustifyH("LEFT")
   row.tag:SetPoint("LEFT", row.sub, "RIGHT", 8, 0)
 
+  -- HERO's box (UI/HeroFrame.lua): a ring, a green fill and a check while taken, a plus while left out.
   row.take = CreateFrame("Button", nil, row)
-  row.take:SetSize(18, 18)
-  row.take:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-  row.take.box = Theme.ShapeTexture(row.take, "BACKGROUND", "control", Theme.color.border, true)
-  row.take.box:SetAllPoints()
-  row.take.mark = row.take:CreateTexture(nil, "ARTWORK")
-  row.take.mark:SetTexture(LY.CHECK)
-  row.take.mark:SetPoint("CENTER", 1, 0)
-  row.take.mark:SetSize(22, 22)
+  row.take:SetSize(LY.COL_TAKE, LY.ROW_H)
+  row.take:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+  local dim = Theme.color.fgDim
+  row.take.box = Theme.ShapeTexture(row.take, "ARTWORK", "chip", { dim[1], dim[2], dim[3], 0.9 }, true)
+  row.take.box:SetSize(LY.BOX, LY.BOX)
+  row.take.box:SetPoint("CENTER", row.take, "CENTER", 0, 0)
+  row.take.fill = Theme.ShapeTexture(row.take, "ARTWORK", "chip", Theme.color.green)
+  row.take.fill:SetAllPoints(row.take.box)
+  row.take.mark = row.take:CreateTexture(nil, "OVERLAY")
+  row.take.mark:SetSize(LY.BOX_GLYPH, LY.BOX_GLYPH)
+  row.take.mark:SetPoint("CENTER", row.take.box, "CENTER", 0, 0)
   row.take:SetScript("OnClick", function(self)
     local id = self:GetParent().itemID
     if not id then return end
@@ -223,7 +229,12 @@ local function paintRow(row, r)
   row.make:SetText("+" .. money(r.profit))
   row.pct:SetText(("+%d%%"):format(r.pct))
   local taken = not state.unchecked[r.itemID]
-  row.take.mark:SetShown(taken)
+  if taken then
+    Theme.SetIcon(row.take.mark, "check", GC.Kit.Tokens.color.onGold)
+  else
+    Theme.SetIcon(row.take.mark, "plus", Theme.color.fg)
+  end
+  row.take.fill:SetShown(taken)
   row:SetAlpha(taken and 1 or 0.55)
   row:Show()
 end
@@ -253,6 +264,8 @@ local function build(container)
   banner.goblin:SetSize(40, 40)
   banner.goblin:SetPoint("LEFT", banner, "LEFT", 9, 0)
   banner.goblin:SetTexture(LY.GOBLIN)
+  -- SetTexture answers true for a file the client lacks; GetTextureFileID says nil for it.
+  if banner.goblin.GetTextureFileID and not banner.goblin:GetTextureFileID() then banner.goblin:SetTexture(LY.COIN) end
   banner.goblin:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   banner.over = Theme.Num(banner, 9, true)
   banner.over:SetJustifyH("LEFT")

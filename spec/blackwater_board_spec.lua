@@ -167,7 +167,9 @@ describe("Blackwater board", function()
     press(ui().rows[2].take)
     assert.equal("ADD 2 TO BUY", plain(ui().dock.button.label))
     assert.equal("2 checked, one of each", textOf(ui().dock.title))
-    assert.is_false(shown(ui().rows[2].take.mark))
+    assert.is_false(shown(ui().rows[2].take.fill))
+    assert.same({ GC.Theme.IconCoords("plus") }, W.state(ui().rows[2].take.mark).texCoord)
+    assert.same({ GC.Theme.IconCoords("check") }, W.state(ui().rows[1].take.mark).texCoord)
   end)
 
   it("writes the checked rows to BUY as one list, a unit each, capped where the flip ends", function()
@@ -206,6 +208,21 @@ describe("Blackwater board", function()
     _G.time = function() return NOW + 60 end
     BW.Paint()
     assert.equal("Nothing at Blackwater is 1g or more cheaper than at home right now.", textOf(ui().empty))
+  end)
+
+  it("shows the coin where the client has no goblin icon", function()
+    assert.equal("Interface\\Icons\\Achievement_Goblinhead", W.state(ui().banner.goblin).file)
+    W.missingTextures["Interface\\Icons\\Achievement_Goblinhead"] = true
+    restore()
+    restore = W.install()
+    W.missingTextures["Interface\\Icons\\Achievement_Goblinhead"] = true
+    local again = CreateFrame("Frame")
+    again.boardChips = { items = GC.Theme.Button(again, "ghost", "plaque") }
+    again.scroll, again.headerRow, again.dealsChrome = CreateFrame("Frame", nil, again), CreateFrame("Frame", nil, again), {}
+    helper.loadModule("UI/SniperBlackwater_Camelot.lua", GC)
+    GC.Blackwater.Attach(again, { panelLeft = 20, panelRightInset = 20, top = -120, bottom = 12 })
+    assert.equal("Interface\\Icons\\INV_Misc_Coin_01", W.state(GC.Blackwater._ui.banner.goblin).file)
+    W.missingTextures["Interface\\Icons\\Achievement_Goblinhead"] = nil
   end)
 
   it("says how old the prices are once they are stale", function()

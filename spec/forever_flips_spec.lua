@@ -103,6 +103,20 @@ describe("ForeverFlips", function()
       assert.equal(1, #list.rows)
       assert.equal(735000, list.rows[1].profit)
     end)
+
+    -- The speed reads the sales tape under the names ParseForever gives it: a rename there would
+    -- leave every row without a speed and every spec above still green.
+    it("reads the speed from the sales tape ParseForever returns", function()
+      local p = GC.ImportString.ParseForever("GCF1;s;91;All Normal realms;Alliance;" .. AT
+        .. ";I:13493=1300000=1300000===10=1=0,9433=90000=90000===6=1=0;H:168;S:13493=14=12=1290000=1250000"
+        .. ";B:" .. AT .. ",13493=500000=1=1300000=10,9433=25000=1=90000=6")
+      local list = F.Rows(p, AT)
+      assert.equal(14, list.rows[1].sold)
+      assert.equal(168, list.rows[1].soldHours)
+      assert.is_nil(list.rows[1].slow)
+      assert.equal(0, list.rows[2].sold)
+      assert.is_true(list.rows[2].slow)
+    end)
   end)
 
   describe("the checked rows", function()
