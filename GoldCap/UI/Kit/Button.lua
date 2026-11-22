@@ -672,7 +672,8 @@ function T.BoardTab(parent, iconFile, glyph)
     b.icon:SetDesaturated(not on)
     local shade = on and 1 or 0.78
     b.icon:SetVertexColor(shade, shade, shade, 1)
-    local edge = on and K.gold or { 0, 0, 0 }
+    -- An icon's dark rim, the same in every skin.
+    local edge = on and K.gold or { 0, 0, 0 } -- untinted
     b.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], on and 0.9 or 0.7)
   end
   b:SetVariant("ghost")
