@@ -4,9 +4,9 @@
 
 - WoW: Forever: DEALS has a third board, BLACKWATER. It lists what the neutral auction house in
   Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house: the price
-  there, the price at home, what you make after the 5% cut and how fast it sells at home. Uncheck
-  what you do not want, and ADD TO BUY puts the rest on a BUY list, one of each, that never pays
-  more than still leaves a profit. The prices come from goldcap.gg with the Companion, every hour.
+  there, the price at home, what you make after the 5% cut and how fast it sells at home. Tick
+  what you want, or all of them with one box, and ADD TO BUY puts them on a BUY list, one of each,
+  that never pays more than still leaves a profit. The prices come from goldcap.gg with the Companion, every hour.
 - WoW: Forever: at the neutral auction house in Booty Bay, Gadgetzan and Everlook GoldCap no longer
   scans. What it lists was counted as your own faction's prices, on DEALS and on goldcap.gg.
 

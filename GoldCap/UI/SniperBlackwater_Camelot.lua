@@ -7,7 +7,8 @@ local _, GC = ...
 --
 -- A third chip beside COMMODITIES and ITEMS. On it the board below the chips is this file's own:
 -- one big figure (what one of each flip makes), the flips best first with what each costs there,
--- fetches here and makes after the cut, how fast it sells here, a box to take it or leave it, and
+-- fetches here and makes after the cut, how fast it sells here, a box to take it (none is taken
+-- until the player ticks it; the box over the column takes them all or none), and
 -- one button that writes the checked ones to BUY as the list "Blackwater flips", each line capped
 -- where the flip ends. Buying is BUY's: one lot a click, at the auctioneer there. Nothing here asks
 -- the auction house anything; the prices are goldcap.gg's, from Blizzard's hourly snapshots.
@@ -29,7 +30,7 @@ local LY = {
 -- yours), which every skin sets, the paper ones too, where a pale sea green would not read.
 local function sea(a) return GC.Kit.Tokens.alpha("yours", a or 1) end
 
-local state = { active = false, view = "deals", unchecked = {}, rows = {}, at = nil, stale = false, loadAsked = {},
+local state = { active = false, view = "deals", checked = {}, rows = {}, at = nil, stale = false, loadAsked = {},
   names = {}, missing = {} }
 -- A name the client does not have is asked for again after this long: it keeps about two thousand
 -- and lets the rest go (Core/ForeverNames.lua), and a scan running beside the board loads thousands.
@@ -93,9 +94,19 @@ end
 local function checkedSet()
   local set = {}
   for _, r in ipairs(state.rows) do
-    if not state.unchecked[r.itemID] then set[r.itemID] = true end
+    if state.checked[r.itemID] then set[r.itemID] = true end
   end
   return set
+end
+
+-- How many of the rows on the board are ticked: "all", "some" or "none".
+local function tickedShare()
+  local n = 0
+  for _, r in ipairs(state.rows) do
+    if state.checked[r.itemID] then n = n + 1 end
+  end
+  if n == 0 then return "none" end
+  return n == #state.rows and "all" or "some"
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -163,6 +174,32 @@ local function showItemTip(row)
   _G.GameTooltip:Show()
 end
 
+-- HERO's box (UI/HeroFrame.lua): a ring, and a green fill with a check while taken; a plus while
+-- left out. The box over the column shows a minus while only some rows are taken.
+local function createBox(parent, w, h)
+  local take = CreateFrame("Button", nil, parent)
+  take:SetSize(w, h)
+  local dim = Theme.color.fgDim
+  take.box = Theme.ShapeTexture(take, "ARTWORK", "chip", { dim[1], dim[2], dim[3], 0.9 }, true)
+  take.box:SetSize(LY.BOX, LY.BOX)
+  take.box:SetPoint("CENTER", take, "CENTER", 0, 0)
+  take.fill = Theme.ShapeTexture(take, "ARTWORK", "chip", Theme.color.green)
+  take.fill:SetAllPoints(take.box)
+  take.mark = take:CreateTexture(nil, "OVERLAY")
+  take.mark:SetSize(LY.BOX_GLYPH, LY.BOX_GLYPH)
+  take.mark:SetPoint("CENTER", take.box, "CENTER", 0, 0)
+  return take
+end
+
+local function paintBox(take, share)
+  if share == "none" then
+    Theme.SetIcon(take.mark, "plus", Theme.color.fg)
+  else
+    Theme.SetIcon(take.mark, share == "all" and "check" or "minus", GC.Kit.Tokens.color.onGold)
+  end
+  take.fill:SetShown(share ~= "none")
+end
+
 local function createRow(parent)
   local row = CreateFrame("Frame", nil, parent)
   row:SetHeight(LY.ROW_H)
@@ -197,23 +234,12 @@ local function createRow(parent)
   setColor(row.sub, Theme.color.fgDim)
   row.sub:SetPoint("BOTTOMLEFT", row.iconEdge, "BOTTOMRIGHT", 8, -1)
 
-  -- HERO's box (UI/HeroFrame.lua): a ring, a green fill and a check while taken, a plus while left out.
-  row.take = CreateFrame("Button", nil, row)
-  row.take:SetSize(LY.COL_TAKE, LY.ROW_H)
+  row.take = createBox(row, LY.COL_TAKE, LY.ROW_H)
   row.take:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-  local dim = Theme.color.fgDim
-  row.take.box = Theme.ShapeTexture(row.take, "ARTWORK", "chip", { dim[1], dim[2], dim[3], 0.9 }, true)
-  row.take.box:SetSize(LY.BOX, LY.BOX)
-  row.take.box:SetPoint("CENTER", row.take, "CENTER", 0, 0)
-  row.take.fill = Theme.ShapeTexture(row.take, "ARTWORK", "chip", Theme.color.green)
-  row.take.fill:SetAllPoints(row.take.box)
-  row.take.mark = row.take:CreateTexture(nil, "OVERLAY")
-  row.take.mark:SetSize(LY.BOX_GLYPH, LY.BOX_GLYPH)
-  row.take.mark:SetPoint("CENTER", row.take.box, "CENTER", 0, 0)
   row.take:SetScript("OnClick", function(self)
     local id = self:GetParent().itemID
     if not id then return end
-    state.unchecked[id] = not state.unchecked[id] or nil
+    state.checked[id] = not state.checked[id] or nil
     paint()
   end)
 
@@ -260,14 +286,7 @@ local function paintRow(row, r)
   row.home:SetText(money(r.home))
   row.make:SetText("+" .. money(r.profit))
   row.pct:SetText(("+%d%%"):format(r.pct))
-  local taken = not state.unchecked[r.itemID]
-  if taken then
-    Theme.SetIcon(row.take.mark, "check", GC.Kit.Tokens.color.onGold)
-  else
-    Theme.SetIcon(row.take.mark, "plus", Theme.color.fg)
-  end
-  row.take.fill:SetShown(taken)
-  row:SetAlpha(taken and 1 or 0.55)
+  paintBox(row.take, state.checked[r.itemID] and "all" or "none")
   row:Show()
 end
 
@@ -333,6 +352,26 @@ local function build(container)
   header(head, GC.L["YOU MAKE"], LY.COL_TAKE + 6)
   header(head, GC.L["HOME"], LY.COL_TAKE + 6 + LY.COL_MAKE)
   header(head, GC.L["BLACKWATER"], LY.COL_TAKE + 6 + LY.COL_MAKE + LY.COL_HOME)
+  -- Over the rows' boxes, one that ticks them all, or, when all are ticked, none.
+  local all = createBox(head, LY.COL_TAKE, LY.HEAD_H)
+  all:SetPoint("RIGHT", head, "RIGHT", 0, 0)
+  all:SetScript("OnClick", function()
+    local none = tickedShare() == "all"
+    state.checked = {}
+    if not none then
+      for _, r in ipairs(state.rows) do state.checked[r.itemID] = true end
+    end
+    paint()
+  end)
+  all:SetScript("OnEnter", function(self)
+    if not _G.GameTooltip then return end
+    _G.GameTooltip:SetOwner(self, Theme.TooltipAnchor and Theme.TooltipAnchor(self) or "ANCHOR_RIGHT")
+    _G.GameTooltip:SetText(GC.Util.ClientText(tickedShare() == "all" and GC.L["Untick all"] or GC.L["Tick all"]),
+      1, 1, 1, 1, true)
+    _G.GameTooltip:Show()
+  end)
+  all:SetScript("OnLeave", function() if _G.GameTooltip then _G.GameTooltip:Hide() end end)
+  head.all = all
   ui.head = head
 
   -- The dock: what the checked rows take and make, and the one button.
@@ -425,14 +464,14 @@ local function paintDock()
   local shown = 0
   for _, r in ipairs(state.rows) do
     if shown >= LY.STACK then break end
-    if not state.unchecked[r.itemID] then
+    if state.checked[r.itemID] then
       shown = shown + 1
       dock.stack[shown]:SetTexture(itemIcon(r.itemID))
       dock.stack[shown]:Show()
     end
   end
   for i = shown + 1, LY.STACK do dock.stack[i]:Hide() end
-  dock.title:SetText(GC.L["%d checked, one of each"]:format(n))
+  dock.title:SetText(n > 0 and GC.L["%d checked, one of each"]:format(n) or GC.L["Tick the flips to buy"])
   dock.sub:SetText(GC.L["They go to BUY as the list %s"]:format(GC.L["Blackwater flips"]))
   dock.spend:SetText(money(spend))
   dock.make:SetText("+" .. money(make))
@@ -491,7 +530,10 @@ paint = function()
     ui.empty:SetText(GC.L["Nothing at Blackwater is 1g or more cheaper than at home right now."])
   end
   ui.empty:SetShown(not has)
-  if has then paintDock() end
+  if has then
+    paintBox(ui.head.all, tickedShare())
+    paintDock()
+  end
   if S._PaintBoardChips then S._PaintBoardChips() end
 end
 BW.Paint = function() paint() end

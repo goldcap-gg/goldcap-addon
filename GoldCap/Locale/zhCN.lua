@@ -1963,6 +1963,9 @@ GC.Locales.zhCN = {
   -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
   ["%d checked, one of each"] =
     "已勾选 %d 件，每样一件",
+  ["Tick all"] = "全选",
+  ["Untick all"] = "全部取消",
+  ["Tick the flips to buy"] = "勾选要买的物品",
   ["%d sold at home in %d days"] =
     "本阵营卖出 %d 件（%d 天）",
   ["ADD %d TO BUY"] =

@@ -168,20 +168,45 @@ describe("Blackwater board", function()
     assert.is_false(shown(host.scroll))
   end)
 
-  it("counts only the checked rows in the dock and on the button", function()
+  local function glyph(take) return W.state(take.mark).texCoord end
+  local function coords(name) return { GC.Theme.IconCoords(name) } end
+
+  -- Seen in the game 2026-11-22: the owner wants nothing taken until ticked, and all or none at once.
+  it("ticks nothing until the player does, and counts only the ticked rows in the dock and on the button", function()
     press(host.boardChips.blackwater)
-    assert.equal("ADD 3 TO BUY", plain(ui().dock.button.label))
-    press(ui().rows[2].take)
+    assert.equal("ADD 0 TO BUY", plain(ui().dock.button.label))
+    assert.is_false(W.state(ui().dock.button).enabled)
+    assert.equal("Tick the flips to buy", textOf(ui().dock.title))
+    for i = 1, 3 do assert.same(coords("plus"), glyph(ui().rows[i].take)) end
+    assert.same(coords("plus"), glyph(ui().head.all))
+    press(ui().rows[1].take)
+    press(ui().rows[3].take)
     assert.equal("ADD 2 TO BUY", plain(ui().dock.button.label))
+    assert.is_true(W.state(ui().dock.button).enabled)
     assert.equal("2 checked, one of each", textOf(ui().dock.title))
     assert.is_false(shown(ui().rows[2].take.fill))
-    assert.same({ GC.Theme.IconCoords("plus") }, W.state(ui().rows[2].take.mark).texCoord)
-    assert.same({ GC.Theme.IconCoords("check") }, W.state(ui().rows[1].take.mark).texCoord)
+    assert.same(coords("plus"), glyph(ui().rows[2].take))
+    assert.same(coords("check"), glyph(ui().rows[1].take))
+    assert.same(coords("minus"), glyph(ui().head.all))
+  end)
+
+  it("ticks every row with the box over the column, and none with it once all are ticked", function()
+    press(host.boardChips.blackwater)
+    press(ui().rows[2].take)
+    press(ui().head.all)
+    assert.equal("ADD 3 TO BUY", plain(ui().dock.button.label))
+    for i = 1, 3 do assert.same(coords("check"), glyph(ui().rows[i].take)) end
+    assert.same(coords("check"), glyph(ui().head.all))
+    press(ui().head.all)
+    assert.equal("ADD 0 TO BUY", plain(ui().dock.button.label))
+    for i = 1, 3 do assert.is_false(shown(ui().rows[i].take.fill)) end
+    assert.same(coords("plus"), glyph(ui().head.all))
   end)
 
   it("writes the checked rows to BUY as one list, a unit each, capped where the flip ends", function()
     press(host.boardChips.blackwater)
-    press(ui().rows[3].take)
+    press(ui().rows[1].take)
+    press(ui().rows[2].take)
     held[ELIXIR] = 2
     press(ui().dock.button)
     assert.equal("Blackwater flips", run().name)
@@ -194,6 +219,7 @@ describe("Blackwater board", function()
 
   it("buys one more of each on the next press, whatever the last trip bought on the list", function()
     press(host.boardChips.blackwater)
+    press(ui().head.all)
     press(ui().dock.button)
     local code = run().code
     GC.db.buyProgress = { ["Me-"] = { [code] = { [ELIXIR] = { bought = 1, spent = 500000 } } } }

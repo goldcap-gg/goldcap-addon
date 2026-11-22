@@ -2083,6 +2083,9 @@ GC.Locales.deDE = {
   -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
   ["%d checked, one of each"] =
     "%d markiert, je eins",
+  ["Tick all"] = "Alle markieren",
+  ["Untick all"] = "Alle Markierungen aufheben",
+  ["Tick the flips to buy"] = "Markiere, was du kaufen willst",
   ["%d sold at home in %d days"] =
     "%d daheim verkauft in %d Tagen",
   ["ADD %d TO BUY"] =

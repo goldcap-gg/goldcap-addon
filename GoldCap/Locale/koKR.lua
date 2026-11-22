@@ -2002,6 +2002,9 @@ GC.Locales.koKR = {
   -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
   ["%d checked, one of each"] =
     "%d개 선택, 종류별 1개",
+  ["Tick all"] = "모두 선택",
+  ["Untick all"] = "모두 해제",
+  ["Tick the flips to buy"] = "살 항목을 선택하세요",
   ["%d sold at home in %d days"] =
     "진영 경매장 판매 %d개 (%d일)",
   ["ADD %d TO BUY"] =
