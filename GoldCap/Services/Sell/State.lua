@@ -48,6 +48,9 @@ GC.SellState = {
   -- When each sold row was first seen, for "51 min ago" (GC.SoldLots.Stamp), and when the last
   -- owned read was. Kept for the session: a sale stays dated across closing the auction house.
   soldSeen = {}, soldReadAt = nil,
+  -- The MY LOTS section each position was last filed under with a live price, by positionKey
+  -- (GC.SellViewModel.LotSections): a refresh that drops the prices for a moment leaves it there.
+  lotSections = {},
   -- The posting queue, DERIVED, never stored: rebuilt by Compose.Positions() every time positions
   -- are, straight from GC.PostQueue.Build(positions). There is deliberately no separate stateful
   -- queue with an index into it -- a post empties that item from the bags, so the entry drops out

@@ -236,7 +236,7 @@ ROW.SECTION_HINTS = {
 -- The deck in section order, and which section each position fell into.
 function ROW.bySection(filtered)
   local ordered, sectionOf = {}, {}
-  for _, section in ipairs(GC.SellViewModel.LotSections(filtered, S.cancelEntries)) do
+  for _, section in ipairs(GC.SellViewModel.LotSections(filtered, S.cancelEntries, S.lotSections)) do
     for _, position in ipairs(section.positions) do
       ordered[#ordered + 1] = position
       sectionOf[position] = section
