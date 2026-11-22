@@ -446,6 +446,27 @@ function GC.ImportString.ParseForever(str)
         local id, price = token:match("^(%d+)=(%d+)$")
         if id then result.recent[tonumber(id)] = tonumber(price) end
       end
+    elseif kind == "B" then
+      -- WoW: Forever's neutral Blackwater auction house (Booty Bay, Gadgetzan, Everlook): the items
+      -- it sells for less than this market's own house, from Blizzard's hourly snapshot of both
+      -- (goldcap.gg, ClickUp 1an60dzy5r4). The first token is the snapshot's time, then per item
+      -- Blackwater's cheapest unit and how many of its units are a flip, and this house's cheapest
+      -- unit and how many units it lists. Random-suffix gear is never in it.
+      local first = true
+      for token in body:gmatch("[^,]+") do
+        if first then
+          first = false
+          local at = token:match("^(%d+)$")
+          if not at then break end
+          result.blackwater = { at = tonumber(at), items = {} }
+        else
+          local id, bw, bwQty, home, homeQty = token:match("^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$")
+          if id then
+            result.blackwater.items[tonumber(id)] = { bw = tonumber(bw), bwQty = tonumber(bwQty),
+              home = tonumber(home), homeQty = tonumber(homeQty) }
+          end
+        end
+      end
     end
   end
   if result.count == 0 then return nil, "no_items" end

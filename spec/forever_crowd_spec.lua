@@ -60,6 +60,21 @@ describe("GCF1, the WoW: Forever crowd payload", function()
     assert.is_nil(GC.ImportString.ParseForever(BODY .. ";H:72;S:2589=300=41=75=71").recent)
   end)
 
+  -- ClickUp 1an60dzy5r4: the neutral Blackwater house's flips, a section of their own after R. The
+  -- first token is the snapshot's time; a B without one is not read at all.
+  it("reads the Blackwater flips with their snapshot time, and skips a malformed one alone", function()
+    local p = GC.ImportString.ParseForever(BODY .. ";H:72;S:2589=300=41=75=71;R:2589=90;"
+      .. "B:1790000300,13493=500000=1=1300000=10,oops,10822=230000=2=450000=4,9433=x=1=2=3")
+    assert.equal(1790000300, p.blackwater.at)
+    assert.same({ bw = 500000, bwQty = 1, home = 1300000, homeQty = 10 }, p.blackwater.items[13493])
+    assert.same({ bw = 230000, bwQty = 2, home = 450000, homeQty = 4 }, p.blackwater.items[10822])
+    assert.is_nil(p.blackwater.items[9433])
+    assert.same({ [2589] = 90 }, p.recent)
+    assert.equal(2, p.count)
+    assert.is_nil(GC.ImportString.ParseForever(BODY).blackwater)
+    assert.is_nil(GC.ImportString.ParseForever(BODY .. ";B:13493=500000=1=1300000=10").blackwater)
+  end)
+
   it("refuses what is not a Forever payload", function()
     assert.same({ nil, "empty" }, { GC.ImportString.ParseForever(nil) })
     assert.same({ nil, "bad_header" }, { GC.ImportString.ParseForever("GCM1;eu;1;I:1=2") })

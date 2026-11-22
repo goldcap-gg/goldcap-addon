@@ -111,6 +111,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["UI/SniperGearLoop_Camelot.lua"] = "UI/SniperFrame_Camelot.lua",
     -- What gear disenchants into, for the tooltip: with the other Forever value rules.
     ["Core/ForeverDisenchant.lua"] = "Core/ForeverGearLoop.lua",
+    -- Flips through the neutral Blackwater house: with the other Forever value rules.
+    ["Core/ForeverFlips.lua"] = "Core/ForeverDisenchant.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()

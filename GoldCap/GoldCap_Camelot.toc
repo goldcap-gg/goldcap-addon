@@ -80,6 +80,7 @@ Core/ForeverValue.lua
 Core/ForeverDeals.lua
 Core/ForeverGearLoop.lua
 Core/ForeverDisenchant.lua
+Core/ForeverFlips.lua
 Core/ForeverRoad.lua
 Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
