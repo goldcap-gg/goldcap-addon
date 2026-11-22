@@ -2004,12 +2004,8 @@ GC.Locales.koKR = {
     "%d개 선택, 종류별 1개",
   ["%d sold at home in %d days"] =
     "진영 경매장 판매 %d개 (%d일)",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "검은바다 저가 %d개 · 진영 경매장 %d개",
   ["ADD %d TO BUY"] =
     "BUY에 %d개 추가",
-  ["after the 5% cut at home"] =
-    "진영 경매장 수수료 5% 제외 후",
   ["BLACKWATER %d"] =
     "검은바다 %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2020,8 +2016,6 @@ GC.Locales.koKR = {
     "검은바다: 무법항, 가젯잔, 눈망루 마을의 중립 경매장이 내 진영 경매장보다 싸게 파는 물품입니다. 거기서 사서 진영 경매장에 올리세요.",
   ["BLACKWATER"] =
     "검은바다",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "이 %d종을 검은바다에서 1개씩 사서 진영 경매장에서 판매",
   ["HOME"] =
     "진영",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2044,4 +2038,10 @@ GC.Locales.koKR = {
     "수익",
   ["YOU SPEND"] =
     "지출",
+  ["%d cheap"] =
+    "저가 %d개",
+  ["%d listed"] =
+    "등록 %d개",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "수수료 5%% 제외 후, 이 %d종을 검은바다에서 1개씩 사서 진영 경매장에서 팔 때",
 }

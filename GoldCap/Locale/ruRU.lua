@@ -2147,12 +2147,8 @@ GC.Locales.ruRU = {
     "Отмечено: %d, по одной штуке",
   ["%d sold at home in %d days"] =
     "Продано дома: %d за %d дн.",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "%d дёшево в Черноводье · %d выставлено дома",
   ["ADD %d TO BUY"] =
     "ДОБАВИТЬ %d В BUY",
-  ["after the 5% cut at home"] =
-    "после 5% комиссии дома",
   ["BLACKWATER %d"] =
     "ЧЕРНОВОДЬЕ %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2163,8 +2159,6 @@ GC.Locales.ruRU = {
     "Черноводье: что нейтральный аукцион в Пиратской Бухте, Прибамбасске и Круговзоре продаёт дешевле, чем аукцион вашей фракции. Купите там, выставьте дома.",
   ["BLACKWATER"] =
     "ЧЕРНОВОДЬЕ",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "купите по одной из этих %d в Черноводье и продайте дома",
   ["HOME"] =
     "ДОМА",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2187,4 +2181,10 @@ GC.Locales.ruRU = {
     "ВЫ ПОЛУЧИТЕ",
   ["YOU SPEND"] =
     "ВЫ ПОТРАТИТЕ",
+  ["%d cheap"] =
+    "дёшево: %d",
+  ["%d listed"] =
+    "в продаже: %d",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "после 5%% комиссии, если купить по одной из этих %d в Черноводье и продать дома",
 }

@@ -29,7 +29,11 @@ local LY = {
 -- yours), which every skin sets, the paper ones too, where a pale sea green would not read.
 local function sea(a) return GC.Kit.Tokens.alpha("yours", a or 1) end
 
-local state = { active = false, view = "deals", unchecked = {}, rows = {}, at = nil, stale = false, loadAsked = {} }
+local state = { active = false, view = "deals", unchecked = {}, rows = {}, at = nil, stale = false, loadAsked = {},
+  names = {}, missing = {} }
+-- A name the client does not have is asked for again after this long: it keeps about two thousand
+-- and lets the rest go (Core/ForeverNames.lua), and a scan running beside the board loads thousands.
+local LOAD_AGAIN_S = 5
 local ui = {}
 BW._ui = ui -- what is on screen, for the spec (spec/blackwater_board_spec.lua)
 
@@ -51,14 +55,34 @@ local function readList()
   return cache.list
 end
 
+-- The names the full scan kept for good (Core/ForeverNames.lua), in the client's language, or nil.
+local function keptNames()
+  local N = GC.ForeverNames
+  local store = N and N.Store and N.Store(GC.db, _G.GetLocale and _G.GetLocale() or "enUS", false) or nil
+  return store and store.names or nil
+end
+
+-- An item's name: once the client has said it, it stays said (seen in the game 2026-11-22: with a
+-- scan loading items beside the board, the names came and went). The client first, then what the
+-- scan kept; a name the client gives is kept there too. With neither, the client is asked to load it.
 local function itemName(itemID)
-  local api = _G.C_Item
-  local name = api and api.GetItemNameByID and api.GetItemNameByID(itemID) or nil
-  if not name and api and api.RequestLoadItemDataByID and not state.loadAsked[itemID] then
-    state.loadAsked[itemID] = true
+  local name = state.names[itemID]
+  if name then return name end
+  local api, kept = _G.C_Item, keptNames()
+  name = api and api.GetItemNameByID and api.GetItemNameByID(itemID) or nil
+  if name and kept then kept[itemID] = name end
+  name = name or (kept and kept[itemID]) or nil
+  if name then
+    state.names[itemID] = name
+    return name
+  end
+  local now = _G.GetTime and _G.GetTime() or 0
+  local asked = state.loadAsked[itemID]
+  if api and api.RequestLoadItemDataByID and (asked == nil or now - asked >= LOAD_AGAIN_S) then
+    state.loadAsked[itemID] = now
     pcall(api.RequestLoadItemDataByID, itemID)
   end
-  return name
+  return nil
 end
 
 local function itemIcon(itemID)
@@ -172,9 +196,6 @@ local function createRow(parent)
   row.sub:SetJustifyH("LEFT")
   setColor(row.sub, Theme.color.fgDim)
   row.sub:SetPoint("BOTTOMLEFT", row.iconEdge, "BOTTOMRIGHT", 8, -1)
-  row.tag = Theme.Num(row, 9, true)
-  row.tag:SetJustifyH("LEFT")
-  row.tag:SetPoint("LEFT", row.sub, "RIGHT", 8, 0)
 
   -- HERO's box (UI/HeroFrame.lua): a ring, a green fill and a check while taken, a plus while left out.
   row.take = CreateFrame("Button", nil, row)
@@ -202,12 +223,20 @@ local function createRow(parent)
   row.pct = Theme.Num(row, 10)
   row.pct:SetPoint("TOPRIGHT", row.make, "BOTTOMRIGHT", 0, -2)
   setColor(row.pct, Theme.color.fgDim)
+  -- Each price with how many units stand behind it underneath, as the profit has its percent: the
+  -- line under the name keeps only how fast it sells, and never runs into the prices.
   row.home = Theme.Num(row, 12, true)
-  row.home:SetPoint("RIGHT", row, "RIGHT", -(LY.COL_TAKE + 6 + LY.COL_MAKE), 0)
+  row.home:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(LY.COL_TAKE + 6 + LY.COL_MAKE), -7)
   setColor(row.home, Theme.color.fg)
+  row.homeQty = Theme.Num(row, 10)
+  row.homeQty:SetPoint("TOPRIGHT", row.home, "BOTTOMRIGHT", 0, -2)
+  setColor(row.homeQty, Theme.color.fgDim)
   row.bw = Theme.Num(row, 12, true)
-  row.bw:SetPoint("RIGHT", row, "RIGHT", -(LY.COL_TAKE + 6 + LY.COL_MAKE + LY.COL_HOME), 0)
+  row.bw:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(LY.COL_TAKE + 6 + LY.COL_MAKE + LY.COL_HOME), -7)
   setColor(row.bw, Theme.color.fg)
+  row.bwQty = Theme.Num(row, 10)
+  row.bwQty:SetPoint("TOPRIGHT", row.bw, "BOTTOMRIGHT", 0, -2)
+  setColor(row.bwQty, Theme.color.fgDim)
   row.name:SetPoint("RIGHT", row, "RIGHT", -(LY.COL_TAKE + 6 + LY.COL_MAKE + LY.COL_HOME + LY.COL_BW), 0)
   return row
 end
@@ -219,11 +248,14 @@ local function paintRow(row, r)
   local q = Theme.QualityColor(r.itemID, false)
   local edge = q and { q.r, q.g, q.b, 0.6 } or GC.Kit.Tokens.ink(0.16)
   row.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], edge[4])
-  row.name:SetText(Theme.WithQuality(itemName(r.itemID) or GC.L["item %d"]:format(r.itemID), r.itemID, 12))
-  row.sub:SetText(GC.L["%d cheap at Blackwater · %d listed at home"]:format(r.bwQty or 0, r.homeQty or 0))
+  local name = itemName(r.itemID)
+  if not name then state.missing[r.itemID] = true end
+  row.name:SetText(Theme.WithQuality(name or GC.L["item %d"]:format(r.itemID), r.itemID, 12))
+  row.bwQty:SetText(GC.L["%d cheap"]:format(r.bwQty or 0))
+  row.homeQty:SetText(GC.L["%d listed"]:format(r.homeQty or 0))
   local tag, colour = speed(r)
-  row.tag:SetText(tag or "")
-  if colour then setColor(row.tag, colour) end
+  row.sub:SetText(tag or "")
+  if colour then setColor(row.sub, colour) end
   row.bw:SetText(money(r.bw))
   row.home:SetText(money(r.home))
   row.make:SetText("+" .. money(r.profit))
@@ -308,11 +340,14 @@ local function build(container)
   dock:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, 0)
   dock:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
   dock:SetHeight(LY.DOCK_H)
+  -- The card is a frame of its own over the dock: what the dock says is drawn on the card, or the
+  -- card's fill covers it (seen in the game 2026-11-22: only the button showed).
   dock.card = Theme.Card(dock, nil, nil, true)
   dock.card:SetAllPoints()
+  local face = dock.card
   dock.stack = {}
   for i = 1, LY.STACK do
-    local t = dock:CreateTexture(nil, "ARTWORK", nil, LY.STACK - i)
+    local t = face:CreateTexture(nil, "ARTWORK", nil, LY.STACK - i)
     t:SetSize(LY.STACK_ICON, LY.STACK_ICON)
     t:SetPoint("TOPLEFT", dock, "TOPLEFT", 10 + (i - 1) * (LY.STACK_ICON - 7), -9)
     t:SetTexCoord(0.07, 0.93, 0.07, 0.93)
@@ -323,39 +358,40 @@ local function build(container)
   dock.button:FitLabels({ GC.L["ADD %d TO BUY"]:format(99) }, 132)
   dock.button:SetPoint("TOPRIGHT", dock, "TOPRIGHT", -10, -6)
   dock.button:SetScript("OnClick", function() BW.AddToBuy() end)
-  dock.makeLabel = Theme.Num(dock, 9, true)
+  dock.button:SetFrameLevel(face:GetFrameLevel() + 2)
+  dock.makeLabel = Theme.Num(face, 9, true)
   dock.makeLabel:SetPoint("TOPRIGHT", dock.button, "TOPLEFT", -14, -1)
   dock.makeLabel:SetText(GC.L["YOU MAKE"])
   setColor(dock.makeLabel, Theme.color.fgDim)
-  dock.make = Theme.Num(dock, 12, true)
+  dock.make = Theme.Num(face, 12, true)
   dock.make:SetPoint("TOPRIGHT", dock.makeLabel, "BOTTOMRIGHT", 0, -3)
   setColor(dock.make, Theme.color.green)
-  dock.spendLabel = Theme.Num(dock, 9, true)
+  dock.spendLabel = Theme.Num(face, 9, true)
   dock.spendLabel:SetPoint("TOPRIGHT", dock.makeLabel, "TOPLEFT", -40, 0)
   dock.spendLabel:SetText(GC.L["YOU SPEND"])
   setColor(dock.spendLabel, Theme.color.fgDim)
-  dock.spend = Theme.Num(dock, 12, true)
+  dock.spend = Theme.Num(face, 12, true)
   dock.spend:SetPoint("TOPRIGHT", dock.spendLabel, "BOTTOMRIGHT", 0, -3)
   setColor(dock.spend, Theme.color.fg)
-  dock.title = Theme.Label(dock, 12)
+  dock.title = Theme.Label(face, 12)
   dock.title:SetJustifyH("LEFT")
   dock.title:SetPoint("TOPLEFT", dock, "TOPLEFT", 10 + LY.STACK * (LY.STACK_ICON - 7) + 14, -8)
   dock.title:SetPoint("RIGHT", dock.spendLabel, "LEFT", -12, 0)
   setColor(dock.title, Theme.color.fg)
-  dock.sub = Theme.Label(dock, 10)
+  dock.sub = Theme.Label(face, 10)
   dock.sub:SetJustifyH("LEFT")
   dock.sub:SetPoint("TOPLEFT", dock.title, "BOTTOMLEFT", 0, -3)
   dock.sub:SetPoint("RIGHT", dock.spendLabel, "LEFT", -12, 0)
   setColor(dock.sub, Theme.color.fgDim)
-  dock.rule = Theme.Solid(dock, "ARTWORK", Theme.color.border)
+  dock.rule = Theme.Solid(face, "ARTWORK", Theme.color.border)
   dock.rule:SetHeight(1)
   dock.rule:SetPoint("BOTTOMLEFT", dock, "BOTTOMLEFT", 10, 24)
   dock.rule:SetPoint("BOTTOMRIGHT", dock, "BOTTOMRIGHT", -10, 24)
-  dock.note = Theme.Label(dock, 10)
+  dock.note = Theme.Label(face, 10)
   dock.note:SetJustifyH("LEFT")
   dock.note:SetPoint("BOTTOMLEFT", dock, "BOTTOMLEFT", 10, 7)
   setColor(dock.note, Theme.color.fgDim)
-  dock.slow = Theme.Label(dock, 10)
+  dock.slow = Theme.Label(face, 10)
   dock.slow:SetJustifyH("RIGHT")
   dock.slow:SetPoint("BOTTOMRIGHT", dock, "BOTTOMRIGHT", -10, 7)
   dock.slow:SetPoint("LEFT", dock.note, "RIGHT", 12, 0)
@@ -424,12 +460,13 @@ paint = function()
   local n, spend, make = Flips.Totals(state.rows)
   local banner = ui.banner
   banner.big:SetText("+" .. money(make))
-  banner.what:SetText(GC.L["buy one of each of these %d at Blackwater, sell them at home"]:format(n))
-  banner.cost:SetText(GC.L["they cost %s"]:format(money(spend)) .. "\n" .. GC.L["after the 5% cut at home"])
+  banner.what:SetText(GC.L["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"]:format(n))
+  banner.cost:SetText(GC.L["they cost %s"]:format(money(spend)))
 
   local width = ui.scroll:GetWidth()
   if not width or width <= 0 then width = ui.container:GetWidth() or 600 end
   ui.content:SetWidth(width)
+  state.missing = {}
   for i, r in ipairs(state.rows) do
     local row = ui.rows[i]
     if not row then
@@ -579,7 +616,9 @@ end
 local events = CreateFrame("Frame")
 events:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 local due = false
-events:SetScript("OnEvent", function()
+-- Only a name one of its rows waits for: a scan beside the board loads thousands of others.
+events:SetScript("OnEvent", function(_, _, itemID)
+  if not state.missing[itemID] then return end
   if due or not (ui.container and ui.container:IsShown()) then return end
   due = true
   C_Timer.After(0.3, function()

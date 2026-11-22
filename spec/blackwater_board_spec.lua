@@ -8,7 +8,7 @@ local W = require("spec.support.wow_frames")
 -- they were asked. The payload is real rows of the 2026-11-22 16:25 UTC snapshot (117 against 111).
 describe("Blackwater board", function()
   local GC, BW, restore, saved, payload, views, selected, boards, held, host
-  local KEYS = { "C_Item", "C_Timer", "GameTooltip", "ITEM_QUALITY_COLORS", "time", "date" }
+  local KEYS = { "C_Item", "C_Timer", "GameTooltip", "ITEM_QUALITY_COLORS", "time", "date", "GetLocale" }
   local NOW = 1795371960
   local AT = 1795371900
   local ELIXIR, FISHPOLE, WRAPS = 13493, 6367, 9433
@@ -62,6 +62,7 @@ describe("Blackwater board", function()
     GC.db = { runs = {} }
     helper.loadModule("Core/AppRuns.lua", GC)
     helper.loadModule("Core/ForeverFlips.lua", GC)
+    helper.loadModule("Core/ForeverNames.lua", GC)
     payload = aPayload()
     GC.Data = { ForeverPayload = function() return payload end }
     local prefs = {}
@@ -136,7 +137,13 @@ describe("Blackwater board", function()
     assert.equal(plain(GC.Util.Money(500000)), textOf(elixir.bw))
     assert.equal(plain(GC.Util.Money(1300000)), textOf(elixir.home))
     assert.equal("+147%", textOf(elixir.pct))
-    assert.equal("1 cheap at Blackwater · 10 listed at home", textOf(elixir.sub))
+    assert.equal("1 cheap", textOf(elixir.bwQty))
+    assert.equal("10 listed", textOf(elixir.homeQty))
+    assert.equal("Recipe: Greater Arcane Elixir", textOf(elixir.name))
+    -- The cut goes with the figure it is taken from, and what they cost stands on its own.
+    assert.equal("after the 5% cut, buying one of each of these 3 at Blackwater and selling them at home",
+      textOf(ui().banner.what))
+    assert.equal("they cost " .. plain(GC.Util.Money(624998)), textOf(ui().banner.cost))
     -- The other chips go dark under it, and come back as they were when it is let go.
     assert.equal("active", host.boardChips.blackwater.variant)
     assert.equal("ghost", host.boardChips.commodities.variant)
@@ -223,6 +230,26 @@ describe("Blackwater board", function()
     GC.Blackwater.Attach(again, { panelLeft = 20, panelRightInset = 20, top = -120, bottom = 12 })
     assert.equal("Interface\\Icons\\INV_Misc_Coin_01", W.state(GC.Blackwater._ui.banner.goblin).file)
     W.missingTextures["Interface\\Icons\\Achievement_Goblinhead"] = nil
+  end)
+
+  -- Seen in the game 2026-11-22: with a scan loading items beside the board, the names came and went.
+  it("keeps a name once the client said it, and reads the scan's kept name when the client has none", function()
+    local known = { [ELIXIR] = "Recipe: Greater Arcane Elixir" }
+    local asked = {}
+    _G.C_Item.GetItemNameByID = function(id) return known[id] end
+    _G.C_Item.RequestLoadItemDataByID = function(id) asked[#asked + 1] = id end
+    _G.GetLocale = function() return "enUS" end
+    GC.db.foreverNames = { v = 1, locale = "enUS", names = { [WRAPS] = "Forgotten Wraps" } }
+    press(host.boardChips.blackwater)
+    assert.equal("Recipe: Greater Arcane Elixir", textOf(ui().rows[1].name))
+    assert.equal("Forgotten Wraps", textOf(ui().rows[2].name))
+    assert.equal("item 6367", textOf(ui().rows[3].name))
+    assert.same({ FISHPOLE }, asked)
+    -- The client lets the elixir go: the board keeps it, and the scan's store now has it too.
+    known[ELIXIR] = nil
+    BW.Paint()
+    assert.equal("Recipe: Greater Arcane Elixir", textOf(ui().rows[1].name))
+    assert.equal("Recipe: Greater Arcane Elixir", GC.db.foreverNames.names[ELIXIR])
   end)
 
   it("says how old the prices are once they are stale", function()

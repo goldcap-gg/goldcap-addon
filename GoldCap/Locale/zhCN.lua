@@ -1965,12 +1965,8 @@ GC.Locales.zhCN = {
     "已勾选 %d 件，每样一件",
   ["%d sold at home in %d days"] =
     "本阵营卖出 %d 件（%d 天）",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "黑水低价 %d 件 · 本阵营在售 %d 件",
   ["ADD %d TO BUY"] =
     "将 %d 件加入 BUY",
-  ["after the 5% cut at home"] =
-    "扣除本阵营 5% 手续费后",
   ["BLACKWATER %d"] =
     "黑水 %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -1981,8 +1977,6 @@ GC.Locales.zhCN = {
     "黑水：藏宝海湾、加基森和永望镇的中立拍卖行比你阵营的拍卖行卖得便宜的东西。在那里买，回本阵营上架。",
   ["BLACKWATER"] =
     "黑水",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "在黑水各买一件这 %d 样，回本阵营卖出",
   ["HOME"] =
     "本阵营",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2005,4 +1999,10 @@ GC.Locales.zhCN = {
     "你能赚",
   ["YOU SPEND"] =
     "你花费",
+  ["%d cheap"] =
+    "低价 %d 件",
+  ["%d listed"] =
+    "在售 %d 件",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "在黑水各买一件这 %d 样、回本阵营卖出，扣除 5%% 手续费后",
 }

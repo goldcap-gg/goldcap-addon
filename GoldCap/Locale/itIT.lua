@@ -2078,12 +2078,8 @@ GC.Locales.itIT = {
     "%d spuntati, uno per tipo",
   ["%d sold at home in %d days"] =
     "%d venduti a casa in %d giorni",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "%d economici ad Acquanera · %d in vendita a casa",
   ["ADD %d TO BUY"] =
     "AGGIUNGI %d A BUY",
-  ["after the 5% cut at home"] =
-    "dopo la commissione del 5% a casa",
   ["BLACKWATER %d"] =
     "ACQUANERA %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2094,8 +2090,6 @@ GC.Locales.itIT = {
     "Acquanera: ciò che la casa d'aste neutrale di Baia del Bottino, Meccania e Lungavista vende a meno di quella della tua fazione. Compra lì, metti all'asta a casa.",
   ["BLACKWATER"] =
     "ACQUANERA",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "compra uno per ciascuno di questi %d ad Acquanera e rivendili a casa",
   ["HOME"] =
     "A CASA",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2118,4 +2112,10 @@ GC.Locales.itIT = {
     "GUADAGNI",
   ["YOU SPEND"] =
     "SPENDI",
+  ["%d cheap"] =
+    "%d economici",
+  ["%d listed"] =
+    "%d in vendita",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "dopo la commissione del 5%%, comprando uno per ciascuno di questi %d ad Acquanera e rivendendoli a casa",
 }

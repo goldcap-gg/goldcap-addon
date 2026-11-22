@@ -2085,12 +2085,8 @@ GC.Locales.deDE = {
     "%d markiert, je eins",
   ["%d sold at home in %d days"] =
     "%d daheim verkauft in %d Tagen",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "%d günstig bei den Schwarzmeerräubern · %d daheim im Angebot",
   ["ADD %d TO BUY"] =
     "%d ZU BUY HINZUFÜGEN",
-  ["after the 5% cut at home"] =
-    "nach 5% Gebühr daheim",
   ["BLACKWATER %d"] =
     "SCHWARZMEERRÄUBER %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2101,8 +2097,6 @@ GC.Locales.deDE = {
     "Schwarzmeerräuber: was das neutrale Auktionshaus in Beutebucht, Gadgetzan und Ewige Warte günstiger verkauft als das Auktionshaus deiner Fraktion. Dort kaufen, daheim einstellen.",
   ["BLACKWATER"] =
     "SCHWARZMEERRÄUBER",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "kauf je eins dieser %d bei den Schwarzmeerräubern und verkauf sie daheim",
   ["HOME"] =
     "DAHEIM",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2125,4 +2119,10 @@ GC.Locales.deDE = {
     "DU VERDIENST",
   ["YOU SPEND"] =
     "DU GIBST AUS",
+  ["%d cheap"] =
+    "%d günstig",
+  ["%d listed"] =
+    "%d im Angebot",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "nach 5%% Gebühr, wenn du je eins dieser %d bei den Schwarzmeerräubern kaufst und daheim verkaufst",
 }

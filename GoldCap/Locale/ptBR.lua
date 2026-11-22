@@ -2075,12 +2075,8 @@ GC.Locales.ptBR = {
     "%d marcados, um de cada",
   ["%d sold at home in %d days"] =
     "%d vendidos em casa em %d dias",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "%d baratos em Aguanegra · %d à venda em casa",
   ["ADD %d TO BUY"] =
     "ADICIONAR %d AO BUY",
-  ["after the 5% cut at home"] =
-    "após a taxa de 5% em casa",
   ["BLACKWATER %d"] =
     "AGUANEGRA %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2091,8 +2087,6 @@ GC.Locales.ptBR = {
     "Aguanegra: o que a casa de leilões neutra de Angra do Butim, Geringontzan e Visteterna vende mais barato que a da sua facção. Compre lá, anuncie em casa.",
   ["BLACKWATER"] =
     "AGUANEGRA",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "compre um de cada um destes %d em Aguanegra e venda em casa",
   ["HOME"] =
     "EM CASA",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2115,4 +2109,10 @@ GC.Locales.ptBR = {
     "VOCÊ GANHA",
   ["YOU SPEND"] =
     "VOCÊ GASTA",
+  ["%d cheap"] =
+    "%d baratos",
+  ["%d listed"] =
+    "%d à venda",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "após a taxa de 5%%, comprando um de cada um destes %d em Aguanegra e vendendo em casa",
 }

@@ -2086,12 +2086,8 @@ GC.Locales.frFR = {
     "%d cochés, un de chaque",
   ["%d sold at home in %d days"] =
     "%d vendus chez vous en %d jours",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "%d bon marché aux Flots noirs · %d en vente chez vous",
   ["ADD %d TO BUY"] =
     "AJOUTER %d À BUY",
-  ["after the 5% cut at home"] =
-    "après la taxe de 5% chez vous",
   ["BLACKWATER %d"] =
     "FLOTS NOIRS %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2102,8 +2098,6 @@ GC.Locales.frFR = {
     "Flots noirs : ce que l'hôtel des ventes neutre de Baie-du-Butin, Gadgetzan et Long-guet vend moins cher que celui de votre faction. Achetez là-bas, revendez chez vous.",
   ["BLACKWATER"] =
     "FLOTS NOIRS",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "achetez un de chacun de ces %d aux Flots noirs, revendez-les chez vous",
   ["HOME"] =
     "CHEZ VOUS",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2126,4 +2120,10 @@ GC.Locales.frFR = {
     "VOUS GAGNEZ",
   ["YOU SPEND"] =
     "VOUS DÉPENSEZ",
+  ["%d cheap"] =
+    "%d bon marché",
+  ["%d listed"] =
+    "%d en vente",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "après la taxe de 5%%, en achetant un de chacun de ces %d aux Flots noirs et en les revendant chez vous",
 }

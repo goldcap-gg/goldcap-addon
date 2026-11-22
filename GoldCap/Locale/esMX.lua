@@ -2086,12 +2086,8 @@ GC.Locales.esMX = {
     "%d marcados, uno de cada",
   ["%d sold at home in %d days"] =
     "%d vendidos en casa en %d días",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "%d baratos en Aguasnegras · %d a la venta en casa",
   ["ADD %d TO BUY"] =
     "AGREGAR %d A BUY",
-  ["after the 5% cut at home"] =
-    "después de la comisión del 5% en casa",
   ["BLACKWATER %d"] =
     "AGUASNEGRAS %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2102,8 +2098,6 @@ GC.Locales.esMX = {
     "Aguasnegras: lo que la casa de subastas neutral de Bahía del Botín, Gadgetzan y Vista Eterna vende más barato que la de tu facción. Compra allí, publica en casa.",
   ["BLACKWATER"] =
     "AGUASNEGRAS",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "compra uno de cada uno de estos %d en Aguasnegras y véndelos en casa",
   ["HOME"] =
     "EN CASA",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2126,4 +2120,10 @@ GC.Locales.esMX = {
     "GANAS",
   ["YOU SPEND"] =
     "GASTAS",
+  ["%d cheap"] =
+    "%d baratos",
+  ["%d listed"] =
+    "%d a la venta",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "después de la comisión del 5%%, comprando uno de cada uno de estos %d en Aguasnegras y vendiéndolos en casa",
 }

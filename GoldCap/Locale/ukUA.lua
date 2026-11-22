@@ -2150,12 +2150,8 @@ GC.Locales.ukUA = {
     "Позначено: %d, по одній штуці",
   ["%d sold at home in %d days"] =
     "Продано вдома: %d за %d дн.",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "%d дешево в Чорноводді · %d виставлено вдома",
   ["ADD %d TO BUY"] =
     "ДОДАТИ %d ДО BUY",
-  ["after the 5% cut at home"] =
-    "після 5% комісії вдома",
   ["BLACKWATER %d"] =
     "ЧОРНОВОДДЯ %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2166,8 +2162,6 @@ GC.Locales.ukUA = {
     "Чорноводдя: що нейтральний аукціон у Піратській Бухті, Прибамбаську та Кругозорі продає дешевше, ніж аукціон вашої фракції. Купіть там, виставте вдома.",
   ["BLACKWATER"] =
     "ЧОРНОВОДДЯ",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "купіть по одній із цих %d у Чорноводді й продайте вдома",
   ["HOME"] =
     "ВДОМА",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2190,4 +2184,10 @@ GC.Locales.ukUA = {
     "ВИ ОТРИМАЄТЕ",
   ["YOU SPEND"] =
     "ВИ ВИТРАТИТЕ",
+  ["%d cheap"] =
+    "дешево: %d",
+  ["%d listed"] =
+    "у продажу: %d",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "після 5%% комісії, якщо купити по одній із цих %d у Чорноводді й продати вдома",
 }

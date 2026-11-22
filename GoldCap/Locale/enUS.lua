@@ -2067,12 +2067,8 @@ GC.Locales.enUS = {
     "%d checked, one of each",
   ["%d sold at home in %d days"] =
     "%d sold at home in %d days",
-  ["%d cheap at Blackwater · %d listed at home"] =
-    "%d cheap at Blackwater · %d listed at home",
   ["ADD %d TO BUY"] =
     "ADD %d TO BUY",
-  ["after the 5% cut at home"] =
-    "after the 5% cut at home",
   ["BLACKWATER %d"] =
     "BLACKWATER %d",
   ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
@@ -2083,8 +2079,6 @@ GC.Locales.enUS = {
     "Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home.",
   ["BLACKWATER"] =
     "BLACKWATER",
-  ["buy one of each of these %d at Blackwater, sell them at home"] =
-    "buy one of each of these %d at Blackwater, sell them at home",
   ["HOME"] =
     "HOME",
   ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
@@ -2107,4 +2101,10 @@ GC.Locales.enUS = {
     "YOU MAKE",
   ["YOU SPEND"] =
     "YOU SPEND",
+  ["%d cheap"] =
+    "%d cheap",
+  ["%d listed"] =
+    "%d listed",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home",
 }
