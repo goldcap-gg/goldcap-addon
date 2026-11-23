@@ -18,6 +18,9 @@
 - DEALS: when the live check has turned down every row on a board, the board says so and points to
   HIDDEN, instead of only "Scanning the auction house...". The deals count next to AUTO no longer
   counts those rows.
+- WoW: Forever: SCAN works while AUTO is on. It answered "full scan already in progress" and scanned
+  nothing. AUTO itself now takes a new full list every 15 minutes while the auction house stays
+  open, instead of only when you open it, so DEALS no longer grows stale.
 
 ## 0.32.0 (2026-11-23)
 
