@@ -20,7 +20,8 @@
   counts those rows.
 - WoW: Forever: SCAN works while AUTO is on. It answered "full scan already in progress" and scanned
   nothing. AUTO itself now takes a new full list every 15 minutes while the auction house stays
-  open, instead of only when you open it, so DEALS no longer grows stale.
+  open, on every board, instead of only when you open it, so DEALS no longer grows stale. The
+  SCAN button shows how many minutes are left until the next one, and its tooltip says it too.
 
 ## 0.32.0 (2026-11-23)
 

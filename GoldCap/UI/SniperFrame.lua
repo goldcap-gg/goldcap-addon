@@ -4693,18 +4693,32 @@ autoScan = GC.AutoScan.New({}, {
     -- Auto does not run). A cap batch, the one keys batch that can be out on this board while
     -- Auto runs, stands aside after every answer for longer than this settle takes to retry.
     if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return false end
-    -- WoW: Forever: a full list is asked for once the server's throttle allows another
-    -- (GC.ForeverScan.Due). It used to be asked only when the auction house opened and on SCAN, so
-    -- with the auction house left open Auto browsed on over a list as old as the opening (owner,
-    -- 2026-11-23: "your scan, 13m ago" and climbing). The scan takes this pass's end as its own.
-    if isForever() and GC.ForeverScan and GC.ForeverScan.Due and GC.ForeverScan.Due() then
-      GC.ForeverScan.Request("auto")
-    end
     startFullScan()
     return true
   end,
   abortScan = cancelFullScan,
 })
+
+-- WoW: Forever: while Auto is on, a full list is asked for as soon as the server's throttle allows
+-- another (GC.ForeverScan.Due), on Auto's clock and whatever board is up. It used to be asked only
+-- when the auction house opened and on SCAN, so with the auction house left open Auto browsed on
+-- over a list as old as the opening (owner, 2026-11-23: "your scan, 13m ago" and climbing). Asked
+-- at the start of Auto's pass instead, it never came on the Items board, where Auto's pass waits
+-- (pause:items) and the gear loop stands aside for the scan (UI/SniperGearLoop_Camelot.lua's
+-- G.MayRun). Not while Auto waits on the player (a buy window, the mailbox, another tab, their own
+-- search), nor while an answer of theirs or a keys batch is out.
+function GC.Sniper._AskFullListWhenDue()
+  if not isForever() or not (GC.ForeverScan and GC.ForeverScan.Due) then return end
+  if autoScan:State() == "OFF" then return end
+  for reason in pairs(autoScan:PauseReasons()) do
+    if reason ~= "items" then return end
+  end
+  local tab = GC.AuctionHouseTab
+  if tab and tab.PlayerIsBusy and tab.PlayerIsBusy() then return end
+  if GC.Sniper._BrowseOwned and GC.Sniper._BrowseOwned() then return end
+  if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return end
+  if GC.ForeverScan.Due() then GC.ForeverScan.Request("auto") end
+end
 
 feedAuto = function(event)
   local before = autoScan:State()
@@ -4982,6 +4996,13 @@ refreshScanButton = function(targetFrame)
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
   -- The spyglass's ring turns while it scans: the word is no longer drawn (createFrame).
   if f.fullScanBtn.SetBusy then f.fullScanBtn:SetBusy(busy and true or false) end
+  -- WoW: Forever: the minutes until the throttle allows the next full list, on the spyglass, the
+  -- way HIDDEN carries its count (owner, 2026-11-23: "how long is left to wait, in the tooltip and
+  -- by the icon"). Nothing while it scans, nor once the list may be asked for.
+  if f.fullScanBtn.SetCount then
+    local wait = not busy and isForever() and GC.ForeverScan and GC.ForeverScan.DueIn and GC.ForeverScan.DueIn() or 0
+    f.fullScanBtn:SetCount(wait > 0 and math.ceil(wait / 60) or nil)
+  end
   -- `active`, not `primary`, and not Disable(): a disabled button reads as
   -- broken, and the click while busy has something useful to say (see
   -- onFullScanClick). Same reasoning as the Auto button's on-state.
@@ -12824,6 +12845,16 @@ local function createFrame()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(GC.Util.ClientText(self.label or GC.L["SCAN"]), 1, 1, 1)
     GameTooltip:AddLine(GC.Util.ClientText(scanHelp), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
+    -- WoW: Forever: when the next full list comes, the number on the spyglass in words.
+    local wait = isForever() and GC.ForeverScan and GC.ForeverScan.DueIn and not GC.ForeverScan.IsBusy()
+      and GC.ForeverScan.DueIn() or nil
+    if wait then
+      local soft = GC.Kit.Tokens.blizzard.tipSoft
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(GC.Util.ClientText(wait > 0
+        and (GC.L["Next full list in %d min."]):format(math.ceil(wait / 60))
+        or GC.L["The next full list is ready: press SCAN, or Auto asks for it on its own."]), soft[1], soft[2], soft[3], true)
+    end
     GameTooltip:Show()
   end)
   fullScanBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -13462,6 +13493,7 @@ function GC.Sniper.OnAuctionHouseShow()
     -- First, so a tab the player has just opened or left counts before the machine moves.
     GC.Sniper._SyncAside()
     autoScan:Tick(GetTime())
+    GC.Sniper._AskFullListWhenDue()
     -- Background verification rides the same clock, for the same reason the toolbar buttons do
     -- (below): one place drives it, so it cannot be forgotten by a path that changes state.
     tickAutoVerify()

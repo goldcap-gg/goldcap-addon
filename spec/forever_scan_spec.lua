@@ -135,6 +135,23 @@ describe("ForeverScan", function()
     assert.is_false(s:Due())
   end)
 
+  -- The countdown on SCAN (owner, 2026-11-23: "how long is left to wait, in the tooltip and by the
+  -- icon"): the same stamp Due reads, counted down to 0.
+  it("counts down to the next full list from the request, and a clock that stepped back is no wait", function()
+    local s = GC.ForeverScan.New(driver())
+    local C = GC.ForeverScan.C
+    assert.equal(0, s:DueIn())                    -- never asked
+    rows = { { 2589, 20, 1340, true } }
+    s:OnAuctionHouseShow()
+    assert.equal(C.COOLDOWN_SECONDS, s:DueIn())
+    now = now + 600
+    assert.equal(C.COOLDOWN_SECONDS - 600, s:DueIn())
+    now = now + C.COOLDOWN_SECONDS
+    assert.equal(0, s:DueIn())
+    now = now - 10 * C.COOLDOWN_SECONDS
+    assert.equal(0, s:DueIn())
+  end)
+
   it("asks once on open, reads the dump at the first rows and saves the fold with its passport", function()
     local s = GC.ForeverScan.New(driver())
     rows = { { 2589, 20, 1340, true }, { 2589, 5, 350, true }, { 2592, 1, 5000, false } }

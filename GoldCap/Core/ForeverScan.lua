@@ -589,13 +589,11 @@ function GC.ForeverScan.New(driver)
     end
     local s = driver.store() or {}
     local now = driver.now()
-    local since = type(s.requestedAt) == "number" and now - s.requestedAt or math.huge
-    -- A stamp from the future is a clock that stepped back, not a throttle.
-    if since < 0 then since = math.huge end
-    if since < C.COOLDOWN_SECONDS then
-      note("throttled", reason, math.floor(since))
+    local wait = self:DueIn()
+    if wait > 0 then
+      note("throttled", reason, math.floor(C.COOLDOWN_SECONDS - wait))
       if reason ~= "button" then return "cooldown" end
-      driver.notify("cooldown", math.ceil((C.COOLDOWN_SECONDS - since) / 60))
+      driver.notify("cooldown", math.ceil(wait / 60))
       acc = GC.ForeverFold.New()
       busySince = now
       if not toBrowse("wide") then acc = nil end
@@ -699,9 +697,16 @@ function GC.ForeverScan.New(driver)
   -- the account's throttle spent (Auto asks then, GC.Sniper's startScan).
   function obj:Due()
     if state ~= "idle" or not ahOpen or neutral then return false end
+    return self:DueIn() == 0
+  end
+  -- Seconds until the account's throttle allows the next full list, 0 once it does: the one reading
+  -- of the stamp that Request, Due and the countdown on SCAN share (GC.Sniper's refreshScanButton).
+  -- A stamp from the future is a clock that stepped back, not a throttle.
+  function obj:DueIn()
     local s = driver.store() or {}
     local since = type(s.requestedAt) == "number" and driver.now() - s.requestedAt or math.huge
-    return since < 0 or since >= C.COOLDOWN_SECONDS
+    if since < 0 then return 0 end
+    return math.max(0, C.COOLDOWN_SECONDS - since)
   end
   function obj:State() return state end
   -- When this scan began (driver.now), from the request to the save; nil while idle. The board
@@ -1229,3 +1234,4 @@ function GC.ForeverScan.Running()
 end
 function GC.ForeverScan.IsBusy() local s = scanner(); return s ~= nil and (s:IsBusy() or sayHeld) end
 function GC.ForeverScan.Due() local s = scanner(); return s ~= nil and not sayHeld and s:Due() end
+function GC.ForeverScan.DueIn() local s = scanner(); return s and s:DueIn() or nil end

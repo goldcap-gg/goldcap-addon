@@ -92,6 +92,27 @@ describe("one scan state for the toolbar", function()
       return b
     end
 
+    -- Owner, WoW: Forever 2026-11-23: "how long is left to wait, in the tooltip and by the icon".
+    it("carries the minutes to the next full list on the spyglass, none while it scans or once due", function()
+      local GC = loadSniper()
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
+      local b = fakeButton(function(t) return #t * 8 end)
+      b.SetCount = function(self, n) self.count = n end
+      local wait = 250
+      GC.ForeverScan.DueIn = function() return wait end
+      refresh({ fullScanBtn = b })
+      assert.equal(5, b.count)
+      wait = 0
+      refresh({ fullScanBtn = b })
+      assert.is_nil(b.count)
+      wait, foreverBusy = 250, true
+      refresh({ fullScanBtn = b })
+      assert.is_nil(b.count)
+      foreverBusy, forever = false, false
+      refresh({ fullScanBtn = b })
+      assert.is_nil(b.count)
+    end)
+
     it("says the scanner's state: SCANNING while one runs, SCAN when none does", function()
       local GC = loadSniper()
       local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")

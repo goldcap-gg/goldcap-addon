@@ -51,20 +51,55 @@ describe("Auto says why it is not scanning", function()
 
   -- Owner, 2026-11-23: with the auction house left open, Auto browsed on over a full list as old as
   -- the opening; a new one was asked for only on opening and on SCAN.
-  it("on WoW: Forever asks for a full list when one is due, as it starts its pass", function()
-    local GC, feedAuto, autoScan = loadSniper()
-    local asked, due = {}, true
-    GC.Game = { Passport = function() return {} end, IsForever = function() return true end }
-    GC.ForeverScan = { Due = function() return due end,
-      Request = function(reason) asked[#asked + 1] = reason; return "started" end }
-    feedAuto("toggleOn")
-    autoScan:Tick(101)
-    assert.equal("SCANNING", autoScan:State())
-    assert.same({ "auto" }, asked)
-    due = false
-    feedAuto("scanFinished")
-    autoScan:Tick(110)
-    assert.same({ "auto" }, asked)
+  -- Asked at the start of Auto's pass, it never came on the Items board, where the pass waits:
+  -- "why does it not scan at 15 minutes, 19 have gone by" (owner, the same day). Auto's clock asks.
+  describe("on WoW: Forever, the full list when one is due", function()
+    local GC, feedAuto, autoScan, asked, due
+    before_each(function()
+      GC, feedAuto, autoScan = loadSniper()
+      asked, due = {}, true
+      GC.Game = { Passport = function() return {} end, IsForever = function() return true end }
+      GC.ForeverScan = { Due = function() return due end,
+        Request = function(reason) asked[#asked + 1] = reason; return "started" end }
+      GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+    end)
+
+    it("is asked for on Auto's clock, mid-pass too, and not again before it is due", function()
+      feedAuto("toggleOn")
+      autoScan:Tick(101)
+      assert.equal("SCANNING", autoScan:State())
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({ "auto" }, asked)
+      due = false
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({ "auto" }, asked)
+    end)
+
+    it("is asked for on the Items board, where Auto's pass waits", function()
+      feedAuto("toggleOn")
+      feedAuto("pause:items")
+      assert.equal("PAUSED", autoScan:State())
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({ "auto" }, asked)
+    end)
+
+    it("waits while Auto is off, waits on the player, or the player is busy", function()
+      GC.Sniper._AskFullListWhenDue()
+      feedAuto("toggleOn")
+      feedAuto("pause:mail")
+      GC.Sniper._AskFullListWhenDue()
+      feedAuto("resume:mail")
+      GC.AuctionHouseTab.PlayerIsBusy = function() return true end
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({}, asked)
+    end)
+
+    it("is not asked for on retail", function()
+      GC.Game.IsForever = function() return false end
+      feedAuto("toggleOn")
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({}, asked)
+    end)
   end)
 
   it("says in the tooltip what holds it and what the player can do, every reason", function()

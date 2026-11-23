@@ -1033,6 +1033,10 @@ GC.Locales.deDE = {
   ["The scan found nothing to save"] = "Der Scan hat nichts zum Speichern gefunden",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Durchsucht das gesamte Auktionshaus nach Preisen: eine vollständige Liste höchstens alle 15 Minuten, dazwischen wird durchsucht. GoldCap scannt auch, wenn du das Auktionshaus öffnest.",
+  ["Next full list in %d min."] =
+    "Nächste vollständige Liste in %d Min.",
+  ["The next full list is ready: press SCAN, or Auto asks for it on its own."] =
+    "Die nächste vollständige Liste ist bereit: Drücke SCAN, oder AUTO holt sie von selbst.",
   -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
   -- POST queue holding back what a vendor pays at least as much for.
   ["Your bags: %s at a vendor, %s on the AH after its cut"] =
