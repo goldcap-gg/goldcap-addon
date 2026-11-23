@@ -21,29 +21,35 @@ describe("DealMath.ExitAdmits", function()
       goodProfit = 100000, hotMinSold = 3, goodMinSold = 1, dumpTrendPct = 10, watchPins = {} }
   end
 
-  local function value(stressUnit, listed)
+  local function value(stressUnit, currentQty)
     return { kind = "region_commodity", source = "region", sourceAt = NOW, mv = MV, stressUnit = stressUnit,
       sold = 2000, sellThroughBps = 9000, liquidityConfidence = 90, listings = 40, observations = 50,
-      currentQty = listed, madBps = 0 }
+      currentQty = currentQty, madBps = 0 }
   end
 
   -- One case: what discovery made of the browse row before this rule, what it makes of it now,
-  -- and whether the live Check passes a buy of the same book (the lot, and a competitor above the
-  -- stress exit, so the exit is the stress exit: the Check's most optimistic one).
-  local function run(stressUnit, discount, listed, cfg)
-    local v = value(stressUnit, listed)
+  -- and whether the live Check passes a buy of the same book: `listed` units at the row's price,
+  -- with `second` as many again halfway up to the stress exit when given, and a competitor over
+  -- the stress exit, so the Check's exit is its most optimistic one. `known`: the import says how
+  -- many are listed; without it discovery reads the browse row's total, as in the client.
+  local function run(stressUnit, discount, listed, cfg, known, second)
     local unit = math.floor(MV * (1 - discount))
+    local levels = { { unitPrice = unit, quantity = listed } }
+    if second then levels[2] = { unitPrice = math.floor((unit + stressUnit) / 2), quantity = listed } end
+    local total = 0
+    for _, level in ipairs(levels) do total = total + level.quantity end
+    levels[#levels + 1] = { unitPrice = MV * 2, quantity = 1000 }
+    local v = value(stressUnit, known and total or nil)
     local getValue = function() return v end
     local rows = GC.FullScan.RowsFromBrowse(
-      { { itemKey = { itemID = 7 }, minPrice = unit, totalQuantity = listed } }, getValue, cfg)
+      { { itemKey = { itemID = 7 }, minPrice = unit, totalQuantity = total } }, getValue, cfg)
     local row = rows[1]
-    local deal = row and GC.DealMath.Evaluate({ itemID = 7, unitPrice = unit, qty = row.count, avail = listed }, v, cfg)
+    local deal = row and GC.DealMath.Evaluate({ itemID = 7, unitPrice = unit, qty = row.count, avail = total }, v, cfg)
     local before = deal ~= nil and GC.DealMath.BoardAdmits(deal, cfg)
     local now = #GC.FullScan.Evaluate(rows, getValue, cfg) > 0
     local check = GC.SniperDecision.Evaluate({
       market = GC.SniperDecision.MarketFromValue(v), config = cfg, now = NOW, walletCopper = 10 ^ 12,
-      depositForQuantity = function() return 0 end,
-      live = { itemID = 7, levels = { { unitPrice = unit, quantity = listed }, { unitPrice = MV * 2, quantity = 1000 } } },
+      depositForQuantity = function() return 0 end, live = { itemID = 7, levels = levels },
     })
     return before, now, check.buyable == true
   end
@@ -52,30 +58,33 @@ describe("DealMath.ExitAdmits", function()
     local cases, removed, passed, shown = 0, 0, 0, 0
     for _, stress in ipairs({ 950000, 900000, 800000, 700000 }) do
       for _, discount in ipairs({ 0.10, 0.12, 0.15, 0.18, 0.20, 0.25, 0.31, 0.40, 0.60 }) do
-        for _, listed in ipairs({ 1, 5, 50, 500 }) do
-          for _, floors in ipairs({ { 50000, 0.10 }, { 2000000, 0.10 }, { 50000, 0.25 } }) do
-            local cfg = config(floors[1], floors[2])
-            local before, now, check = run(stress, discount, listed, cfg)
-            local label = ("stress %d, %d%% off, %d listed, floors %d/%.2f"):format(stress, discount * 100, listed,
-              floors[1], floors[2])
-            cases = cases + 1
-            if check then
-              passed = passed + 1
-              assert.is_true(now, "dropped a row the Check passes: " .. label)
+        for _, listed in ipairs({ 1, 5, 50, 500, 5000 }) do
+          for _, floors in ipairs({ { 50000, 0.10 }, { 2000000, 0.10 }, { 50000, 0.25 }, { 5000, 0.10 } }) do
+            for _, known in ipairs({ true, false }) do
+              for _, second in ipairs({ false, true }) do
+                local cfg = config(floors[1], floors[2])
+                local before, now, check = run(stress, discount, listed, cfg, known, second)
+                local label = ("stress %d, %d%% off, %d listed, floors %d/%.2f, %s, %s"):format(stress,
+                  discount * 100, listed, floors[1], floors[2], known and "known" or "unknown",
+                  second and "two levels" or "one level")
+                cases = cases + 1
+                if check then passed = passed + 1 end
+                assert.is_false(check and not now, "dropped a row the Check passes: " .. label)
+                assert.is_false(now and not before, "kept a row the old rule dropped: " .. label)
+                if before then shown = shown + 1 end
+                if before and not now then removed = removed + 1 end
+              end
             end
-            assert.is_false(now and not before, "kept a row the old rule dropped: " .. label)
-            if before then shown = shown + 1 end
-            if before and not now then removed = removed + 1 end
           end
         end
       end
     end
-    -- 432 cases; the old rule showed a row in 199 of them, the Check passes 86, and 75 of the
-    -- rows shown are now left off, every one of them a row the Check refuses.
-    assert.equal(432, cases)
-    assert.equal(86, passed)
-    assert.equal(199, shown)
-    assert.equal(75, removed)
+    -- 2880 cases; the old rule showed a row in 1472 of them, the Check passes 504 (each one still
+    -- shown), and 528 of the rows shown are now left off, every one of them a row the Check refuses.
+    assert.equal(2880, cases)
+    assert.equal(504, passed)
+    assert.equal(1472, shown)
+    assert.equal(528, removed)
   end)
 
   it("drops the row of the measured shape: 10% off a market whose stress exit is 95% of it", function()
