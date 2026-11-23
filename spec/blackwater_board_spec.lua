@@ -126,6 +126,15 @@ describe("Blackwater board", function()
     assert.is_nil(textOf(rows[FISHPOLE].sub):find("listings", 1, true))
   end)
 
+  it("leaves the sell chance to the tooltip when the line would run into the prices", function()
+    GC.Data.SellChance = function() return 42 end
+    press(host.boardChips.blackwater)
+    local row = ui().rows[1]
+    row.name:SetWidth(20)
+    BW.Paint()
+    assert.equal("", textOf(row.sub))
+  end)
+
   it("adds a third tab after ITEMS, the goblin's, that counts the flips worth a line", function()
     local chip = host.boardChips.blackwater
     assert.is_truthy(chip)

@@ -224,6 +224,20 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("Not in your bags or listed. Mail or bank?", rows[1].cells.status.text)
   end)
 
+  -- How often one listing sells (GC.Data.SellChance) follows what the line already said, which
+  -- for a position with nothing on hand is where its cost came from.
+  it("keeps the stock line's own words before the sell chance", function()
+    local GC = load(620, { calls = {} })
+    GC.Data = GC.Data or {}
+    GC.Data.SellChance = function() return 0 end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+        exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
+        bagQty = 0, listedQty = 0, sources = {} },
+    })
+    assert.matches("GC ×1 · Sells from 0% of listings", rows[1].itemStock.text, 1, true)
+  end)
+
   -- Same shape, checking the ITEM cell and the row's own tooltip rather than STATUS: the row is
   -- real cost history, not a broken one, and the item name says so wherever the player is
   -- actually looking, not only in the one column that happened to have room.

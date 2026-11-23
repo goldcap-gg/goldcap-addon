@@ -135,9 +135,17 @@ describe("the sell chance", function()
       assert.equal("Sells from 42% of listings", texts(scan)[2])
     end)
 
+    it("is shown for an item GoldCap has no price for", function()
+      assert.same({ "Sells from 0% of listings" }, texts(GC.Tooltip.BuildLines(nil, 2000, { sellChance = 0 })))
+      assert.same({ "Sells from 42% of listings" },
+        texts(GC.Tooltip.BuildLines({ ts = 1000, source = "import", kind = "realm_item" }, 2000, { sellChance = 42 })))
+    end)
+
     it("adds nothing without a figure", function()
       assert.same({ "GoldCap value", "Sold per day" },
         texts(GC.Tooltip.BuildLines({ mv = 123400, sold = 52.34, ts = 1000 }, 2000)))
+      assert.is_nil(GC.Tooltip.BuildLines(nil, 2000))
+      assert.is_nil(GC.Tooltip.BuildLines({ ts = 1000, source = "import", kind = "realm_item" }, 2000))
     end)
   end)
 end)
