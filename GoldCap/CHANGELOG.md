@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.32.0 (unreleased)
+## 0.32.0 (2026-11-23)
 
 - WoW: Forever: DEALS has a third board, BLACKWATER. It lists what the neutral auction house in
   Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house: the price
