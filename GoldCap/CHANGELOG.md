@@ -16,7 +16,7 @@
 - WoW: Forever: new deals on DEALS now show within seconds of being listed, instead of waiting for
   the next full scan.
 - DEALS checks what it finds on the Items board sooner: a find there no longer waits for the
-  board to finish reading every price first, and none is left unchecked for waiting too long.
+  board to finish reading every price first, and far fewer are given up unchecked.
 - DEALS checks items that sell fast before slow ones, and reads your own prices on fast sellers,
   and on items that just went under your price, more often than the rest.
 - After DEALS finds a deal on an item, it looks at that item again more often for the next ten
