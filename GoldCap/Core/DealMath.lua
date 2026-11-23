@@ -156,11 +156,12 @@ function GC.DealMath.QualityFloor(cfg)
 end
 
 -- Whether a row found under the market clears the player's lowest item quality. Never turned away
--- for it: a vendor row (`deal.kind == "vendor"`: what a vendor pays is a profit at any quality), a
--- YOUR PRICE row (`deal.cap`), a followed group's (`deal.group`) and a pinned item. A quality the
--- client has not told us (`quality` nil) passes: the filter never asks for item info itself.
+-- for it, by the fields the rows carry: a vendor row (`deal.forever == "vendor"`: what a vendor pays
+-- is a profit at any quality), a YOUR PRICE row (`deal.cap`), a followed group's (`capFollowed`, or
+-- WoW: Forever's `refSource == "group"`) and a pinned item. A quality the client has not told us
+-- (`quality` nil) passes: the filter never asks for item info itself.
 function GC.DealMath.QualityAdmits(deal, quality, cfg)
-  if deal.kind == "vendor" or deal.cap or deal.group then return true end
+  if deal.forever == "vendor" or deal.cap or deal.capFollowed or deal.refSource == "group" then return true end
   for _, pin in ipairs(type(cfg) == "table" and type(cfg.watchPins) == "table" and cfg.watchPins or {}) do
     if pin == deal.itemID then return true end
   end

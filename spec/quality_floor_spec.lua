@@ -43,10 +43,11 @@ describe("the lowest item quality", function()
       { 4, 4, true }, { 5, 4, true },
     }
     local ROWS = {
-      { name = "a plain market row", deal = function() return { itemID = ID } end, pins = {}, plain = true },
-      { name = "a vendor row", deal = function() return { itemID = ID, kind = "vendor" } end, pins = {} },
+      { name = "a plain market row", deal = function() return { itemID = ID, forever = "market" } end, pins = {}, plain = true },
+      { name = "a vendor row", deal = function() return { itemID = ID, forever = "vendor" } end, pins = {} },
       { name = "a cap", deal = function() return { itemID = ID, cap = 100 } end, pins = {} },
-      { name = "a followed group", deal = function() return { itemID = ID, group = true } end, pins = {} },
+      { name = "a followed group's cap", deal = function() return { itemID = ID, capFollowed = true } end, pins = {} },
+      { name = "a followed group's row", deal = function() return { itemID = ID, refSource = "group" } end, pins = {} },
       { name = "a pinned item", deal = function() return { itemID = ID } end, pins = { 7, ID } },
     }
     for _, row in ipairs(ROWS) do

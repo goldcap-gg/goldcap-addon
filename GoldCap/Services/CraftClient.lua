@@ -293,7 +293,8 @@ end
 function CC.CountOf(itemID, char)
   if type(itemID) ~= "number" then return 0 end
   local item = _G.C_Item
-  local fn = type(item) == "table" and item.GetItemCount or nil
+  -- C_Item's on a modern client, the bare global on an older one (as UI/BuyFrame.lua's itemCount).
+  local fn = type(item) == "table" and item.GetItemCount or _G.GetItemCount
   local held = 0
   if type(fn) == "function" then
     local ok, n = pcall(fn, itemID, true, false, true, true)
