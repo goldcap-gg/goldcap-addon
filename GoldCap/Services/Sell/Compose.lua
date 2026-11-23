@@ -12,6 +12,17 @@ local SELL_QUOTE_ACTION_AGE = GC.Sell.SELL_QUOTE_ACTION_AGE
 -- without recomposing. nil only until the first compose has ever run.
 local sellableCount
 
+-- WoW: Forever: what an item sold on this auction house lately (GC.Data.ForeverSales). With a bag
+-- stack's `link`, a suffixed piece of gear: what its own version sold (GCF1's V, read off the link's
+-- bonus IDs, ClickUp 1an60dzy9nt), or nothing when the site does not tell its versions apart or the
+-- version did not sell.
+local function foreverSalesFor(itemID, link)
+  if link == nil then return GC.Data.ForeverSales(itemID) end
+  if not (GC.Data.ForeverHasVersions and GC.Data.ForeverHasVersions(itemID) and GC.ForeverGear) then return nil end
+  local sold = GC.Data.ForeverVersionSales(itemID, GC.ForeverGear.BonusKey(link))
+  return sold and (sold.sales or 0) > 0 and sold or nil
+end
+
 -- `skipPaint`: WoW: Forever's taint engine blocks a protected AH call once the same hardware
 -- click has read certain GoldCap runtime state -- and `View.paintDeck()` below,
 -- which reads `position.listedQty`/`bagQty` off `positions`, is one of the reads it flags
@@ -20,6 +31,7 @@ local sellableCount
 -- protected call further down; it passes true here and repaints the deck switch itself, once,
 -- right after that call. Every other caller leaves this at its default (false) and keeps the
 -- paint exactly where it always was.
+
 function Compose.Positions(skipPaint)
   if not S.quotesSeeded then Quotes.Seed() end
   local scope = context()
@@ -117,8 +129,9 @@ function Compose.Positions(skipPaint)
     -- and the item's own market figures apply (Core/SellPositions.lua's decoratePosition).
     oneLevelPerItem = GC.Sell.OnForever and GC.Sell.OnForever() or nil,
     -- WoW: Forever only: what each item sold on this auction house lately (GC.Data.ForeverSales),
-    -- kept on the position for the sale pace below and for the post recommendation's overcut.
-    salesFor = GC.Sell.OnForever() and GC.Data and GC.Data.ForeverSales or nil,
+    -- kept on the position for the sale pace below and for the post recommendation's overcut; for a
+    -- suffixed piece, what its own version sold (foreverSalesFor).
+    salesFor = GC.Sell.OnForever() and GC.Data and GC.Data.ForeverSales and foreverSalesFor or nil,
     -- Followed groups: each item's selling rule and its unsold rounds (Core/GroupRules.lua,
     -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. Both games load
     -- both; without SellRounds every position reads zero rounds.
