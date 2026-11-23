@@ -531,7 +531,7 @@ describe("KeyPoll", function()
 
     it("asks about every target in the first round, then as often as its period says, by the table", function()
       local periods = { [1] = 1, [2] = 3, [3] = 3, [4] = 3, [5] = 2 }
-      local poll = tieredPoll(periods, {}, { maxBatch = 2 })
+      local poll = tieredPoll(periods, {}, { maxBatch = 1 })
       poll:SetTargets({ 1, 2, 3, 4, 5 })
       local all = rounds(poll, 7)
       assert.equal(5, #all[1])
@@ -545,11 +545,29 @@ describe("KeyPoll", function()
 
     it("spreads the slow targets over the rounds, so no round holds them all", function()
       local periods = { [1] = 3, [2] = 3, [3] = 3 }
-      local poll = tieredPoll(periods, {}, { maxBatch = 10 })
+      local poll = tieredPoll(periods, {}, { maxBatch = 1 })
       poll:SetTargets({ 1, 2, 3 })
       local all = rounds(poll, 4)
       assert.equal(3, #all[1])
       for r = 2, 4 do assert.equal(1, #all[r]) end
+    end)
+
+    it("fills a round's last batch with targets not due yet, so a set that fits one batch is asked whole", function()
+      local slow = setmetatable({}, { __index = function() return 3 end })
+      local small = tieredPoll(slow, {}, { maxBatch = 10 })
+      small:SetTargets(ids(1, 6))
+      for _, asked in ipairs(rounds(small, 4)) do assert.equal(6, #asked) end
+      -- Twelve slow targets in batches of five: after the first round, the four due fill one batch.
+      local big = tieredPoll(slow, {}, { maxBatch = 5 })
+      big:SetTargets(ids(1, 12))
+      local all = rounds(big, 4)
+      assert.equal(12, #all[1])
+      local seen = {}
+      for r = 2, 4 do
+        assert.equal(5, #all[r])
+        for _, id in ipairs(all[r]) do seen[id] = true end
+      end
+      for id = 1, 12 do assert.is_true(seen[id], "item " .. id) end
     end)
 
     it("puts a leading target first in every round, whatever its period", function()

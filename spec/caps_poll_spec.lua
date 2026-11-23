@@ -903,18 +903,32 @@ describe("Caps polling", function()
         assert.equal(1, #keysSent)
       end)
 
-      it("asks about a fast cap and a cap just found cheap every round, and the rest every third", function()
+      it("asks about a fast cap and a cap just found cheap every round, and the rest in turn, one batch a round", function()
         local GC = loadSniper()
         openAH(GC)
-        values[41] = { sold = 100 }
-        adoptCaps(GC, { { i = 41, c = 100 }, { i = 42, c = 100 }, { i = 43, c = 100 } })
-        for r = 1, 5 do
+        local caps = {}
+        for id = 1001, 1150 do caps[#caps + 1] = { i = id, c = 100 } end
+        values[1001] = { sold = 100 }
+        adoptCaps(GC, caps)
+        for _ = 1, 5 do
           assert.is_true(GC.Sniper._TrySendCapBatch())
-          answer(GC, r == 1 and { browseRow(43, 90) } or {})
+          local asked = keysSent[#keysSent]
+          local found = {}
+          for _, id in ipairs(asked) do if id == 1150 then found = { browseRow(1150, 90) } end end
+          answer(GC, found)
           GC.Sniper._drillQueue:Clear()
           now = now + 5
         end
-        assert.same({ { 41, 42, 43 }, { 41, 42, 43 }, { 41, 43 }, { 41, 43 }, { 41, 42, 43 } }, keysSent)
+        -- The first round asks about all 150 in two batches; after it, one batch a round.
+        assert.same({ 100, 50, 100, 100, 100 }, { #keysSent[1], #keysSent[2], #keysSent[3], #keysSent[4], #keysSent[5] })
+        local seen = {}
+        for r = 3, 5 do
+          local inRound = {}
+          for _, id in ipairs(keysSent[r]) do inRound[id], seen[id] = true, true end
+          assert.is_true(inRound[1001], "the fast seller, round " .. r)
+          assert.is_true(inRound[1150], "the cap found cheap, round " .. r)
+        end
+        for id = 1001, 1150 do assert.is_true(seen[id], "cap " .. id) end
       end)
 
       it("puts an item that just had a deal first in every round of both polls", function()
@@ -959,8 +973,6 @@ describe("Caps polling", function()
       it("rests between two rounds", function()
         local GC = loadSniper()
         openAH(GC)
-        -- A fast seller, so it is in every round (a slow one sits out two rounds in three).
-        values[42] = { sold = 100 }
         adoptCaps(GC, { { i = 42, c = 100 } })
         assert.is_true(GC.Sniper._TrySendCapBatch())
         answer(GC, {})
@@ -988,8 +1000,6 @@ describe("Caps polling", function()
       it("rests between rounds after a last batch the client dropped", function()
         local GC = loadSniper()
         openAH(GC)
-        -- A fast seller, so it is in every round (a slow one sits out two rounds in three).
-        values[42] = { sold = 100 }
         adoptCaps(GC, { { i = 42, c = 100 } })
         assert.is_true(GC.Sniper._TrySendCapBatch())
         GC.Sniper.OnThrottledMessageDropped()

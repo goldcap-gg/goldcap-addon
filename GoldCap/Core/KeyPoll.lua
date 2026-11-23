@@ -18,7 +18,7 @@ local _, GC = ...
 -- Rounds by speed (the caps' poll): with driver.periodFor(itemID) a target is asked about every
 -- that-many rounds instead of every round, its rounds spread by its place in the set, and with
 -- driver.leads(itemID) a target leads every round it is in. The first round of a new set asks
--- about every target. A round is built when it is first asked about, so what the driver says then
+-- about every target, and a round's last batch is filled up with targets not due yet. A round is built when it is first asked about, so what the driver says then
 -- is what that round holds.
 GC.KeyPoll = {}
 
@@ -150,14 +150,22 @@ function GC.KeyPoll.New(driver, opts)
         round[#round + 1] = { id }
       end
     end
-    local total = #targets
+    local total, rest = #targets, {}
     for k = 0, total - 1 do
       local i = (cursor - 1 + k) % total + 1
       local id = targets[i]
       local period = driver.periodFor and tonumber(driver.periodFor(id)) or 1
-      if not led[id] and (cycle == 0 or period <= 1 or (cycle + i) % period == 0) then
-        round[#round + 1] = { id, i }
+      if not led[id] then
+        local due = cycle == 0 or period <= 1 or (cycle + i) % period == 0
+        if due then round[#round + 1] = { id, i } else rest[#rest + 1] = { id, i } end
       end
+    end
+    -- A batch costs the same however few it asks about: the round's last one is filled up with
+    -- targets not due yet, so a set that fits one batch is asked about whole every round.
+    local fill = math.max(1, math.ceil(#round / maxBatch)) * maxBatch
+    for _, entry in ipairs(rest) do
+      if #round >= fill then break end
+      round[#round + 1] = entry
     end
   end
 
