@@ -68,8 +68,8 @@ GC.Locales.ptBR = {
   ["%d of %d done"] = "%d de %d feitos",
   ["%d prices in one request · books still loading"] =
     "%d preços em uma só consulta · livros ainda carregando",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d recusadas pela verificação ao vivo. Clique em \"HIDDEN %d\" acima para vê-las",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d recusadas pela verificação ao vivo. Clique em %s acima para vê-las",
   ["%d units"] = "%d unid.",
   ["1 unit"] = "1 unid.",
   ["%d units · %d prices"] = "%d unidades · %d preços",

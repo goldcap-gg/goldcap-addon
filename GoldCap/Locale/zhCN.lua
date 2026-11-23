@@ -70,8 +70,8 @@ GC.Locales.zhCN = {
   ["%d of %d at or under your cap"] = "%d/%d 个不高于你的上限",
   ["%d of %d done"] = "已完成 %d/%d",
   ["%d prices in one request · books still loading"] = "一次请求获取 %d 个价格 · 挂单簿仍在加载",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "实时检查拒绝了 %d 笔。按上方的“HIDDEN %d”查看",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "实时检查拒绝了 %d 笔。按上方的%s查看",
   ["%d units"] = "%d 件",
   ["1 unit"] = "1 件",
   ["%d units · %d prices"] = "%d 件 · %d 个价位",

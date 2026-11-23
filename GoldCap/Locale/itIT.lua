@@ -67,8 +67,8 @@ GC.Locales.itIT = {
   ["%d of %d done"] = "%d di %d fatti",
   ["%d prices in one request · books still loading"] =
     "%d prezzi in una sola richiesta · book ancora in caricamento",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d rifiutate dal controllo dal vivo. Premi \"HIDDEN %d\" sopra per vederle",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d rifiutate dal controllo dal vivo. Premi %s sopra per vederle",
   ["%d units"] = "%d unità",
   ["1 unit"] = "1 unità",
   ["%d units · %d prices"] = "%d unità · %d prezzi",

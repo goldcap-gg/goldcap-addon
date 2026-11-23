@@ -7,6 +7,9 @@
   there, the price at home, what you make after the 5% cut and how fast it sells at home. Tick
   what you want, or all of them with one box, and ADD TO BUY puts them on a BUY list, one of each,
   that never pays more than still leaves a profit. The prices come from goldcap.gg with the Companion, every hour.
+- DEALS: the boards are tabs with the game's icons, each saying what is on it, with how many
+  deals it holds on the icon. AUTO wears a pocket watch, and SCAN and HIDDEN are icons: hover one
+  for its name.
 - WoW: Forever: at the neutral auction house in Booty Bay, Gadgetzan and Everlook GoldCap no longer
   scans. What it lists was counted as your own faction's prices, on DEALS and on goldcap.gg.
 - An item's name no longer turns into "Item 12345" on SELL, in the status line or in the crafting

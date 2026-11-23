@@ -295,6 +295,16 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
       assert.not_equal("SCAN", GC.L["SCAN"])
       GC.ActivateLocale(nil)
     end)
+
+    -- The Scan button is a spyglass (createFrame, 2026-11-23): where the client has the icon the
+    -- line shows it; the label above is what it says where the client has none.
+    it("shows the spyglass in the line where the client has the icon", function()
+      local GC, f, setView = scanning()
+      f.fullScanBtn = { faceFile = "Interface\\Icons\\INV_Misc_Spyglass_02" }
+      setView("sell")
+      assert.is_false(GC.Sniper._bookPass:IsPaging())
+      assert.is_truthy(f.status.text:find("Press |TInterface\\Icons\\INV_Misc_Spyglass_02:14:14", 1, true), f.status.text)
+    end)
   end)
 
   it("re-seeds the sell pause on an AUTO off->on cycle reached via OnAuctionHouseShow while Sell is showing", function()

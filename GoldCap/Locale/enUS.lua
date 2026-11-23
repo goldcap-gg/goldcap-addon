@@ -69,7 +69,8 @@ GC.Locales.enUS = {
   ["%d of %d at or under your cap"] = "%d of %d at or under your cap",
   ["%d of %d done"] = "%d of %d done",
   ["%d prices in one request · books still loading"] = "%d prices in one request · books still loading",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] = "%d refused by live checks. Press \"HIDDEN %d\" above to review them",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d refused by live checks. Press %s above to review them",
   ["%d units"] = "%d units",
   ["1 unit"] = "1 unit",
   ["%d units · %d prices"] = "%d units · %d prices",

@@ -68,8 +68,8 @@ GC.Locales.esES = {
   ["%d of %d done"] = "%d de %d hechas",
   ["%d prices in one request · books still loading"] =
     "%d precios en una sola consulta · los libros siguen cargando",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d rechazadas por la comprobación en vivo. Pulsa «HIDDEN %d» arriba para verlas",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d rechazadas por la comprobación en vivo. Pulsa %s arriba para verlas",
   ["%d units"] = "%d uds.",
   ["1 unit"] = "1 ud.",
   ["%d units · %d prices"] = "%d unidades · %d precios",

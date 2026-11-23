@@ -67,8 +67,8 @@ GC.Locales.frFR = {
   ["%d of %d done"] = "%d sur %d faits",
   ["%d prices in one request · books still loading"] =
     "%d prix en une seule requête · carnets en cours de chargement",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d refusées par la vérification en direct. Cliquez sur « HIDDEN %d » au-dessus pour les voir",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d refusées par la vérification en direct. Cliquez sur %s au-dessus pour les voir",
   ["%d units"] = "%d unités",
   ["1 unit"] = "1 unité",
   ["%d units · %d prices"] = "%d unités · %d prix",

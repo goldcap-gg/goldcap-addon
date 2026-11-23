@@ -71,8 +71,8 @@ GC.Locales.zhTW = {
   ["%d of %d at or under your cap"] = "%d/%d 個不高於你的上限",
   ["%d of %d done"] = "已完成 %d/%d",
   ["%d prices in one request · books still loading"] = "一次請求取得 %d 個價格 · 掛單簿仍在載入",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "即時檢查拒絕了 %d 筆。按上方的「HIDDEN %d」查看",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "即時檢查拒絕了 %d 筆。按上方的%s查看",
   ["%d units"] = "%d 件",
   ["1 unit"] = "1 件",
   ["%d units · %d prices"] = "%d 件 · %d 個價位",

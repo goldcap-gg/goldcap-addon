@@ -64,8 +64,8 @@ GC.Locales.ruRU = {
   ["%d of %d at or under your cap"] = "%d из %d по вашему потолку или дешевле",
   ["%d of %d done"] = "готово %d из %d",
   ["%d prices in one request · books still loading"] = "%d цен одним запросом · стаканы догружаются",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d отклонено живой проверкой. Нажмите \"HIDDEN %d\" вверху, чтобы посмотреть",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d отклонено живой проверкой. Нажмите %s вверху, чтобы посмотреть",
   ["%d units"] = "%d шт.",
   ["1 unit"] = "1 шт.",
   ["%d units · %d prices"] = "%d шт. · %d цен",

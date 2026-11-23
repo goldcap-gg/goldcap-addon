@@ -88,8 +88,8 @@ describe("Sniper pin feedback and empty state", function()
     -- row-pool stubs that let refreshRows run headless (same seam auto_verify_spec uses).
     local status, emptyText = fontString(), fontString()
     local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
-    set(GC.Sniper.OnAuctionHouseShow, "frame",
-      { IsShown = function() return true end, Hide = function() end, status = status, emptyText = emptyText })
+    local host = { IsShown = function() return true end, Hide = function() end, status = status, emptyText = emptyText }
+    set(GC.Sniper.OnAuctionHouseShow, "frame", host)
     set(refreshRows, "content", { SetHeight = function() end })
     set(refreshRows, "createRow", function()
       local row = { shownState = false }
@@ -106,7 +106,7 @@ describe("Sniper pin feedback and empty state", function()
     -- At the auction house: away from it the empty state only says to open it
     -- (spec/sniper_boards_spec.lua).
     set(GC.Sniper._UpdateEmptyState, "ahOpen", true)
-    return GC, status, emptyText
+    return GC, status, emptyText, host
   end
 
   after_each(function()
@@ -211,7 +211,7 @@ describe("Sniper pin feedback and empty state", function()
     -- covered in spec/forever_deals_board_spec.lua.
 
     it("names the hidden and refused counts when the filters emptied the board", function()
-      local GC, _, emptyText = loadSniper()
+      local GC, _, emptyText, host = loadSniper()
       GC.db.imported = { ts = 990 }
       local ids = { 1 }
       GC.Data.FactItemIds = function() return ids end
@@ -224,7 +224,12 @@ describe("Sniper pin feedback and empty state", function()
       assert.is_true(emptyText.shown)
       assert.matches("5 filtered out", emptyText.text)
       assert.matches("3 refused by live checks", emptyText.text)
-      assert.matches('"HIDDEN 3"', emptyText.text)
+      -- The HIDDEN button is the rogue's icon (createFrame, 2026-11-23): the sentence shows it, and
+      -- says the button's label where the client has no such icon.
+      assert.is_truthy(emptyText.text:find("Press HIDDEN 3 above", 1, true), emptyText.text)
+      host.verifyBtn = { faceFile = "Interface\\Icons\\Ability_Stealth" }
+      GC.Sniper._UpdateEmptyState(0)
+      assert.is_truthy(emptyText.text:find("Press |TInterface\\Icons\\Ability_Stealth:14:14", 1, true), emptyText.text)
       -- The pass hides rows under the player's own Min profit per buy in the same count
       -- (Core/FullScan.lua), so the count says so; "hard to resell" alone was not true of them.
       assert.is_truthy(emptyText.text:find("hard to resell", 1, true))

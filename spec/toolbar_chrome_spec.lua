@@ -631,6 +631,23 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
     assert.equal(2, frame.boardChips.items.countValue)
   end)
 
+  -- Variant B (owner, 2026-11-23): AUTO wears a pocket watch before its words; SCAN and HIDDEN are
+  -- square game icons whose words are kept as `.label` for the tooltip's first line, HIDDEN with
+  -- its count on the icon.
+  it("puts the game's icons on AUTO, SCAN and HIDDEN and keeps their words as the label", function()
+    local frame, GC = buildFrame()
+    assert.is_truthy(frame.autoBtn.leadIcon)
+    assert.equal("AUTO", frame.autoBtn.label)
+    assert.is_truthy(frame.fullScanBtn.faceIcon)
+    assert.equal("SCAN", frame.fullScanBtn.label)
+    assert.is_truthy(frame.verifyBtn.faceIcon)
+    GC.Sniper._hiddenItemCount = 4
+    GC.Sniper._PaintBoardChips()
+    upvalue(GC.Sniper.OnAuctionHouseShow, "refreshVerifyButton")()
+    assert.equal("HIDDEN 4", frame.verifyBtn.label)
+    assert.equal(4, frame.verifyBtn.countValue)
+  end)
+
   it("switches the board on a chip click and paints the one that is up", function()
     local frame, GC = buildFrame()
     GC.db = GC.db or { settings = { sniper = {} } }

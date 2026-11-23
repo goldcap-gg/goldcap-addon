@@ -67,8 +67,8 @@ GC.Locales.deDE = {
   ["%d of %d done"] = "%d von %d erledigt",
   ["%d prices in one request · books still loading"] =
     "%d Preise in einer Anfrage · Orderbücher laden noch",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d von der Live-Prüfung abgelehnt. Oben auf \"HIDDEN %d\" klicken, um sie zu sehen",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d von der Live-Prüfung abgelehnt. Oben auf %s klicken, um sie zu sehen",
   ["%d units"] = "%d Stück",
   ["1 unit"] = "1 Stück",
   ["%d units · %d prices"] = "%d Stück · %d Preise",

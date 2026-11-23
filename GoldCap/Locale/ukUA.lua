@@ -68,8 +68,8 @@ GC.Locales.ukUA = {
   ["%d of %d at or under your cap"] = "%d з %d за вашою стелею або дешевше",
   ["%d of %d done"] = "готово %d з %d",
   ["%d prices in one request · books still loading"] = "%d цін одним запитом · стакани довантажуються",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d відхилено живою перевіркою. Натисніть \"HIDDEN %d\" вгорі, щоб переглянути",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d відхилено живою перевіркою. Натисніть %s вгорі, щоб переглянути",
   ["%d units"] = "%d шт.",
   ["1 unit"] = "1 шт.",
   ["%d units · %d prices"] = "%d шт. · %d цін",

@@ -69,8 +69,8 @@ GC.Locales.koKR = {
   ["%d of %d at or under your cap"] = "%d/%d개가 상한 이하",
   ["%d of %d done"] = "%d/%d 완료",
   ["%d prices in one request · books still loading"] = "요청 한 번으로 시세 %d개 · 호가창 불러오는 중",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "실시간 확인에서 %d건 거부. 위의 \"HIDDEN %d\"를 눌러 확인하세요",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "실시간 확인에서 %d건 거부. 위의 %s를 눌러 확인하세요",
   ["%d units"] = "%d개",
   ["1 unit"] = "1개",
   ["%d units · %d prices"] = "%d개 · 가격 %d단",
