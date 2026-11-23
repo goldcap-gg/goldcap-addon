@@ -1,11 +1,5 @@
 # GoldCap
 
-## 0.33.0 (unreleased)
-
-- SELL, in retail WoW: POST no longer offers to post an item for less than a vendor pays for it
-  after the auction house's 5% cut. Its row says "vendor pays more", and the dock says to sell it
-  to a vendor instead, as it already did on WoW: Forever.
-
 ## 0.32.0 (2026-11-23)
 
 - WoW: Forever: DEALS has a third board, BLACKWATER. It lists what the neutral auction house in
@@ -24,6 +18,9 @@
 - An item's name no longer turns into "Item 12345" on SELL, in the status line or in the crafting
   lists while a scan runs: once the game has named an item, GoldCap keeps the name. On WoW: Forever
   it also uses the names its full scan saw, so a lot that sold out keeps its name too.
+- SELL, in retail WoW: POST no longer offers to post an item for less than a vendor pays for it
+  after the auction house's 5% cut. Its row says a vendor pays more, and the dock says to sell it
+  to a vendor instead, as it already did on WoW: Forever.
 - SELL names a listed item in the language your game runs in now, not the one a sale mail was
   written in.
 - SELL: after you pick a price by clicking it in THE BOOK, no grey band stays across a card of
