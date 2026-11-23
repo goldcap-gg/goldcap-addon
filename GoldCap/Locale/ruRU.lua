@@ -2217,4 +2217,12 @@ GC.Locales.ruRU = {
     "Продаётся %d%% лотов",
   ["%d%% of listings sell"] =
     "%d%% лотов продаётся",
+  ["Lowest item quality"] = "Минимальное качество предмета",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS не показывает предметы ниже этого качества, если они просто дешёвые. Ниже цены торговца, ваша цена, группа, на которую вы подписаны, и закреплённые предметы показываются по-прежнему.",
+  ["Poor"] = "Низкое",
+  ["Common"] = "Обычное",
+  ["Uncommon"] = "Необычное",
+  ["Rare"] = "Редкое",
+  ["Epic"] = "Эпическое",
 }

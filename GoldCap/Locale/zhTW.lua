@@ -2037,4 +2037,12 @@ GC.Locales.zhTW = {
     "%d%% 的上架成交",
   ["%d%% of listings sell"] =
     "%d%% 上架成交",
+  ["Lowest item quality"] = "最低物品品質",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "僅僅便宜的低於此品質的物品不會出現在 DEALS 中。低於商人收購價的、你的價格、你關注的分組和已置頂的物品仍會顯示。",
+  ["Poor"] = "粗糙",
+  ["Common"] = "普通",
+  ["Uncommon"] = "優秀",
+  ["Rare"] = "精良",
+  ["Epic"] = "史詩",
 }

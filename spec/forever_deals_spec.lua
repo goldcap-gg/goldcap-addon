@@ -403,6 +403,22 @@ describe("ForeverDeals", function()
       assert.equal(1, #rows); assert.equal("market", rows[1].forever)
     end)
 
+    -- The player's lowest item quality (settings.sniper.lowestQuality, Common when unset) in place
+    -- of the Common that was written in: a pin is listed whatever its quality.
+    it("holds a market row to the player's lowest item quality, a pin excepted", function()
+      commodity[2592] = true
+      local function c(over)
+        local o = { qualityFor = function() return 2 end }
+        for k, v in pairs(over) do o[k] = v end
+        return marketCtx(o)
+      end
+      assert.equal(1, #D.Build(fold({ [2592] = WOOL }), c({ lowestQuality = 2 })))
+      assert.equal(0, #D.Build(fold({ [2592] = WOOL }), c({ lowestQuality = 3 })))
+      assert.equal(1, #D.Build(fold({ [2592] = WOOL }), c({ lowestQuality = 3, watchPins = { 2592 } })))
+      assert.equal(1, #D.Build(fold({ [2592] = WOOL }), c({ lowestQuality = 0, qualityFor = function() return 0 end })))
+      assert.equal(0, #D.Build(fold({ [2592] = WOOL }), c({ lowestQuality = 0, qualityFor = function() return nil end })))
+    end)
+
     it("still lists a poor item bought under what a vendor pays for it", function()
       commodity[2592], vendor[2592] = true, 41
       local rows = D.Build(fold({ [2592] = WOOL }), marketCtx({ qualityFor = function() return 0 end }))
@@ -602,6 +618,13 @@ describe("ForeverDeals", function()
       assert.equal(0, #D.Build(fold(cheap), c({ qualityFor = function() return 0 end })))
       commodity[5762] = true
       assert.equal(0, #D.Build(fold(cheap), c()))
+    end)
+
+    it("holds an item row to the player's lowest item quality as well", function()
+      commodity[5762], vendor[5762] = false, 100
+      local cheap = { [5762] = "400,1,1,;0x1" }
+      assert.equal(1, #D.Build(fold(cheap), c({ lowestQuality = 2 })))
+      assert.equal(0, #D.Build(fold(cheap), c({ lowestQuality = 3 })))
     end)
 
     it("leaves gear to the gear loop: a fold entry holds every version of it together", function()

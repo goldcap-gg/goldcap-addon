@@ -2137,4 +2137,12 @@ GC.Locales.enUS = {
     "Sells from %d%% of listings",
   ["%d%% of listings sell"] =
     "%d%% of listings sell",
+  ["Lowest item quality"] = "Lowest item quality",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show.",
+  ["Poor"] = "Poor",
+  ["Common"] = "Common",
+  ["Uncommon"] = "Uncommon",
+  ["Rare"] = "Rare",
+  ["Epic"] = "Epic",
 }

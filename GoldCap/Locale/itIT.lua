@@ -2149,4 +2149,12 @@ GC.Locales.itIT = {
     "Si vende nel %d%% delle inserzioni",
   ["%d%% of listings sell"] =
     "%d%% delle inserzioni vendute",
+  ["Lowest item quality"] = "Qualità minima dell'oggetto",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS esclude gli oggetti sotto questa qualità quando sono solo economici. Sotto il prezzo del mercante, il tuo prezzo, un gruppo che segui o un oggetto fissato restano visibili.",
+  ["Poor"] = "Scadente",
+  ["Common"] = "Comune",
+  ["Uncommon"] = "Non comune",
+  ["Rare"] = "Raro",
+  ["Epic"] = "Epico",
 }

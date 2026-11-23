@@ -86,7 +86,9 @@ local function evaluateFrom(rows, first, getValue, cfg)
       -- and keep the list to rows a Check can actually pass.
       local blocked = GC.SniperDecision and GC.SniperDecision.PreScreen
         and GC.SniperDecision.PreScreen(GC.SniperDecision.MarketFromValue(value), cfg) or {}
-      if #blocked > 0 then
+      -- Below the player's lowest item quality (GC.FullScan.QualityAdmits) is a screen of the same
+      -- kind: grey junk the player has said is not worth showing.
+      if #blocked > 0 or not GC.FullScan.QualityAdmits(row.itemID, cfg) then
         screened = screened + 1
       else
       local deal = GC.DealMath.Evaluate(
@@ -125,6 +127,16 @@ local function evaluateFrom(rows, first, getValue, cfg)
     deals[#deals + 1] = deal
   end
   return deals, screened
+end
+
+-- Whether an item found under the market clears the player's lowest item quality
+-- (GC.DealMath.QualityAdmits), its quality read without a request (GC.ForeverValue.CachedQuality):
+-- unknown passes, and so does a pinned item. Shared by every discovery path that boards or drills a
+-- market find: the browse pass here, the book pass and the realm poll (UI/SniperFrame.lua).
+function GC.FullScan.QualityAdmits(itemID, cfg)
+  if GC.DealMath.QualityFloor(cfg) == 0 then return true end
+  local read = GC.ForeverValue and GC.ForeverValue.CachedQuality
+  return GC.DealMath.QualityAdmits({ itemID = itemID }, read and read(itemID) or nil, cfg)
 end
 
 -- Returns the deals plus how many rows the pre-screen removed, so the UI can report the number

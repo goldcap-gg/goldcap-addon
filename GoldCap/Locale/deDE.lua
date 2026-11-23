@@ -2156,4 +2156,12 @@ GC.Locales.deDE = {
     "Verkauft sich bei %d%% der Angebote",
   ["%d%% of listings sell"] =
     "%d%% der Angebote verkauft",
+  ["Lowest item quality"] = "Niedrigste Gegenstandsqualität",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS lässt Gegenstände unter dieser Qualität weg, wenn sie nur günstig sind. Unter dem Händlerpreis, dein Preis, eine Gruppe, der du folgst, oder ein Pin erscheinen weiterhin.",
+  ["Poor"] = "Schlecht",
+  ["Common"] = "Verbreitet",
+  ["Uncommon"] = "Selten",
+  ["Rare"] = "Rar",
+  ["Epic"] = "Episch",
 }

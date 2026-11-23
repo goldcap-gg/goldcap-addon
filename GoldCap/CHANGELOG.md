@@ -5,6 +5,10 @@
 - How often one listing of an item sells, for example "Sells from 42% of listings", now shows in
   the item's tooltip, on its card in SELL and under its name on DEALS, in retail WoW and WoW: Forever,
   wherever goldcap.gg has seen enough of its listings end to say.
+- DEALS no longer shows grey items just because they are cheap. SETTINGS has a new "Lowest item
+  quality" (Common unless you change it, from Poor to Epic), in retail WoW and WoW: Forever. Items
+  under what a vendor pays, your own prices, groups you follow and pinned items still show at any
+  quality.
 
 ## 0.33.0 (2026-11-23)
 

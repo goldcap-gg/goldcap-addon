@@ -2220,4 +2220,12 @@ GC.Locales.ukUA = {
     "Продається %d%% лотів",
   ["%d%% of listings sell"] =
     "%d%% лотів продається",
+  ["Lowest item quality"] = "Мінімальна якість предмета",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS не показує предмети нижче цієї якості, якщо вони просто дешеві. Нижче ціни торговця, ваша ціна, група, на яку ви підписані, і закріплені предмети показуються як і раніше.",
+  ["Poor"] = "Низька",
+  ["Common"] = "Звичайна",
+  ["Uncommon"] = "Незвичайна",
+  ["Rare"] = "Рідкісна",
+  ["Epic"] = "Епічна",
 }

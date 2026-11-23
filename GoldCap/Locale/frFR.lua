@@ -2157,4 +2157,12 @@ GC.Locales.frFR = {
     "Se vend dans %d%% des annonces",
   ["%d%% of listings sell"] =
     "%d%% des annonces vendues",
+  ["Lowest item quality"] = "Qualité d'objet minimale",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS écarte les objets sous cette qualité quand ils sont seulement bon marché. Sous le prix du marchand, votre prix, un groupe suivi ou un objet épinglé restent affichés.",
+  ["Poor"] = "Médiocre",
+  ["Common"] = "Classique",
+  ["Uncommon"] = "Inhabituel",
+  ["Rare"] = "Rare",
+  ["Epic"] = "Épique",
 }

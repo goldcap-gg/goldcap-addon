@@ -83,6 +83,24 @@ function GC.ForeverValue.Quality(itemID, ask)
   return (itemInfo(itemID, ask))
 end
 
+-- The item's quality without a request of any kind, for the boards' lowest-quality filter: the kept
+-- answer, read as it is (no version stamp: retail keeps no such table and must not grow one), else
+-- the client's own, only while it already holds the item. nil when neither knows.
+function GC.ForeverValue.CachedQuality(itemID)
+  if type(itemID) ~= "number" then return nil end
+  local kept = type(GC.db) == "table" and type(GC.db.foreverItemInfo) == "table" and GC.db.foreverItemInfo[itemID]
+  if type(kept) == "number" then return kept % 8 end
+  local item = _G.C_Item
+  if type(item) ~= "table" or type(item.IsItemDataCachedByID) ~= "function"
+      or type(item.GetItemQualityByID) ~= "function" then
+    return nil
+  end
+  local ok, cached = pcall(item.IsItemDataCachedByID, itemID)
+  if not (ok and cached) then return nil end
+  local read, quality = pcall(item.GetItemQualityByID, itemID)
+  return read and type(quality) == "number" and quality or nil
+end
+
 -- One unit's deposit for a commodity, as the client quotes it from the item alone
 -- (C_AuctionHouse.CalculateCommodityDeposit): the caller has already been told the item IS a
 -- commodity. nil when the client does not answer.

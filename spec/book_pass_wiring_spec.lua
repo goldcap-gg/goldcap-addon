@@ -248,6 +248,35 @@ describe("Book pass wiring", function()
     assert.equal(1, GC.Sniper._drillQueue:Depth())
   end)
 
+  -- The lowest item quality (settings.sniper.lowestQuality, Common when unset): a grey hit is not
+  -- worth a drill its row would never board on; a pinned one is, and so is one the client has not
+  -- loaded (its quality unknown).
+  it("never queues a hit under the lowest item quality, unless the item is pinned", function()
+    local GC = loadSniper()
+    helper.loadModule("Core/ForeverValue.lua", GC)
+    local quality = { [500] = 0 }
+    _G.C_Item = {
+      IsItemDataCachedByID = function(id) return quality[id] ~= nil end,
+      GetItemQualityByID = function(id) return quality[id] end,
+    }
+    browseResults = { browseRow(500, 100000) }
+    GC.Data.GetItemValue = function() return dealValue() end
+    local function pass()
+      GC.Sniper._bookPass:Reset()
+      GC.Sniper._drillQueue = GC.DrillQueue.New({ now = _G.time })
+      GC.Sniper._bookPass:Start("classes")
+      GC.Sniper._bookPass:OnResultsUpdated()
+      return GC.Sniper._drillQueue:Depth()
+    end
+    assert.equal(0, pass())
+    GC.db.settings.sniper.watchPins = { 500 }
+    assert.equal(1, pass())
+    GC.db.settings.sniper.watchPins = {}
+    quality[500] = nil
+    assert.equal(1, pass())
+    _G.C_Item = nil
+  end)
+
   -- The page event's own rows go to the pass as they came; the whole list so far is read only
   -- when a written-off keys batch could be answering late (_IsOrphanAnswer needs every row).
   it("hands a pass its page from the event and reads the whole list only for a late batch", function()

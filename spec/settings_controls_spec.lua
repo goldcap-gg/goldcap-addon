@@ -289,7 +289,7 @@ describe("Settings controls", function()
     GC.DEFAULTS = { settings = { sniper = {
       maxCapitalShare = 0.05, minimumProfitCopper = 50000, minimumRoi = 0.10,
       dumpTrendPct = 10, spikeTrendPct = 30, wallAbsorbHours = 2, sound = true, auto = false,
-      overcut = true, postDuration = 2, maxQuantity = 200,
+      overcut = true, postDuration = 2, maxQuantity = 200, lowestQuality = 1,
     } } }
     GC.Theme = fakeTheme()
     -- T7: RefreshRailActive is GC.Sniper's own export (SniperFrame.lua, right after setView) --
@@ -824,6 +824,41 @@ describe("Settings controls", function()
     assert.equal(200, GC.db.settings.sniper.maxQuantity)
   end)
 
+  -- The lowest item quality DEALS finds under the market: its name between two arrows, the row
+  -- built as fieldRow's, Common by default, Poor to Epic, and the card's DEFAULTS puts Common back.
+  it("Lowest item quality steps Poor to Epic by its arrows, Common by default", function()
+    GC.SettingsUI.Toggle()
+    local whatCounts = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
+    local labelNode
+    walk(whatCounts, function(node)
+      if node.kind == "FontString" and node.textValue == "Lowest item quality" then labelNode = node end
+    end)
+    assert.is_not_nil(labelNode)
+    local siblings, control = labelNode.parent.children, nil
+    for i, child in ipairs(siblings) do
+      if child == labelNode then control = siblings[i - 1] end
+    end
+    local down, up = buttonIn(control, "<"), buttonIn(control, ">")
+    local function shown()
+      local text
+      walk(control, function(node) if node.kind == "FontString" and node.textValue then text = node.textValue end end)
+      return text
+    end
+    assert.equal("Common", shown())
+
+    local before = settingsChangedCalls
+    down.scripts.OnClick(down)
+    assert.same({ 0, "Poor", 1 }, { GC.db.settings.sniper.lowestQuality, shown(), settingsChangedCalls - before })
+    down.scripts.OnClick(down) -- already the lowest: nothing changed, nothing told
+    assert.same({ 0, "Poor", 1 }, { GC.db.settings.sniper.lowestQuality, shown(), settingsChangedCalls - before })
+    for _ = 1, 6 do up.scripts.OnClick(up) end
+    assert.same({ 4, "Epic" }, { GC.db.settings.sniper.lowestQuality, shown() })
+
+    local resetBtn = buttonIn(whatCounts, "DEFAULTS")
+    resetBtn.scripts.OnClick(resetBtn)
+    assert.same({ 1, "Common" }, { GC.db.settings.sniper.lowestQuality, shown() })
+  end)
+
   -- Review 2026-09-27: raising "Max wallet per buy %" to get past a "needs 40k" changed nothing
   -- on the board -- the verdicts still carried the gold worked out at the old share, and the
   -- rows holding them stayed out of the background check until the gold itself changed. A
@@ -917,7 +952,7 @@ describe("Settings controls", function()
   describe("every row label", function()
     local ROWS = {
       ["WHAT COUNTS AS A DEAL"] = { "Min profit per buy (gold)", "Min return per buy %", "Max wallet per buy %",
-        "Max units per buy" },
+        "Max units per buy", "Lowest item quality" },
       ["RISK CHECKS"] = { "Dump-trend cap %", "Spike-trend threshold %", "Wall absorb window (hours)" },
       ["POSTING"] = { "Duration", "Buy cap (% of usual price)", "Min. undercut to cancel (%)" },
       ["AUTOMATION & ALERTS"] = { "Sound on SAFE deal", "Deal sound", "Even with sound effects off",

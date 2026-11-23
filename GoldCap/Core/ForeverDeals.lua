@@ -225,13 +225,21 @@ local function resaleRow(itemID, e, ctx, isCommodity, refUnit, limit, maxUnits)
   return row
 end
 
+-- Whether an "Under market" row may be built for the item: its quality at or above the player's
+-- lowest item quality (GC.DealMath.QualityAdmits; Common by default, a pin excepted). Not loaded yet
+-- waits as it always has: the client loads an item's quality with its vendor price, which Build has
+-- already asked for, and the rebuild that picks the price up picks the quality up too. A vendor row
+-- and a followed group's never come here.
+local function qualityAdmits(itemID, ctx)
+  if not ctx.qualityFor then return true end
+  local quality = ctx.qualityFor(itemID)
+  if type(quality) ~= "number" then return false end
+  return GC.DealMath.QualityAdmits({ itemID = itemID }, quality,
+    { lowestQuality = ctx.lowestQuality, watchPins = ctx.watchPins })
+end
+
 local function underMarket(itemID, e, ctx, isCommodity)
-  -- Grey, or not loaded yet: the client loads an item's quality with its vendor price, which Build
-  -- has already asked for, and the rebuild that picks the price up picks the quality up too.
-  if ctx.qualityFor then
-    local quality = ctx.qualityFor(itemID)
-    if type(quality) ~= "number" or quality < 1 then return nil end
-  end
+  if not qualityAdmits(itemID, ctx) then return nil end
   local sold = ctx.salesFor and ctx.salesFor(itemID) or nil
   local ref, maxUnits
   if sold then
@@ -267,10 +275,7 @@ end
 local function itemUnderMarket(itemID, e, ctx, isCommodity, vendor)
   local IM = GC.ForeverItemMarket
   if not (IM and ctx.salesFor) or e.gear then return nil end
-  if ctx.qualityFor then
-    local quality = ctx.qualityFor(itemID)
-    if type(quality) ~= "number" or quality < 1 then return nil end
-  end
+  if not qualityAdmits(itemID, ctx) then return nil end
   local ref = IM.Reference(ctx.salesFor(itemID), false)
   if not ref or e.ladder[1][1] > ref.ceiling then return nil end
   if isCommodity() ~= false then return nil end
@@ -455,10 +460,18 @@ local function groupsRev()
   return GC.GroupRules and GC.GroupRules.rev or 0
 end
 
+-- The lowest item quality the board was built for (settings.sniper.lowestQuality).
+local function qualityFloor()
+  return GC.DealMath.QualityFloor(GC.db and GC.db.settings and GC.db.settings.sniper)
+end
+
 local function foldChanged(fold)
   return cache.at ~= fold.at or cache.itemCount ~= fold.itemCount or cache.rev ~= fold.rev
     -- A group followed or let go since: its items are marked, or measured against it, differently.
     or cache.groups ~= groupsRev()
+    -- The lowest item quality changed in SETTINGS: the board is built again at once, not at the
+    -- next scan.
+    or cache.quality ~= qualityFloor()
 end
 
 -- A dropped row stays off while the fold still holds the very entry it was built from, under the
@@ -500,6 +513,8 @@ function GC.ForeverDeals._LiveRow(itemID, l, admit)
   if l.kind == "market" then
     local IM = GC.ForeverItemMarket
     if not IM then return nil end
+    local read = GC.ForeverValue and GC.ForeverValue.CachedQuality
+    if not GC.DealMath.QualityAdmits({ itemID = itemID }, read and read(itemID) or nil, admit) then return nil end
     local room = GC.ForeverDeals.Room(itemID, l.ref.perDay)
     local plan = IM.Plan(l.ref, { l.unit }, IM.Deposit(l.vendor), room)
     if not plan or plan.profit <= 0
@@ -549,7 +564,8 @@ local function liveTake(itemID, l, now, settled)
   end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
   local row = GC.ForeverDeals._LiveRow(itemID, l,
-    { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins })
+    { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins,
+      lowestQuality = settings.lowestQuality })
   if not row then return nil end
   if prior and not settled and shown and shown.live and (row.profit or 0) <= (shown.profit or 0) then return nil end
   live[itemID] = l
@@ -602,6 +618,7 @@ local function rebuild(fold, now)
     groupFor = GC.GroupRules and GC.GroupRules.Followed or nil,
     minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     watchPins = settings.watchPins,
+    lowestQuality = settings.lowestQuality,
     referenceFor = function(itemID, e)
       if GC.Data and GC.Data.ForeverReference then
         -- A floor-only entry's own figure is only its floor, so the crowd's is taken however the
@@ -622,7 +639,8 @@ local function rebuild(fold, now)
   end
   -- The live rows go over whatever the fold made of their items: a lot seen seconds ago against
   -- one the scan saw minutes ago.
-  local admit = { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins }
+  local admit = { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins,
+    lowestQuality = settings.lowestQuality }
   for itemID, l in pairs(live) do
     local row = GC.ForeverDeals._LiveRow(itemID, l, admit)
     if row then
@@ -666,7 +684,7 @@ local function rebuild(fold, now)
   end
   awaited, arrived = waiting, false
   cache.at, cache.itemCount, cache.rev, cache.from = fold.at, fold.itemCount, fold.rev, fold
-  cache.groups = groupsRev()
+  cache.groups, cache.quality = groupsRev(), qualityFloor()
   cache.builtAt, cache.waitUntil, cache.rows, cache.byItem = now, waitUntil, kept, byItem
   cache.unsure, cache.reask = #unsure, false
   local entries = fold.itemCount

@@ -4106,6 +4106,8 @@ GC.Sniper._bookPass = GC.BookPass.New({
     local blocked = GC.SniperDecision and GC.SniperDecision.PreScreen
       and GC.SniperDecision.PreScreen(GC.SniperDecision.MarketFromValue(value), GC.db.settings.sniper) or {}
     if #blocked > 0 then return end
+    -- Nor an item under the player's lowest item quality (a pin excepted): its row would never board.
+    if not GC.FullScan.QualityAdmits(hit.itemID, GC.db.settings.sniper) then return end
     local hitRows = GC.FullScan.RowsFromBrowse(
       { { itemKey = { itemID = hit.itemID }, minPrice = hit.floor, totalQuantity = hit.qty } },
       GC.Data.GetItemValue, GC.db.settings.sniper)
@@ -4368,7 +4370,10 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   -- Gear the board leaves off (GC.Sniper._GearPastReach) is not worth a drill either.
   onHit = function(hit)
     local value = GC.Sniper._RealmValue(hit.itemID)
-    if not value or GC.Sniper._GearPastReach(hit.itemID, hit.floor, value.mv) then return end
+    if not value or GC.Sniper._GearPastReach(hit.itemID, hit.floor, value.mv)
+        or not GC.FullScan.QualityAdmits(hit.itemID, GC.db.settings.sniper) then
+      return
+    end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
       estProfit = math.floor(value.mv * 0.95) - hit.floor })
   end,
@@ -4391,9 +4396,13 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
       local row = realmRows[i]
       local unitPrice = math.floor(row.buyoutStack / row.count)
       -- A rare find is never a flip row (see triggerFor): its row is the Rare finds section's. Nor
-      -- is gear too far under its reference to be the level the reference prices.
+      -- is gear too far under its reference to be the level the reference prices, nor an item under
+      -- the player's lowest item quality (a pin excepted: GC.FullScan.QualityAdmits).
       local value = not GC.Sniper._IsRareFind(row.itemID) and GC.Sniper._RealmValue(row.itemID) or nil
-      if value and GC.Sniper._GearPastReach(row.itemID, unitPrice, value.mv) then value = nil end
+      if value and (GC.Sniper._GearPastReach(row.itemID, unitPrice, value.mv)
+          or not GC.FullScan.QualityAdmits(row.itemID, GC.db.settings.sniper)) then
+        value = nil
+      end
       local deal = value and GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false,
           unitPrice = unitPrice, qty = row.count, avail = row.avail },

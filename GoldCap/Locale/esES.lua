@@ -2155,4 +2155,12 @@ GC.Locales.esES = {
     "Se vende en el %d%% de las publicaciones",
   ["%d%% of listings sell"] =
     "%d%% de publicaciones vendidas",
+  ["Lowest item quality"] = "Calidad mínima del objeto",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS omite los objetos por debajo de esta calidad cuando solo están baratos. Lo que está por debajo de lo que paga un vendedor, tu precio, un grupo que sigues o un fijado se siguen mostrando.",
+  ["Poor"] = "Pobre",
+  ["Common"] = "Común",
+  ["Uncommon"] = "Poco común",
+  ["Rare"] = "Raro",
+  ["Epic"] = "Épico",
 }

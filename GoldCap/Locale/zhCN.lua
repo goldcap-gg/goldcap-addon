@@ -2036,4 +2036,12 @@ GC.Locales.zhCN = {
     "%d%% 的挂单成交",
   ["%d%% of listings sell"] =
     "%d%% 挂单成交",
+  ["Lowest item quality"] = "最低物品品质",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "仅仅便宜的低于此品质的物品不会出现在 DEALS 中。低于商人收购价的、你的价格、你关注的分组和已置顶的物品仍会显示。",
+  ["Poor"] = "粗糙",
+  ["Common"] = "普通",
+  ["Uncommon"] = "优秀",
+  ["Rare"] = "精良",
+  ["Epic"] = "史诗",
 }

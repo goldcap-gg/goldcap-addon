@@ -143,6 +143,31 @@ function GC.DealMath.BoardAdmits(deal, cfg)
   return type(deal.estProfit) ~= "number" or deal.estProfit >= minimum
 end
 
+-- The lowest item quality the boards find under the market (settings.sniper.lowestQuality): 0 poor,
+-- 1 common, 2 uncommon, 3 rare, 4 epic. Anything else reads as the default, Common.
+GC.DealMath.QUALITY_DEFAULT, GC.DealMath.QUALITY_MAX = 1, 4
+
+function GC.DealMath.QualityFloor(cfg)
+  local q = type(cfg) == "table" and cfg.lowestQuality or nil
+  if type(q) ~= "number" or q ~= math.floor(q) or q < 0 or q > GC.DealMath.QUALITY_MAX then
+    return GC.DealMath.QUALITY_DEFAULT
+  end
+  return q
+end
+
+-- Whether a row found under the market clears the player's lowest item quality. Never turned away
+-- for it: a vendor row (`deal.kind == "vendor"`: what a vendor pays is a profit at any quality), a
+-- YOUR PRICE row (`deal.cap`), a followed group's (`deal.group`) and a pinned item. A quality the
+-- client has not told us (`quality` nil) passes: the filter never asks for item info itself.
+function GC.DealMath.QualityAdmits(deal, quality, cfg)
+  if deal.kind == "vendor" or deal.cap or deal.group then return true end
+  for _, pin in ipairs(type(cfg) == "table" and type(cfg.watchPins) == "table" and cfg.watchPins or {}) do
+    if pin == deal.itemID then return true end
+  end
+  if type(quality) ~= "number" then return true end
+  return quality >= GC.DealMath.QualityFloor(cfg)
+end
+
 function GC.DealMath.PriceIncreaseExceeds(quotedTotal, updatedTotal, maxRatio)
   local threshold = quotedTotal * (1 + maxRatio)
   return updatedTotal > threshold + math.abs(threshold) * EPS

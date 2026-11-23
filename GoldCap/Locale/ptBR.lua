@@ -2146,4 +2146,12 @@ GC.Locales.ptBR = {
     "Vende em %d%% dos anúncios",
   ["%d%% of listings sell"] =
     "%d%% dos anúncios vendem",
+  ["Lowest item quality"] = "Qualidade mínima do item",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS deixa de fora itens abaixo desta qualidade quando estão apenas baratos. Abaixo do que um vendedor paga, seu preço, um grupo que você segue ou um fixado continuam aparecendo.",
+  ["Poor"] = "Inferior",
+  ["Common"] = "Comum",
+  ["Uncommon"] = "Incomum",
+  ["Rare"] = "Raro",
+  ["Epic"] = "Épico",
 }

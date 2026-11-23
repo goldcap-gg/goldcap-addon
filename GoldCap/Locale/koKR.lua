@@ -2075,4 +2075,12 @@ GC.Locales.koKR = {
     "등록의 %d%%가 판매됨",
   ["%d%% of listings sell"] =
     "등록 %d%% 판매",
+  ["Lowest item quality"] = "최소 아이템 등급",
+  ["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."] =
+    "DEALS는 이 등급보다 낮은 아이템이 단지 싸기만 할 때 제외합니다. 상점 판매가 미만, 내 가격, 팔로우한 그룹, 고정한 아이템은 계속 표시됩니다.",
+  ["Poor"] = "하급",
+  ["Common"] = "일반",
+  ["Uncommon"] = "고급",
+  ["Rare"] = "희귀",
+  ["Epic"] = "영웅",
 }

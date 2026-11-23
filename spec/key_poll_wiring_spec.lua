@@ -281,6 +281,33 @@ describe("Key poll wiring", function()
       assert.is_table(GC.Sniper._realmDeals[44])
     end)
 
+    -- The lowest item quality (Common when unset): a grey realm item is neither drilled nor
+    -- boarded; a pinned one is, and so is one whose quality the client has not loaded.
+    it("leaves an item under the lowest item quality off the board and the drills, unless pinned", function()
+      local quality = { [42] = 0, [43] = 2 }
+      _G.C_Item = {
+        IsItemDataCachedByID = function(id) return quality[id] ~= nil end,
+        GetItemQualityByID = function(id) return quality[id] end,
+      }
+      local GC = loadSniper()
+      helper.loadModule("Core/ForeverValue.lua", GC)
+      values[42], values[43], values[44], values[45] = realmValue(), realmValue(), realmValue(), realmValue()
+      quality[45] = 0
+      GC.db.settings.sniper.watchPins = { 45 }
+      targetIds = { 42, 43, 44 }
+      GC.Sniper._RebuildKeyTargets()
+
+      GC.Sniper._keyPoll:Fold({ browseRow(42, 120000, 2), browseRow(43, 120000, 2), browseRow(44, 120000, 2),
+        browseRow(45, 120000, 2) })
+
+      assert.is_false(GC.Sniper._drillQueue:Has(42))
+      assert.is_nil(GC.Sniper._realmDeals[42])
+      for _, itemID in ipairs({ 43, 44, 45 }) do
+        assert.is_true(GC.Sniper._drillQueue:Has(itemID), itemID)
+        assert.is_table(GC.Sniper._realmDeals[itemID], itemID)
+      end
+    end)
+
     -- ClickUp 869fjdhnk: a flip priced at a level (the payload's L) is boarded and drilled at its
     -- cheapest lot at or above that level, never at a lower level's price.
     it("boards and drills a flip priced at a level at its cheapest lot at or above it", function()
