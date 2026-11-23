@@ -268,4 +268,32 @@ describe("ForeverFold", function()
       assert.is_nil(e.levels)
     end)
   end)
+
+  describe("Overlay", function()
+    local DUMP = "100,50,6,;0x10 20x10 30x10 50x10 100x10|30,80,7"
+    local cases = {
+      { name = "a dump's entry under a cheaper floor is refloored", committed = DUMP, floor = 60, qty = 51,
+        want = F.Refloor(DUMP, 60, 51) },
+      { name = "a dump's entry over a higher floor loses the levels under it", committed = DUMP, floor = 150,
+        qty = 30, want = F.Refloor(DUMP, 150, 30) },
+      { name = "the committed floor is the committed entry, whatever the units", committed = DUMP, floor = 100,
+        qty = 7, want = DUMP },
+      { name = "an item the fold lacks is a floor-only entry", committed = nil, floor = 80, qty = 12,
+        want = "80,12,,b;" },
+      { name = "a floor-only entry takes the new floor", committed = "100,5,,b;", floor = 70, qty = 3,
+        want = "70,3,,b;" },
+      { name = "a floor-only entry at its own floor stays", committed = "100,5,,b;", floor = 100, qty = 3,
+        want = "100,5,,b;" },
+      { name = "no units said is none", committed = nil, floor = 80, qty = nil, want = "80,0,,b;" },
+      { name = "gear is not overlaid", committed = "100,5,1,g;0x5", floor = 50, qty = 5, want = nil },
+      { name = "a floor that is not a whole positive copper is none", committed = DUMP, floor = 1.5, qty = 5,
+        want = nil },
+      { name = "nor is a missing floor", committed = DUMP, floor = nil, qty = 5, want = nil },
+    }
+    for _, case in ipairs(cases) do
+      it(case.name, function()
+        assert.equal(case.want, F.Overlay(case.committed, case.floor, case.qty))
+      end)
+    end
+  end)
 end)

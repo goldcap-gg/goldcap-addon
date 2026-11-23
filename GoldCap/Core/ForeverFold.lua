@@ -191,6 +191,28 @@ function GC.ForeverFold.Refloor(encoded, floor, qty)
   return GC.ForeverFold.Encode(out, false)
 end
 
+-- The entry the Deals board reads for an item a browse pass between full scans saw at `floor`
+-- (Core/ForeverDeals.lua's live view), over `committed`, the saved fold's entry or nil. A dump's
+-- entry is refloored (Refloor), and any other entry, or none, becomes a floor-only one. The
+-- committed entry's own floor is that entry, whatever the units: the board keeps what it bought
+-- from an entry (Core/ForeverDeals.lua's `bought`) only while the entry stays the same. Gear
+-- answers nil: its browse rows are per item key, not the item's floor. Never written to the save.
+-- Read off the string's head, not decoded: a pass can move a thousand floors.
+function GC.ForeverFold.Overlay(committed, floor, qty)
+  if not positiveInt(floor) then return nil end
+  local min, flags, ladder
+  if type(committed) == "string" then min, flags, ladder = committed:match("^(%d+),%d+,%d*,(%a*);([^|]*)") end
+  min = tonumber(min)
+  if min and min > 0 then
+    if flags:find("g", 1, true) then return nil end
+    if min == floor then return committed end
+    if not flags:find("b", 1, true) and ladder:find("x", 1, true) then
+      return GC.ForeverFold.Refloor(committed, floor, qty)
+    end
+  end
+  return GC.ForeverFold.Encode({ min = floor, qty = positiveInt(qty) and qty or 0, browse = true }, false)
+end
+
 -- isGear(itemID) is the caller's client question (weapon or armor: several random suffixes can
 -- share one id, so the fold's figure is the cheapest version's); a failing answer is "no".
 --

@@ -13,6 +13,8 @@
   own auctions still up and, in retail WoW, in the mailboxes of all your characters comes off how
   many a deal buys, and a deal you already hold enough of leaves the board. The row's tooltip says
   how many you hold. Your own prices buy as many as before.
+- WoW: Forever: new deals on DEALS now show within seconds of being listed, instead of waiting for
+  the next full scan.
 
 ## 0.33.0 (2026-11-23)
 
