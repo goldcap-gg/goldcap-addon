@@ -1277,6 +1277,26 @@ function GC.SniperDecision.PreScreen(market, config)
   return reasons
 end
 
+-- Whether a buy of `qty` units at `unitPrice` can clear the live Check's profit floor at the best
+-- exit Evaluate could ever use: its stress exit with no competing ask (Evaluate's exit is never
+-- above market.stressUnit), the 5% cut and no deposit, held to max(minimumProfitCopper, minimumRoi x
+-- the outlay) after normalizeConfig. In real numbers, without the copper rounding: a Check that
+-- passes a buy of at most `qty` units whose cheapest ask is `unitPrice` passes this too, since its
+-- profit per unit is at most 0.95 x stressUnit less what the units cost. True when there is
+-- nothing to judge by (no stress exit, a config Evaluate would refuse): Discovery then keeps the
+-- row, as it always did.
+function GC.SniperDecision.ExitCanClear(market, config, unitPrice, qty)
+  local normalized = normalizeConfig(config)
+  local stress = type(market) == "table" and market.stressUnit or nil
+  if not normalized or not isFinite(stress) or stress <= 0 or not isFinite(unitPrice)
+      or not isFinite(qty) or qty < 1 then
+    return true
+  end
+  local outlay = unitPrice * qty
+  local best = stress * qty * 0.95 - outlay
+  return best + 1e-6 >= math.max(normalized.minimumProfitCopper, outlay * normalized.minimumRoi)
+end
+
 -- The one mapping from a stored import fact to the market table Evaluate and PreScreen read.
 -- Both the dialog and the scan need it, and two copies would drift the first time a field is
 -- renamed on the import side.

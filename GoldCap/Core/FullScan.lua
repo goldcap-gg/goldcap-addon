@@ -96,8 +96,9 @@ local function evaluateFrom(rows, first, getValue, cfg)
           unitPrice = unitPrice, qty = row.count, avail = row.avail },
         value, cfg)
       -- And the player's own "Min profit per buy", which Check holds every buy to: a row whose
-      -- planned buy projects less than that is one no Check will pass (DealMath.BoardAdmits).
-      if deal and GC.DealMath.BoardAdmits(deal, cfg) then
+      -- planned buy projects less than that is one no Check will pass (DealMath.BoardAdmits), nor
+      -- one that misses the Check's floor even at its best exit (DealMath.ExitAdmits).
+      if deal and GC.DealMath.BoardAdmits(deal, cfg) and GC.DealMath.ExitAdmits(deal, value, cfg) then
         -- Browse aggregates are discovery evidence, never a resolved lot or a live
         -- commodity book. Keep their legacy tier for discovery/sorting, but make the only
         -- actionable state explicit: the UI must perform a fresh live verification first.
