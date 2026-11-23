@@ -12722,7 +12722,7 @@ local function createFrame()
   -- long ago the last one landed. A stalled walk shows up here as a number that stops moving.
   verifyBtn:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(GC.Util.ClientText(self.label or GC.L["HIDDEN 0"]), 1, 1, 1)
+    GameTooltip:SetText(GC.Util.ClientText(self.label or GC.L["HIDDEN %d"]:format(0)), 1, 1, 1)
     GameTooltip:AddLine(GC.Util.ClientText(GC.L["Background check"]), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3])
     GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
       :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS))), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
