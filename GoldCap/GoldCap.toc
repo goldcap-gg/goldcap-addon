@@ -80,6 +80,7 @@ Core/ForeverDeals.lua
 Core/ForeverRoad.lua
 Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
+Core/HotSet.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
 Core/Collection.lua
