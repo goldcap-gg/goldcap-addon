@@ -155,10 +155,12 @@ function GC.DrillQueue.New(driver, opts)
   -- hit, the best of those instead.
   local function bestIndex()
     if #items == 0 then return nil end
-    -- An urgent hit first, the oldest of them: it is lost if it waits much longer.
+    -- An urgent hit first, the oldest of them: it is lost if it waits much longer. Not one whose
+    -- send was declined (handed back `declined`): it would take the head every turn and be
+    -- declined again, holding every other drill back until it aged out.
     local now, urgent = driver.now(), nil
     for i = 1, #items do
-      if now - items[i].pushedAt >= ENTRY_TTL_SECONDS - URGENT_SECONDS
+      if not items[i].declined and now - items[i].pushedAt >= ENTRY_TTL_SECONDS - URGENT_SECONDS
           and (not urgent or items[i].pushedAt < items[urgent].pushedAt) then
         urgent = i
       end
@@ -263,7 +265,7 @@ function GC.DrillQueue.New(driver, opts)
     local pushedAt = (type(hit.pushedAt) == "number" and hit.pushedAt < now) and hit.pushedAt or now
     items[#items + 1] = { itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
       confidence = confidence, speed = speed, score = score, priority = priority, cap = cap, key = k,
-      pushedAt = pushedAt }
+      pushedAt = pushedAt, declined = hit.declined == true }
     local expiresAt = pushedAt + ENTRY_TTL_SECONDS
     if expiresAt < nextExpiryAt then nextExpiryAt = expiresAt end
     return true
@@ -290,7 +292,7 @@ function GC.DrillQueue.New(driver, opts)
     -- back of the line behind ordinary estProfit hits.
     return { itemID = entry.itemID, floor = entry.floor, estProfit = entry.estProfit,
       confidence = entry.confidence, speed = entry.speed, priority = entry.priority, cap = entry.cap,
-      pushedAt = entry.pushedAt }
+      pushedAt = entry.pushedAt, declined = entry.declined }
   end
 
   -- Discards one entry without charging the budget: the hit describes a floor the book has
@@ -336,7 +338,7 @@ function GC.DrillQueue.New(driver, opts)
     end
     return { itemID = chosen.itemID, floor = chosen.floor, estProfit = chosen.estProfit,
       confidence = chosen.confidence, speed = chosen.speed, priority = chosen.priority, cap = chosen.cap,
-      pushedAt = chosen.pushedAt }
+      pushedAt = chosen.pushedAt, declined = chosen.declined }
   end
 
   -- Whether a live look at this item is already queued -- what a board row asks before it is
@@ -351,7 +353,7 @@ function GC.DrillQueue.New(driver, opts)
     local now = driver.now()
     pruneExpired(now)
     for i = 1, #items do
-      if now - items[i].pushedAt >= ENTRY_TTL_SECONDS - URGENT_SECONDS then return true end
+      if not items[i].declined and now - items[i].pushedAt >= ENTRY_TTL_SECONDS - URGENT_SECONDS then return true end
     end
     return false
   end

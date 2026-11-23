@@ -8978,7 +8978,8 @@ function GC.Sniper.OnThrottleReady()
       -- Declined (an uncached item key, the drain fence, a fresh cached warm). Back in the
       -- queue carrying its ORIGINAL age and confidence, so a hit that can never be sent still
       -- ages out instead of sitting at the head for the rest of the session -- see
-      -- Core/DrillQueue.lua.
+      -- Core/DrillQueue.lua. Marked declined, so it no longer goes first once it is urgent.
+      hit.declined = true
       GC.Sniper._drillQueue:Push(hit)
       break
     end

@@ -39,6 +39,23 @@ describe("DrillQueue.SlotTurn", function()
     assert.is_false(q:Urgent())
   end)
 
+  it("does not put a hit whose send was declined first, so a fresh live hit still drills", function()
+    local now = 0
+    local q = GC.DrillQueue.New({ now = function() return now end })
+    q:Push({ itemID = 1, floor = 10, estProfit = 1000 })
+    now = 65
+    -- Item 1 is urgent and first; its send is declined and it is handed back.
+    local hit = q:Pop()
+    assert.equal(1, hit.itemID)
+    hit.declined = true
+    q:Push(hit)
+    q:Push({ itemID = 2, floor = 10, estProfit = 1 })
+    assert.is_false(q:Urgent())
+    assert.equal(1, q:Peek().itemID) -- still ranked by its profit
+    q:Push({ itemID = 3, floor = 10, estProfit = 5000 })
+    assert.equal(3, q:Pop().itemID)
+  end)
+
   -- The Items board as measured in 0.33.0: 600 realm targets and 407 caps, so a round is always
   -- pending; a burst of 25 key-poll hits, then a key-poll hit every 15 s and a cap hit every 18 s
   -- for eight minutes; one slot a second.
