@@ -479,6 +479,48 @@ function GC.Util.NoteThrottleEvent(event)
   GC.Util.Trace("event: " .. tostring(event):gsub("AUCTION_HOUSE_THROTTLED_", ""))
 end
 
+-- One count of every auction-house query the addon sends, whoever sends it: the searches (drills,
+-- the player's Check, the Sell walk, BUY's reads), browse pages, keys and cap batches,
+-- QueryOwnedAuctions and ReplicateItems, each noted under its sender's name where it goes out.
+-- A rolling minute, for /gc board and the slot rules. It refuses nothing: the server paces us
+-- (measured: about 130 a minute for the first minutes, then about 60), and the player's own sends
+-- are counted like any other.
+local SEND_WINDOW_SECONDS = 60
+local sends = {} -- { at, who }, oldest first
+
+local function pruneSends(now)
+  local keep = 1
+  while sends[keep] and now - sends[keep].at >= SEND_WINDOW_SECONDS do keep = keep + 1 end
+  if keep > 1 then
+    local kept = {}
+    for i = keep, #sends do kept[#kept + 1] = sends[i] end
+    sends = kept
+  end
+end
+
+function GC.Util.NoteSend(who, now)
+  now = now or (GetTime or time)()
+  pruneSends(now)
+  sends[#sends + 1] = { at = now, who = who or "?" }
+end
+
+-- How many queries went out in the last minute, and how many of them each sender's.
+function GC.Util.SendsPerMinute(now)
+  pruneSends(now or (GetTime or time)())
+  local byWho = {}
+  for _, send in ipairs(sends) do byWho[send.who] = (byWho[send.who] or 0) + 1 end
+  return #sends, byWho
+end
+
+-- The same, in a line: "57/min (pass 30, search 12, keys 15)".
+function GC.Util.SendsLine(now)
+  local total, byWho = GC.Util.SendsPerMinute(now)
+  local parts = {}
+  for who, n in pairs(byWho) do parts[#parts + 1] = who .. " " .. n end
+  table.sort(parts)
+  return ("%d/min (%s)"):format(total, table.concat(parts, ", "))
+end
+
 -- Test seam: forget the not-ready clock and every consumer's claim with it.
 function GC.Util._ResetThrottleClock()
   notReadySince, lastClaimAt = nil, nil

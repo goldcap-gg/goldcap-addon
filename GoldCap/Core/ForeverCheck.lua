@@ -264,6 +264,7 @@ function GC.ForeverCheck.Run(env)
     end)
   end
   local ok, err = pcall(ah.ReplicateItems)
+  if ok and GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("replicate") end
   if not ok then
     if listener then pcall(listener.UnregisterEvent, listener, "REPLICATE_ITEM_LIST_UPDATE") end
     say("forever check: ReplicateItems failed: " .. tostring(err)); return

@@ -226,6 +226,7 @@ local function sendOurs(fn, ...)
   if tab then tab.addonBrowse = true end
   local ok, err = pcall(fn, ...)
   if tab then tab.addonBrowse = false end
+  if ok and GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("gear") end
   G.sending = false
   G.outAt = GetTime()
   S._browseOutAt = time()

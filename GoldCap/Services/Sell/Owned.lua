@@ -14,6 +14,7 @@ function Owned.Request()
     if not Quotes.driver.isReady() then return false, true end
     if GC.Util and GC.Util.Trace then GC.Util.Trace("sell: QueryOwnedAuctions") end
     C_AuctionHouse.QueryOwnedAuctions({})
+    if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("owned") end
     return true, false
   end
   return false, false

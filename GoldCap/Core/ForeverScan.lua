@@ -900,7 +900,11 @@ local function realDriver()
     -- Milliseconds, for the read's per-frame budget (C.READ_BUDGET_MS).
     clock = type(_G.debugprofilestop) == "function" and _G.debugprofilestop or nil,
     after = function(s, fn) C_Timer.After(s, fn) end,
-    replicate = function() return (pcall(ah.ReplicateItems)) end,
+    replicate = function()
+      local ok = pcall(ah.ReplicateItems)
+      if ok and GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("replicate") end
+      return ok
+    end,
     numRows = function()
       local ok, n = pcall(ah.GetNumReplicateItems)
       return ok and tonumber(n) or 0

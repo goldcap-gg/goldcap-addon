@@ -1855,6 +1855,7 @@ local function sendArm(attempt)
   if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-arm") then return false end
   attempt.armDue, attempt.askedAt = nil, time()
   C_AuctionHouse.SendSearchQuery(attempt.key, lotSorts(), true)
+  if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("buy-arm") end
   attempt.armSeq = GC.Buy._searchSeq or 0
   if GC.Sniper and GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(attempt.key) end
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
@@ -2125,6 +2126,7 @@ local function quote(line, clicked)
   else
     C_AuctionHouse.SendSearchQuery(key, {}, false)
   end
+  if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("buy-quote") end
   -- Out until its answer lands, in the book the Sell tab reads: a "busy" it draws must not be
   -- taken for a post's refusal there (GC.Sniper.RequestOut; review sell-fix4 M3).
   if GC.Sniper and GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(key) end
@@ -2169,6 +2171,7 @@ local function lookLine(line)
   if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-look") then return end
   local key = C_AuctionHouse.MakeItemKey(line.itemID)
   C_AuctionHouse.SendSearchQuery(key, {}, false)
+  if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("buy-look") end
   if GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(key) end
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
   GC.Buy._look = { itemID = line.itemID, askedAt = time() }

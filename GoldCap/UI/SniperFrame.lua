@@ -3244,6 +3244,8 @@ driver = {
       C_AuctionHouse.SendSearchQuery(
         key, { { sortOrder = Enum.AuctionHouseSortOrder.Buyout, reverseSort = false } }, false)
     end
+    -- Drills, pre-warms and the player's own Check alike (GC.Util.NoteSend).
+    if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("search") end
     -- Out until its answer lands (GC.Sniper.RequestOut): a pre-warm, a Check re-query or a drill
     -- sent just before the switch to Sell can still draw an error the Sell tab would otherwise read
     -- as its post's own (review NM-F).
@@ -4093,6 +4095,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
     if tab then tab.addonBrowse = true end
     C_AuctionHouse.SendBrowseQuery(query)
     if tab then tab.addonBrowse = false end
+    if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("pass") end
     GC.Sniper._browseOutAt = time()
     -- The last pass's readout stays up while this one runs; only the very first pass has nothing
     -- to show yet. Written again rather than left: it replaces whatever one-shot came since.
@@ -4102,6 +4105,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
   requestMoreBrowseResults = function()
     trace("pass: RequestMoreBrowseResults")
     C_AuctionHouse.RequestMoreBrowseResults()
+    if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("pass") end
     GC.Sniper._browseOutAt = time()
     armScanWatchdog(fullScanToken)
   end,
@@ -7455,6 +7459,7 @@ function GC.Sniper._SendNaming(itemID, attempt)
   C_AuctionHouse.SendBrowseQuery({ searchString = name, filters = {}, itemClassFilters = {},
     sorts = order and { { sortOrder = order.Price, reverseSort = false } } or {} })
   if tab then tab.addonBrowse = false end
+  if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("naming") end
   GC.Sniper._browseOutAt = time()
   return "sent"
 end
@@ -8699,6 +8704,7 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   trace("keys: SearchForItemKeys x" .. #keys .. " (" .. who .. ")")
   if GC.BuyWaitDiag then GC.BuyWaitDiag.Note("keys", "armed", ("owner=%s x%d"):format(who, #keys)) end
   C_AuctionHouse.SearchForItemKeys(keys, {})
+  if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend(who == "sniper" and "keys" or who) end
   -- Its answer is what the Buy pane's list shows next: the veil says so (UI/AuctionHouseTab.lua).
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonBrowse then GC.AuctionHouseTab.NoteAddonBrowse() end
   return true
@@ -14052,6 +14058,12 @@ function GC.Sniper.DebugBoard()
     lastPass and ("%s %ds/%d pages"):format(tostring(lastPass.kind), math.floor(lastPass.seconds or 0),
       lastPass.pages or 0) or "none",
     share.drills, share.drills + share.pages))
+  -- Every auction-house query the addon sent in the last minute, by sender (GC.Util.NoteSend), and
+  -- what the slot rules are working with: the hot items and the caps just found cheap.
+  if GC.Util and GC.Util.SendsLine then
+    GC.Print(("queries: %s hot=%d cheapCaps=%d"):format(GC.Util.SendsLine(),
+      GC.Sniper._hot and GC.Sniper._hot:Count() or 0, GC.Sniper._cheapCaps and GC.Sniper._cheapCaps:Count() or 0))
+  end
   local reasons = {}
   for r in pairs(autoScan:PauseReasons()) do reasons[#reasons + 1] = r end
   GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s ownSearchShown=%s"):format(
