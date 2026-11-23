@@ -454,8 +454,6 @@ GC.Locales.esMX = {
     "Activado: el sonido de oferta suena con el volumen general del juego, aunque los efectos de sonido estén silenciados. Desactivado: sigue el volumen de los efectos.",
   ["Coins"] =
     "Monedas",
-  ["Quest complete"] =
-    "Misión completada",
   ["Whisper"] =
     "Susurro",
   ["Map ping"] =

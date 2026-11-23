@@ -19,12 +19,12 @@ GC.DealSound = DS
 -- the name (each checked in Blizzard's SoundKitConstants.lua for retail and WoW: Forever).
 DS.CHOICES = {
   { id = "coins", kit = "LOOT_WINDOW_COIN_SOUND", number = 120 },
-  { id = "quest", kit = "IG_QUEST_LIST_COMPLETE", number = 878 },
   { id = "whisper", kit = "TELL_MESSAGE", number = 3081 },
   { id = "ping", kit = "MAP_PING", number = 3175 },
   { id = "readycheck", kit = "READY_CHECK", number = 8960 },
 }
-DS.DEFAULT = "coins"
+-- The map ping by default (owner, 2026-11-23): heard, and gentler than the ready check.
+DS.DEFAULT = "ping"
 
 local byId = {}
 for _, choice in ipairs(DS.CHOICES) do byId[choice.id] = choice end
@@ -32,7 +32,6 @@ for _, choice in ipairs(DS.CHOICES) do byId[choice.id] = choice end
 -- A choice's name in the player's language.
 function DS.Name(id)
   if id == "coins" then return GC.L["Coins"] end
-  if id == "quest" then return GC.L["Quest complete"] end
   if id == "whisper" then return GC.L["Whisper"] end
   if id == "ping" then return GC.L["Map ping"] end
   if id == "readycheck" then return GC.L["Ready check"] end

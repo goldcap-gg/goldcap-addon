@@ -1080,17 +1080,17 @@ describe("Settings controls", function()
     _G.PlaySound = function(kit, channel) played[#played + 1] = { kit, channel }; return true end
     GC.db.settings.sniper.dealSound = nil
     GC.SettingsUI.Toggle()
-    local button = buttonLabeled(_G.GoldCapSniperFrame, "Coins")
+    local button = buttonLabeled(_G.GoldCapSniperFrame, "Map ping")
     assert.is_not_nil(button)
     local captured
     _G.MenuUtil = {
-      CreateRadioContextMenu = function(owner, isSelected, setSelected, ...)
+      CreateRadioContextMenu = function(_, isSelected, setSelected, ...)
         captured = { isSelected = isSelected, setSelected = setSelected, entries = { ... } }
       end,
     }
     button.scripts.OnClick(button)
     assert.equal(#GC.DealSound.CHOICES, #captured.entries)
-    assert.is_true(captured.isSelected("coins"))
+    assert.is_true(captured.isSelected("ping"))
     captured.setSelected("whisper")
     assert.equal("whisper", GC.db.settings.sniper.dealSound)
     assert.equal("Whisper", button.label)

@@ -545,8 +545,6 @@ GC.Locales.enUS = {
     "On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume.",
   ["Coins"] =
     "Coins",
-  ["Quest complete"] =
-    "Quest complete",
   ["Whisper"] =
     "Whisper",
   ["Map ping"] =

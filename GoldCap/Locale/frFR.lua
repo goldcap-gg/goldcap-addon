@@ -448,8 +448,6 @@ GC.Locales.frFR = {
     "Activé : le son joue au volume général du jeu, même si les effets sonores sont coupés. Désactivé : il suit le volume des effets sonores.",
   ["Coins"] =
     "Pièces",
-  ["Quest complete"] =
-    "Quête terminée",
   ["Whisper"] =
     "Chuchotement",
   ["Map ping"] =

@@ -449,8 +449,6 @@ GC.Locales.itIT = {
     "Attivo: il suono dell'affare usa il volume generale del gioco, anche con gli effetti sonori disattivati. Disattivo: segue il volume degli effetti.",
   ["Coins"] =
     "Monete",
-  ["Quest complete"] =
-    "Missione completata",
   ["Whisper"] =
     "Sussurro",
   ["Map ping"] =

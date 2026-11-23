@@ -447,8 +447,6 @@ GC.Locales.ptBR = {
     "Ligado: o som da oferta toca no volume geral do jogo, mesmo com os efeitos sonoros desligados. Desligado: segue o volume dos efeitos.",
   ["Coins"] =
     "Moedas",
-  ["Quest complete"] =
-    "Missão concluída",
   ["Whisper"] =
     "Sussurro",
   ["Map ping"] =

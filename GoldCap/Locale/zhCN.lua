@@ -426,8 +426,6 @@ GC.Locales.zhCN = {
     "开启：即使关闭了音效，交易提示音也以游戏主音量播放。关闭：跟随音效音量。",
   ["Coins"] =
     "金币",
-  ["Quest complete"] =
-    "任务完成",
   ["Whisper"] =
     "密语",
   ["Map ping"] =

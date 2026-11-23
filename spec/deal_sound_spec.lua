@@ -21,9 +21,9 @@ describe("GC.DealSound", function()
     _G.PlaySound, _G.SOUNDKIT = saved.PlaySound, saved.SOUNDKIT
   end)
 
-  it("rings the coins at the master volume when nothing was picked", function()
+  it("rings the map ping at the master volume when nothing was picked", function()
     assert.is_true(GC.DealSound.Ring({ sound = true }))
-    assert.same({ { 120, "Master" } }, played)
+    assert.same({ { 3175, "Master" } }, played)
   end)
 
   it("rings what the player picked, through the sound effects channel when asked", function()
@@ -39,14 +39,14 @@ describe("GC.DealSound", function()
   end)
 
   it("plays a preview whatever the switch says", function()
-    GC.DealSound.Play({ sound = false }, "ping")
-    assert.same({ { 3175, "Master" } }, played)
+    GC.DealSound.Play({ sound = false }, "coins")
+    assert.same({ { 120, "Master" } }, played)
   end)
 
   it("falls back to the default for an id it does not know", function()
-    assert.equal("coins", GC.DealSound.Chosen({ dealSound = "airhorn" }))
+    assert.equal("ping", GC.DealSound.Chosen({ dealSound = "airhorn" }))
     GC.DealSound.Ring({ sound = true, dealSound = "airhorn" })
-    assert.same({ { 120, "Master" } }, played)
+    assert.same({ { 3175, "Master" } }, played)
   end)
 
   it("uses the kit's number where the client's table lacks its name", function()

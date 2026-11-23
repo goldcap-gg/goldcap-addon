@@ -449,8 +449,6 @@ GC.Locales.deDE = {
     "An: Der Deal-Ton spielt mit der Gesamtlautstärke des Spiels, auch wenn die Soundeffekte stumm sind. Aus: Er folgt der Lautstärke der Soundeffekte.",
   ["Coins"] =
     "Münzen",
-  ["Quest complete"] =
-    "Quest abgeschlossen",
   ["Whisper"] =
     "Flüstern",
   ["Map ping"] =
