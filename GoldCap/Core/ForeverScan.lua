@@ -1255,8 +1255,20 @@ function GC.ForeverScan.Request(reason)
   local s = scanner(); local r = s and s:Request(reason) or nil; repaint(); return r
 end
 function GC.ForeverScan.OnReplicateUpdate() local s = scanner(); if s then s:OnReplicateUpdate(); repaint() end end
-function GC.ForeverScan.OnBrowsePassDone(book) local s = scanner(); if s then s:OnBrowsePassDone(book); repaint() end end
-function GC.ForeverScan.OnBrowsePassAbandoned(book) local s = scanner(); if s then s:OnBrowsePassAbandoned(book); repaint() end end
+-- Every pass between full scans also moves the Deals board's live view (GC.ForeverDeals.OnBrowsePass),
+-- before the scanner takes the pass: a full scan's pass then lands in a new fold, which starts
+-- the view anew.
+local function toBoard(book, whole)
+  if GC.ForeverDeals and GC.ForeverDeals.OnBrowsePass then GC.ForeverDeals.OnBrowsePass(book, whole) end
+end
+function GC.ForeverScan.OnBrowsePassDone(book)
+  local s = scanner()
+  if s then toBoard(book, true); s:OnBrowsePassDone(book); repaint() end
+end
+function GC.ForeverScan.OnBrowsePassAbandoned(book)
+  local s = scanner()
+  if s then toBoard(book, false); s:OnBrowsePassAbandoned(book); repaint() end
+end
 function GC.ForeverScan.OnAuctionHouseShow() local s = scanner(); local r = s and s:OnAuctionHouseShow() or nil; repaint(); return r end
 function GC.ForeverScan.OnAuctionHouseClosed() local s = scanner(); if s then s:OnAuctionHouseClosed(); repaint() end end
 function GC.ForeverScan.OnLogout() local s = scanner(); if s then s:OnLogout() end end

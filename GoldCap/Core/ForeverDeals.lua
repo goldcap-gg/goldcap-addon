@@ -308,8 +308,88 @@ local function oneBuyAdmits(row, isCommodity, admit)
   return GC.DealMath.BoardAdmits({ itemID = row.itemID, estProfit = row.refUnit - row.unitPrice }, admit)
 end
 
+-- One item's row from its entry `e`, decoded, with a ladder: the row (nil for none), whether the
+-- client has no vendor price for it yet, and whether it waits on the client's commodity answer.
+local function itemLead(itemID, e, ctx, admit)
+  local vendor = ctx.vendorFor(itemID)
+  local vendorRow, noVendor
+  if type(vendor) == "number" and vendor > 0 then
+    vendorRow = belowVendor(itemID, e, vendor)
+  else
+    noVendor = true
+  end
+  -- At most one isCommodity call per item, shared by the market candidate and the board
+  -- placement below, and only when one of them needs it. Gear is never a commodity, and is
+  -- not asked. Both candidates are built before either is judged: a vendor row too small for
+  -- the Forever minimum (or otherwise refused) must not block a market row that would
+  -- otherwise qualify. One row an item; which of the two is decided below.
+  local askedCommodity, commodity = false, nil
+  local function isCommodity()
+    if not askedCommodity then
+      askedCommodity = true
+      if e.gear then commodity = false else commodity = ctx.isCommodity(itemID, e) end
+    end
+    return commodity
+  end
+  -- A followed group's item (ctx.groupFor): its own row comes before an "Under market" one,
+  -- and a row of the item of any kind carries the group's name.
+  local groupName, groupPrice, groupUsual
+  if ctx.groupFor then groupName, groupPrice, groupUsual = ctx.groupFor(itemID) end
+  local groupRow = groupName and underGroup(itemID, e,
+    { price = groupPrice, usual = groupUsual }, ctx, isCommodity) or nil
+  local marketRow = underMarket(itemID, e, ctx, isCommodity)
+  local itemRow = not marketRow and itemUnderMarket(itemID, e, ctx, isCommodity, vendor) or nil
+  local row
+  if groupRow and GC.DealMath.BoardAdmits(groupRow, admit) then
+    row = groupRow
+  elseif marketRow and GC.DealMath.BoardAdmits(marketRow, admit) then
+    row = marketRow
+  elseif itemRow and GC.DealMath.BoardAdmits({ itemID = itemID, estProfit = itemRow.firstProfit }, admit) then
+    row = itemRow
+  end
+  -- The vendor row wins unless the resale pays more. A resale row's ceiling is over the vendor
+  -- price whenever it does, so its buy takes the vendor row's units too, and those keep the
+  -- vendor for a way out. The vendor row always winning left every level between the vendor
+  -- price and the resale ceiling unbought: 5 units for 25c on the board over 105 for 78s.
+  if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) and oneBuyAdmits(vendorRow, isCommodity, admit)
+      and not (row and row.profit > vendorRow.profit) then
+    row = vendorRow
+  end
+  if row then
+    if groupName then row.capGroup, row.capFollowed = groupName, true end
+    isCommodity()
+    row.isCommodity = commodity == true
+    row.board = commodity == false and "items" or "commodities"
+  end
+  return row, noVendor, askedCommodity and commodity == nil
+end
+
+-- One item's entry (an encoded string) for itemLead; a floor-only entry gets its one unit. The
+-- decoded entry and whether it is floor-only, or nil for an entry with nothing to measure.
+local function decodeEntry(encoded, foldAt)
+  local e = GC.ForeverFold.Decode(encoded)
+  if not e then return nil end
+  local floorOnly = e.browse and #e.ladder == 0
+  if floorOnly then e.ladder, e.floorOnly, e.foldAt = { { e.min, 1 } }, true, foldAt end
+  if #e.ladder == 0 then return nil end
+  return e, floorOnly
+end
+
+-- Each board's ROW_CAP best of `cands` (board -> itemID -> row), in one list. CapDeals takes the
+-- rows past the cap out of the table it is given, so it is given a copy: `cands` stays whole.
+local function capped(cands)
+  local rows = {}
+  for _, board in ipairs({ "commodities", "items" }) do
+    local copy = {}
+    for itemID, row in pairs(cands[board]) do copy[itemID] = row end
+    for _, row in ipairs(GC.FullScan.CapDeals(copy, C.ROW_CAP)) do rows[#rows + 1] = row end
+  end
+  return rows
+end
+
 -- rows, missing (no vendor price yet), unsure (a row or a market candidate waits on the client's
--- word that the item is a commodity), floorOnly (how many entries had only their lowest price).
+-- word that the item is a commodity), floorOnly (how many entries had only their lowest price),
+-- cands (board -> itemID -> row: every row before the cap, for GC.ForeverDeals' patch).
 --
 -- A floor-only entry: the browse pass's (Core/ForeverScan.lua), which is all an item gets once
 -- the server cut the full dump short -- every dump of the owner's evening of 2026-11-06 came back
@@ -318,80 +398,39 @@ end
 -- prices. One unit at the lowest price is all that proves, so a row from it is that one unit,
 -- vendor or market alike, and stands only when that one unit clears the minimum profit. The Check
 -- reads the live book when the row is opened and buys whatever more there is under the ceiling.
+--
+-- ctx.overlay (itemID -> entry, or false for an item no longer listed): the live view between full
+-- scans, read over the fold's own entries; an entry the fold lacks is an item new since. Only the
+-- fold's own floor-only items count in floorOnly: the readout says from it that the full scan
+-- came back cut, which a browse pass's new items do not say.
 function GC.ForeverDeals.Build(fold, ctx)
   local rows, missing, unsure, floorOnly = {}, {}, {}, 0
+  local cands = { commodities = {}, items = {} }
   if type(fold) ~= "table" or type(fold.items) ~= "table" or type(ctx) ~= "table" then
-    return rows, missing, unsure, floorOnly
+    return rows, missing, unsure, floorOnly, cands
   end
-  local boards = { commodities = {}, items = {} }
   local admit = { minimumProfitCopper = ctx.minimumProfit, watchPins = ctx.watchPins }
+  local overlay = type(ctx.overlay) == "table" and ctx.overlay or {}
+  local function take(itemID, encoded, own)
+    local e, onlyFloor = decodeEntry(encoded, fold.at)
+    if not e then return end
+    if onlyFloor and own then floorOnly = floorOnly + 1 end
+    local row, noVendor, notSure = itemLead(itemID, e, ctx, admit)
+    if row then cands[row.board][itemID] = row end
+    if noVendor then missing[#missing + 1] = itemID end
+    if notSure then unsure[#unsure + 1] = itemID end
+  end
   for itemID, encoded in pairs(fold.items) do
-    local e = GC.ForeverFold.Decode(encoded)
-    if e and e.browse and #e.ladder == 0 then
-      e.ladder, e.floorOnly, e.foldAt = { { e.min, 1 } }, true, fold.at
-      floorOnly = floorOnly + 1
-    end
-    if e and #e.ladder > 0 then
-      local vendor = ctx.vendorFor(itemID)
-      local vendorRow
-      if type(vendor) == "number" and vendor > 0 then
-        vendorRow = belowVendor(itemID, e, vendor)
-      else
-        missing[#missing + 1] = itemID
-      end
-      -- At most one isCommodity call per item, shared by the market candidate and the board
-      -- placement below, and only when one of them needs it. Gear is never a commodity, and is
-      -- not asked. Both candidates are built before either is judged: a vendor row too small for
-      -- the Forever minimum (or otherwise refused) must not block a market row that would
-      -- otherwise qualify. One row an item; which of the two is decided below.
-      local askedCommodity, commodity = false, nil
-      local function isCommodity()
-        if not askedCommodity then
-          askedCommodity = true
-          if e.gear then commodity = false else commodity = ctx.isCommodity(itemID, e) end
-        end
-        return commodity
-      end
-      -- A followed group's item (ctx.groupFor): its own row comes before an "Under market" one,
-      -- and a row of the item of any kind carries the group's name.
-      local groupName, groupPrice, groupUsual
-      if ctx.groupFor then groupName, groupPrice, groupUsual = ctx.groupFor(itemID) end
-      local groupRow = groupName and underGroup(itemID, e,
-        { price = groupPrice, usual = groupUsual }, ctx, isCommodity) or nil
-      local marketRow = underMarket(itemID, e, ctx, isCommodity)
-      local itemRow = not marketRow and itemUnderMarket(itemID, e, ctx, isCommodity, vendor) or nil
-      local row
-      if groupRow and GC.DealMath.BoardAdmits(groupRow, admit) then
-        row = groupRow
-      elseif marketRow and GC.DealMath.BoardAdmits(marketRow, admit) then
-        row = marketRow
-      elseif itemRow and GC.DealMath.BoardAdmits({ itemID = itemID, estProfit = itemRow.firstProfit }, admit) then
-        row = itemRow
-      end
-      -- The vendor row wins unless the resale pays more. A resale row's ceiling is over the vendor
-      -- price whenever it does, so its buy takes the vendor row's units too, and those keep the
-      -- vendor for a way out. The vendor row always winning left every level between the vendor
-      -- price and the resale ceiling unbought: 5 units for 25c on the board over 105 for 78s.
-      if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) and oneBuyAdmits(vendorRow, isCommodity, admit)
-          and not (row and row.profit > vendorRow.profit) then
-        row = vendorRow
-      end
-      if row then
-        if groupName then row.capGroup, row.capFollowed = groupName, true end
-        isCommodity()
-        row.isCommodity = commodity == true
-        row.board = commodity == false and "items" or "commodities"
-        boards[row.board][itemID] = row
-      end
-      if askedCommodity and commodity == nil then unsure[#unsure + 1] = itemID end
-    end
+    local o = overlay[itemID]
+    if o == nil then take(itemID, encoded, true) elseif o then take(itemID, o, true) end
   end
-  for _, board in ipairs({ "commodities", "items" }) do
-    for _, row in ipairs(GC.FullScan.CapDeals(boards[board], C.ROW_CAP)) do rows[#rows + 1] = row end
+  for itemID, o in pairs(overlay) do
+    if o and fold.items[itemID] == nil then take(itemID, o, false) end
   end
+  rows = capped(cands)
   table.sort(missing)
   table.sort(unsure)
-  return rows, missing, unsure, floorOnly
+  return rows, missing, unsure, floorOnly, cands
 end
 
 -- The client, for Rows. Guarded: a missing API answers "unknown", never an error. Asked the way
@@ -444,6 +483,29 @@ local live, refused = {}, {}
 -- heldBought: units "Under market" item rows bought this session, per item (GC.ForeverDeals.Room).
 local heldBought = {}
 
+-- The live view between full scans: what the browse passes saw since the fold was saved
+-- (GC.ForeverDeals.OnBrowsePass), read over the fold's entries by every build of the board and by
+-- nothing else. The fold, the saved prices and every figure the tooltip or Sell reads stay the
+-- full scan's own; a new fold (its own `at`, `itemCount`, `rev`) starts the view anew.
+-- items: itemID -> the entry the board reads (GC.ForeverFold.Overlay), false for an item a whole
+-- pass no longer lists, or { floor, qty } as the pass read it, made an entry where it is first
+-- read (entryOf): on the board clock, never in the pass's own event. An entry changes only with
+-- the floor: the units alone move the row's `avail`, never the row, so a row bought from keeps
+-- what it bought.
+local view = { items = {} }
+-- passRows: itemID -> the book's row as the last pass ended (Core/BookPass.lua makes a new row
+-- table each time it reads an item, so a row that is not the one kept was read by this pass).
+-- inClasses: items a "classes" pass has listed this session: the ones its end may call gone.
+local passRows, inClasses = {}, {}
+-- passView: the view the last pass moved; a row's floor read again is news only against another.
+local passView
+-- dirty: items whose entry changed in a way that can add, drop or reprice a row, for the board
+-- clock's next patch. unitsDue: items whose units alone changed. patchWait: itemID -> until when
+-- a patch waits for the client's answer about it (vendor price, item key, deposit).
+local dirty, unitsDue, patchWait = {}, {}, {}
+-- copies: a build's row -> the copy of it the board shows, and the units bought from it then.
+local copies = setmetatable({}, { __mode = "k" })
+
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
 -- to its dump's own honest stamp, so a top-up can add items while `at` does not move at all --
@@ -465,15 +527,40 @@ end
 -- same `at`. Keyed to `at` alone, a row stayed off through a merge that brought the item a newer
 -- entry, since a merge keeps `at` (review, 2026-11-06); keyed to every write, a browse-only top-up
 -- that kept the item's saved entry would put a lead the player just bought straight back.
-local function isDropped(fold, itemID)
-  local d = dropped[itemID]
-  return d ~= nil and d.at == fold.at and d.entry == fold.items[itemID]
+-- The view of `fold`, started anew when it is another fold's.
+local function viewOf(fold)
+  if view.base ~= fold or view.at ~= fold.at or view.itemCount ~= fold.itemCount or view.rev ~= fold.rev then
+    view = { base = fold, at = fold.at, itemCount = fold.itemCount, rev = fold.rev, items = {} }
+    dirty, unitsDue = {}, {}
+  end
+  return view
 end
 
--- Units already bought from this item's row, while the fold still holds the entry it came from.
+-- The entry the board reads for an item: the live view's, else the fold's; nil when there is none
+-- or a whole pass no longer lists it.
+local function entryOf(fold, itemID)
+  if view.base == fold and view.at == fold.at and view.rev == fold.rev and view.itemCount == fold.itemCount then
+    local o = view.items[itemID]
+    if type(o) == "table" then
+      local committed = fold.items[itemID]
+      o = GC.ForeverFold.Overlay(committed, o.floor, o.qty)
+      if o == committed then o = nil end
+      view.items[itemID] = o
+    end
+    if o ~= nil then return o or nil end
+  end
+  return fold.items[itemID]
+end
+
+local function isDropped(fold, itemID)
+  local d = dropped[itemID]
+  return d ~= nil and d.at == fold.at and d.entry == entryOf(fold, itemID)
+end
+
+-- Units already bought from this item's row, while the board still reads the entry it came from.
 local function boughtFrom(fold, itemID)
   local b = bought[itemID]
-  if b ~= nil and b.at == fold.at and b.entry == fold.items[itemID] then return b.qty end
+  if b ~= nil and b.at == fold.at and b.entry == entryOf(fold, itemID) then return b.qty end
   return 0
 end
 
@@ -559,12 +646,9 @@ local function liveTake(itemID, l, now, settled)
   return "new"
 end
 
-local function rebuild(fold, now)
-  -- Each fold waits for its own unsure items. A stamp kept from an earlier fold (once a session,
-  -- 2026-11-06 and before) gave a new fold's items no wait at all when the first ask had run out
-  -- long ago, and their Under market rows never came for that fold.
-  if foldChanged(fold) then keyAsked = {} end
-  local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
+-- What a build asks the client, and how: the ctx GC.ForeverDeals.Build takes, the items the
+-- client would not quote a deposit for (filled as it runs), and whether an answer is kept.
+local function context(fold, settings)
   local value = GC.ForeverValue
   local known = value.Known or function() return false end
   -- Whether this build may ask the client about an item: never about one whose answer is kept (it
@@ -584,7 +668,7 @@ local function rebuild(fold, now)
   -- as one with no vendor price is.
   local noDeposit = {}
   local depositOf = value.CommodityDeposit
-  local rows, missing, unsure, floorOnly = GC.ForeverDeals.Build(fold, {
+  return {
     vendorFor = function(itemID) return value.VendorUnit(itemID, ask(itemID)) end,
     qualityFor = value.Quality and function(itemID) return value.Quality(itemID, ask(itemID)) end or nil,
     salesFor = GC.Data and GC.Data.ForeverSales,
@@ -610,18 +694,32 @@ local function rebuild(fold, now)
       end
       return { value = e.value, p50 = e.p50, source = "own" }
     end,
-  })
+  }, noDeposit, known
+end
+
+-- The board from the capped `rows`: a row bought out or dropped stays off, one bought from shows
+-- what is left, and the live rows go over whatever the fold made of their items: a lot seen
+-- seconds ago against one the scan saw minutes ago. Each row is a copy: the build's own rows stay
+-- whole for the next patch, which shrinks them again from `bought`. A row a patch did not build
+-- again is the one the board already shows, while nothing was bought from it since.
+local function board(fold, rows, settings)
   local kept, byItem = {}, {}
-  for _, row in ipairs(rows) do
-    local taken = boughtFrom(fold, row.itemID)
-    if not isDropped(fold, row.itemID) and taken < row.qty then
-      if taken > 0 then shrink(row, taken) end
+  for _, cand in ipairs(rows) do
+    local itemID = cand.itemID
+    local taken = boughtFrom(fold, itemID)
+    if not isDropped(fold, itemID) and taken < cand.qty then
+      local made = copies[cand]
+      local row = made and made.taken == taken and cache.byItem[itemID] == made.row and made.row or nil
+      if not row then
+        row = {}
+        for k, v in pairs(cand) do row[k] = v end
+        if taken > 0 then shrink(row, taken) end
+        copies[cand] = { row = row, taken = taken }
+      end
       kept[#kept + 1] = row
-      byItem[row.itemID] = row
+      byItem[itemID] = row
     end
   end
-  -- The live rows go over whatever the fold made of their items: a lot seen seconds ago against
-  -- one the scan saw minutes ago.
   local admit = { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins }
   for itemID, l in pairs(live) do
     local row = GC.ForeverDeals._LiveRow(itemID, l, admit)
@@ -635,39 +733,65 @@ local function rebuild(fold, now)
       live[itemID] = nil
     end
   end
-  -- Ask the client about items whose vendor price it has not loaded, once each: the answer
-  -- (GET_ITEM_INFO_RECEIVED) fills C_Item.GetItemInfo, and the next rebuild reads it.
-  -- `waitUntil`: the last moment a rebuild could still pick up a vendor price -- REQUEST_WAIT_SECONDS
-  -- after the latest request (or after now, for an item past this build's request budget, which
-  -- the next build asks about). An item still unpriced after that has no vendor price.
-  -- A kept answer with no vendor price in it is an answer: such an item is not waited for.
-  local item, asked, waitUntil, waiting = _G.C_Item, 0, 0, {}
-  local function await(itemID)
-    waiting[itemID] = true
+  return kept, byItem
+end
+
+-- Ask the client about items whose vendor price it has not loaded, once each: the answer
+-- (GET_ITEM_INFO_RECEIVED) fills C_Item.GetItemInfo, and a later build reads it. `wait(itemID,
+-- untilTime)` is told, for each item waited for, the last moment an answer could still be picked
+-- up -- REQUEST_WAIT_SECONDS after the latest request (or after now, for an item past this build's
+-- request budget, which the next build asks about). An item still unpriced after that has no
+-- vendor price. A kept answer with no vendor price in it is an answer: such an item is not waited
+-- for. An item key the client had not cached: asking was the request (GetItemKeyInfo), and its
+-- answer (ITEM_KEY_ITEM_INFO_RECEIVED) is read by a build inside the same wait. Past it, the item
+-- has no row until the next fold asks again.
+local function await(missing, noDeposit, unsure, known, now, wait)
+  local item, asked = _G.C_Item, 0
+  local function request(itemID)
     if requested[itemID] == nil and asked < C.REQUEST_PER_BUILD
         and item and type(item.RequestLoadItemDataByID) == "function" then
       requested[itemID] = now
       asked = asked + 1
       pcall(item.RequestLoadItemDataByID, itemID)
     end
-    waitUntil = math.max(waitUntil, (requested[itemID] or now) + C.REQUEST_WAIT_SECONDS)
+    wait(itemID, (requested[itemID] or now) + C.REQUEST_WAIT_SECONDS)
   end
   for _, itemID in ipairs(missing) do
-    if not known(itemID) then await(itemID) end
+    if not known(itemID) then request(itemID) end
   end
-  for itemID in pairs(noDeposit) do await(itemID) end
-  -- An item key the client had not cached: asking was the request (GetItemKeyInfo), and its
-  -- answer (ITEM_KEY_ITEM_INFO_RECEIVED) is read by a rebuild inside the same wait. Past it, the
-  -- item has no row until the next fold asks again.
+  for itemID in pairs(noDeposit) do request(itemID) end
   for _, itemID in ipairs(unsure) do
     keyAsked[itemID] = keyAsked[itemID] or now
-    waiting[itemID] = true
-    waitUntil = math.max(waitUntil, keyAsked[itemID] + C.REQUEST_WAIT_SECONDS)
+    wait(itemID, keyAsked[itemID] + C.REQUEST_WAIT_SECONDS)
   end
+end
+
+local function rebuild(fold, now)
+  -- Each fold waits for its own unsure items. A stamp kept from an earlier fold (once a session,
+  -- 2026-11-06 and before) gave a new fold's items no wait at all when the first ask had run out
+  -- long ago, and their Under market rows never came for that fold.
+  if foldChanged(fold) then keyAsked = {} end
+  local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
+  local ctx, noDeposit, known = context(fold, settings)
+  -- Every floor the passes read is made an entry now: the whole view is read.
+  local v = viewOf(fold)
+  for itemID, o in pairs(v.items) do
+    if type(o) == "table" then entryOf(fold, itemID) end
+  end
+  ctx.overlay = v.items
+  local rows, missing, unsure, floorOnly, cands = GC.ForeverDeals.Build(fold, ctx)
+  -- This build read every entry of the view: nothing is left for a patch.
+  dirty, unitsDue, patchWait = {}, {}, {}
+  local kept, byItem = board(fold, rows, settings)
+  local waitUntil, waiting = 0, {}
+  await(missing, noDeposit, unsure, known, now, function(itemID, untilAt)
+    waiting[itemID] = true
+    waitUntil = math.max(waitUntil, untilAt)
+  end)
   awaited, arrived = waiting, false
   cache.at, cache.itemCount, cache.rev, cache.from = fold.at, fold.itemCount, fold.rev, fold
   cache.groups = groupsRev()
-  cache.builtAt, cache.waitUntil, cache.rows, cache.byItem = now, waitUntil, kept, byItem
+  cache.builtAt, cache.waitUntil, cache.rows, cache.byItem, cache.cands = now, waitUntil, kept, byItem, cands
   cache.unsure, cache.reask = #unsure, false
   local entries = fold.itemCount
   if type(entries) ~= "number" then
@@ -675,6 +799,44 @@ local function rebuild(fold, now)
     for _ in pairs(fold.items) do entries = entries + 1 end
   end
   cache.floorOnly, cache.entries = floorOnly or 0, entries
+end
+
+-- The board clock's answer to a browse pass: the rows of the items whose entry moved (`dirty`)
+-- built again, every other row as it stands. The client is asked only about those items, within
+-- the same budgets a whole build has; an answer that comes about one of them makes it dirty again
+-- (GC.ForeverDeals.OnItemInfo), never the whole fold.
+local function patch(fold, now)
+  local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
+  local ctx, noDeposit, known = context(fold, settings)
+  local admit = { minimumProfitCopper = ctx.minimumProfit, watchPins = ctx.watchPins }
+  local cands, missing, unsure = cache.cands, {}, {}
+  local items = dirty
+  dirty = {}
+  for itemID in pairs(items) do
+    cands.commodities[itemID], cands.items[itemID] = nil, nil
+    local e = decodeEntry(entryOf(fold, itemID), fold.at)
+    if e then
+      local row, noVendor, notSure = itemLead(itemID, e, ctx, admit)
+      if row then cands[row.board][itemID] = row end
+      if noVendor then missing[#missing + 1] = itemID end
+      if notSure then unsure[#unsure + 1] = itemID end
+    end
+  end
+  cache.rows, cache.byItem = board(fold, capped(cands), settings)
+  await(missing, noDeposit, unsure, known, now, function(itemID, untilAt)
+    patchWait[itemID] = untilAt
+  end)
+end
+
+-- The units now up of items whose floor did not move, on their rows as they stand.
+local function applyUnits()
+  for itemID, qty in pairs(unitsDue) do
+    local shown = cache.byItem[itemID]
+    if shown and not shown.live then shown.avail = qty end
+    local cand = cache.cands.commodities[itemID] or cache.cands.items[itemID]
+    if cand then cand.avail = qty end
+  end
+  unitsDue = {}
 end
 
 local function currentFold()
@@ -695,7 +857,15 @@ end
 -- while the client still holds them. The rebuild itself stays the board clock's (UI/SniperFrame.lua):
 -- it writes the deal tables a Buy click reads.
 function GC.ForeverDeals.OnItemInfo(itemID)
-  if not awaited[itemID] then return end
+  local untilAt = patchWait[itemID]
+  if untilAt then
+    patchWait[itemID] = nil
+    if time() < untilAt then dirty[itemID] = true end
+  end
+  if not awaited[itemID] then
+    if untilAt and GC.ForeverValue and GC.ForeverValue.Quality then GC.ForeverValue.Quality(itemID) end
+    return
+  end
   arrived = true
   if GC.ForeverValue and GC.ForeverValue.Quality then GC.ForeverValue.Quality(itemID) end
 end
@@ -719,14 +889,100 @@ function GC.ForeverDeals.Rows(now)
   return cache.rows
 end
 
--- Rebuilds when due (a new fold, or vendor prices still loading). True when it did, so the caller
--- repaints.
+-- Rebuilds when due (a new fold, or vendor prices still loading); else builds again the rows of
+-- the items a browse pass moved (patch), or puts the units it saw on their rows. True when the
+-- board changed, so the caller repaints.
 function GC.ForeverDeals.Refresh(now)
   now = now or time()
   local fold = currentFold()
-  if not (fold and GC.ForeverDeals.Due(now)) then return false end
-  rebuild(fold, now)
-  return true
+  if not fold then return false end
+  if GC.ForeverDeals.Due(now) or not cache.cands then
+    rebuild(fold, now)
+    return true
+  end
+  if next(dirty) ~= nil then
+    patch(fold, now)
+    return true
+  end
+  if next(unitsDue) ~= nil then
+    applyUnits()
+    return true
+  end
+  return false
+end
+
+-- A browse pass between full scans ended (Core/ForeverScan.lua's OnBrowsePassDone, `whole`) or was
+-- given up (OnBrowsePassAbandoned): every item it read takes the floor it read into the live
+-- view. `book` is Core/BookPass.lua's (itemID -> { floor, qty, kind, variants }), which keeps the
+-- rows of earlier passes too: a row this pass read is one that is not the table the last pass
+-- left. A pass ended whole says more: an item it would have listed and did not is gone -- any item
+-- for a "wide" pass, one a "classes" pass has listed before for a "classes" pass (the book does not
+-- say an item's class). A pass given up, or one whose rows are of two kinds (a pass started over
+-- another), says nothing of what it did not read. A variant row (gear by item level, a caged pet)
+-- is one version, not the item's floor: the item is listed, its floor stays as it is.
+-- Only tables are written here; the rows are built on the board clock (Refresh). Answers how
+-- many items' entries moved.
+function GC.ForeverDeals.OnBrowsePass(book, whole)
+  local fold = currentFold()
+  if not (fold and type(book) == "table") then return 0 end
+  local v = viewOf(fold)
+  local cands = cache.cands
+  local function shown(itemID)
+    return cands ~= nil and (cands.commodities[itemID] ~= nil or cands.items[itemID] ~= nil)
+  end
+  local fresh, kind, mixed, moved = {}, nil, false, 0
+  -- A floor that went up, or an item gone, matters only to a row; a cheaper floor can make one.
+  local function set(itemID, entry, fromFloor, toFloor)
+    v.items[itemID] = entry
+    moved = moved + 1
+    if shown(itemID) or (toFloor and (not fromFloor or toFloor < fromFloor)) then dirty[itemID] = true end
+  end
+  for itemID, row in pairs(book) do
+    local prev = passRows[itemID]
+    if type(row) == "table" and prev ~= row then
+      passRows[itemID] = row
+      fresh[itemID] = true
+      if kind == nil then kind = row.kind elseif kind ~= row.kind then mixed = true end
+      if row.kind == "classes" then inClasses[itemID] = true end
+      local floor = row.floor
+      -- The floor the last pass read, against this same view, is already the item's.
+      if not row.variants and type(floor) == "number"
+          and not (prev and prev.floor == floor and passView == v and v.items[itemID] ~= false) then
+        local o = v.items[itemID]
+        local was
+        if type(o) == "table" then
+          was = o.floor
+        else
+          local entry = o == nil and fold.items[itemID] or o or nil
+          was = entry and tonumber(entry:match("^(%d+),"))
+          -- Gear's floor is one version's: not the item's (GC.ForeverFold.Overlay).
+          if entry and (entry:match("^%d+,%d+,%d*,(%a*);") or ""):find("g", 1, true) then was = floor end
+        end
+        if was ~= floor then set(itemID, { floor = floor, qty = row.qty }, was, floor) end
+      end
+      if type(row.qty) == "number" and shown(itemID) and (not prev or prev.qty ~= row.qty) then
+        unitsDue[itemID] = row.qty
+      end
+    end
+  end
+  for itemID in pairs(passRows) do
+    if book[itemID] == nil then passRows[itemID] = nil end
+  end
+  passView = v
+  if whole and kind and not mixed then
+    local function gone(itemID)
+      if fresh[itemID] then return end
+      local o = v.items[itemID]
+      if o or (o == nil and fold.items[itemID] ~= nil) then set(itemID, false) end
+    end
+    if kind == "wide" then
+      for itemID in pairs(fold.items) do gone(itemID) end
+      for itemID in pairs(v.items) do gone(itemID) end
+    else
+      for itemID in pairs(inClasses) do gone(itemID) end
+    end
+  end
+  return moved
 end
 
 -- The auction house opened (Core/Init.lua, beside GC.ForeverScan.OnAuctionHouseShow). Away from
@@ -810,7 +1066,7 @@ function GC.ForeverDeals.Bought(itemID, qty)
     GC.ForeverDeals.Drop(itemID)
     return
   end
-  local entry = from.items[itemID]
+  local entry = entryOf(from, itemID)
   local prior = bought[itemID]
   local before = (prior and prior.at == from.at and prior.entry == entry) and prior.qty or 0
   bought[itemID] = { at = from.at, entry = entry, qty = before + qty }
@@ -829,7 +1085,7 @@ function GC.ForeverDeals.Drop(itemID)
   end
   local from = cache.from
   if from == nil then return end
-  dropped[itemID] = { at = from.at, entry = from.items[itemID] }
+  dropped[itemID] = { at = from.at, entry = entryOf(from, itemID) }
   unlist(itemID)
 end
 
