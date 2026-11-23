@@ -2151,4 +2151,8 @@ GC.Locales.esES = {
     "tras la comisión del 5%%, comprando uno de cada uno de estos %d en Aguasnegras y vendiéndolos en casa",
   ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
     "Esta es la casa de subastas de Aguasnegras, la neutral. GoldCap no la escanea: sus precios no son los de tu facción.",
+  ["Sells from %d%% of listings"] =
+    "Se vende en el %d%% de las publicaciones",
+  ["%d%% of listings sell"] =
+    "%d%% de publicaciones vendidas",
 }

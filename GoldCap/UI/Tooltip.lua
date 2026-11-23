@@ -106,7 +106,18 @@ function GC.Tooltip.BuildLines(v, now, opts)
   opts = opts or {}
   local scan = v ~= nil and v.source == "scan"
   local live = liveLine(opts.live, scan or type(opts.forever) == "table")
-  if not v then return withUpgrade(live and { live } or nil, opts) end
+  -- How often one listing sells (opts.sellChance), beside the sale speed: its own measurement, so
+  -- it is shown on every path, a realm item's and an unpriced item's too. Nothing without a figure.
+  local chance = GC.Util.SellChanceText(opts.sellChance)
+  local chanceLine = chance and { kind = "text", left = chance, right = "" } or nil
+  -- What an item GoldCap has no price for still gets: the live floor and the sell chance, or nil.
+  local function unpriced()
+    local out = {}
+    out[#out + 1] = live
+    out[#out + 1] = chanceLine
+    return withUpgrade(#out > 0 and out or nil, opts)
+  end
+  if not v then return unpriced() end
   local lines = {}
   local headline, headlineKind = GC.Tooltip.Headline(v)
   -- An IMPORTED realm item's `mv` is this one realm's own median, and that is not a price:
@@ -124,7 +135,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
   -- Bundled realm items are NOT affected: their `m` comes from item_region_snapshots, a
   -- region-wide median already (see apps/api/src/lib/addonMarketData.ts).
   local realmImport = v.kind == "realm_item" and v.source == "import"
-  if not headline then return withUpgrade(live and { live } or nil, opts) end
+  if not headline then return unpriced() end
   if headlineKind == "region" then
     local ilvl = type(v.refIlvl) == "number" and v.refIlvl > 0 and v.refIlvl or nil
     lines[1] = {
@@ -183,6 +194,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
     if v.sold then
       lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = GC.Util.PerDay(v.sold) }
     end
+    lines[#lines + 1] = chanceLine
     -- Depth. `currentQty` (units on the region's shelf) and `listings` (auctions holding them)
     -- ride the import string's verification token -- so this is an imported-commodity line by
     -- construction: the bundled snapshot carries no verification at all. The shelf count is
@@ -200,6 +212,8 @@ function GC.Tooltip.BuildLines(v, now, opts)
       -- no item has ever shown a sales rate and an auction count together.
       lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = wholeCount(v.listings) }
     end
+  else
+    lines[#lines + 1] = chanceLine
   end
   if live and not liveShown then lines[#lines + 1] = live end
   if opts.unitCost then
@@ -317,6 +331,7 @@ function GC.Tooltip.ItemLines(itemID, now, link)
     origin = GC.Data.OriginState and GC.Data.OriginState() or nil,
     live = GC.Sniper and GC.Sniper.LiveFloor and GC.Sniper.LiveFloor(itemID, now) or nil,
     forever = forever,
+    sellChance = GC.Data.SellChance and GC.Data.SellChance(itemID) or nil,
   })
 end
 

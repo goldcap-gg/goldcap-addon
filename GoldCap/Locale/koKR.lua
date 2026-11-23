@@ -2071,4 +2071,8 @@ GC.Locales.koKR = {
     "수수료 5%% 제외 후, 이 %d종을 검은바다에서 1개씩 사서 진영 경매장에서 팔 때",
   ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
     "여기는 중립 경매장인 검은바다 경매장입니다. GoldCap은 이곳을 검색하지 않습니다. 이곳 가격은 내 진영의 가격이 아닙니다.",
+  ["Sells from %d%% of listings"] =
+    "등록의 %d%%가 판매됨",
+  ["%d%% of listings sell"] =
+    "등록 %d%% 판매",
 }

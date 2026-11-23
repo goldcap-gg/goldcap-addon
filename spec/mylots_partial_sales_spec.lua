@@ -201,6 +201,19 @@ describe("MY LOTS with a part-sold lot", function()
     local function rowsOf(kind) return shownRows(kind) end
     local function net(copper) return "+" .. GC.Sell._FormatAmount(copper) end
 
+    -- How often one listing sells (GC.Data.SellChance), on the card's stock line; 0% too, and
+    -- nothing without a figure.
+    it("says on the card how often one listing sells, only when there is a figure", function()
+      readRoster()
+      assert.is_nil(rowsOf("position")[1].itemStock.text:find("listings", 1, true))
+      for _, pct in ipairs({ 0, 42 }) do
+        GC.Data.SellChance = function() return pct end
+        readRoster()
+        assert.matches("5 of 15 sold · 10 left · Sells from " .. pct .. "% of listings",
+          rowsOf("position")[1].itemStock.text, 1, true)
+      end
+    end)
+
     it("says on the live row how much sold, what it brought after the cut, and how many sales", function()
       readRoster()
       local row = rowsOf("position")[1]

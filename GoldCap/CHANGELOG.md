@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.34.0 (unreleased)
+
+- How often one listing of an item sells, for example "Sells from 42% of listings", now shows in
+  the item's tooltip, on its card in SELL and under its name on DEALS, in retail WoW and WoW: Forever,
+  wherever goldcap.gg has seen enough of its listings end to say.
+
 ## 0.33.0 (2026-11-23)
 
 - WoW: Forever: ITEMS now finds items listed far under what they sell for on your auction house,

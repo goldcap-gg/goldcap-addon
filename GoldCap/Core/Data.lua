@@ -699,6 +699,13 @@ function GC.Data.ForeverVersionTop(itemID)
   return top
 end
 
+-- WoW: Forever: how often one listing of an item sells in this character's auction house (GCF1's
+-- P), a whole percent 0..100, or nil when the site has no figure for it.
+function GC.Data.ForeverSellChance(itemID)
+  local p = adoptedPayload()
+  return p and p.sellChance and p.sellChance[itemID] or nil
+end
+
 function GC.Data.GetItemValue(itemID)
   -- 1. The region payload (GCM1): every commodity of the region at its latest snapshot, facts
   -- where it sold in the last day, p25 and reach where it has them. Ahead of the import on
@@ -887,6 +894,15 @@ end
 -- many realms, or nil (fewer than five realms list it).
 function GC.Data.CheapRealms(itemID)
   return payloadField("cheap", itemID)
+end
+
+--- How often one listing of an item sells, a whole percent 0..100 (the region payload's P on
+-- retail, else WoW: Forever's GCF1 P), or nil when there is no figure: too few listings ended to
+-- say. Each game holds only its own payload, so the first that answers is this game's.
+function GC.Data.SellChance(itemID)
+  local pct = payloadField("sellChance", itemID)
+  if pct ~= nil then return pct end
+  return GC.Data.ForeverSellChance(itemID)
 end
 
 --- A connected realm's name as the site shows it, or nil.

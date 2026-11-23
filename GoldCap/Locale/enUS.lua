@@ -2133,4 +2133,8 @@ GC.Locales.enUS = {
     "after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home",
   ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
     "This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's.",
+  ["Sells from %d%% of listings"] =
+    "Sells from %d%% of listings",
+  ["%d%% of listings sell"] =
+    "%d%% of listings sell",
 }
