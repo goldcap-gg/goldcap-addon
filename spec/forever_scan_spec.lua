@@ -120,6 +120,21 @@ describe("ForeverScan", function()
     end)
   end)
 
+  it("is due again once the throttle is spent, with the auction house open and nothing running", function()
+    local s = GC.ForeverScan.New(driver())
+    assert.is_false(s:Due())                      -- closed
+    rows = { { 2589, 20, 1340, true } }
+    s:OnAuctionHouseShow()
+    assert.is_false(s:Due())                      -- reading
+    runAll()
+    assert.equal("idle", s:State())
+    assert.is_false(s:Due())                      -- inside the throttle
+    now = now + GC.ForeverScan.C.COOLDOWN_SECONDS
+    assert.is_true(s:Due())
+    s:OnAuctionHouseClosed()
+    assert.is_false(s:Due())
+  end)
+
   it("asks once on open, reads the dump at the first rows and saves the fold with its passport", function()
     local s = GC.ForeverScan.New(driver())
     rows = { { 2589, 20, 1340, true }, { 2589, 5, 350, true }, { 2592, 1, 5000, false } }

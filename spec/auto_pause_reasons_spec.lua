@@ -49,6 +49,24 @@ describe("Auto says why it is not scanning", function()
     assert.equal("AUTO · PAUSED: MAILBOX OPEN", autoButtonText("PAUSED", { mail = true, buy = true }))
   end)
 
+  -- Owner, 2026-11-23: with the auction house left open, Auto browsed on over a full list as old as
+  -- the opening; a new one was asked for only on opening and on SCAN.
+  it("on WoW: Forever asks for a full list when one is due, as it starts its pass", function()
+    local GC, feedAuto, autoScan = loadSniper()
+    local asked, due = {}, true
+    GC.Game = { Passport = function() return {} end, IsForever = function() return true end }
+    GC.ForeverScan = { Due = function() return due end,
+      Request = function(reason) asked[#asked + 1] = reason; return "started" end }
+    feedAuto("toggleOn")
+    autoScan:Tick(101)
+    assert.equal("SCANNING", autoScan:State())
+    assert.same({ "auto" }, asked)
+    due = false
+    feedAuto("scanFinished")
+    autoScan:Tick(110)
+    assert.same({ "auto" }, asked)
+  end)
+
   it("says in the tooltip what holds it and what the player can do, every reason", function()
     local GC, feedAuto = loadSniper()
     feedAuto("toggleOn")

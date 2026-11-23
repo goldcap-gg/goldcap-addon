@@ -380,14 +380,26 @@ describe("one scan state for the toolbar", function()
       assert.same({ "release", "request button" }, order)
     end)
 
-    it("a press while a scan runs starts nothing, and still takes the list back", function()
+    it("a press while the market scan runs starts nothing, and still takes the list back", function()
       local GC = loadSniper()
       local order = {}
       GC.AuctionHouseTab = { ReleaseBrowseList = function() order[#order + 1] = "release" end }
       GC.ForeverScan.Request = function() order[#order + 1] = "request"; return "started" end
-      GC.Sniper._bookPass:Start("wide")          -- armed, and waiting behind that search
+      GC.ForeverScan.IsBusy = function() return true end
       assert.is_true(GC.Sniper._ForeverScanPress())
       assert.same({ "release" }, order)
+    end)
+
+    -- Owner, 2026-11-23: Auto on, SCAN pressed for 15 minutes, "full scan already in progress"
+    -- every time and no scan: Auto's own pass counted as the scan.
+    it("a press while only a browse pass pages (Auto's) asks for the scan", function()
+      local GC = loadSniper()
+      local order = {}
+      GC.ForeverScan.Request = function(reason) order[#order + 1] = "request " .. reason; return "started" end
+      GC.ForeverScan.IsBusy = function() return false end
+      GC.Sniper._bookPass:Start("wide")
+      assert.is_false(GC.Sniper._ForeverScanPress())
+      assert.same({ "request button" }, order)
     end)
 
     it("a press the scanner refuses as busy says a scan runs", function()

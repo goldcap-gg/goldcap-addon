@@ -695,6 +695,14 @@ function GC.ForeverScan.New(driver)
   end
 
   function obj:IsBusy() return state ~= "idle" end
+  -- Whether a full list may be asked for now: no scan running, the home auction house open, and
+  -- the account's throttle spent (Auto asks then, GC.Sniper's startScan).
+  function obj:Due()
+    if state ~= "idle" or not ahOpen or neutral then return false end
+    local s = driver.store() or {}
+    local since = type(s.requestedAt) == "number" and driver.now() - s.requestedAt or math.huge
+    return since < 0 or since >= C.COOLDOWN_SECONDS
+  end
   function obj:State() return state end
   -- When this scan began (driver.now), from the request to the save; nil while idle. The board
   -- counts its seconds from it (GC.Sniper._ScanLine).
@@ -1220,3 +1228,4 @@ function GC.ForeverScan.Running()
   return s:State(), s:Since()
 end
 function GC.ForeverScan.IsBusy() local s = scanner(); return s ~= nil and (s:IsBusy() or sayHeld) end
+function GC.ForeverScan.Due() local s = scanner(); return s ~= nil and not sayHeld and s:Due() end

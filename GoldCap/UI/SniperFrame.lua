@@ -4693,6 +4693,13 @@ autoScan = GC.AutoScan.New({}, {
     -- Auto does not run). A cap batch, the one keys batch that can be out on this board while
     -- Auto runs, stands aside after every answer for longer than this settle takes to retry.
     if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return false end
+    -- WoW: Forever: a full list is asked for once the server's throttle allows another
+    -- (GC.ForeverScan.Due). It used to be asked only when the auction house opened and on SCAN, so
+    -- with the auction house left open Auto browsed on over a list as old as the opening (owner,
+    -- 2026-11-23: "your scan, 13m ago" and climbing). The scan takes this pass's end as its own.
+    if isForever() and GC.ForeverScan and GC.ForeverScan.Due and GC.ForeverScan.Due() then
+      GC.ForeverScan.Request("auto")
+    end
     startFullScan()
     return true
   end,
@@ -5034,7 +5041,12 @@ end
 function GC.Sniper._ForeverScanPress()
   local tab = GC.AuctionHouseTab
   if tab and tab.ReleaseBrowseList then tab.ReleaseBrowseList() end
-  return GC.Sniper.ScanActive() or GC.ForeverScan.Request("button") == "busy"
+  -- Only the market scan itself running is "already in progress". Auto's own browse pass runs back
+  -- to back while Auto is on, and counting it (GC.Sniper.ScanActive) answered every press with
+  -- "full scan already in progress" and asked for nothing (owner, 2026-11-23: 15 minutes of SCAN,
+  -- no scan). A scan asked for over a pass takes that pass's end as its own.
+  if GC.ForeverScan.IsBusy and GC.ForeverScan.IsBusy() then return true end
+  return GC.ForeverScan.Request("button") == "busy"
 end
 
 local function onFullScanClick()
