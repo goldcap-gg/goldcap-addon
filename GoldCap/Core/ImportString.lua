@@ -395,6 +395,9 @@ end
 --   R:<id>=<price>,...  what a crafted item sells for now, where that is not S's median: the lower
 --                       of the last day's and the last six hours' medians that hold three sales
 --                       (the crafting panel's cap; an item R leaves out sells at S's median)
+--   V:<id>=<version>=<units>=<sales>=<median>=<p25>,...  the same window per version of an item
+--                       with random suffixes: the version is its bonus IDs sorted and joined by
+--                       "." ("0" the plain one), the median the window's own
 GC.ImportString.FOREVER_MAX_LEN = 2000000
 
 local function unescapeField(s)
@@ -434,6 +437,26 @@ function GC.ImportString.ParseForever(str)
         local id, units, count, median, p25 = token:match("^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$")
         if id then
           result.sales[tonumber(id)] = { units = tonumber(units), sales = tonumber(count),
+            median = tonumber(median), p25 = tonumber(p25) }
+        end
+      end
+    elseif kind == "V" then
+      -- What each version of an item sold in those hours (goldcap.gg, ClickUp 1an60dzy9nt): only
+      -- items some of whose sales carry a random suffix, every version of them, keyed by the
+      -- version's bonus key as GC.ForeverGear.BonusKey writes it ("0" the plain one). The median is
+      -- the window's own, never lowered to the last hours' as S's is: one cheap sale in six hours
+      -- is no price for a piece of gear.
+      result.versions = result.versions or {}
+      for token in body:gmatch("[^,]+") do
+        local id, version, units, count, median, p25 =
+          token:match("^(%d+)=([%d%.]+)=(%d+)=(%d+)=(%d+)=(%d+)$")
+        if id then
+          local item = result.versions[tonumber(id)]
+          if not item then
+            item = {}
+            result.versions[tonumber(id)] = item
+          end
+          item[version] = { units = tonumber(units), sales = tonumber(count),
             median = tonumber(median), p25 = tonumber(p25) }
         end
       end

@@ -75,6 +75,20 @@ describe("GCF1, the WoW: Forever crowd payload", function()
     assert.is_nil(GC.ImportString.ParseForever(BODY .. ";B:13493=500000=1=1300000=10").blackwater)
   end)
 
+  -- ClickUp 1an60dzy9nt: what each version of a piece with random suffixes sold for, its bonus key
+  -- ("0" for the plain one, several bonus IDs joined by "."), a section of its own after S.
+  it("reads each version's sales, and skips a malformed one alone", function()
+    local p = GC.ImportString.ParseForever(BODY .. ";H:72;S:15210=9=9=5000=4000;"
+      .. "V:15210=12729=4=4=6000=5500,15210=0=5=5=4000=3900,oops,15211=12718.12745=2=2=900=800,15212=x=1=1=1=1")
+    assert.same({ units = 4, sales = 4, median = 6000, p25 = 5500 }, p.versions[15210]["12729"])
+    assert.same({ units = 5, sales = 5, median = 4000, p25 = 3900 }, p.versions[15210]["0"])
+    assert.same({ units = 2, sales = 2, median = 900, p25 = 800 }, p.versions[15211]["12718.12745"])
+    assert.is_nil(p.versions[15212])
+    assert.same({ units = 9, sales = 9, median = 5000, p25 = 4000 }, p.sales[15210])
+    assert.equal(2, p.count)
+    assert.is_nil(GC.ImportString.ParseForever(BODY .. ";H:72;S:15210=9=9=5000=4000").versions)
+  end)
+
   it("refuses what is not a Forever payload", function()
     assert.same({ nil, "empty" }, { GC.ImportString.ParseForever(nil) })
     assert.same({ nil, "bad_header" }, { GC.ImportString.ParseForever("GCM1;eu;1;I:1=2") })
@@ -139,6 +153,29 @@ describe("adopting the crowd payload", function()
     _G.GoldCap_AppData = { foreverString = body() }
     GC.Data.AdoptAppData()
     assert.is_nil(GC.Data.ForeverSales(2589))
+  end)
+
+  it("says what one version of a piece sold for, with a day of tape or more", function()
+    load(16001)
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71;V:15210=12729=4=4=6000=5500,15210=0=6=5=4000=3900" }
+    GC.Data.AdoptAppData()
+    local at = GC.Data.ForeverPayload().ts
+    assert.same({ units = 4, sales = 4, median = 6000, p25 = 5500, perDay = 2, hours = 48, at = at },
+      GC.Data.ForeverVersionSales(15210, "12729"))
+    assert.same({ units = 6, sales = 5, median = 4000, p25 = 3900, perDay = 3, hours = 48, at = at },
+      GC.Data.ForeverVersionSales(15210, "0"))
+    -- A version V does not list sold nothing; an item V does not list has no versions to tell apart.
+    assert.same({ units = 0, sales = 0, perDay = 0, hours = 48, at = at }, GC.Data.ForeverVersionSales(15210, "12730"))
+    assert.is_true(GC.Data.ForeverHasVersions(15210))
+    assert.is_false(GC.Data.ForeverHasVersions(2589))
+    assert.is_nil(GC.Data.ForeverVersionSales(2589, "0"))
+    -- The highest median of any version, what a browse key is screened against before its version is read.
+    assert.equal(6000, GC.Data.ForeverVersionTop(15210))
+    assert.is_nil(GC.Data.ForeverVersionTop(2589))
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:23;V:15210=12729=4=4=6000=5500" }
+    GC.Data.AdoptAppData()
+    assert.is_nil(GC.Data.ForeverVersionSales(15210, "12729"))
+    assert.is_false(GC.Data.ForeverHasVersions(15210))
   end)
 
   it("never adopts another market's prices as this character's", function()
