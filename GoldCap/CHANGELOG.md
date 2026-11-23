@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.33.0 (unreleased)
+## 0.33.0 (2026-11-23)
 
 - WoW: Forever: ITEMS now finds items listed far under what they sell for on your auction house,
   not only under what a vendor pays. Each lot is held against what the same item sold for over the
