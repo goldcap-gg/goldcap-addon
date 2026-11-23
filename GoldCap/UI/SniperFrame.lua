@@ -4032,7 +4032,9 @@ GC.Sniper._drillQueue = GC.DrillQueue.New({
 -- The arbiter's fair share (GC.Sniper.OnThrottleReady): drills served in a row while a page
 -- waited (`run`), and since /reload how the contended slots went (`drills`: a drill sent while a
 -- page waited; `pages`: a page a sendable drill stood aside for), for /gc board.
-GC.Sniper._drillShare = { run = 0, drills = 0, pages = 0 }
+-- `sinceBatch`: drills sent since the last keys batch, for the Items board's slot rule (step 1c);
+-- 1 to start, so a round's first batch goes ahead of a queued drill.
+GC.Sniper._drillShare = { run = 0, drills = 0, pages = 0, sinceBatch = 1 }
 
 -- A book-pass page the arbiter just granted: the drills' run is over, and when a drill that could
 -- have gone stood aside for it (`drillStoodAside`) it counts toward /gc board's drillShare.
@@ -8649,6 +8651,7 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   for i = 1, #batch do keys[i] = C_AuctionHouse.MakeItemKey(batch[i]) end
   GC.Sniper._keysAwaiting = time()
   GC.Sniper._keysOwner = who
+  GC.Sniper._drillShare.sinceBatch = 0
   -- What this batch asked about, by name. The fold needs it to tell "no row came back for
   -- this item" (sold out, or repriced) from "this item was not in the batch at all".
   GC.Sniper._keysBatch = batch
@@ -8849,16 +8852,23 @@ function GC.Sniper.OnThrottleReady()
   local playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
     and GC.AuctionHouseTab.PlayerIsBusy()) and true or false
 
-  -- 1c. An Items round that still has batches to ask goes ahead of the drills it feeds (the owner,
-  -- 2026-10-11: "only after about twenty seconds did anything appear"). Measured 2026-10-13: a
-  -- round's first batch put 29 rows up, then 23 drills held its second batch 9.8 s and 35 more held
-  -- the third 15.4 s, so the board reached 100 rows at +33 s. Back to back the round takes about
-  -- 1.3 s. The caps keep their place ahead of the Items batch, every veto stays in
-  -- _TrySendKeysBatchFor, and the drills lose no throughput: their budget is per minute, and a
-  -- round is four messages. Between rounds (the breather) the drills have the slot as before.
+  -- 1c. An Items round that still has batches to ask shares the slot with the drills it feeds
+  -- (GC.DrillQueue.SlotTurn). It used to go ahead of every drill (the owner, 2026-10-11: "only
+  -- after about twenty seconds did anything appear"; measured 2026-10-13, drills ahead of every
+  -- batch held a round's third batch 15.4 s). But with 600 targets and 407 caps a round is always
+  -- pending, so drills only got the gaps between rounds: in 0.33.0, 16 of 33 key-poll hits aged out
+  -- of the queue undrilled. Now a batch, then a drill while a hit is queued, and a hit near its age
+  -- limit before any batch. The caps keep their place ahead of the Items batch, and every veto
+  -- stays in _TrySendKeysBatchFor. A turn given to the drills that none can take (stale hits, a
+  -- declined send) falls through to the batches below, so no slot is left idle.
   if view == "deals" and GC.Sniper._Board() == "items" and GC.Sniper._keyPoll:HasPending() then
-    if GC.Sniper._TrySendCapBatch(playerBusy) then return end
-    if GC.Sniper._TrySendKeysBatch(playerBusy) then return end
+    local queue = GC.Sniper._drillQueue
+    local turn = GC.DrillQueue.SlotTurn({ batch = true, drill = queue:Depth() > 0 and canDrillNow(),
+      urgent = queue:Urgent(), run = GC.Sniper._drillShare.sinceBatch })
+    if turn == "batch" then
+      if GC.Sniper._TrySendCapBatch(playerBusy) then return end
+      if GC.Sniper._TrySendKeysBatch(playerBusy) then return end
+    end
   end
 
   -- 2. Queued drill-downs, bounded by DrillQueue's own per-minute budget. Runs the SAME search
@@ -8915,6 +8925,7 @@ function GC.Sniper.OnThrottleReady()
       -- ready tick. No answer means no send.
       if not GC.Sniper._drillQueue:Pop() then break end
       if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then
+        share.sinceBatch = share.sinceBatch + 1
         if passWants then
           share.run = share.run + 1
           share.drills = share.drills + 1

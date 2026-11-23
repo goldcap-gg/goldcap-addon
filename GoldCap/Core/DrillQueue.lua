@@ -34,6 +34,27 @@ local PRIORITY_RUN = 4
 -- queue is kept for ordinary hits, which can still fill all of it while no cap waits.
 local PRIORITY_SLOTS = 150
 GC.DrillQueue.PRIORITY_SLOTS = PRIORITY_SLOTS
+GC.DrillQueue.TTL_SECONDS = ENTRY_TTL_SECONDS
+-- A hit this close to its age limit is urgent: it is the next one drilled, ahead of every rank,
+-- and the slot rule below gives it a turn before a poll's batch. Measured on the Items board
+-- (0.33.0): 16 of 33 key-poll hits aged out undrilled while the polls took every slot.
+local URGENT_SECONDS = 30
+GC.DrillQueue.URGENT_SECONDS = URGENT_SECONDS
+
+-- Who gets the next send while a poll's round still has batches to ask and the queue holds a hit:
+-- "batch", "drill" or nil (neither wants one). `s.batch` and `s.drill` say who wants it, `s.urgent`
+-- whether a queued hit is near its age limit, `s.run` how many drills went since the last batch.
+-- A round's batches produce the hits, so they are not held back for long (commit b3564a15), but
+-- they no longer take every slot either: after a batch a drill, after a drill a batch, and an
+-- urgent hit may take one drill more. A batch gets at least one slot in MAX_RUN + 1.
+GC.DrillQueue.MAX_RUN = 2
+function GC.DrillQueue.SlotTurn(s)
+  if not s.batch then return s.drill and "drill" or nil end
+  if not s.drill then return "batch" end
+  local run = s.run or 0
+  if run == 0 or (s.urgent and run < GC.DrillQueue.MAX_RUN) then return "drill" end
+  return "batch"
+end
 
 -- Whole-market coverage: how sure the item's own facts are that a buy resells -- the lower of its
 -- liquidity confidence (0-100) and its sell-through (basis points, taken as a percent), as a
@@ -118,6 +139,15 @@ function GC.DrillQueue.New(driver, opts)
   -- hit, the best of those instead.
   local function bestIndex()
     if #items == 0 then return nil end
+    -- An urgent hit first, the oldest of them: it is lost if it waits much longer.
+    local now, urgent = driver.now(), nil
+    for i = 1, #items do
+      if now - items[i].pushedAt >= ENTRY_TTL_SECONDS - URGENT_SECONDS
+          and (not urgent or items[i].pushedAt < items[urgent].pushedAt) then
+        urgent = i
+      end
+    end
+    if urgent then return urgent end
     local best = 1
     for i = 2, #items do
       if ranksBelow(items[best], items[i]) then best = i end
@@ -297,6 +327,16 @@ function GC.DrillQueue.New(driver, opts)
   function obj:Has(itemID)
     pruneExpired(driver.now())
     return (queuedItems[itemID] or 0) > 0
+  end
+
+  -- Whether a queued hit is near its age limit (URGENT_SECONDS): the slot rule's `urgent`.
+  function obj:Urgent()
+    local now = driver.now()
+    pruneExpired(now)
+    for i = 1, #items do
+      if now - items[i].pushedAt >= ENTRY_TTL_SECONDS - URGENT_SECONDS then return true end
+    end
+    return false
   end
 
   function obj:Depth()
