@@ -15,6 +15,15 @@
   how many you hold. Your own prices buy as many as before.
 - WoW: Forever: new deals on DEALS now show within seconds of being listed, instead of waiting for
   the next full scan.
+- DEALS checks what it finds on the Items board sooner: a find there no longer waits for the
+  board to finish reading every price first, and none is left unchecked for waiting too long.
+- DEALS checks items that sell fast before slow ones, and reads your own prices on fast sellers,
+  and on items that just went under your price, more often than the rest.
+- After DEALS finds a deal on an item, it looks at that item again more often for the next ten
+  minutes, so a second cheap listing is found sooner.
+- DEALS shows fewer commodity rows it would refuse when you Check them: a row now shows only when
+  it is far enough under the market to clear both your minimum profit and your minimum return.
+- /gc board says how many requests GoldCap sent to the auction house in the last minute.
 
 ## 0.33.0 (2026-11-23)
 
