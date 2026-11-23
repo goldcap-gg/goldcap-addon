@@ -71,8 +71,8 @@ GC.Locales.zhTW = {
   ["%d of %d at or under your cap"] = "%d/%d 個不高於你的上限",
   ["%d of %d done"] = "已完成 %d/%d",
   ["%d prices in one request · books still loading"] = "一次請求取得 %d 個價格 · 掛單簿仍在載入",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "即時檢查拒絕了 %d 筆。按上方的「HIDDEN %d」查看",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "即時檢查拒絕了 %d 筆。按上方的%s查看",
   ["%d units"] = "%d 件",
   ["1 unit"] = "1 件",
   ["%d units · %d prices"] = "%d 件 · %d 個價位",
@@ -417,6 +417,22 @@ GC.Locales.zhTW = {
     "貼上你在 goldcap.gg 取得的伺服器字串，然後按 Import。",
   ["Per-unit price of this auction"] = "該拍賣的每件價格",
   ["Play a sound when a checked deal turns SAFE."] = "已核查的交易變為 SAFE 時播放提示音。",
+  ["Deal sound"] =
+    "交易提示音",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "交易變為 SAFE 或出現新交易時播放的聲音。選擇一個即可試聽。",
+  ["Even with sound effects off"] =
+    "關閉音效時也播放",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "開啟：即使關閉了音效，交易提示音也以遊戲主音量播放。關閉：跟隨音效音量。",
+  ["Coins"] =
+    "金幣",
+  ["Whisper"] =
+    "密語",
+  ["Map ping"] =
+    "地圖信號",
+  ["Ready check"] =
+    "準備確認",
   ["Position scope changed"] = "項目範圍已變更",
   ["Post"] = "上架",
   ["Post above the cheapest"] = "高於最低價上架",
@@ -1961,4 +1977,55 @@ GC.Locales.zhTW = {
   ["STOP WATCHING"] = "取消關注",
   ["WATCH FOR UNDER %s"] = "關注低於 %s",
   ["WATCH THIS ITEM"] = "關注此物品",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "已勾選 %d 件，每樣一件",
+  ["Tick all"] = "全選",
+  ["Untick all"] = "全部取消",
+  ["Tick the flips to buy"] = "勾選要買的物品",
+  ["%d sold at home in %d days"] =
+    "本陣營賣出 %d 件（%d 天）",
+  ["ADD %d TO BUY"] =
+    "將 %d 件加入 BUY",
+  ["herbs, ore, potions"] = "草藥、礦石、藥水",
+  ["gear, pets, recipes"] = "裝備、寵物、配方",
+  ["buy there, sell here"] = "那邊買，這邊賣",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "黑水灣拍賣場 · 藏寶海灣、加基森、永望鎮",
+  ["Blackwater flips"] =
+    "黑水灣倒賣",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "黑水灣：藏寶海灣、加基森和永望鎮的中立拍賣場比你陣營的拍賣場賣得便宜的東西。在那裡買，回本陣營上架。",
+  ["BLACKWATER"] =
+    "黑水灣",
+  ["HOME"] =
+    "本陣營",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "還沒有黑水灣的價格。goldcap.gg 會在 Companion 下次同步時送來。",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "目前黑水灣沒有比本陣營便宜 1 金以上的東西。",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "goldcap.gg 的價格（%s）。BUY 會在黑水灣拍賣師處逐一再核對。",
+  ["Slow: under one a day sells at home"] =
+    "慢：本陣營每天賣出不到一件",
+  ["SLOW"] =
+    "慢",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "這些價格已過去 %s。Companion 會從 goldcap.gg 帶來新價格。",
+  ["they cost %s"] =
+    "花費 %s",
+  ["They go to BUY as the list %s"] =
+    "以清單 %s 加入 BUY",
+  ["YOU MAKE"] =
+    "你能賺",
+  ["YOU SPEND"] =
+    "你花費",
+  ["%d cheap"] =
+    "低價 %d 件",
+  ["%d listed"] =
+    "在售 %d 件",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "在黑水灣各買一件這 %d 樣、回本陣營賣出，扣除 5%% 手續費後",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "這裡是中立的黑水灣拍賣場。GoldCap 不掃描這裡：這裡的價格不是你陣營的價格。",
 }

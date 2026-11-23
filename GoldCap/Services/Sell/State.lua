@@ -290,15 +290,10 @@ local function exactRenderEntry(row, pin)
     and pin.position == row.position
 end
 
+-- The name GC.Util.ItemName knows (it asks the client to load one nobody can say yet: the walk's
+-- next pass, five seconds on, finds it), else "Item N".
 local function itemName(itemID)
-  if C_Item and C_Item.GetItemNameByID then
-    local ok, name = pcall(C_Item.GetItemNameByID, itemID)
-    if ok and type(name) == "string" and name ~= "" then return name end
-  end
-  -- Not loaded yet. Nothing else asks the client for it, so ask here: the walk's next pass, five
-  -- seconds on, finds the name.
-  if itemID and C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, itemID) end
-  return (GC.L["Item %d"]):format(itemID or 0)
+  return GC.Util.ItemName(itemID) or (GC.L["Item %d"]):format(itemID or 0)
 end
 
 GC.SellUtil = { exact = exact, safeAdd = safeAdd, safeMultiply = safeMultiply, overrideKey = overrideKey,
@@ -401,9 +396,22 @@ function GC.Sell.MinimumProfit()
   return GC.ForeverDeals.MinimumProfit(GC.db and GC.db.settings and GC.db.settings.sniper)
 end
 
+-- Retail's vendor price for one of an item: C_Item.GetItemInfo's 11th answer, the same figure the
+-- VENDOR card sells by. Read straight from the client: Forever's lookup (GC.ForeverValue.VendorUnit)
+-- keeps every answer in the saved data, which retail has no reason to grow. nil while the client
+-- has not loaded the item, and then nothing is held back.
+local function retailVendorUnit(itemID)
+  local item = _G.C_Item
+  local getInfo = type(item) == "table" and item.GetItemInfo or _G.GetItemInfo
+  if type(getInfo) ~= "function" then return nil end
+  local ok, _, _, _, _, _, _, _, _, _, _, sellPrice = pcall(getInfo, itemID)
+  if ok and type(sellPrice) == "number" and sellPrice > 0 then return sellPrice end
+  return nil
+end
+
 -- What the POST queue is built with (Core/PostQueue.lua's Build): the player's selling list, the
--- marks kept in the saved data (GC.Sell.SetSelling), and in WoW: Forever the vendor's price, so it
--- holds back what a vendor pays at least as much for (below_vendor). `quantities` are the
+-- marks kept in the saved data (GC.Sell.SetSelling), and the vendor's price, so it holds back what
+-- a vendor pays at least as much for after the cut (below_vendor). `quantities` are the
 -- numbers the seller typed into "how many" (quantityOverrides), so the queue lists and values
 -- what each Post will actually send. `group` and `inGroup` are what the GROUPS row picked: the
 -- queue holds that group's items alone, each selling unless the player unmarked it. Before the
@@ -413,11 +421,13 @@ end
 function GC.Sell._QueueOpts()
   local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil, quantities = GC.SellState.quantityOverrides,
     group = GC.SellState.group, inGroup = GC.Sell.InPickedGroup }
-  if GC.Sell.OnForever() and GC.ForeverValue and GC.ForeverValue.VendorUnit then
+  if not GC.Sell.OnForever() then
+    opts.vendorUnit = retailVendorUnit
+  elseif GC.ForeverValue and GC.ForeverValue.VendorUnit then
     opts.vendorUnit = GC.ForeverValue.VendorUnit
   end
   -- ...and the deposit a post puts up, so it holds back a post the deposit is not worth
-  -- (below_deposit, 2026-11-06). Retail's queue is left as it was.
+  -- (below_deposit, 2026-11-06). Retail weighs no deposit.
   if GC.Sell.OnForever() and GC.SellBags and GC.SellBags.Deposit then
     opts.depositFor = GC.SellBags.Deposit
   end

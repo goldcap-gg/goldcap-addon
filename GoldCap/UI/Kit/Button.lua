@@ -12,6 +12,8 @@ local SQUARE_EDGE = GC.Kit.Tokens.alpha("ink", 0.11)
 local PRESSED = { 0, 0, 0, 0.28 } -- untinted
 -- A disabled button draws its fill and ring at this share of their own alpha.
 local DIM = 0.45
+-- A game icon before a label (b:SetLeadIcon): its size, how far in it sits, the gap to the label.
+local LEAD_ICON, LEAD_INSET, LEAD_GAP = 16, 7, 5
 local PRIMARY_GLOW = GC.Kit.Tokens.alpha("gold", 0.35)
 local DANGER_GLOW = GC.Kit.Tokens.alpha("loss", 0.35)
 
@@ -282,7 +284,8 @@ function T.Button(parent, variant, rounded)
   local fits = T.CanFitHeading(b.text)
   local function fit()
     if not fits then return end
-    local left = (b.checkBox and 24) or ((b.busy and b.spinner) and 15) or 0
+    local left = (b.checkBox and 24) or ((b.busy and b.spinner) and 15)
+      or (b.leadIcon and LEAD_INSET + LEAD_ICON + LEAD_GAP) or 0
     local right = (b.caret and b.caret:IsShown()) and 16 or 0
     T.FitHeading(b.text, (b:GetWidth() or 0) - left - right)
   end
@@ -342,7 +345,7 @@ function T.Button(parent, variant, rounded)
     end
     fs:SetText("")
     if b.label then b:SetLabel(b.label) end
-    b:SetWidth(math.max(minW or 0, math.ceil(widest) + 2 * T.pad.m))
+    b:SetWidth(math.max(minW or 0, math.ceil(widest) + 2 * T.pad.m + b:LeadWidth()))
     fit()
   end
 
@@ -489,13 +492,22 @@ function T.Button(parent, variant, rounded)
       end
     end
     if not b.spinner then return end
+    -- An icon-only button turns its ring round the icon, and has no label to move.
+    if b.faceIcon then
+      b.spinner:ClearAllPoints()
+      b.spinner:SetSize(b.faceIcon:GetWidth() + 8, b.faceIcon:GetHeight() + 8)
+      b.spinner:SetPoint("CENTER", b.faceIcon, "CENTER", 0, 0)
+      b.spinner:SetShown(on)
+      return
+    end
     b.text:ClearAllPoints()
     if on then
       b.spinner:Show()
       b.text:SetPoint("LEFT", b.spinner, "RIGHT", 1, 0)
     else
       b.spinner:Hide()
-      b.text:SetPoint("LEFT", b, "LEFT", 0, 0)
+      if b.leadIcon then b.text:SetPoint("LEFT", b.leadIcon, "RIGHT", LEAD_GAP, 0)
+      else b.text:SetPoint("LEFT", b, "LEFT", 0, 0) end
     end
     b.text:SetPoint("RIGHT", b, "RIGHT", (b.caret and b.caret:IsShown()) and -16 or 0, 0)
     fit()
@@ -570,5 +582,174 @@ function T.Button(parent, variant, rounded)
     paintGlow()
   end)
 
+  -- Opt-in, nil on every button that never asks (owner, 2026-11-23: DEALS' toolbar, variant B).
+  -- A game icon before the label: the label starts after it, and FitLabels counts it.
+  function b:SetLeadIcon(file, glyph)
+    if not b.leadIcon then
+      b.leadIcon = b:CreateTexture(nil, "ARTWORK")
+      b.leadIcon:SetSize(LEAD_ICON, LEAD_ICON)
+      b.leadIcon:SetPoint("LEFT", b, "LEFT", LEAD_INSET, 0)
+    end
+    T.GameIcon(b.leadIcon, file, glyph)
+    if not b.busy then
+      b.text:ClearAllPoints()
+      b.text:SetPoint("LEFT", b.leadIcon, "RIGHT", LEAD_GAP, 0)
+      b.text:SetPoint("RIGHT", b, "RIGHT", (b.caret and b.caret:IsShown()) and -16 or 0, 0)
+    end
+  end
+  -- What a lead icon takes of the face, for a caller sizing the button itself.
+  function b:LeadWidth()
+    return b.leadIcon and (LEAD_INSET + LEAD_ICON + LEAD_GAP - T.pad.m) or 0
+  end
+  -- The face a game icon alone: the label is kept (`.label`, the tooltip's first line) and not
+  -- drawn; SetCount puts a number on the icon, SetBusy a turning ring round it. `.faceFile` is the
+  -- icon's file when the client has it (nil while the glyph stands in), for a sentence that shows
+  -- the button as it looks.
+  function b:SetIconOnly(file, glyph, size)
+    if not b.faceIcon then
+      b.faceIcon = b:CreateTexture(nil, "ARTWORK")
+      b.faceIcon:SetPoint("CENTER", b, "CENTER", 0, 0)
+      b.faceCount = T.Parts.CountText(b, 8)
+      b.faceCount:SetPoint("BOTTOMRIGHT", b.faceIcon, "BOTTOMRIGHT", 1, 0)
+      b.faceCount:Hide()
+      function b:SetCount(n)
+        b.countValue = type(n) == "number" and n > 0 and n or nil
+        if b.countValue then
+          T.Parts.FitCount(b.faceCount, b.countValue, b.faceIcon:GetWidth())
+          b.faceCount:Show()
+        else
+          b.faceCount:SetText("")
+          b.faceCount:Hide()
+        end
+      end
+    end
+    b.faceIcon:SetSize(size, size)
+    b.faceFile = T.GameIcon(b.faceIcon, file, glyph) and file or nil
+    b.text:Hide()
+  end
+
+  return b
+end
+
+-- A game icon (Interface\Icons) on `tx`, trimmed of its own border. Where the client has no such
+-- file the kit's glyph `glyph` stands in: SetTexture answers true for a file the client lacks too,
+-- and GetTextureFileID says nil for it (measured in WoW: Forever 1.60.1, the skin probe 2026-11-10).
+-- Answers whether the file was there (false: the glyph stands in).
+function T.GameIcon(tx, file, glyph)
+  tx:SetTexture(file)
+  tx:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  if tx.GetTextureFileID and not tx:GetTextureFileID() then
+    if glyph then T.SetIcon(tx, glyph, K.text1) end
+    return false
+  end
+  return true
+end
+
+-- DEALS' boards (COMMODITIES, ITEMS, WoW: Forever's BLACKWATER) as tabs: the game's icon for the
+-- board, its name, a line under it saying what is on it, and how many rows it holds on the icon's
+-- corner, the way a stack count reads in the bags (owner, 2026-11-23: variant B of the toolbar
+-- board on the Blackwater canvas). A plaque button underneath, so the skin, the hover and the active
+-- look are the kit's own and only the face is laid out here.
+--   SetLabel(name)  the name; `.label` stays exactly what was passed, as on every kit button
+--   SetSub(text)    the line under it
+--   SetCount(n)     the number on the icon (nil or 0: none), kept as `.countValue`
+--   ShowSub(on)     false drops the line where the row is short of room (never cut: no "...")
+--   Fit()           as wide as its words in the player's language
+T.BOARD_TAB = { H = 36, ICON = 24, PAD = 6, GAP = 8 }
+function T.BoardTab(parent, iconFile, glyph)
+  local L = T.BOARD_TAB
+  local b = T.Button(parent, "ghost", "plaque")
+  b:SetHeight(L.H)
+  b:SetUppercase(true)
+  b.iconEdge = b:CreateTexture(nil, "BORDER")
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetSize(L.ICON, L.ICON)
+  b.icon:SetPoint("LEFT", b, "LEFT", L.PAD, 0)
+  b.iconEdge:SetPoint("TOPLEFT", b.icon, "TOPLEFT", -1, 1)
+  b.iconEdge:SetPoint("BOTTOMRIGHT", b.icon, "BOTTOMRIGHT", 1, -1)
+  T.GameIcon(b.icon, iconFile, glyph)
+  -- The kit's count over an icon (Theme.Parts), as the game writes a stack's count over its slot.
+  b.count = T.Parts.CountText(b, 8)
+  b.count:SetPoint("BOTTOMRIGHT", b.icon, "BOTTOMRIGHT", 1, 0)
+  b.count:Hide()
+  b.sub = T.Label(b, 9)
+  b.sub:SetJustifyH("LEFT")
+  b.sub:SetWordWrap(false)
+  b.sub:SetMaxLines(1)
+  local subShown = true
+
+  -- The name over its line, or alone in the middle when there is no line.
+  local function place()
+    local x = L.PAD + L.ICON + L.GAP
+    b.text:ClearAllPoints()
+    b.text:SetJustifyH("LEFT")
+    b.sub:ClearAllPoints()
+    if subShown and (b.sub:GetText() or "") ~= "" then
+      b.text:SetPoint("TOPLEFT", b, "TOPLEFT", x, -6)
+      b.text:SetPoint("TOPRIGHT", b, "TOPRIGHT", -L.PAD, -6)
+      b.sub:SetPoint("TOPLEFT", b.text, "BOTTOMLEFT", 0, -2)
+      b.sub:SetPoint("TOPRIGHT", b.text, "BOTTOMRIGHT", 0, -2)
+      b.sub:Show()
+    else
+      b.text:SetPoint("LEFT", b, "LEFT", x, 0)
+      b.text:SetPoint("RIGHT", b, "RIGHT", -L.PAD, 0)
+      b.sub:Hide()
+    end
+  end
+
+  -- The kit's label sits across the whole plaque: the tab's goes beside the icon.
+  local setLabel = b.SetLabel
+  function b:SetLabel(text)
+    setLabel(self, text)
+    place()
+  end
+  function b:SetSub(text)
+    b.sub:SetText(text or "")
+    place()
+  end
+  function b:ShowSub(on)
+    subShown = on and true or false
+    place()
+  end
+  function b:SetCount(n)
+    b.countValue = type(n) == "number" and n > 0 and n or nil
+    if b.countValue then
+      T.Parts.FitCount(b.count, b.countValue, L.ICON)
+      b.count:Show()
+    else
+      b.count:SetText("")
+      b.count:Hide()
+    end
+  end
+
+  -- The face follows the plaque: the line dim, gold on the board that is up; the icon in colour
+  -- with a gold edge on that board, greyed on the others.
+  local setVariant = b.SetVariant
+  function b:SetVariant(name)
+    setVariant(self, name)
+    local on = name == "active"
+    local line = on and T.color.gold or T.color.fgDim
+    b.sub:SetTextColor(line[1], line[2], line[3], on and 0.85 or 1)
+    b.icon:SetDesaturated(not on)
+    local shade = on and 1 or 0.78
+    b.icon:SetVertexColor(shade, shade, shade, 1)
+    -- An icon's dark rim, the same in every skin.
+    local edge = on and K.gold or { 0, 0, 0 } -- untinted
+    b.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], on and 0.9 or 0.7)
+  end
+  b:SetVariant("ghost")
+
+  -- As wide as the name or the line, whichever is longer, measured by the client.
+  function b:Fit()
+    local function width(fs)
+      if not (fs:IsShown() and fs.GetUnboundedStringWidth) then return 0 end
+      return fs:GetUnboundedStringWidth() or 0
+    end
+    local words = math.max(width(b.text), width(b.sub))
+    if words <= 0 then return end
+    b:SetWidth(math.ceil(L.PAD + L.ICON + L.GAP + words + L.PAD + 4))
+  end
+
+  place()
   return b
 end

@@ -85,11 +85,13 @@ end
 --      loss. A queue whose whole purpose is "money first" must not silently rank, let alone
 --      recommend clicking through, a loss.
 --
---   4. below_vendor -- WoW: Forever only (opts.vendorUnit is set, which only the Sell tab's own
---      GC.Sell._QueueOpts does): postRecommendation.unit is real and positive, but after the 5%
---      cut a vendor pays at least as much for it. "Post everything worth more than a vendor
---      pays" is this queue's whole design there, so such a position is held back and says why.
---      Retail passes no opts at all, so this branch never runs there.
+--   4. below_vendor -- both games (opts.vendorUnit, which the Sell tab's own GC.Sell._QueueOpts
+--      sets: the client's sell price on retail, GC.ForeverValue.VendorUnit on WoW: Forever):
+--      postRecommendation.unit is real and positive, but after the 5% cut a vendor pays at least
+--      as much for it. Posting it gives up gold the vendor would have paid, so such a position is
+--      held back and says why. It is the same line the retail VENDOR card sells on
+--      (Core/VendorSelect.lua), though the card weighs GoldCap's market value and this the price
+--      the post would go up at, so on a market that moved they can read one item differently.
 --   enough_listed -- WoW: Forever only (opts.durationFor, opts.unitFor): the sale pace is already
 --      covered by the units up at or under the price (GC.SellPositions.PostQuantity), so this post
 --      would list none. Decided where the quantity is, before the deposit below weighs it.
@@ -148,10 +150,8 @@ local function evaluate(position, opts)
   if recommendation.belowCost == true then
     return "below_breakeven"
   end
-  -- WoW: Forever only (the Sell tab passes opts there, GC.Sell._QueueOpts): the queue is "post
-  -- everything worth more than the vendor", so a position whose price, after the 5% cut, a
-  -- vendor matches is held back and says so. No opts, no change: retail's queue is built as
-  -- before.
+  -- The queue is "post everything worth more than the vendor", so a position whose price, after
+  -- the 5% cut, a vendor matches is held back and says so. Without opts.vendorUnit nothing is.
   local vendorUnit = opts and opts.vendorUnit and opts.vendorUnit(position.itemID) or nil
   if type(vendorUnit) == "number" and vendorUnit > 0 and math.floor(unit * 0.95) <= vendorUnit then
     return "below_vendor"
@@ -263,8 +263,8 @@ end
 -- back, the player chose -- but in `notSelling`, shaped like a `skipped` entry, its `reason` the
 -- one it would have been held back for (nil when it could be posted). Its row still has its own
 -- Post, so its row still says what is wrong with it; the dock reads the count.
--- `opts.vendorUnit` is WoW: Forever's (`function(itemID) ...`), read by `evaluate`'s
--- `below_vendor` case above, and so is `opts.depositFor` (`function(position, quantity)`, the
+-- `opts.vendorUnit` (`function(itemID) ...`, both games) is read by `evaluate`'s `below_vendor`
+-- case above. WoW: Forever's alone are `opts.depositFor` (`function(position, quantity)`, the
 -- deposit for posting that many, or nil), read by `below_deposit`, and `opts.durationFor` and
 -- `opts.unitFor` (`function(position)`, the duration index and the unit price the post goes up
 -- at), read by the quantity rule.

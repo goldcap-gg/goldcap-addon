@@ -69,7 +69,8 @@ GC.Locales.enUS = {
   ["%d of %d at or under your cap"] = "%d of %d at or under your cap",
   ["%d of %d done"] = "%d of %d done",
   ["%d prices in one request · books still loading"] = "%d prices in one request · books still loading",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] = "%d refused by live checks. Press \"HIDDEN %d\" above to review them",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d refused by live checks. Press %s above to review them",
   ["%d units"] = "%d units",
   ["1 unit"] = "1 unit",
   ["%d units · %d prices"] = "%d units · %d prices",
@@ -428,7 +429,6 @@ GC.Locales.enUS = {
   ["IN THE LOT"] = "IN THE LOT",
   ["ITEM"] = "ITEM",
   ["ITEMS"] = "ITEMS",
-  ["ITEMS %d"] = "ITEMS %d",
   ["If it clears"] = "If it clears",
   ["Import"] = "Import",
   ["Import failed:"] = "Import failed:",
@@ -535,6 +535,22 @@ GC.Locales.enUS = {
   ["Paste your realm string from goldcap.gg and press Import."] = "Paste your realm string from goldcap.gg and press Import.",
   ["Per-unit price of this auction"] = "Per-unit price of this auction",
   ["Play a sound when a checked deal turns SAFE."] = "Play a sound when a checked deal turns SAFE.",
+  ["Deal sound"] =
+    "Deal sound",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it.",
+  ["Even with sound effects off"] =
+    "Even with sound effects off",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume.",
+  ["Coins"] =
+    "Coins",
+  ["Whisper"] =
+    "Whisper",
+  ["Map ping"] =
+    "Map ping",
+  ["Ready check"] =
+    "Ready check",
   ["Position scope changed"] = "Position scope changed",
   ["Post"] = "Post",
   ["Post above the cheapest"] = "Post above the cheapest",
@@ -2062,4 +2078,55 @@ GC.Locales.enUS = {
   ["STOP WATCHING"] = "STOP WATCHING",
   ["WATCH FOR UNDER %s"] = "WATCH FOR UNDER %s",
   ["WATCH THIS ITEM"] = "WATCH THIS ITEM",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "%d checked, one of each",
+  ["Tick all"] = "Tick all",
+  ["Untick all"] = "Untick all",
+  ["Tick the flips to buy"] = "Tick the flips to buy",
+  ["%d sold at home in %d days"] =
+    "%d sold at home in %d days",
+  ["ADD %d TO BUY"] =
+    "ADD %d TO BUY",
+  ["herbs, ore, potions"] = "herbs, ore, potions",
+  ["gear, pets, recipes"] = "gear, pets, recipes",
+  ["buy there, sell here"] = "buy there, sell here",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK",
+  ["Blackwater flips"] =
+    "Blackwater flips",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home.",
+  ["BLACKWATER"] =
+    "BLACKWATER",
+  ["HOME"] =
+    "HOME",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "Nothing at Blackwater is 1g or more cheaper than at home right now.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer.",
+  ["Slow: under one a day sells at home"] =
+    "Slow: under one a day sells at home",
+  ["SLOW"] =
+    "SLOW",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "These prices are %s old. The Companion brings new ones from goldcap.gg.",
+  ["they cost %s"] =
+    "they cost %s",
+  ["They go to BUY as the list %s"] =
+    "They go to BUY as the list %s",
+  ["YOU MAKE"] =
+    "YOU MAKE",
+  ["YOU SPEND"] =
+    "YOU SPEND",
+  ["%d cheap"] =
+    "%d cheap",
+  ["%d listed"] =
+    "%d listed",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's.",
 }

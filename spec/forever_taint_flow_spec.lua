@@ -689,10 +689,11 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     it("on retail: the ticker paints HIDDEN and the board chips, the toggle repaints at once", function()
       loadClient(true)
       frame.verifyBtn.label = "stale"
-      frame.boardChips.items.label = "stale"
+      frame.boardChips.items.countValue = 99
       quarterSecond()
       assert.equal("HIDDEN 0", frame.verifyBtn.label)
-      assert.equal("ITEMS", frame.boardChips.items.label)
+      -- The ITEMS tab's count, nothing on an empty board (Theme.BoardTab).
+      assert.is_nil(frame.boardChips.items.countValue)
       frame.verifyBtn.scripts.OnClick()
       assert.equal("REFUSED 0", frame.verifyBtn.label)
     end)

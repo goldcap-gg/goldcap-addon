@@ -37,6 +37,7 @@ describe("Sniper deals column headings", function()
       SetText = function(self, text) self.text = text end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetDesaturated = function() end,
       SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,

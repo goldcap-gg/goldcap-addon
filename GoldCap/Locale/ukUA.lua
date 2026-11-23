@@ -68,8 +68,8 @@ GC.Locales.ukUA = {
   ["%d of %d at or under your cap"] = "%d з %d за вашою стелею або дешевше",
   ["%d of %d done"] = "готово %d з %d",
   ["%d prices in one request · books still loading"] = "%d цін одним запитом · стакани довантажуються",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d відхилено живою перевіркою. Натисніть \"HIDDEN %d\" вгорі, щоб переглянути",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d відхилено живою перевіркою. Натисніть %s вгорі, щоб переглянути",
   ["%d units"] = "%d шт.",
   ["1 unit"] = "1 шт.",
   ["%d units · %d prices"] = "%d шт. · %d цін",
@@ -432,6 +432,22 @@ GC.Locales.ukUA = {
     "Вставте рядок свого реалму з goldcap.gg і натисніть Import.",
   ["Per-unit price of this auction"] = "Ціна за одну штуку в цьому лоті",
   ["Play a sound when a checked deal turns SAFE."] = "Відтворювати звук, коли перевірена угода стає SAFE.",
+  ["Deal sound"] =
+    "Звук угоди",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "Звук, коли угода стає SAFE або з'являється нова. Виберіть звук, щоб його почути.",
+  ["Even with sound effects off"] =
+    "Навіть із вимкненими ефектами",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "Увімк.: звук угоди грає на загальній гучності гри, навіть якщо звукові ефекти вимкнено. Вимк.: він іде за гучністю ефектів.",
+  ["Coins"] =
+    "Монети",
+  ["Whisper"] =
+    "Шепіт",
+  ["Map ping"] =
+    "Сигнал на мапі",
+  ["Ready check"] =
+    "Перевірка готовності",
   ["Position scope changed"] = "Область позиції змінилася",
   ["Post"] = "Виставити",
   ["Post above the cheapest"] = "Виставляти вище найдешевшого",
@@ -1171,7 +1187,6 @@ GC.Locales.ukUA = {
   ["HAVE"] = "Є",
   ["HIDDEN %d"] = "СХОВАНО %d",
   ["ITEMS"] = "ПРЕДМЕТИ",
-  ["ITEMS %d"] = "ПРЕДМЕТИ %d",
   ["NEED"] = "ТРЕБА",
   ["NOW"] = "ЗАРАЗ",
   ["No gear, pets or recipes under their region price right now."] =
@@ -2145,4 +2160,55 @@ GC.Locales.ukUA = {
   ["STOP WATCHING"] = "ПЕРЕСТАТИ СТЕЖИТИ",
   ["WATCH FOR UNDER %s"] = "ЧЕКАТИ ДЕШЕВШЕ ЗА %s",
   ["WATCH THIS ITEM"] = "СТЕЖИТИ ЗА ПРЕДМЕТОМ",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "Позначено: %d, по одній штуці",
+  ["Tick all"] = "Позначити всі",
+  ["Untick all"] = "Зняти всі позначки",
+  ["Tick the flips to buy"] = "Позначте, що купити",
+  ["%d sold at home in %d days"] =
+    "Продано вдома: %d за %d дн.",
+  ["ADD %d TO BUY"] =
+    "ДОДАТИ %d ДО BUY",
+  ["herbs, ore, potions"] = "трави, руда, зілля",
+  ["gear, pets, recipes"] = "спорядження, вихованці, рецепти",
+  ["buy there, sell here"] = "купити там, продати тут",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "АУКЦІОННИЙ ДІМ ЧОРНОВОДДЯ · ПІРАТСЬКА БУХТА, ПРИБАМБАСЬК, КРУГОЗІР",
+  ["Blackwater flips"] =
+    "Перепродаж із Чорноводдя",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "Чорноводдя: що нейтральний аукціон у Піратській Бухті, Прибамбаську та Кругозорі продає дешевше, ніж аукціон вашої фракції. Купіть там, виставте вдома.",
+  ["BLACKWATER"] =
+    "ЧОРНОВОДДЯ",
+  ["HOME"] =
+    "ВДОМА",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "Цін Чорноводдя ще немає. goldcap.gg надішле їх із наступною синхронізацією Companion.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "Зараз у Чорноводді немає нічого дешевшого, ніж удома, на 1 золотий і більше.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "Ціни goldcap.gg на %s. BUY перевірить кожну ще раз в аукціоніста Чорноводдя.",
+  ["Slow: under one a day sells at home"] =
+    "Повільно: вдома продається менше однієї на день",
+  ["SLOW"] =
+    "ПОВІЛЬНО",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "Ціни отримано %s тому. Нові привезе Companion з goldcap.gg.",
+  ["they cost %s"] =
+    "коштують %s",
+  ["They go to BUY as the list %s"] =
+    "Потраплять до BUY списком «%s»",
+  ["YOU MAKE"] =
+    "ВИ ОТРИМАЄТЕ",
+  ["YOU SPEND"] =
+    "ВИ ВИТРАТИТЕ",
+  ["%d cheap"] =
+    "дешево: %d",
+  ["%d listed"] =
+    "у продажу: %d",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "після 5%% комісії, якщо купити по одній із цих %d у Чорноводді й продати вдома",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "Це Чорноводдя, нейтральний аукціон. GoldCap його не сканує: тутешні ціни не ціни вашої фракції.",
 }

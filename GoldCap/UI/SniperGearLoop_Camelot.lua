@@ -67,7 +67,7 @@ local function repaint(rang)
   local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
   if rang and sniper and sniper.sound and GetTime() - G.ringAt >= LIM.RING_SECONDS then
     G.ringAt = GetTime()
-    PlaySound(SOUNDKIT.MAP_PING or 3175)
+    if GC.DealSound then GC.DealSound.Play(sniper) end
   end
 end
 

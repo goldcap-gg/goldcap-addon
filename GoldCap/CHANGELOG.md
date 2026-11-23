@@ -1,5 +1,31 @@
 # GoldCap
 
+## 0.32.0 (2026-11-23)
+
+- WoW: Forever: DEALS has a third board, BLACKWATER. It lists what the neutral auction house in
+  Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house: the price
+  there, the price at home, what you make after the 5% cut and how fast it sells at home. Tick
+  what you want, or all of them with one box, and ADD TO BUY puts them on a BUY list, one of each,
+  that never pays more than still leaves a profit. The prices come from goldcap.gg with the Companion, every hour.
+- DEALS: the boards are tabs with the game's icons, each saying what is on it, with how many
+  deals it holds on the icon. AUTO wears a pocket watch, and SCAN and HIDDEN are icons: hover one
+  for its name.
+- A deal now rings with the map ping instead of the raid's ready check. In SETTINGS, under AUTOMATION &
+  ALERTS, pick another of the game's sounds (picking one plays it), and choose whether it still
+  plays with the game's sound effects off.
+- WoW: Forever: at the neutral auction house in Booty Bay, Gadgetzan and Everlook GoldCap no longer
+  scans. What it lists was counted as your own faction's prices, on DEALS and on goldcap.gg.
+- An item's name no longer turns into "Item 12345" on SELL, in the status line or in the crafting
+  lists while a scan runs: once the game has named an item, GoldCap keeps the name. On WoW: Forever
+  it also uses the names its full scan saw, so a lot that sold out keeps its name too.
+- SELL, in retail WoW: POST no longer offers to post an item for less than a vendor pays for it
+  after the auction house's 5% cut. Its row says a vendor pays more, and the dock says to sell it
+  to a vendor instead, as it already did on WoW: Forever.
+- SELL names a listed item in the language your game runs in now, not the one a sale mail was
+  written in.
+- SELL: after you pick a price by clicking it in THE BOOK, no grey band stays across a card of
+  MY LOTS or TO POST.
+
 ## 0.31.4 (2026-11-22)
 
 - WoW: Forever: a lot that has partly sold no longer vanishes from MY LOTS until /reload, with its

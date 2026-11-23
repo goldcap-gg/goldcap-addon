@@ -184,6 +184,9 @@ local function fitCount(fs, count, iconSize)
   setText(fs, "")
 end
 
+-- The same count for an icon drawn elsewhere: DEALS' board tabs (Theme.BoardTab).
+KP.CountText, KP.FitCount = countText, fitCount
+
 -- An item's icon in a 1px edge in its quality's colour (common and poor: a dark edge), the game's
 -- own border cut off the art; with a count over it when `counted`. A run's marks: a ring 1px out
 -- round the edge, which turns gold with it, while a stack of the item is on its way; the kit's

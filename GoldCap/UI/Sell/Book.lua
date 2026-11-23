@@ -167,6 +167,16 @@ function Book.PickLevel(row, unit, mine)
   UI.List.RenderRows()
 end
 
+-- One book line put away whole: its words, its bar, its wash, and its click with the hover it lights.
+-- The click and its hover were left out (seen in the game 2026-11-22/23): after a price was clicked
+-- the hover stayed lit under the cursor, the pooled row became a card or the list's foot, and a
+-- band stood across it where the level had been; the click, unseen, stayed there too.
+local function putLineAway(line)
+  line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
+  line.hit:Hide(); line.hover:Hide()
+  line.hit.unit, line.hit.mine = nil, nil
+end
+
 -- The book lines and the drawer's headings, on every pooled row: createRow (UI/Sell/Row.lua) calls
 -- this. See the first comment inside for why they are built up front.
 function Book.Decorate(row)
@@ -214,8 +224,7 @@ function Book.Decorate(row)
     line.hit:SetScript("OnClick", function(self) Book.PickLevel(row, self.unit, self.mine) end)
     line.hit:SetScript("OnEnter", function() line.hover:Show() end)
     line.hit:SetScript("OnLeave", function() line.hover:Hide() end)
-    line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
-    line.hit:Hide(); line.hover:Hide()
+    putLineAway(line)
     row.bookLines[i] = line
   end
   -- Column headings and the bottom line. Separate FontStrings rather than reusing subItem and
@@ -404,9 +413,7 @@ function Book.Paint(row, p, d)
   else
     row.drawerHint:Hide()
     row.headRules[1]:Show()
-    for _, line in ipairs(row.bookLines) do
-      line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
-    end
+    for _, line in ipairs(row.bookLines) do putLineAway(line) end
     row.drawerDepth:Hide(); row.drawerOwn:Hide()
     row.drawerStand:SetText(GC.Sell._AnsweredEmpty(p) and GC.L["Nothing listed on the AH right now"]
       or GC.L["the Auction House has not answered for this item yet"])
@@ -477,7 +484,5 @@ function Book.PutAway(row)
   row.drawerPriceHead:Hide(); row.drawerBookHead:Hide()
   row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide(); row.drawerOwn:Hide()
   row.drawerDepth:Hide(); row.drawerQuote:Hide()
-  for _, line in ipairs(row.bookLines) do
-    line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
-  end
+  for _, line in ipairs(row.bookLines) do putLineAway(line) end
 end

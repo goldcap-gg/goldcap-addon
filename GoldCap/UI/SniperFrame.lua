@@ -92,6 +92,18 @@ WIN.RESIZE_MAX_HEIGHT = 900
 WIN.RAIL_W = Theme.RAIL_W                     -- left navigation rail (Theme.Rail)
 WIN.CONTENT_LEFT = WIN.RAIL_W + Theme.pad.m   -- content starts right of the rail
 WIN.CONTENT_RIGHT_GUTTER = 32
+-- DEALS' toolbar wears the game's icons (owner, 2026-11-23, variant B), a kit glyph standing in
+-- where the client lacks the file. `WIN.InlineIcon(btn, word)` is how a sentence names an icon-only
+-- button: its icon in the line, or `word` where the client lacks the file.
+WIN.ICON_AUTO = "Interface\\Icons\\INV_Misc_PocketWatch_01"
+WIN.ICON_SCAN = "Interface\\Icons\\INV_Misc_Spyglass_02"
+WIN.ICON_HIDDEN = "Interface\\Icons\\Ability_Stealth"
+function WIN.InlineIcon(btn, word)
+  local file = btn and btn.faceFile
+  return file and ("|T%s:14:14:0:0:64:64:5:59:5:59|t"):format(file) or word
+end
+-- What DEALS' board tabs leave beside them for the gold line and the session total, at least.
+WIN.BOARD_LINE_MIN = 160
 
 -- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) always shifts the deals list
 -- aside while it is open: it used to lie over the list on any window under 990px, the docked
@@ -1901,9 +1913,7 @@ end
 -- line used to read "bought 1 x item 192883" (in game 2026-10-17). A field, not a local: this
 -- chunk sits near its 200-local ceiling.
 function GC.Sniper._ItemLabel(itemID)
-  local name = C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(itemID)
-  if type(name) == "string" and name ~= "" then return name end
-  return (GC.L["item %d"]):format(itemID)
+  return GC.Util.ItemName(itemID) or (GC.L["item %d"]):format(itemID)
 end
 
 -- A modified left click is the item's, never the row's Check or Buy: true when it was one.
@@ -2326,17 +2336,11 @@ function GC.Sniper._PaintBoardChips(target)
       if deal.board == "items" then count = count + 1 end
     end
   end
-  -- Two keys, not one with a conditional count: "ITEMS 0" is a promise of a number that is
-  -- not there, and a chip reading "ITEMS" says the same thing without pretending to count.
-  local labels = {
-    commodities = GC.L["COMMODITIES"],
-    items = count > 0 and (GC.L["ITEMS %d"]):format(count) or GC.L["ITEMS"],
-  }
+  -- The count on the ITEMS tab's icon, none at 0: "0" is a promise of a number that is not there.
+  if chips.items and chips.items.SetCount then chips.items:SetCount(count) end
   local board = GC.Sniper._Board()
   -- Stamped every time, for the reason refreshAutoButton gives.
   for id, chip in pairs(chips) do
-    local text = labels[id]
-    if text then chip:SetLabel(text) end
     chip:SetVariant(board == id and "active" or "ghost")
   end
   -- "Only what I lack" is the Items board's (of realm rows) alone. The gold line beside the chips
@@ -2361,9 +2365,28 @@ function GC.Sniper._LayoutBoardRow(target)
   local lack, session, line = owner.lackToggle, owner.sessionText, owner.goldLine
   local lackShown = lack ~= nil and lack:IsShown() and true or false
   local lineShown = line ~= nil and line:IsShown() and true or false
-  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-")
+  local width = math.floor(owner.GetWidth and owner:GetWidth() or 0)
+  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-") .. width
   if owner._boardRowLayout == key then return end
   owner._boardRowLayout = key
+  -- The tabs' lines (what is on each board) go, all of them and whole, when the row is short of
+  -- room: the gold line and the session total beside the tabs keep WIN.BOARD_LINE_MIN.
+  if width > 0 then
+    local room = width - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - WIN.BOARD_LINE_MIN
+      - (lackShown and (lack:GetWidth() or 0) + Theme.pad.m or 0)
+    local function tabsWidth(withLines)
+      local sum = 0
+      for _, chip in pairs(chips) do
+        if chip.ShowSub then
+          chip:ShowSub(withLines)
+          chip:Fit()
+          sum = sum + (chip:GetWidth() or 0) + Theme.pad.xs
+        end
+      end
+      return sum
+    end
+    if tabsWidth(true) > room then tabsWidth(false) end
+  end
   local rowY = owner.boardY - owner.boardRowH / 2
   -- Both texts take the whole room between the ITEMS chip and the toggle (or the window's edge)
   -- and wrap in it. The session total right-aligned there used to grow left over the chips once
@@ -2847,8 +2870,9 @@ function GC.Sniper._UpdateEmptyState(shownCount)
       parts[#parts + 1] = GC.L["%d filtered out: hard to resell, or under your Min profit per buy"]:format(screened)
     end
     if refusedCount > 0 then
-      parts[#parts + 1] = (GC.L["%d refused by live checks. Press \"HIDDEN %d\" above to review them"]):format(
-        refusedCount, refusedCount)
+      -- The button is the rogue's icon now (createFrame): the sentence shows it.
+      parts[#parts + 1] = (GC.L["%d refused by live checks. Press %s above to review them"]):format(
+        refusedCount, WIN.InlineIcon(frame.verifyBtn, GC.L["HIDDEN %d"]:format(refusedCount)))
     end
     text = GC.L["No deals passed the safety checks right now."] .. "\n" .. table.concat(parts, "\n")
   else
@@ -3580,9 +3604,8 @@ pingNewHotDeals = function(newHotDeals)
       end
     end
   end
-  if matched and GC.db.settings.sniper.sound then
-    PlaySound(SOUNDKIT.MAP_PING or 3175)
-  end
+  -- The deal sound the player picked (UI/DealSound.lua), when the switch is on.
+  if matched and GC.DealSound then GC.DealSound.Ring(GC.db.settings.sniper) end
   -- A sniper is an alarm, not a dashboard (the pattern every dedicated sniping addon ships:
   -- PBS's Alert, AnS's flashWoWIcon): a HOT deal found while the player is alt-tabbed must
   -- reach them, and FlashClientIcon is the platform's one sanctioned way to flash the
@@ -4506,8 +4529,10 @@ local function abortFullScan()
   if GC.Sniper._bookPass:IsPaging() then
     fullScanToken = fullScanToken + 1 -- invalidates any in-flight watchdog closures
     if not (autoScan and autoScan:State() ~= "OFF") then
-      -- The Scan button named by its own label, in the player's language (fix round 1, nit 2).
-      setStatus(GC.L["full scan stopped. Press %s to run it again"]:format(GC.L["SCAN"]))
+      -- The Scan button shown as it looks: the spyglass, or its label in the player's language
+      -- where the client lacks the icon (fix round 1, nit 2).
+      setStatus(GC.L["full scan stopped. Press %s to run it again"]:format(
+        WIN.InlineIcon(frame and frame.fullScanBtn, GC.L["SCAN"])))
     end
   end
   GC.Sniper._bookPass:Abort()
@@ -4826,7 +4851,7 @@ refreshAutoButton = function(targetFrame)
   local width = label and (label.GetUnboundedStringWidth and label:GetUnboundedStringWidth()
     or label.GetStringWidth and label:GetStringWidth())
   if type(width) == "number" and f.autoBtn.SetWidth then
-    f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
+    f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m + (f.autoBtn.LeadWidth and f.autoBtn:LeadWidth() or 0)))
   end
   -- The light beside it: breathing green for as long as Auto runs -- the mode again, so it does
   -- not blink with each pass either -- amber while the label names a hold, and out while Auto is
@@ -4873,6 +4898,7 @@ end
 -- "СКАНИРУЮ…" did not fit the 64px the English "SCAN" did and was cut to "СКАНИРУ...". Measured
 -- once per language and scale; the status line anchors to this button's left edge and follows.
 local function sizeScanButton(btn)
+  if btn.faceIcon then return end -- the spyglass alone (createFrame): square, whatever it says
   local fs = btn.text
   if not (fs and fs.GetUnboundedStringWidth and fs.SetText and btn.SetWidth) then return end
   local idle, busy = GC.L["SCAN"], GC.L["SCANNING…"]
@@ -4910,6 +4936,8 @@ refreshScanButton = function(targetFrame)
   sizeScanButton(f.fullScanBtn)
   -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
+  -- The spyglass's ring turns while it scans: the word is no longer drawn (createFrame).
+  if f.fullScanBtn.SetBusy then f.fullScanBtn:SetBusy(busy and true or false) end
   -- `active`, not `primary`, and not Disable(): a disabled button reads as
   -- broken, and the click while busy has something useful to say (see
   -- onFullScanClick). Same reasoning as the Auto button's on-state.
@@ -7681,9 +7709,9 @@ stampVerdict = function(deal, data, manual)
     if row.deal and row.deal.itemID == deal.itemID
         and row.deal.unitPrice == deal.unitPrice and row:IsShown() then
       flashRow(row)
-      if GC.db and GC.db.settings and GC.db.settings.sniper.sound then
-        PlaySound(SOUNDKIT.READY_CHECK or SOUNDKIT.MAP_PING or 3175, "Master")
-      end
+      -- The player's pick (UI/DealSound.lua); it was always the raid's ready check, at the
+      -- master volume, until players asked for a quieter one (owner, 2026-11-23).
+      if GC.DealSound and GC.db and GC.db.settings then GC.DealSound.Ring(GC.db.settings.sniper) end
       return
     end
   end
@@ -10505,6 +10533,14 @@ end
 local CH = {}
 CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
 CH.BTN_H = 26 -- toolbar row: Auto / Scan / Refused-Hidden, all "plaque" buttons
+-- The boards' tabs, in their order: the game's icon for each (a kit glyph where the client lacks the
+-- file), the name, and the line under it. WoW: Forever's BLACKWATER tab is UI/SniperBlackwater_Camelot.lua's.
+-- The toolbar's square buttons (WIN.ICON_* are their icons).
+CH.SQUARE_W, CH.SQUARE_ICON = 32, 20
+CH.BOARD_TABS = {
+  { id = "commodities", icon = "Interface\\Icons\\INV_Misc_Bag_10", glyph = "bag" },
+  { id = "items", icon = "Interface\\Icons\\INV_Sword_39", glyph = "hero" },
+}
 CH.HEADER = 16      -- column header row height
 -- Docked into the Auction House, the host's portrait overhangs the rail's top-left corner
 -- (measured in the 2026-08-24 screenshot: logo top ~= 59px, portrait bottom ~= 70px at 1x);
@@ -12270,6 +12306,8 @@ local function setView(v)
   elseif GC.Hero and GC.Hero.Hide then
     GC.Hero.Hide()
   end
+  -- WoW: Forever's BLACKWATER board follows the rail: up on Deals while it is chosen, gone elsewhere.
+  if GC.Blackwater and GC.Blackwater.OnView then GC.Blackwater.OnView(v) end
 end
 
 -- Another tab's own control taking the player to a view, the same way that view's rail button
@@ -12610,6 +12648,8 @@ local function createFrame()
   autoBtn:SetSize(132, CH.BTN_H)
   autoBtn:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row2Y)
   autoBtn:SetLabel(GC.L["AUTO"])
+  -- The toolbar wears the game's icons (owner, 2026-11-23, variant B): a pocket watch on AUTO.
+  autoBtn:SetLeadIcon(WIN.ICON_AUTO, "clock")
   f.autoBtn = autoBtn
 
   local function onAutoToggleClick()
@@ -12662,7 +12702,10 @@ local function createFrame()
   -- two variants (never two swapped by Show/Hide), per the addon's engineering notes. Anchored top-RIGHT now
   -- (was Scan's slot): it and Scan swap sides of the row so Auto/Refused-Hidden bookend it.
   local verifyBtn = Theme.Button(f, "ghost", "plaque")
-  verifyBtn:SetSize(76, CH.BTN_H)
+  -- Square, a rogue in stealth with the count on him (owner, 2026-11-23, variant B): HIDDEN or
+  -- REFUSED is said in the tooltip's first line, and the room goes to the status line.
+  verifyBtn:SetSize(CH.SQUARE_W, CH.BTN_H)
+  verifyBtn:SetIconOnly(WIN.ICON_HIDDEN, "filter", CH.SQUARE_ICON)
   verifyBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row2Y)
   verifyBtn:SetLabel(GC.L["HIDDEN 0"])
   verifyBtn:SetScript("OnClick", function()
@@ -12678,7 +12721,8 @@ local function createFrame()
   -- long ago the last one landed. A stalled walk shows up here as a number that stops moving.
   verifyBtn:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(GC.Util.ClientText(GC.L["Background check"]), 1, 1, 1)
+    GameTooltip:SetText(GC.Util.ClientText(self.label or GC.L["HIDDEN %d"]:format(0)), 1, 1, 1)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Background check"]), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3])
     GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
       :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS))), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
 
@@ -12711,13 +12755,22 @@ local function createFrame()
   f.verifyBtn = verifyBtn
 
   local fullScanBtn = Theme.Button(f, "ghost", "plaque")
-  fullScanBtn:SetSize(64, CH.BTN_H)
+  -- Square, a spyglass whose ring turns while it scans (owner, 2026-11-23, variant B); SCAN or
+  -- SCANNING… is the tooltip's first line.
+  fullScanBtn:SetSize(CH.SQUARE_W, CH.BTN_H)
+  fullScanBtn:SetIconOnly(WIN.ICON_SCAN, "search", CH.SQUARE_ICON)
   fullScanBtn:SetPoint("RIGHT", verifyBtn, "LEFT", -Theme.pad.xs, 0)
   fullScanBtn:SetLabel(GC.L["SCAN"])
   fullScanBtn:SetScript("OnClick", onFullScanClick)
-  setPlainTooltip(fullScanBtn,
-    isForever() and GC.L["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."]
-      or GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown: rescan anytime."])
+  local scanHelp = isForever() and GC.L["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."]
+    or GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown: rescan anytime."]
+  fullScanBtn:HookScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(GC.Util.ClientText(self.label or GC.L["SCAN"]), 1, 1, 1)
+    GameTooltip:AddLine(GC.Util.ClientText(scanHelp), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
+    GameTooltip:Show()
+  end)
+  fullScanBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
   f.fullScanBtn = fullScanBtn
 
   -- The divider sits left of Scan, between it and the status line. The session figures that
@@ -12755,7 +12808,10 @@ local function createFrame()
     -- it came through here.
     -- Stamped every time, for the reason refreshAutoButton gives -- this button's remembered
     -- on/off is the very field the 3c beta's taint log named.
-    btn:SetLabel((show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount + (GC.Sniper._hiddenItemCount or 0)))
+    local n = refusedCount + (GC.Sniper._hiddenItemCount or 0)
+    btn:SetLabel((show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(n))
+    -- The number on the icon; the words are the tooltip's first line (createFrame).
+    if btn.SetCount then btn:SetCount(n) end
     btn:SetVariant(show and "active" or "ghost")
   end
   refreshVerifyButton(f)
@@ -12809,15 +12865,21 @@ local function createFrame()
   -- the longest, most useful messages would be the ones that vanished. One list row is the
   -- cheaper price.
   local boardY = row2Y - (CH.BTN_H + Theme.pad.s)
-  f.boardY, f.boardRowH = boardY, CH.BTN_H -- for GC.Sniper._LayoutBoardRow, above CH's own line
+  -- The boards are tabs (Theme.BoardTab, owner 2026-11-23): the game's icon for the board, its
+  -- name, a line saying what is on it, and its count on the icon. The row is a tab tall.
+  f.boardY, f.boardRowH = boardY, Theme.BOARD_TAB.H -- for GC.Sniper._LayoutBoardRow
   f.boardChips = {}
+  local tabWords = {
+    commodities = { GC.L["COMMODITIES"], GC.L["herbs, ore, potions"] },
+    items = { GC.L["ITEMS"], GC.L["gear, pets, recipes"] },
+  }
   local chipPrevious
-  for _, id in ipairs({ "commodities", "items" }) do
-    local chip = Theme.Button(f, "ghost", "plaque")
-    -- 132/96, sized the way every other label on this toolbar is: mono-10 at Theme.Scale()
-    -- 1.3 is ~7.8px a character, so "COMMODITIES" is 86px and "ITEMS 100" 70px, plus the
-    -- rounded plaque's own inset.
-    chip:SetSize(id == "commodities" and 132 or 96, CH.BTN_H)
+  for _, tab in ipairs(CH.BOARD_TABS) do
+    local id = tab.id
+    local chip = Theme.BoardTab(f, tab.icon, tab.glyph)
+    chip:SetLabel(tabWords[id][1])
+    chip:SetSub(tabWords[id][2])
+    chip:Fit()
     if chipPrevious then chip:SetPoint("LEFT", chipPrevious, "RIGHT", Theme.pad.xs, 0)
     else chip:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, boardY) end
     chip:SetScript("OnClick", function() GC.Sniper._SetBoard(id) end)
@@ -12849,7 +12911,7 @@ local function createFrame()
   -- Items board only and paints it on or off. As wide as its words in the player's language.
   local lack = Theme.Button(f.boardChips.items, "ghost", "plaque")
   lack:SetSize(150, CH.BTN_H)
-  lack:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, boardY)
+  lack:SetPoint("RIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, boardY - Theme.BOARD_TAB.H / 2)
   lack:SetUppercase(true)
   lack:SetLabel(GC.L["Only what I lack"])
   lack:FitLabels({ GC.L["Only what I lack"] }, 96)
@@ -12870,7 +12932,7 @@ local function createFrame()
     f.boardChips.commodities, f.boardChips.items }
 
   -- Row 4: column headers, sticky above the scroll area.
-  f.headerY = boardY - (CH.BTN_H + Theme.pad.xs)
+  f.headerY = boardY - (Theme.BOARD_TAB.H + Theme.pad.xs)
   createHeaderRow(f)
 
   local scrollTop = f.headerY - (CH.HEADER + Theme.pad.xs)
@@ -13046,6 +13108,17 @@ local function createFrame()
       bottom = scrollBottom,
       rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
       rowHeight = WIN.ROW_HEIGHT,
+    })
+  end
+
+  -- WoW: Forever's BLACKWATER board (UI/SniperBlackwater_Camelot.lua): a third chip, and its own
+  -- board over the headings and the rows.
+  if GC.Blackwater and GC.Blackwater.Attach then
+    GC.Blackwater.Attach(f, {
+      panelLeft = WIN.CONTENT_LEFT,
+      panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
+      top = f.headerY,
+      bottom = scrollBottom,
     })
   end
 

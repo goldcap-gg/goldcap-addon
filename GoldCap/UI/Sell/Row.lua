@@ -201,9 +201,10 @@ local function createRow(parent)
   local phc = Theme.color.panelHi
   row.well:SetVertexColor(phc[1], phc[2], phc[3], 0.5)
   row.well:Hide()
-  -- The hover: the open card's own gold, fainter, over the whole card. A grey wash under the
-  -- card's glass showed as a band across half of it (owner, 2026-11-22, Magic Resistance Potion);
-  -- on the BORDER layer, under the rings, it covers the card the open position's gold does.
+  -- The hover: the open card's own gold, fainter, over the whole card, on the BORDER layer under
+  -- the rings, as the open position's gold does. (The band across half a card the owner saw on
+  -- 2026-11-22 was not this wash but THE BOOK's level hover left lit on a pooled row: Book.lua's
+  -- putLineAway.)
   row.highlight = row:CreateTexture(nil, "BORDER", nil, -1)
   Theme.SetShape(row.highlight, "control")
   row.highlight:SetPoint("TOPLEFT", 2, -inset); row.highlight:SetPoint("BOTTOMRIGHT", -2, inset)

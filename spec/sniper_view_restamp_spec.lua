@@ -55,6 +55,7 @@ describe("Deals board re-stamps itself on the way back", function()
       GetText = function(self) return self.text or "" end,
       SetTexture = function(self, tex) self.texture = tex end,
       SetTexCoord = function() end,
+      SetDesaturated = function() end,
       SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,

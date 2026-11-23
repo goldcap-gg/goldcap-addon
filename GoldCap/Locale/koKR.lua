@@ -69,8 +69,8 @@ GC.Locales.koKR = {
   ["%d of %d at or under your cap"] = "%d/%d개가 상한 이하",
   ["%d of %d done"] = "%d/%d 완료",
   ["%d prices in one request · books still loading"] = "요청 한 번으로 시세 %d개 · 호가창 불러오는 중",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "실시간 확인에서 %d건 거부. 위의 \"HIDDEN %d\"를 눌러 확인하세요",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "실시간 확인에서 %d건 거부. 위의 %s를 눌러 확인하세요",
   ["%d units"] = "%d개",
   ["1 unit"] = "1개",
   ["%d units · %d prices"] = "%d개 · 가격 %d단",
@@ -419,6 +419,22 @@ GC.Locales.koKR = {
     "goldcap.gg의 서버 문자열을 붙여넣고 Import를 누르세요.",
   ["Per-unit price of this auction"] = "이 경매의 개당 가격",
   ["Play a sound when a checked deal turns SAFE."] = "검증된 거래가 SAFE가 되면 소리를 재생합니다.",
+  ["Deal sound"] =
+    "거래 알림음",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "거래가 SAFE가 되거나 새 거래가 나타날 때 나는 소리입니다. 하나를 고르면 들어볼 수 있습니다.",
+  ["Even with sound effects off"] =
+    "효과음을 꺼도 재생",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "켜짐: 효과음을 꺼도 게임의 주 음량으로 알림음을 재생합니다. 꺼짐: 효과음 음량을 따릅니다.",
+  ["Coins"] =
+    "동전",
+  ["Whisper"] =
+    "귓속말",
+  ["Map ping"] =
+    "지도 신호",
+  ["Ready check"] =
+    "전투 준비 확인",
   ["Position scope changed"] = "항목 범위가 바뀌었습니다",
   ["Post"] = "등록",
   ["Post above the cheapest"] = "최저가보다 높게 등록",
@@ -1999,4 +2015,55 @@ GC.Locales.koKR = {
   ["STOP WATCHING"] = "주시 해제",
   ["WATCH FOR UNDER %s"] = "%s 미만 주시",
   ["WATCH THIS ITEM"] = "이 아이템 주시",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "%d개 선택, 종류별 1개",
+  ["Tick all"] = "모두 선택",
+  ["Untick all"] = "모두 해제",
+  ["Tick the flips to buy"] = "살 항목을 선택하세요",
+  ["%d sold at home in %d days"] =
+    "진영 경매장 판매 %d개 (%d일)",
+  ["ADD %d TO BUY"] =
+    "BUY에 %d개 추가",
+  ["herbs, ore, potions"] = "약초, 광석, 물약",
+  ["gear, pets, recipes"] = "장비, 애완동물, 제조법",
+  ["buy there, sell here"] = "거기서 사서 여기서 팔기",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "검은바다 경매장 · 무법항, 가젯잔, 눈망루 마을",
+  ["Blackwater flips"] =
+    "검은바다 되팔기",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "검은바다: 무법항, 가젯잔, 눈망루 마을의 중립 경매장이 내 진영 경매장보다 싸게 파는 물품입니다. 거기서 사서 진영 경매장에 올리세요.",
+  ["BLACKWATER"] =
+    "검은바다",
+  ["HOME"] =
+    "진영",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "아직 검은바다 가격이 없습니다. goldcap.gg가 다음 Companion 동기화 때 보냅니다.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "지금은 검은바다에 진영 경매장보다 1골드 이상 싼 물품이 없습니다.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "goldcap.gg 가격 (%s 기준). BUY가 검은바다 경매인에게서 하나씩 다시 확인합니다.",
+  ["Slow: under one a day sells at home"] =
+    "느림: 진영 경매장에서 하루 1개 미만 판매",
+  ["SLOW"] =
+    "느림",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "이 가격은 %s 전 가격입니다. Companion이 goldcap.gg에서 새 가격을 가져옵니다.",
+  ["they cost %s"] =
+    "구매 비용 %s",
+  ["They go to BUY as the list %s"] =
+    "BUY에 %s 목록으로 들어갑니다",
+  ["YOU MAKE"] =
+    "수익",
+  ["YOU SPEND"] =
+    "지출",
+  ["%d cheap"] =
+    "저가 %d개",
+  ["%d listed"] =
+    "등록 %d개",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "수수료 5%% 제외 후, 이 %d종을 검은바다에서 1개씩 사서 진영 경매장에서 팔 때",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "여기는 중립 경매장인 검은바다 경매장입니다. GoldCap은 이곳을 검색하지 않습니다. 이곳 가격은 내 진영의 가격이 아닙니다.",
 }

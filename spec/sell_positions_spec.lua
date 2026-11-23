@@ -87,6 +87,23 @@ describe("Sell positions", function()
     assert.is_truthy(text:find("identityEvidence = identityEvidence", 1, true))
   end)
 
+  -- Owner, 2026-11-23: two listed lots of an English client read in Russian, the name a sale mail
+  -- had given their purchase. A listed lot is named by its own link: the client's language now,
+  -- and the variant's own name (a suffix), which the item ID's name is not.
+  it("names a listed lot by its own link before its purchase record", function()
+    local bought = batch("b1", "auction_house", 5, 250, 1)
+    bought.itemName = "Простой компресс"
+    local listed = lot("commodity:42", 5, 60, 900)
+    listed.itemLink = "|cffffffff|Hitem:42::::::::60:::::|h[Simple Compress]|h|r"
+    local positions = build({ acquisitions = { bought }, ownedLots = { listed } })
+    assert.equal("Simple Compress", positions[1].itemName)
+    local suffixed = lot("item:42:0:0:0", 1, 900, 901)
+    suffixed.itemLink = "|cff1eff00|Hitem:42::::::1019:::60:::::|h[Foo Helm of the Monkey]|h|r"
+    assert.equal("Foo Helm of the Monkey", build({ ownedLots = { suffixed } })[1].itemName)
+    -- With no link, the purchase record's name stands.
+    assert.equal("Простой компресс", build({ acquisitions = { bought }, ownedLots = { lot("commodity:42", 5, 60, 902) } })[1].itemName)
+  end)
+
   local function activity(positionKey, itemID, itemName, at)
     return { positionKey = positionKey, itemID = itemID or 42, itemName = itemName or "Herb",
       firstSeenAt = at or 1, character = context.char, region = context.region,

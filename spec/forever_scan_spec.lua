@@ -67,6 +67,59 @@ describe("ForeverScan", function()
     d, timers, notes, store, rows, now = {}, {}, {}, {}, {}, 100000
   end)
 
+  -- Blackwater (ClickUp 1an60dzy5r4): the neutral house both factions share. Its lots are not this
+  -- character's faction's market, and were filed under it and sent to goldcap.gg as its prices.
+  describe("at Blackwater, the neutral auction house", function()
+    local neutralHere
+    local function atBlackwater() return GC.ForeverScan.New(driver({ neutral = function() return neutralHere end })) end
+    before_each(function() neutralHere = true end)
+
+    it("knows its zones by the client's map ids, and a town's own map by its zone", function()
+      local parents = { [9001] = 1434, [1434] = 1415, [1415] = 947, [1458] = 1415, [1454] = 1414, [1414] = 947 }
+      local function up(m) return parents[m] end
+      assert.is_true(GC.ForeverScan.IsNeutralMap(1434, up))  -- Stranglethorn Vale: Booty Bay
+      assert.is_true(GC.ForeverScan.IsNeutralMap(1446, up))  -- Tanaris: Gadgetzan
+      assert.is_true(GC.ForeverScan.IsNeutralMap(1452, up))  -- Winterspring: Everlook
+      assert.is_true(GC.ForeverScan.IsNeutralMap(9001, up))  -- a map inside Stranglethorn
+      assert.is_false(GC.ForeverScan.IsNeutralMap(1458, up)) -- Undercity
+      assert.is_false(GC.ForeverScan.IsNeutralMap(1454, up)) -- Orgrimmar
+      assert.is_false(GC.ForeverScan.IsNeutralMap(nil, up))
+      assert.is_false(GC.ForeverScan.IsNeutralMap(1458, nil))
+    end)
+
+    it("scans nothing on open, and says why when SCAN is pressed", function()
+      local s = atBlackwater()
+      rows = dump(50)
+      assert.equal("neutral", s:OnAuctionHouseShow())
+      assert.is_nil(d.replicated)
+      assert.equal("neutral", s:Request("button"))
+      assert.is_nil(d.replicated)
+      assert.is_truthy(noted("neutral"))
+      assert.is_nil(noted("started"))
+      assert.equal("idle", s:State())
+    end)
+
+    it("folds no dump another addon asked for there", function()
+      local s = atBlackwater()
+      s:OnAuctionHouseShow()
+      rows = dump(50)
+      s:OnReplicateUpdate()
+      runAll()
+      assert.equal("idle", s:State())
+      assert.is_nil(store.fold)
+    end)
+
+    it("scans again at the home auction house after it", function()
+      local s = atBlackwater()
+      s:OnAuctionHouseShow()
+      s:OnAuctionHouseClosed()
+      neutralHere = false
+      rows = dump(50)
+      assert.equal("started", s:OnAuctionHouseShow())
+      assert.equal(1, d.replicated)
+    end)
+  end)
+
   it("asks once on open, reads the dump at the first rows and saves the fold with its passport", function()
     local s = GC.ForeverScan.New(driver())
     rows = { { 2589, 20, 1340, true }, { 2589, 5, 350, true }, { 2592, 1, 5000, false } }

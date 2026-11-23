@@ -132,6 +132,8 @@ function W.Texture(parent)
   function t:SetMask(file) s.mask = file end
   function t:SetGradient(orientation, minColor, maxColor) s.gradient = { orientation, minColor, maxColor } end
   function t:SetAlpha(a) s.alpha = a end
+  -- Region:SetDrawLayer(layer [, sublevel]): which layer, and where in it, the texture draws.
+  function t:SetDrawLayer(layer, sublevel) s.drawLayer, s.sublevel = layer, sublevel end
   -- Texture:AddMaskTexture(mask) (SimpleTextureAPIDocumentation.lua): the mask's alpha cuts what
   -- the texture draws.
   function t:AddMaskTexture(mask) s.masks = s.masks or {}; s.masks[#s.masks + 1] = mask end

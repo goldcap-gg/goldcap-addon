@@ -785,7 +785,7 @@ local function build(sniperFrame)
   -- Task S (V2: two rows fewer in Forever, not one -- Post above the cheapest joined
   -- capStopAndOpen, both built below only on retail) -- DISPLAY is anchored off AUTOMATION's own
   -- BOTTOMRIGHT, so a shorter card here reflows it up with no gap.
-  local automation = card(content, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 4 or 6)
+  local automation = card(content, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 6 or 8)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
   automation:SetPoint("LEFT", content, "CENTER", 7, 0)
   columns.right[#columns.right + 1] = automation
@@ -1070,21 +1070,64 @@ local function build(sniperFrame)
   -- The board no longer has a HOT tier -- it rings on SAFE -- so the toggle follows.
   toggleRow(automation, 1, GC.L["Sound on SAFE deal"], "sound",
     GC.L["Play a sound when a checked deal turns SAFE."])
+  -- Which sound, and how loud (UI/DealSound.lua): players asked for a quieter one than the raid's
+  -- ready check (owner, 2026-11-23). Same shape as Language and Skin below: a ghost button showing
+  -- the pick, a radio menu of the game's own sounds; picking one plays it, so the menu is also how
+  -- a player hears them.
+  do
+    local DS = GC.DealSound
+    local soundLabel = Theme.Label(automation, 12)
+    soundLabel:SetPoint("TOPLEFT", Theme.pad.m, automation.rowY(2))
+    soundLabel:SetJustifyH("LEFT")
+    soundLabel:SetText(GC.L["Deal sound"])
+
+    local soundBtn = Theme.Button(automation, "ghost", "plaque")
+    soundBtn:SetSize(120, 26)
+    soundBtn:SetPoint("TOPRIGHT", -Theme.pad.m, automation.rowY(2) + 3)
+    addRow(automation, soundLabel, soundBtn, 120, 3)
+
+    local function displaySound()
+      if DS then soundBtn:SetLabel(DS.Name(DS.Chosen(cfg()))) end
+    end
+    soundBtn:SetScript("OnClick", function(self)
+      local menu = _G.MenuUtil
+      if not (DS and menu and menu.CreateRadioContextMenu) then return end
+      local entries = {}
+      for _, choice in ipairs(DS.CHOICES) do
+        entries[#entries + 1] = { GC.Util.ClientText(DS.Name(choice.id)), choice.id }
+      end
+      menu.CreateRadioContextMenu(self,
+        function(id) return DS.Chosen(cfg()) == id end,
+        function(id)
+          local c = cfg()
+          if c then c.dealSound = id end
+          displaySound()
+          DS.Play(c, id)
+        end,
+        unpack(entries))
+    end)
+    refreshers[#refreshers + 1] = displaySound
+    attachExplanation({ soundLabel, soundBtn }, GC.L["Deal sound"],
+      GC.L["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."],
+      GC.L["Default: %s"]:format(DS and DS.Name(DS.DEFAULT) or ""))
+  end
+  toggleRow(automation, 3, GC.L["Even with sound effects off"], "soundMaster",
+    GC.L["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."], true)
   -- Final fix wave (item 5): the plain "Auto-scan by default" label read as if toggling it
   -- would also start/stop a session already in progress -- it only decides whether Auto is
   -- armed the NEXT time the Auction House is opened; it deliberately does not touch a live
   -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
-  toggleRow(automation, 2, GC.L["Auto-scan on next AH visit"], "auto",
+  toggleRow(automation, 4, GC.L["Auto-scan on next AH visit"], "auto",
     GC.L["Start scanning as soon as the auction house opens."])
   -- settings.sniper.autoOpen (Core/Init.lua, on by default), read when the auction house opens
   -- (UI/SniperFrame.lua's OnAuctionHouseShow). It had no switch: a player who did not want the
   -- window over the auction house could not say so (owner, 2026-11-06). The line under it says
   -- where the window is when it does not open by itself, in plain sight rather than on hover.
-  toggleRow(automation, 3, GC.L["Open GoldCap with the auction house"], "autoOpen",
+  toggleRow(automation, 5, GC.L["Open GoldCap with the auction house"], "autoOpen",
     GC.L["Show the GoldCap window as soon as the auction house opens."])
   do
     local note = Theme.Num(automation, 9)
-    note:SetPoint("TOPLEFT", Theme.pad.m, automation.rowY(4))
+    note:SetPoint("TOPLEFT", Theme.pad.m, automation.rowY(6))
     note:SetJustifyH("LEFT")
     note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     note:SetText(GC.L["Off: open it from the GoldCap tab at the bottom of the auction house, or type /gc sniper."])
@@ -1102,7 +1145,7 @@ local function build(sniperFrame)
   -- Settings shows only what applies -- one row fewer in AUTOMATION & ALERTS above reflows
   -- DISPLAY up with no gap, same as the other three hidden rows.
   if not isForeverClient() then
-    toggleRow(automation, 5, GC.L["Post above the cheapest"], "overcut",
+    toggleRow(automation, 7, GC.L["Post above the cheapest"], "overcut",
       GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
   end
 
@@ -1117,7 +1160,7 @@ local function build(sniperFrame)
   -- `decision.cap` set. GC.ForeverDeals never touches GC.Caps. No Forever code path can ever
   -- act on this key -- one row fewer in AUTOMATION & ALERTS above reflows DISPLAY up with no gap.
   if not isForeverClient() then
-    toggleRow(automation, 6, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
+    toggleRow(automation, 8, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
   end
 

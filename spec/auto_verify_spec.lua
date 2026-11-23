@@ -133,6 +133,7 @@ describe("Deals background verification", function()
     helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/BoardRows.lua", GC)
+    helper.loadModule("UI/DealSound.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local show = GC.Sniper.OnAuctionHouseShow

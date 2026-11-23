@@ -67,8 +67,8 @@ GC.Locales.deDE = {
   ["%d of %d done"] = "%d von %d erledigt",
   ["%d prices in one request · books still loading"] =
     "%d Preise in einer Anfrage · Orderbücher laden noch",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d von der Live-Prüfung abgelehnt. Oben auf \"HIDDEN %d\" klicken, um sie zu sehen",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d von der Live-Prüfung abgelehnt. Oben auf %s klicken, um sie zu sehen",
   ["%d units"] = "%d Stück",
   ["1 unit"] = "1 Stück",
   ["%d units · %d prices"] = "%d Stück · %d Preise",
@@ -439,6 +439,22 @@ GC.Locales.deDE = {
   ["Per-unit price of this auction"] = "Stückpreis dieser Auktion",
   ["Play a sound when a checked deal turns SAFE."] =
     "Einen Ton abspielen, wenn ein geprüfter Deal SAFE wird.",
+  ["Deal sound"] =
+    "Deal-Ton",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "Der Ton, wenn ein Deal SAFE wird oder ein neuer auftaucht. Wähle einen, um ihn zu hören.",
+  ["Even with sound effects off"] =
+    "Auch bei stummen Soundeffekten",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "An: Der Deal-Ton spielt mit der Gesamtlautstärke des Spiels, auch wenn die Soundeffekte stumm sind. Aus: Er folgt der Lautstärke der Soundeffekte.",
+  ["Coins"] =
+    "Münzen",
+  ["Whisper"] =
+    "Flüstern",
+  ["Map ping"] =
+    "Kartensignal",
+  ["Ready check"] =
+    "Bereitschaftscheck",
   ["Position scope changed"] = "Positionsbereich geändert",
   ["Post"] = "Einstellen",
   ["Post above the cheapest"] = "Über dem Günstigsten anbieten",
@@ -2080,4 +2096,55 @@ GC.Locales.deDE = {
   ["STOP WATCHING"] = "NICHT MEHR BEOBACHTEN",
   ["WATCH FOR UNDER %s"] = "UNTER %s BEOBACHTEN",
   ["WATCH THIS ITEM"] = "DIESEN GEGENSTAND BEOBACHTEN",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "%d markiert, je eins",
+  ["Tick all"] = "Alle markieren",
+  ["Untick all"] = "Alle Markierungen aufheben",
+  ["Tick the flips to buy"] = "Markiere, was du kaufen willst",
+  ["%d sold at home in %d days"] =
+    "%d daheim verkauft in %d Tagen",
+  ["ADD %d TO BUY"] =
+    "%d ZU BUY HINZUFÜGEN",
+  ["herbs, ore, potions"] = "Kräuter, Erz, Tränke",
+  ["gear, pets, recipes"] = "Ausrüstung, Haustiere, Rezepte",
+  ["buy there, sell here"] = "dort kaufen, hier verkaufen",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "AUKTIONSHAUS DER SCHWARZMEERRÄUBER · BEUTEBUCHT, GADGETZAN, EWIGE WARTE",
+  ["Blackwater flips"] =
+    "Schwarzmeerräuber-Flips",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "Schwarzmeerräuber: was das neutrale Auktionshaus in Beutebucht, Gadgetzan und Ewige Warte günstiger verkauft als das Auktionshaus deiner Fraktion. Dort kaufen, daheim einstellen.",
+  ["BLACKWATER"] =
+    "SCHWARZMEERRÄUBER",
+  ["HOME"] =
+    "DAHEIM",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "Noch keine Preise der Schwarzmeerräuber. goldcap.gg schickt sie mit dem nächsten Abgleich des Companion.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "Bei den Schwarzmeerräubern ist gerade nichts 1g oder mehr günstiger als daheim.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "Preise von goldcap.gg um %s. BUY prüft jeden noch einmal beim Auktionator der Schwarzmeerräuber.",
+  ["Slow: under one a day sells at home"] =
+    "Langsam: daheim verkauft sich weniger als eins am Tag",
+  ["SLOW"] =
+    "LANGSAM",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "Diese Preise sind %s alt. Der Companion holt neue von goldcap.gg.",
+  ["they cost %s"] =
+    "sie kosten %s",
+  ["They go to BUY as the list %s"] =
+    "Sie kommen als Liste %s in BUY",
+  ["YOU MAKE"] =
+    "DU VERDIENST",
+  ["YOU SPEND"] =
+    "DU GIBST AUS",
+  ["%d cheap"] =
+    "%d günstig",
+  ["%d listed"] =
+    "%d im Angebot",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "nach 5%% Gebühr, wenn du je eins dieser %d bei den Schwarzmeerräubern kaufst und daheim verkaufst",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "Das ist das Auktionshaus der Schwarzmeerräuber, das neutrale. GoldCap scannt es nicht: seine Preise sind nicht die deiner Fraktion.",
 }

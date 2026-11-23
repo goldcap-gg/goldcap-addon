@@ -67,8 +67,8 @@ GC.Locales.frFR = {
   ["%d of %d done"] = "%d sur %d faits",
   ["%d prices in one request · books still loading"] =
     "%d prix en une seule requête · carnets en cours de chargement",
-  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
-    "%d refusées par la vérification en direct. Cliquez sur « HIDDEN %d » au-dessus pour les voir",
+  ["%d refused by live checks. Press %s above to review them"] =
+    "%d refusées par la vérification en direct. Cliquez sur %s au-dessus pour les voir",
   ["%d units"] = "%d unités",
   ["1 unit"] = "1 unité",
   ["%d units · %d prices"] = "%d unités · %d prix",
@@ -438,6 +438,22 @@ GC.Locales.frFR = {
     "Collez la chaîne de votre royaume depuis goldcap.gg et appuyez sur Import.",
   ["Per-unit price of this auction"] = "Prix unitaire de cette enchère",
   ["Play a sound when a checked deal turns SAFE."] = "Jouer un son quand une affaire vérifiée devient SAFE.",
+  ["Deal sound"] =
+    "Son d'une affaire",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "Le son d'une affaire quand elle devient SAFE ou qu'une nouvelle apparaît. Choisissez-en un pour l'entendre.",
+  ["Even with sound effects off"] =
+    "Même sans effets sonores",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "Activé : le son joue au volume général du jeu, même si les effets sonores sont coupés. Désactivé : il suit le volume des effets sonores.",
+  ["Coins"] =
+    "Pièces",
+  ["Whisper"] =
+    "Chuchotement",
+  ["Map ping"] =
+    "Signal sur la carte",
+  ["Ready check"] =
+    "Appel",
   ["Position scope changed"] = "Périmètre de la position modifié",
   ["Post"] = "Vendre",
   ["Post above the cheapest"] = "Poster au-dessus du moins cher",
@@ -2081,4 +2097,55 @@ GC.Locales.frFR = {
   ["STOP WATCHING"] = "NE PLUS SURVEILLER",
   ["WATCH FOR UNDER %s"] = "SURVEILLER SOUS %s",
   ["WATCH THIS ITEM"] = "SURVEILLER CET OBJET",
+  -- WoW: Forever, DEALS' Blackwater board (UI/SniperBlackwater_Camelot.lua).
+  ["%d checked, one of each"] =
+    "%d cochés, un de chaque",
+  ["Tick all"] = "Tout cocher",
+  ["Untick all"] = "Tout décocher",
+  ["Tick the flips to buy"] = "Coche ce que tu veux acheter",
+  ["%d sold at home in %d days"] =
+    "%d vendus chez vous en %d jours",
+  ["ADD %d TO BUY"] =
+    "AJOUTER %d À BUY",
+  ["herbs, ore, potions"] = "herbes, minerai, potions",
+  ["gear, pets, recipes"] = "équipement, mascottes, recettes",
+  ["buy there, sell here"] = "acheter là-bas, vendre ici",
+  ["BLACKWATER AUCTION HOUSE · BOOTY BAY, GADGETZAN, EVERLOOK"] =
+    "HÔTEL DES VENTES DES FLOTS NOIRS · BAIE-DU-BUTIN, GADGETZAN, LONG-GUET",
+  ["Blackwater flips"] =
+    "Reventes des Flots noirs",
+  ["Blackwater: what the neutral auction house in Booty Bay, Gadgetzan and Everlook sells for less than your faction's auction house. Buy there, post at home."] =
+    "Flots noirs : ce que l'hôtel des ventes neutre de Baie-du-Butin, Gadgetzan et Long-guet vend moins cher que celui de votre faction. Achetez là-bas, revendez chez vous.",
+  ["BLACKWATER"] =
+    "FLOTS NOIRS",
+  ["HOME"] =
+    "CHEZ VOUS",
+  ["No Blackwater prices yet. goldcap.gg sends them with the Companion's next sync."] =
+    "Pas encore de prix des Flots noirs. goldcap.gg les envoie à la prochaine synchro du Companion.",
+  ["Nothing at Blackwater is 1g or more cheaper than at home right now."] =
+    "Rien aux Flots noirs n'est moins cher de 1 po ou plus que chez vous pour l'instant.",
+  ["Prices from goldcap.gg at %s. BUY checks each one again at the Blackwater auctioneer."] =
+    "Prix de goldcap.gg à %s. BUY revérifie chacun chez le commissaire-priseur des Flots noirs.",
+  ["Slow: under one a day sells at home"] =
+    "Lent : moins d'un vendu par jour chez vous",
+  ["SLOW"] =
+    "LENT",
+  ["These prices are %s old. The Companion brings new ones from goldcap.gg."] =
+    "Ces prix sont vieux de %s. Le Companion en apporte de nouveaux depuis goldcap.gg.",
+  ["they cost %s"] =
+    "ils coûtent %s",
+  ["They go to BUY as the list %s"] =
+    "Ils vont dans BUY sous la liste %s",
+  ["YOU MAKE"] =
+    "VOUS GAGNEZ",
+  ["YOU SPEND"] =
+    "VOUS DÉPENSEZ",
+  ["%d cheap"] =
+    "%d bon marché",
+  ["%d listed"] =
+    "%d en vente",
+  ["after the 5%% cut, buying one of each of these %d at Blackwater and selling them at home"] =
+    "après la taxe de 5%%, en achetant un de chacun de ces %d aux Flots noirs et en les revendant chez vous",
+  ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
+    "Ici, c'est l'hôtel des ventes des Flots noirs, le neutre. GoldCap ne le scanne pas : ses prix ne sont pas ceux de votre faction.",
 }

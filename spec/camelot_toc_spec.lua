@@ -109,8 +109,12 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     -- asks the auction house after the Deals Check it hands its finds to.
     ["Core/ForeverGearLoop.lua"] = "Core/ForeverDeals.lua",
     ["UI/SniperGearLoop_Camelot.lua"] = "UI/SniperFrame_Camelot.lua",
+    -- DEALS' BLACKWATER board: after the other Forever DEALS file it sits beside.
+    ["UI/SniperBlackwater_Camelot.lua"] = "UI/SniperGearLoop_Camelot.lua",
     -- What gear disenchants into, for the tooltip: with the other Forever value rules.
     ["Core/ForeverDisenchant.lua"] = "Core/ForeverGearLoop.lua",
+    -- Flips through the neutral Blackwater house: with the other Forever value rules.
+    ["Core/ForeverFlips.lua"] = "Core/ForeverDisenchant.lua",
   }
 
   it("loads the same files in the same order, minus the retail-only files, plus its own", function()

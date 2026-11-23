@@ -906,10 +906,13 @@ function GC.SellPositions.Build(args)
       local keyed = args.oneLevelPerItem == true and lot.isCommodity ~= true
         and keyedItem(positionKey)
       if lot.variant or keyed then position.quoteKey = position.quoteKey or positionKey end
-      -- A caged pet's own name is in its battle-pet link; the item is "Pet Cage" for every one,
-      -- and a posted pet with nothing left in the bags read that way on MY LOTS (review N3).
-      if type(lot.itemLink) == "string" and lot.itemLink:find("battlepet:", 1, true) then
-        position.itemName = position.itemName or lot.itemLink:match("|h%[(.-)%]|h")
+      -- A lot's own name, from its link: in the client's language now, and the variant's own (a
+      -- suffix; a caged pet's species, the item being "Pet Cage" for every one, review N3). It goes
+      -- before a purchase record's, which a sale mail may have written in another language
+      -- (owner, 2026-11-23: two listed lots of an English client named in Russian).
+      if type(lot.itemLink) == "string" then
+        local linked = lot.itemLink:match("|h%[(.-)%]|h")
+        if linked and linked ~= "" then position.itemName = position.itemName or linked end
       end
     end
   end
