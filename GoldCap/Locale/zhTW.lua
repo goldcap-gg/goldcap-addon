@@ -104,6 +104,7 @@ GC.Locales.zhTW = {
   ["AH, cheapest version"] = "拍賣場，最便宜版本",
   ["AUTO"] = "自動",
   ["AUTO · SCANNING"] = "自動 · 掃描中",
+  ["AUTO · FULL SCAN"] = "自動 · 完整掃描",
   ["AUTOMATION & ALERTS"] = "自動化與提醒",
   ["AVOID"] = "避開",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

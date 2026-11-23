@@ -100,6 +100,7 @@ GC.Locales.frFR = {
   ["AH, cheapest version"] = "HV, version la moins chère",
   ["AUTO"] = "AUTO",
   ["AUTO · SCANNING"] = "AUTO · SCAN",
+  ["AUTO · FULL SCAN"] = "AUTO · SCAN COMPLET",
   ["AUTOMATION & ALERTS"] = "AUTOMATISATION & ALERTES",
   ["AVOID"] = "ÉVITER",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

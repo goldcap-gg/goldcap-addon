@@ -98,6 +98,7 @@ GC.Locales.ukUA = {
   ["AH, cheapest version"] = "Аукціон, найдешевша версія",
   ["AUTO"] = "АВТО",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
+  ["AUTO · FULL SCAN"] = "АВТО · ПОВНИЙ СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА ТА СПОВІЩЕННЯ",
   ["AVOID"] = "УНИКАТИ",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

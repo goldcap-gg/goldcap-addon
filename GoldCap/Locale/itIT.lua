@@ -101,6 +101,7 @@ GC.Locales.itIT = {
   ["AH, cheapest version"] = "Asta, versione più economica",
   ["AUTO"] = "AUTO",
   ["AUTO · SCANNING"] = "AUTO · SCANSIONE",
+  ["AUTO · FULL SCAN"] = "AUTO · SCANSIONE COMPLETA",
   ["AUTOMATION & ALERTS"] = "AUTOMAZIONE E AVVISI",
   ["AVOID"] = "EVITA",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

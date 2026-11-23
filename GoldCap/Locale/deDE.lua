@@ -100,6 +100,7 @@ GC.Locales.deDE = {
   ["AH, cheapest version"] = "AH, günstigste Version",
   ["AUTO"] = "AUTO",
   ["AUTO · SCANNING"] = "AUTO · SCANNT",
+  ["AUTO · FULL SCAN"] = "AUTO · VOLLSCAN",
   ["AUTOMATION & ALERTS"] = "AUTOMATIK & HINWEISE",
   ["AVOID"] = "MEIDEN",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

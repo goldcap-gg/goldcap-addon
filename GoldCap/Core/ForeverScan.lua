@@ -39,6 +39,11 @@ local C = {
   -- its own REPLICATE_ITEM_LIST_UPDATE), and both reads are saved. A partial replicate read holds
   -- its chat block this long for a fuller read to replace it, so one SCAN prints the block once.
   SAY_GRACE_SECONDS = 20,
+  -- How long after the request the rest of a list handed over in stages is still this scan's: the
+  -- first 1024 or 2048 rows come at once, the rest 52 to 64 seconds after the request (owner's
+  -- journal, 2026-11-23). Till then the full scan is on (FullListOn), and the rest does not stamp
+  -- the throttle again.
+  REST_WAIT_SECONDS = 150,
   BROWSE_WAIT_SECONDS = 180,       -- a wide pass on a busy auction house, behind the arbiter
   -- A cut replicate read merges into the saved fold (below) only while the saved fold is no
   -- older than this: otherwise every item they share would keep the OLD fold's price forever, as
@@ -138,6 +143,14 @@ function GC.ForeverScan.New(driver)
     j[#j + 1] = { driver.now(), step, a, b }
     while #j > C.JOURNAL_KEEP do table.remove(j, 1) end
   end
+
+  -- driver.now() of the request for the full list on its way or being read, from the request until
+  -- a read of it to the end is saved; nil otherwise. The client hands a list over in stages, and a
+  -- cut stage is saved as it stands: the scanner went idle there, SCAN's spyglass stopped turning
+  -- and the board read as a plain browse while the rest of the list, the 298,578 lots that matter,
+  -- was still on its way (owner, 2026-11-23: "I want to see from start to end that a full scan is
+  -- running").
+  local fullSince
 
   local function reset()
     state, acc, total, readIndex = "idle", nil, nil, nil
@@ -385,6 +398,8 @@ function GC.ForeverScan.New(driver)
     end
     saving = nil
     reset()
+    -- A list read to the end ends the full scan; a cut stage leaves it on for the rest (FullListOn).
+    if sv.a.replicated and not sv.a.cut then fullSince = nil end
     local gearOf = save(sv.a, items, count)
     -- A dump stage that came while this saved is read as it would have been had the save taken
     -- no time: as a dump this scanner has not read, if it is one.
@@ -561,6 +576,7 @@ function GC.ForeverScan.New(driver)
 
   local function noAnswer()
     note("no rows")
+    fullSince = nil
     driver.notify("noanswer")
     acc.partial = true
     if not toBrowse("wide") then
@@ -602,7 +618,7 @@ function GC.ForeverScan.New(driver)
     s.requestedAt = now
     note("asked", reason)
     acc = GC.ForeverFold.New()
-    busySince = now
+    busySince, fullSince = now, now
     driver.notify("started")
     if not driver.replicate() then
       noAnswer()
@@ -639,10 +655,15 @@ function GC.ForeverScan.New(driver)
     -- The same dump again: the same row count inside the throttle window, which no new dump can
     -- beat. A different count, or a later event, is a dump this scanner has not read.
     if lastRead and n == lastRead.rows and driver.now() - lastRead.at < C.COOLDOWN_SECONDS then return end
-    local s = driver.store()
-    if s then s.requestedAt = driver.now() end
+    -- The rest of the list this scan asked for, after its first stage was saved: the same request,
+    -- whose stamp and seconds stand. Anything else is a new list, and the throttle starts again.
+    if not self:FullListOn() then
+      local s = driver.store()
+      if s then s.requestedAt = driver.now() end
+      fullSince = driver.now()
+    end
     acc = GC.ForeverFold.New()
-    busySince = driver.now()
+    busySince = fullSince
     beginRead()
   end
 
@@ -674,6 +695,8 @@ function GC.ForeverScan.New(driver)
 
   function obj:OnAuctionHouseClosed()
     ahOpen, neutral = false, false
+    -- Closing drops what the client was still handing over.
+    fullSince = nil
     note("closed", state)
     -- The late-link pass reads the dump this auction house handed over: it ends here, with what it found.
     if late then finishLate(late) end
@@ -711,7 +734,19 @@ function GC.ForeverScan.New(driver)
   function obj:State() return state end
   -- When this scan began (driver.now), from the request to the save; nil while idle. The board
   -- counts its seconds from it (GC.Sniper._ScanLine).
-  function obj:Since() return state ~= "idle" and busySince or nil end
+  function obj:Since()
+    if state ~= "idle" then return busySince end
+    return self:FullListOn() and fullSince or nil
+  end
+  -- Whether a full list is on: asked for and not yet read to the end, the wait for the rest of one
+  -- handed over in stages included. Not a browse in its place (the throttle not spent, no answer).
+  function obj:FullListOn()
+    if not fullSince or not ahOpen then return false end
+    if state == "waiting" or state == "reading" then return true end
+    -- Browsing after a read of the list, or saving it.
+    if state ~= "idle" and acc and acc.replicated then return true end
+    return driver.now() - fullSince < C.REST_WAIT_SECONDS
+  end
   return obj
 end
 
@@ -1229,9 +1264,13 @@ function GC.ForeverScan.OnLogout() local s = scanner(); if s then s:OnLogout() e
 -- partial read's chat block is not a scan the board should count seconds for.
 function GC.ForeverScan.Running()
   local s = scanner()
-  if not s or s:State() == "idle" then return nil end
-  return s:State(), s:Since()
+  if not s then return nil end
+  if s:State() ~= "idle" then return s:State(), s:Since() end
+  -- Between a list's first stage and its rest: the client is waited on again.
+  if s:FullListOn() then return "waiting", s:Since() end
+  return nil
 end
+function GC.ForeverScan.FullListOn() local s = scanner(); return s ~= nil and s:FullListOn() end
 function GC.ForeverScan.IsBusy() local s = scanner(); return s ~= nil and (s:IsBusy() or sayHeld) end
 function GC.ForeverScan.Due() local s = scanner(); return s ~= nil and not sayHeld and s:Due() end
 function GC.ForeverScan.DueIn() local s = scanner(); return s and s:DueIn() or nil end

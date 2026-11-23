@@ -22,6 +22,9 @@
   nothing. AUTO itself now takes a new full list every 15 minutes while the auction house stays
   open, on every board, instead of only when you open it, so DEALS no longer grows stale. The
   SCAN button shows how many minutes are left until the next one, and its tooltip says it too.
+- WoW: Forever: while a full list of the auction house comes in, AUTO reads "AUTO · FULL SCAN" and
+  the SCAN spyglass turns, from the request until the last of the list is read, and only then. The
+  game hands a list over in two parts a minute apart, and both used to go quiet after the first.
 
 ## 0.32.0 (2026-11-23)
 

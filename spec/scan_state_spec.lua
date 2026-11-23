@@ -113,6 +113,23 @@ describe("one scan state for the toolbar", function()
       assert.is_nil(b.count)
     end)
 
+    -- Owner, 2026-11-23: the spyglass stopped once the list's first 1024 rows were saved, and the
+    -- rest of it came in unseen; a browse in the throttle's place turned it like a full list.
+    it("turns for the full list from its request to its last stage, and for nothing else", function()
+      local GC = loadSniper()
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
+      local b = fakeButton(function(t) return #t * 8 end)
+      local full = true
+      GC.ForeverScan.FullListOn = function() return full end
+      refresh({ fullScanBtn = b })                 -- between the stages: the scanner idle
+      assert.equal("SCANNING…", b.labels[#b.labels])
+      assert.equal("active", b.variant)
+      full, foreverBusy = false, true              -- a browse in the throttle's place
+      refresh({ fullScanBtn = b })
+      assert.equal("SCAN", b.labels[#b.labels])
+      assert.equal("ghost", b.variant)
+    end)
+
     it("says the scanner's state: SCANNING while one runs, SCAN when none does", function()
       local GC = loadSniper()
       local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")

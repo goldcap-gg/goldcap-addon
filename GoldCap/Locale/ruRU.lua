@@ -94,6 +94,7 @@ GC.Locales.ruRU = {
   ["AH, cheapest version"] = "Аукцион, самая дешёвая версия",
   ["AUTO"] = "АВТО",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
+  ["AUTO · FULL SCAN"] = "АВТО · ПОЛНЫЙ СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА И ОПОВЕЩЕНИЯ",
   ["AVOID"] = "ИЗБЕГАТЬ",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

@@ -4813,7 +4813,8 @@ end
 local function autoButtonText(state, reasons)
   if state == "PAUSED" then
     local items = itemsBoardHold(reasons)
-    if items then return GC.L[AUTO_PAUSE_LABEL[items][1]], items ~= "items", items == "items" end
+    if items == "items" then return GC.Sniper._AutoAtWork(), false, true end
+    if items then return GC.L[AUTO_PAUSE_LABEL[items][1]], true, false end
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
       if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]], true end
     end
@@ -4822,6 +4823,17 @@ local function autoButtonText(state, reasons)
   local held = (state == "WAITING" or state == "IDLE") and AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
   if held then return GC.L[held[1]], true end
   if state == "OFF" then return GC.L["AUTO"] end
+  return GC.Sniper._AutoAtWork()
+end
+
+-- Auto at work, in the chip's words. WoW: Forever: "AUTO · FULL SCAN" from the request for a full
+-- list until the last of it is read (GC.ForeverScan.FullListOn), "AUTO · SCANNING" for the browsing
+-- in between, while SCAN counts the minutes to the next one. Both read the same, and the full list,
+-- the one that matters, could not be told from a browse (owner, 2026-11-23).
+function GC.Sniper._AutoAtWork()
+  if isForever() and GC.ForeverScan and GC.ForeverScan.FullListOn and GC.ForeverScan.FullListOn() then
+    return GC.L["AUTO · FULL SCAN"]
+  end
   return GC.L["AUTO · SCANNING"]
 end
 
@@ -4991,6 +5003,13 @@ refreshScanButton = function(targetFrame)
   end
   -- ...and for the Items board's look the player is waiting on (GC.Sniper._ItemsChecking).
   if not busy and GC.Sniper._ItemsChecking() then busy = true end
+  -- WoW: Forever: the spyglass turns for the full list and for nothing else, from the request to
+  -- its last stage read, the wait for that stage included (GC.ForeverScan.FullListOn): it stopped
+  -- when the first 1024 rows were saved, and the rest of the list came in unseen (owner,
+  -- 2026-11-23). A browse in the throttle's place has the minutes on the spyglass instead.
+  if isForever() and GC.ForeverScan and GC.ForeverScan.FullListOn then
+    busy = GC.ForeverScan.FullListOn()
+  end
   sizeScanButton(f.fullScanBtn)
   -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
@@ -12847,7 +12866,7 @@ local function createFrame()
     GameTooltip:AddLine(GC.Util.ClientText(scanHelp), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
     -- WoW: Forever: when the next full list comes, the number on the spyglass in words.
     local wait = isForever() and GC.ForeverScan and GC.ForeverScan.DueIn and not GC.ForeverScan.IsBusy()
-      and GC.ForeverScan.DueIn() or nil
+      and not (GC.ForeverScan.FullListOn and GC.ForeverScan.FullListOn()) and GC.ForeverScan.DueIn() or nil
     if wait then
       local soft = GC.Kit.Tokens.blizzard.tipSoft
       GameTooltip:AddLine(" ")

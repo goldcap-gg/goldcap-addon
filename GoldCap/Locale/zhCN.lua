@@ -103,6 +103,7 @@ GC.Locales.zhCN = {
   ["AH, cheapest version"] = "拍卖行，最便宜版本",
   ["AUTO"] = "自动",
   ["AUTO · SCANNING"] = "自动 · 扫描中",
+  ["AUTO · FULL SCAN"] = "自动 · 完整扫描",
   ["AUTOMATION & ALERTS"] = "自动化与提醒",
   ["AVOID"] = "避开",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

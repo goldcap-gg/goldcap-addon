@@ -102,6 +102,7 @@ GC.Locales.koKR = {
   ["AH, cheapest version"] = "경매장, 최저가 버전",
   ["AUTO"] = "자동",
   ["AUTO · SCANNING"] = "자동 · 검색 중",
+  ["AUTO · FULL SCAN"] = "자동 · 전체 검색",
   ["AUTOMATION & ALERTS"] = "자동화 및 알림",
   ["AVOID"] = "회피",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

@@ -104,6 +104,7 @@ GC.Locales.esMX = {
   ["AH, cheapest version"] = "Subasta, versión más barata",
   ["AUTO"] = "AUTO",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
+  ["AUTO · FULL SCAN"] = "AUTO · ESCANEO COMPLETO",
   ["AUTOMATION & ALERTS"] = "AUTOMATIZACIÓN Y AVISOS",
   ["AVOID"] = "EVITAR",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

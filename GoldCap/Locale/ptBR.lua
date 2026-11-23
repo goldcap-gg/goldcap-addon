@@ -101,6 +101,7 @@ GC.Locales.ptBR = {
   ["AH, cheapest version"] = "Leilão, versão mais barata",
   ["AUTO"] = "AUTO",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
+  ["AUTO · FULL SCAN"] = "AUTO · VARREDURA COMPLETA",
   ["AUTOMATION & ALERTS"] = "AUTOMAÇÃO E ALERTAS",
   ["AVOID"] = "EVITAR",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =

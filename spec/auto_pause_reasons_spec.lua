@@ -94,6 +94,22 @@ describe("Auto says why it is not scanning", function()
       assert.same({}, asked)
     end)
 
+    -- Owner, 2026-11-23: "I cannot tell it is not a plain scan but the full one, which matters".
+    it("puts FULL SCAN on the chip while the full list is on, on the Items board too", function()
+      local own, _, _, autoButtonText = loadSniper()
+      local full = true
+      own.Game = GC.Game
+      own.ForeverScan = { FullListOn = function() return full end }
+      assert.equal("AUTO · FULL SCAN", autoButtonText("SCANNING", {}))
+      local text, held, working = autoButtonText("PAUSED", { items = true })
+      assert.equal("AUTO · FULL SCAN", text)
+      assert.is_false(held)
+      assert.is_true(working)
+      full = false
+      assert.equal("AUTO · SCANNING", autoButtonText("SCANNING", {}))
+      assert.equal("AUTO · PAUSED: MAILBOX OPEN", autoButtonText("PAUSED", { mail = true }))
+    end)
+
     it("is not asked for on retail", function()
       GC.Game.IsForever = function() return false end
       feedAuto("toggleOn")
