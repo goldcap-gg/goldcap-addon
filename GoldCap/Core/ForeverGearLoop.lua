@@ -192,9 +192,11 @@ end
 
 --- The save's journal of the loop (GoldCapDB.foreverGearLoop, made by the first round, only on
 --- Forever): the last rounds and the last lots found, for reading how the loop does in the game.
----   { v = 1, rounds = { "at seconds rows pages under unknown market" },
+---   { v = 1, rounds = { "at seconds rows pages under unknown market unread" },
 ---     hits = { "at key unit vVendor|mMedian checkedAfter [=outcome ...]" } }
---- A round line before 0.33.0 has no `market`; a find's outcomes (NoteOutcome) follow it.
+--- `unread`: keys cheap enough for their dearest version whose own version the client did not say
+--- (no sample link yet), so a round with no market find can be told from one that could not look.
+--- A round line before 0.33.0 has neither; a find's outcomes (NoteOutcome) follow it.
 function L.Journal(root, create)
   if type(root) ~= "table" then return nil end
   local j = root.foreverGearLoop
@@ -215,8 +217,8 @@ function L.NoteRound(root, at, figures)
   local j = L.Journal(root, true)
   if not j or type(figures) ~= "table" then return end
   keep(j.rounds, ("%d %.1f %d %d %d %d"):format(at, figures.seconds or 0, figures.rows or 0,
-    figures.pages or 0, figures.underCount or 0, figures.unknown or 0) .. (" %d"):format(figures.marketCount or 0),
-    L.C.KEEP_ROUNDS)
+    figures.pages or 0, figures.underCount or 0, figures.unknown or 0)
+    .. (" %d %d"):format(figures.marketCount or 0, figures.unread or 0), L.C.KEEP_ROUNDS)
 end
 
 -- `ref`: what a vendor pays, or for kind "market" the version's median sale.

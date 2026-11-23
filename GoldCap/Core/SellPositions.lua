@@ -624,8 +624,20 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
     trendPct = marketStats and marketStats.trend, reachUnit = reachUnit or tapeReach, quarterUnit = quarterUnit,
     isCommodity = commodity }
+  -- A suffixed piece of WoW: Forever gear (ClickUp 1an60dzy9nt) has no market value as a variant,
+  -- and with no other lot of it up nothing priced its post at all. With its own version's tape it
+  -- falls back to the exit its buy on the Deals board was planned at: 90% of that version's median
+  -- (GC.ForeverItemMarket.C.EXIT_SHARE). Above, the tape already caps the climb over lots that are up.
+  local fallbackValue = position.marketValue
+  local IM = GC.ForeverItemMarket
+  if fallbackValue == nil and position.variantKind and IM and type(tape) == "table"
+      and type(tape.hours) == "number" and tape.hours >= GC.SellPositions.TAPE_OVERCUT_HOURS
+      and type(tape.sales) == "number" and tape.sales >= GC.SellPositions.TAPE_OVERCUT_SALES
+      and positive(tape.median) then
+    fallbackValue = math.floor(tape.median * IM.C.EXIT_SHARE)
+  end
   if positive(position.bagQty) then
-    position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue, postOpts)
+    position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, fallbackValue, postOpts)
   else
     position.postRecommendation = nil
   end

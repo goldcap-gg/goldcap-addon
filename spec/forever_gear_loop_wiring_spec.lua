@@ -373,6 +373,17 @@ describe("Forever gear loop wiring", function()
       assert.equal(14299, key.itemSuffix)
     end)
 
+    it("counts a cheap key whose version the client did not say, and never measures a suffix against S", function()
+      GC.Data.ForeverSales = function() return { units = 70, sales = 70, median = 9000, perDay = 10, hours = 168 } end
+      turn(); turn()                                                                    -- the Check, then the next page
+      answer({ row(15210, 16, 14302, 1000, 1), row(15211, 16, 14310, 100, 1) }, true)  -- weapons read whole
+      advance(0.75)
+      answer({}, true, true)                                                            -- armor: the round ends
+      assert.equal(1, S._gear.unread)
+      assert.matches(" 1 1$", GC.db.foreverGearLoop.rounds[1])                         -- one find, one unread
+      assert.is_nil(GC.ForeverDeals.LiveRow(15211))
+    end)
+
     it("writes the find and what its Check made of it into the journal", function()
       assert.is_true(turn())
       assert.equal(15210, checked[1].itemID)

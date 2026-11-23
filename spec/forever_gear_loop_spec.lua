@@ -211,7 +211,7 @@ describe("ForeverGearLoop", function()
         L.NoteRound(root, 1000 + i, { seconds = 19.25, rows = 13963, pages = 29, underCount = 2, unknown = 40 })
       end
       assert.equal(L.C.KEEP_ROUNDS, #root.foreverGearLoop.rounds)
-      assert.equal(("%d 19.2 13963 29 2 40 0"):format(1000 + L.C.KEEP_ROUNDS + 3),
+      assert.equal(("%d 19.2 13963 29 2 40 0 0"):format(1000 + L.C.KEEP_ROUNDS + 3),
         root.foreverGearLoop.rounds[L.C.KEEP_ROUNDS])
       L.NoteHit(root, 2000, "3021/20/0", 2200, 2426, 0.75)
       assert.equal("2000 3021/20/0 2200 v2426 0.8", root.foreverGearLoop.hits[1])

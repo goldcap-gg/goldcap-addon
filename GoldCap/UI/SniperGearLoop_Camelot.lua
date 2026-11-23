@@ -43,10 +43,13 @@ end
 -- GC.ForeverItemMarket's gear rule). It is screened against the dearest version's median first,
 -- so the version -- the key's sample link, which the client answers right after the browse (HERO
 -- probe P3, GC.Buy._VersionOfKey) -- is read only for a key that could be a deal at all. Gear the
--- site lists no versions of is measured against the item's own figure (S), and only once the
--- payload tells versions apart at all: before V, S's figure may be every version together.
+-- site lists no versions of is measured against the item's own figure (S) when the key has no
+-- suffix, and only once the payload tells versions apart at all: before V, S's figure may be every
+-- version together. A key whose version the client did not say is counted (G.unread, the round's
+-- journal line).
 -- `refs` keeps a round's answers per item and version: a class holds many keys of one item.
 local refs = {}
+G.unread = 0
 local function marketFor(itemID, key, unit)
   local IM, D = GC.ForeverItemMarket, GC.Data
   if not (IM and D and D.ForeverVersionsKnown and D.ForeverVersionsKnown()) then return nil end
@@ -57,7 +60,13 @@ local function marketFor(itemID, key, unit)
     if unit > math.floor(math.min(top, rule.maxRef - 1) * rule.share) then return nil end
     version = GC.Buy and GC.Buy._VersionOfKey and GC.Buy._VersionOfKey(itemID,
       { itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0, species = key.battlePetSpeciesID or 0 })
-    if not version then return nil end
+    if not version then
+      G.unread = G.unread + 1
+      return nil
+    end
+  elseif (key.itemSuffix or 0) ~= 0 then
+    -- A suffixed key of an item the site lists no version of: S's figure is another version's.
+    return nil
   end
   local slot = itemID .. ":" .. (version or "")
   local ref = refs[slot]
@@ -190,6 +199,7 @@ local function endRound()
     nameFrom(itemID, keys)
   end
   local gone = GC.ForeverDeals.LiveKeep(seen)
+  figures.unread = G.unread
   Loop.NoteRound(GC.db, time(), figures)
   trace(("gear: round %.1f s, %d rows, %d under vendor, %d under market, %d unknown, %d gone"):format(figures.seconds,
     figures.rows, figures.underCount, figures.marketCount or 0, figures.unknown, gone))
@@ -249,6 +259,7 @@ function G.Abort(why)
   G.active, G.sent, G.outAt, G.stopping = nil, false, nil, false
   if pass then pass:Abort() end
   rounds:AbortRound()
+  refs = {}
   G.classAt = 1
   G.nextAt = GetTime() + LIM.REST_SECONDS
   trace("gear: round given up (" .. tostring(why) .. ")")
@@ -371,6 +382,7 @@ function G.Tick()
     if now < G.nextAt then return end
     if not rounds:InRound() then
       rounds:BeginRound(now)
+      G.unread = 0
       G.classAt = 1
     end
     G.active, G.sent, G.outAt, G.stopping = G.passes[G.classAt], false, nil, false
