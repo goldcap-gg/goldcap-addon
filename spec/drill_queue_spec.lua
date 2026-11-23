@@ -540,4 +540,39 @@ describe("DrillQueue", function()
       assert.equal(1, q:Pop().itemID)
     end)
   end)
+  describe("sales speed", function()
+    it("weighs an item by how fast it sells, neutral without facts, by the table", function()
+      local cases = {
+        -- soldPerDay, hot -> weight
+        { nil, false, 1 }, { 0 / 0, false, 1 }, { 0, false, 0.5 }, { 12.5, false, 0.5 },
+        { 50, false, 1 }, { 200, false, 2 }, { 5000, false, 2 }, { nil, true, 2 }, { 0, true, 2 },
+      }
+      for i, c in ipairs(cases) do
+        assert.equal(c[3], GC.DrillQueue.Speed(c[1], c[2]), "case " .. i)
+      end
+      assert.is_true(GC.DrillQueue.Fast(50))
+      assert.is_false(GC.DrillQueue.Fast(49))
+      assert.is_false(GC.DrillQueue.Fast(nil))
+    end)
+
+    it("drills the faster seller first at the same profit, and never puts an item last for having no facts", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 10, estProfit = 100, speed = GC.DrillQueue.Speed(10) })
+      q:Push({ itemID = 2, floor = 10, estProfit = 100, speed = GC.DrillQueue.Speed(nil) })
+      q:Push({ itemID = 3, floor = 10, estProfit = 100, speed = GC.DrillQueue.Speed(400) })
+      assert.equal(3, q:Pop().itemID)
+      assert.equal(2, q:Pop().itemID)
+      assert.equal(1, q:Pop().itemID)
+    end)
+
+    it("keeps a hit's speed when it is handed back", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 10, estProfit = 100, speed = 2 })
+      local hit = q:Pop()
+      assert.equal(2, hit.speed)
+      q:Push(hit)
+      q:Push({ itemID = 2, floor = 10, estProfit = 150 })
+      assert.equal(1, q:Peek().itemID)
+    end)
+  end)
 end)

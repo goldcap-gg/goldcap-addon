@@ -62,6 +62,7 @@ describe("Caps polling", function()
     helper.loadModule("Core/Trigger.lua", GC)
     helper.loadModule("Core/FullScan.lua", GC)
     helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/HotSet.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("Core/WatchSet.lua", GC)
@@ -902,9 +903,25 @@ describe("Caps polling", function()
         assert.equal(1, #keysSent)
       end)
 
+      it("asks about a fast cap and a cap just found cheap every round, and the rest every third", function()
+        local GC = loadSniper()
+        openAH(GC)
+        values[41] = { sold = 100 }
+        adoptCaps(GC, { { i = 41, c = 100 }, { i = 42, c = 100 }, { i = 43, c = 100 } })
+        for r = 1, 5 do
+          assert.is_true(GC.Sniper._TrySendCapBatch())
+          answer(GC, r == 1 and { browseRow(43, 90) } or {})
+          GC.Sniper._drillQueue:Clear()
+          now = now + 5
+        end
+        assert.same({ { 41, 42, 43 }, { 41, 42, 43 }, { 41, 43 }, { 41, 43 }, { 41, 42, 43 } }, keysSent)
+      end)
+
       it("rests between two rounds", function()
         local GC = loadSniper()
         openAH(GC)
+        -- A fast seller, so it is in every round (a slow one sits out two rounds in three).
+        values[42] = { sold = 100 }
         adoptCaps(GC, { { i = 42, c = 100 } })
         assert.is_true(GC.Sniper._TrySendCapBatch())
         answer(GC, {})
@@ -932,6 +949,8 @@ describe("Caps polling", function()
       it("rests between rounds after a last batch the client dropped", function()
         local GC = loadSniper()
         openAH(GC)
+        -- A fast seller, so it is in every round (a slow one sits out two rounds in three).
+        values[42] = { sold = 100 }
         adoptCaps(GC, { { i = 42, c = 100 } })
         assert.is_true(GC.Sniper._TrySendCapBatch())
         GC.Sniper.OnThrottledMessageDropped()

@@ -506,6 +506,79 @@ describe("KeyPoll", function()
     end)
   end)
 
+  describe("rounds by speed", function()
+    -- A poll whose driver says how often (periods: itemID -> rounds) and what leads (leads: set).
+    local function tieredPoll(periods, leads, opts)
+      local driver = fakeDriver()
+      driver.periodFor = function(itemID) return periods[itemID] or 1 end
+      driver.leads = function(itemID) return leads[itemID] == true end
+      return GC.KeyPoll.New(driver, opts)
+    end
+
+    -- Every round of `rounds`, as the list of ids it asked about, in order.
+    local function rounds(poll, n)
+      local out = {}
+      for r = 1, n do
+        local asked = {}
+        while poll:HasPending() do
+          for _, id in ipairs(poll:NextBatch()) do asked[#asked + 1] = id end
+        end
+        out[r] = asked
+        poll:BeginCycle()
+      end
+      return out
+    end
+
+    it("asks about every target in the first round, then as often as its period says, by the table", function()
+      local periods = { [1] = 1, [2] = 3, [3] = 3, [4] = 3, [5] = 2 }
+      local poll = tieredPoll(periods, {}, { maxBatch = 2 })
+      poll:SetTargets({ 1, 2, 3, 4, 5 })
+      local all = rounds(poll, 7)
+      assert.equal(5, #all[1])
+      local seen = {}
+      for r = 2, 7 do
+        for _, id in ipairs(all[r]) do seen[id] = (seen[id] or 0) + 1 end
+      end
+      local cases = { { 1, 6 }, { 2, 2 }, { 3, 2 }, { 4, 2 }, { 5, 3 } }
+      for _, c in ipairs(cases) do assert.equal(c[2], seen[c[1]], "item " .. c[1]) end
+    end)
+
+    it("spreads the slow targets over the rounds, so no round holds them all", function()
+      local periods = { [1] = 3, [2] = 3, [3] = 3 }
+      local poll = tieredPoll(periods, {}, { maxBatch = 10 })
+      poll:SetTargets({ 1, 2, 3 })
+      local all = rounds(poll, 4)
+      assert.equal(3, #all[1])
+      for r = 2, 4 do assert.equal(1, #all[r]) end
+    end)
+
+    it("puts a leading target first in every round, whatever its period", function()
+      local leads = { [9] = true }
+      local poll = tieredPoll({ [9] = 3 }, leads, { maxBatch = 2 })
+      poll:SetTargets({ 1, 2, 9 })
+      for _, asked in ipairs(rounds(poll, 3)) do
+        assert.equal(9, asked[1])
+        assert.equal(3, #asked)
+      end
+    end)
+
+    it("reads the driver when a round is built, not before", function()
+      local periods = { [1] = 3, [2] = 3, [3] = 3 }
+      local poll = tieredPoll(periods, {}, { maxBatch = 10 })
+      poll:SetTargets({ 1, 2, 3 })
+      rounds(poll, 1)
+      periods[1], periods[2], periods[3] = 1, 1, 1
+      assert.same({ 1, 2, 3 }, poll:NextBatch())
+    end)
+
+    it("knows which items it polls", function()
+      local poll = newPoll()
+      poll:SetTargets({ 4, 2 })
+      assert.is_true(poll:Polls(4))
+      assert.is_false(poll:Polls(3))
+    end)
+  end)
+
   it("forgets the book on reset but keeps the targets", function()
     local poll = newPoll({ maxBatch = 2 })
     triggers[7] = 1000

@@ -292,6 +292,13 @@ LIM.KEYS_CYCLE_BREATHER_SECONDS = 5
 LIM.CAPS_BATCH_GAP_SECONDS = 2
 -- And between two full rounds over the caps it rests longer, as the Items board's own loop does.
 LIM.CAPS_ROUND_BREATHER_SECONDS = 5
+-- Rounds by speed (the caps' poll): a cap that sells fast (GC.DrillQueue.Fast), was found under
+-- its price in the last CHEAP_CAP_SECONDS, or is hot (HOT_SECONDS after a live Check found a deal
+-- on it) is asked about every round; the rest every CAP_SLOW_PERIOD-th. Measured in 0.33.0 a
+-- round of 407 caps took about 40 s, so a fast cap waited that long to be read again.
+LIM.CAP_SLOW_PERIOD = 3
+LIM.CHEAP_CAP_SECONDS = 300
+LIM.HOT_SECONDS = 600
 -- Caps fixes 4a, round 2: the longest a player's Check waits for an unanswered keys batch before
 -- it goes anyway (issueRequerySearch). Sent on top of one, it comes back empty -- "listing gone".
 -- Final review S2: a batch of a hundred routinely answers after more than eight seconds (see
@@ -3807,6 +3814,7 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   if GC.Caps then
     local hits = GC.Caps.BookHits(GC.Sniper._bookPass:Book(), GC.Sniper._IsCommodityId)
     for _, hit in ipairs(hits) do
+      if GC.Sniper._cheapCaps then GC.Sniper._cheapCaps:Mark(hit.itemID) end
       GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
         estProfit = hit.estProfit, priority = 1, cap = true })
     end
@@ -4129,7 +4137,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
       GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
     if deal then estProfit = deal.estProfit end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
-      confidence = GC.DrillQueue.Confidence(value) })
+      confidence = GC.DrillQueue.Confidence(value), speed = GC.DrillQueue.Speed(value and value.sold) })
   end,
   -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping), just
   -- triggered from BookPass's own tail instead of from a raw browse event handler. No page count
@@ -4516,8 +4524,20 @@ end
 -- through the same arbiter, the same one-batch interlock and the same throttle claim as every
 -- other keys batch (GC.Sniper._TrySendCapBatch). A hit goes to the drill queue as the player's
 -- own price, first in line; the drill that follows is the one that decides, exactly as before.
+-- The caps just found under their price, and the items a live Check just found a buyable deal on
+-- (Core/HotSet.lua; absent in specs that load this file without it).
+GC.Sniper._cheapCaps = GC.HotSet and GC.HotSet.New(time, LIM.CHEAP_CAP_SECONDS)
+GC.Sniper._hot = GC.HotSet and GC.HotSet.New(time, LIM.HOT_SECONDS)
+function GC.Sniper._In(set, itemID) return set ~= nil and set:Has(itemID) end
+
 GC.Sniper._capPoll = GC.KeyPoll.New({
   now = time,
+  -- Rounds by speed (LIM.CAP_SLOW_PERIOD above).
+  periodFor = function(itemID)
+    local value = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID)
+    local every = GC.DrillQueue.Fast(value and value.sold) or GC.Sniper._In(GC.Sniper._cheapCaps, itemID)
+    return every and 1 or LIM.CAP_SLOW_PERIOD
+  end,
   -- At or under the cap: Core/KeyPoll.lua fires on floor < trigger, and TriggerFor is cap + 1.
   triggerFor = function(itemID) return GC.Caps and GC.Caps.TriggerFor(itemID) or nil end,
   -- Caps fixes 4c: at the cap's own item level. The poll then judges -- and ratchets -- the
@@ -4530,6 +4550,7 @@ GC.Sniper._capPoll = GC.KeyPoll.New({
   onHit = function(hit)
     local cap = GC.Caps and GC.Caps.For(hit.itemID)
     if not (cap and hit.floor <= cap.c) then return end
+    if GC.Sniper._cheapCaps then GC.Sniper._cheapCaps:Mark(hit.itemID) end
     -- The player's own price: verified first in line (Core/DrillQueue.lua's priority), the saving
     -- under the cap is the profit estimate that orders the caps among themselves.
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
