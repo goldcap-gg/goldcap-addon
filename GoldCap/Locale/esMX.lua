@@ -2165,4 +2165,5 @@ GC.Locales.esMX = {
   ["Uncommon"] = "Poco común",
   ["Rare"] = "Raro",
   ["Epic"] = "Épico",
+  ["You already hold %d"] = "Ya tienes %d",
 }

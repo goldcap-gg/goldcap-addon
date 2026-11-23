@@ -106,6 +106,7 @@ Core/AppRuns.lua
 Core/Caps.lua
 Core/GroupRules.lua
 Core/SellRounds.lua
+Core/Holdings.lua
 Core/BankGroups.lua
 Core/Alts.lua
 Core/MailGroups.lua

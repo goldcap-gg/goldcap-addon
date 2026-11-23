@@ -2225,4 +2225,5 @@ GC.Locales.ruRU = {
   ["Uncommon"] = "Необычное",
   ["Rare"] = "Редкое",
   ["Epic"] = "Эпическое",
+  ["You already hold %d"] = "У вас уже есть: %d",
 }

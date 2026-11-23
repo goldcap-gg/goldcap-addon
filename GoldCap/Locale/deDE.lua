@@ -2164,4 +2164,5 @@ GC.Locales.deDE = {
   ["Uncommon"] = "Selten",
   ["Rare"] = "Rar",
   ["Epic"] = "Episch",
+  ["You already hold %d"] = "Du hast schon %d",
 }

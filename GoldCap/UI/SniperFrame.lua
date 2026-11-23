@@ -2977,6 +2977,10 @@ function GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
   if type(levels) ~= "table" then
     return { status = "WATCH", buyable = false, reasons = { "live_verification_required" } }
   end
+  -- What the account holds already fills the units its sales allow (GC.ForeverDeals.CeilingFor).
+  if type(ceiling.maxUnits) == "number" and ceiling.maxUnits <= 0 then
+    return { status = "AVOID", buyable = false, reasons = { "demand_limit" } }
+  end
   local settings = GC.db.settings.sniper
   -- A row measured against what sold takes no more units than its sales allow
   -- (GC.ForeverDeals.CeilingFor's maxUnits, ClickUp 869fpab6a): the per-buy limit's units, lowered.
@@ -3064,6 +3068,8 @@ local function evaluateLive(itemID, levels, fixedQuantity, quotedTotal)
     walletCopper = GetMoney(),
     depositForQuantity = function(quantity) return depositFor(itemID, quantity) end,
     config = GC.db.settings.sniper,
+    -- What the account already holds comes off the units the buy may take (Core/Holdings.lua).
+    held = GC.Holdings and GC.Holdings.Of(itemID) or nil,
   })
 end
 
@@ -4112,13 +4118,14 @@ GC.Sniper._bookPass = GC.BookPass.New({
       { { itemKey = { itemID = hit.itemID }, minPrice = hit.floor, totalQuantity = hit.qty } },
       GC.Data.GetItemValue, GC.db.settings.sniper)
     local row, estProfit = hitRows[1], 0
-    if row then
-      local deal = GC.DealMath.Evaluate(
-        { itemID = row.itemID, isCommodity = false,
-          unitPrice = math.floor(row.buyoutStack / row.count), qty = row.count, avail = row.avail },
-        GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
-      if deal then estProfit = deal.estProfit end
-    end
+    -- No row: what the account holds already fills its limit (GC.FullScan.RowsFromBrowse), so the
+    -- board has no room for it and a drill would only be refused.
+    if not row then return end
+    local deal = GC.DealMath.Evaluate(
+      { itemID = row.itemID, isCommodity = false,
+        unitPrice = math.floor(row.buyoutStack / row.count), qty = row.count, avail = row.avail },
+      GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
+    if deal then estProfit = deal.estProfit end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
       confidence = GC.DrillQueue.Confidence(value) })
   end,
@@ -4415,6 +4422,7 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
         deal.reason = "realm_item_unverified"
         deal.action = "Check"
         deal.buyable = false
+        deal.held = row.held
         fresh[#fresh + 1] = deal
         qualified[row.itemID] = true
       end
@@ -6889,6 +6897,10 @@ function GC.Sniper._CardModel(deal, verdict, pinned)
     note(GC.SniperDecision.ReasonText("realm_no_reference"), B.text3)
   end
   for _, detail in ipairs(GC.Sniper._RowDetails(deal)) do note(detail.text, detail.color) end
+  -- The buy limit counts what the account holds (Core/Holdings.lua): one line where that lowered it.
+  if type(deal.held) == "number" and deal.held > 0 then
+    note(GC.L["You already hold %d"]:format(deal.held), B.text3)
+  end
   if deal.pinPlaceholder then
     note(GC.L["Watching: pinned, but not a deal right now"], B.text3)
     note(GC.Sniper._WatchNote(deal), B.text3)

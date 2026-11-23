@@ -2154,4 +2154,5 @@ GC.Locales.ptBR = {
   ["Uncommon"] = "Incomum",
   ["Rare"] = "Raro",
   ["Epic"] = "Épico",
+  ["You already hold %d"] = "Você já tem %d",
 }

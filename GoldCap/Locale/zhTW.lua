@@ -2045,4 +2045,5 @@ GC.Locales.zhTW = {
   ["Uncommon"] = "優秀",
   ["Rare"] = "精良",
   ["Epic"] = "史詩",
+  ["You already hold %d"] = "你已持有 %d 個",
 }

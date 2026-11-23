@@ -105,6 +105,7 @@ local function evaluateFrom(rows, first, getValue, cfg)
         deal.reason = "live_verification_required"
         deal.action = "Check"
         deal.buyable = false
+        deal.held = row.held -- the tooltip card says how many are held when that lowered the row
         local existing = bestByItem[deal.itemID]
         if not existing or deal.profit > existing.profit then
           bestByItem[deal.itemID] = deal
@@ -263,8 +264,13 @@ end
 -- used to. RowsFromBrowse converts that aggregate shape into the same
 -- { itemID, count, buyoutStack } rows Evaluate already consumes, so both scan sources feed
 -- one evaluation path unchanged.
+--
+-- What the account already holds of an item (GC.Holdings) comes off the demand cap: the row offers
+-- only what is left of it, carries `held` where that lowered it, and is no row at all once the
+-- holdings fill it. Read only for an item the cap answers for, through one reader for the call.
 function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
   local rows = {}
+  local heldOf
   for _, result in ipairs(results) do
     local itemKey = result.itemKey
     local itemID = itemKey and itemKey.itemID
@@ -294,11 +300,20 @@ function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
       -- auction always was. The ceiling on all of it is DemandCap's own -- the player's
       -- "max units per buy", itself bounded by SniperDecision.MAX_QUANTITY_CEILING -- where a
       -- second, hardcoded 200 here used to pin the board under a ceiling the player had raised.
-      local estQty = 1
+      local estQty, held, full = 1, nil, false
       if GC.SniperDecision and GC.SniperDecision.DemandCap and cfg then
         local market = GC.SniperDecision.MarketFromValue(value)
         market.currentQty = market.currentQty or result.totalQuantity
         local cap = GC.SniperDecision.DemandCap(market, cfg, 0)
+        if cap and cap > 0 and GC.Holdings then
+          heldOf = heldOf or GC.Holdings.Reader()
+          local have = heldOf(itemID)
+          if have > 0 then
+            held = have
+            cap = GC.SniperDecision.DemandCap(market, cfg, 0, have)
+            full = cap <= 0
+          end
+        end
         if cap and cap > 0 then estQty = cap end
       end
       estQty = math.min(estQty, result.totalQuantity or 1)
@@ -310,7 +325,10 @@ function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
       -- "x200 of 1646" instead. nil-safe: a browse result with no totalQuantity at all (should
       -- not happen given the itemID/minPrice guard above, but the field is not contractually
       -- required) simply carries no avail, same as an item auction always has.
-      rows[#rows + 1] = { itemID = itemID, count = estQty, buyoutStack = minPrice * estQty, avail = result.totalQuantity }
+      if not full then
+        rows[#rows + 1] = { itemID = itemID, count = estQty, buyoutStack = minPrice * estQty,
+          avail = result.totalQuantity, held = held }
+      end
     end
   end
   return rows

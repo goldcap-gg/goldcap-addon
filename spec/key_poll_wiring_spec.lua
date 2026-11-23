@@ -749,6 +749,23 @@ describe("Key poll wiring", function()
           assert.truthy(text:find("Sell on Kazzak for " .. GC.Util.FormatMoney(2200 * G), 1, true))
           assert.truthy(text:find("Sold 6 times in 7 days on 3 realms", 1, true))
         end)
+
+        -- The buy limit counts what the account holds (Core/Holdings.lua): one line where that
+        -- lowered the row, none where it did not.
+        it("says how many are held when that lowered the row's limit", function()
+          local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
+          helper.loadModule("Core/BoardRows.lua", GC)
+          helper.loadModule("Core/DealCard.lua", GC)
+          local function noteTexts(d)
+            local out = {}
+            for _, n in ipairs(GC.Sniper._CardModel(d, nil, false).notes) do out[#out + 1] = n.text end
+            return table.concat(out, "\n")
+          end
+          local held = deal(10)
+          held.held = 6
+          assert.truthy(noteTexts(held):find("You already hold 6", 1, true))
+          assert.falsy(noteTexts(deal(10)):find("You already hold", 1, true))
+        end)
       end)
 
       -- The item cell, as GC.Sniper._FitRowName writes it: the line under the name goes when the

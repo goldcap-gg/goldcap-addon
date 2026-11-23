@@ -2044,4 +2044,5 @@ GC.Locales.zhCN = {
   ["Uncommon"] = "优秀",
   ["Rare"] = "精良",
   ["Epic"] = "史诗",
+  ["You already hold %d"] = "你已持有 %d 个",
 }

@@ -2145,4 +2145,5 @@ GC.Locales.enUS = {
   ["Uncommon"] = "Uncommon",
   ["Rare"] = "Rare",
   ["Epic"] = "Epic",
+  ["You already hold %d"] = "You already hold %d",
 }

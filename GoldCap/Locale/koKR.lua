@@ -2083,4 +2083,5 @@ GC.Locales.koKR = {
   ["Uncommon"] = "고급",
   ["Rare"] = "희귀",
   ["Epic"] = "영웅",
+  ["You already hold %d"] = "이미 %d개 보유",
 }

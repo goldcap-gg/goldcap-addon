@@ -2228,4 +2228,5 @@ GC.Locales.ukUA = {
   ["Uncommon"] = "Незвичайна",
   ["Rare"] = "Рідкісна",
   ["Epic"] = "Епічна",
+  ["You already hold %d"] = "У вас уже є: %d",
 }

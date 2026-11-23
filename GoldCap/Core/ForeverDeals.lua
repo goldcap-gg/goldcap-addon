@@ -241,12 +241,20 @@ end
 local function underMarket(itemID, e, ctx, isCommodity)
   if not qualityAdmits(itemID, ctx) then return nil end
   local sold = ctx.salesFor and ctx.salesFor(itemID) or nil
-  local ref, maxUnits
+  local ref, maxUnits, soldMax, held
   if sold then
     ref = soldReference(sold)
     -- No more than SOLD_DAYS of what sells: a buy that took a month of the item's sales would sit
-    -- on the auction house, relisted and paying a deposit each time.
-    maxUnits = ref and math.max(1, math.floor((sold.perDay or 0) * C.SOLD_DAYS))
+    -- on the auction house, relisted and paying a deposit each time. Less what the account already
+    -- holds of it (`ctx.heldOf`, Core/Holdings.lua), which sits in those days of sales too: no row
+    -- once that fills them.
+    soldMax = ref and math.max(1, math.floor((sold.perDay or 0) * C.SOLD_DAYS))
+    maxUnits = soldMax
+    held = soldMax and ctx.heldOf and ctx.heldOf(itemID) or 0
+    if held > 0 then
+      maxUnits = GC.Holdings.Limit(soldMax, held)
+      if maxUnits <= 0 then return nil end
+    end
   else
     ref = listedReference(itemID, e, ctx)
   end
@@ -262,6 +270,9 @@ local function underMarket(itemID, e, ctx, isCommodity)
   -- market_sold), and how much a day sells, which the live Check holds the buy to.
   row.refSource, row.refScanners = ref.source, ref.scanners
   row.soldPerDay, row.maxUnits = ref.perDay, maxUnits
+  -- The limit before holdings, which the Check counts again (CeilingFor), and what was held where
+  -- that lowered it, for the tooltip card.
+  row.soldMax, row.held = soldMax, held and held > 0 and held or nil
   return row
 end
 
@@ -605,6 +616,7 @@ local function rebuild(fold, now)
     qualityFor = value.Quality and function(itemID) return value.Quality(itemID, ask(itemID)) end or nil,
     salesFor = GC.Data and GC.Data.ForeverSales,
     roomFor = GC.ForeverDeals.Room,
+    heldOf = GC.Holdings and GC.Holdings.Reader() or nil,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
     -- its deposit -- not only those the Sell tab once saw in the bags (final review I2). The
@@ -781,9 +793,13 @@ function GC.ForeverDeals.CeilingFor(itemID)
   local row = cache.byItem[itemID]
   if not row then return nil end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
+  -- A row held to its sales takes what the account holds off them as the Check reads it, not as
+  -- the board's build did: a buy a moment ago counts once it is in the bags or listed.
+  local maxUnits = row.maxUnits
+  if row.soldMax and GC.Holdings then maxUnits = GC.Holdings.Limit(row.soldMax, GC.Holdings.Of(itemID)) end
   local out = { ceilingUnit = row.ceiling, kind = row.forever, exitUnit = row.refUnit,
     depositUnit = row.depositUnit, minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
-    maxUnits = row.maxUnits }
+    maxUnits = maxUnits }
   -- An item under what it sells for (ClickUp 1an60dzy9nt): the median the Check sells against,
   -- the version it was priced for (gear), and its sales a day, which the room is worked out from.
   if row.item then

@@ -324,7 +324,12 @@ end
 -- including minimumRoi and minimumProfitCopper, which this calculation never reads. Routing
 -- discovery through it would let one unrelated bad value collapse every quantity on the board
 -- to 1 -- silently, and looking exactly like a quiet market rather than a broken setting.
-function GC.SniperDecision.DemandCap(market, config, visible)
+--
+-- `held` (optional): the units the account already holds of the item (GC.Holdings). The cap is
+-- what one buy may take toward a day's share of the sales, and what is held already stands in that
+-- share, so it comes off (GC.Holdings.Limit): a cap the holdings fill is 0, refused as demand_limit
+-- like any other row with no room. Caps (GC.Caps.DecideCommodity) never come here.
+function GC.SniperDecision.DemandCap(market, config, visible, held)
   if type(market) ~= "table" or type(config) ~= "table"
       or not isFinite(config.maxDailyDemandShare) or not isFinite(config.maxQuantity) then
     return 0
@@ -338,7 +343,9 @@ function GC.SniperDecision.DemandCap(market, config, visible)
   local supplyFactor = market.soldPerDay / (market.soldPerDay + stock)
   local demandCap = math.max(1, math.floor(market.soldPerDay * demandShare
     * supplyFactor * (1 - stressDiscount)))
-  return math.min(demandCap, maxQuantity)
+  local cap = math.min(demandCap, maxQuantity)
+  if held ~= nil and GC.Holdings then return GC.Holdings.Limit(cap, held) end
+  return cap
 end
 
 -- Which quantities Evaluate tries. It used to be every one from 1 to the cap, which was sound
@@ -559,7 +566,8 @@ local function evaluate(input, probing)
   if stressUnit == nil or stressUnit <= 0 then
     add("stress_exit_missing", 2)
   end
-  local computedCap = GC.SniperDecision.DemandCap(market, config, visible)
+  -- `input.held`: what the account already holds of the item (GC.Holdings), nil for none known.
+  local computedCap = GC.SniperDecision.DemandCap(market, config, visible, input.held)
   if computedCap <= 0 then
     add("demand_limit", 2)
   elseif not fixed and computedCap < config.maxQuantity then

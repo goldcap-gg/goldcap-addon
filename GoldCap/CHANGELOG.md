@@ -9,6 +9,10 @@
   quality" (Common unless you change it, from Poor to Epic), in retail WoW and WoW: Forever. Items
   under what a vendor pays, your own prices, groups you follow and pinned items still show at any
   quality.
+- DEALS offers to buy fewer of an item you already have: what is in your bags, banks and mailbox, in
+  your other characters' mailboxes (retail WoW) and in your own auctions still up comes off how many
+  a deal buys, and a deal you already hold enough of leaves the board. The row's tooltip says how
+  many you hold. Your own prices buy as many as before.
 
 ## 0.33.0 (2026-11-23)
 

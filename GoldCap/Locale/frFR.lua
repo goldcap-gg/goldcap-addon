@@ -2165,4 +2165,5 @@ GC.Locales.frFR = {
   ["Uncommon"] = "Inhabituel",
   ["Rare"] = "Rare",
   ["Epic"] = "Épique",
+  ["You already hold %d"] = "Vous en avez déjà %d",
 }

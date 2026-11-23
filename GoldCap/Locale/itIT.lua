@@ -2157,4 +2157,5 @@ GC.Locales.itIT = {
   ["Uncommon"] = "Non comune",
   ["Rare"] = "Raro",
   ["Epic"] = "Epico",
+  ["You already hold %d"] = "Ne hai già %d",
 }

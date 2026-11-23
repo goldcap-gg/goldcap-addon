@@ -109,6 +109,7 @@ Core/Caps.lua
 Core/GroupRules.lua
 Core/SellRounds.lua
 Core/ForeverPace.lua
+Core/Holdings.lua
 Core/BoardRows.lua
 Core/DealCard.lua
 Core/WatchSet.lua
