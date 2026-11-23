@@ -4110,6 +4110,12 @@ GC.Sniper._bookPass = GC.BookPass.New({
   triggerFor = function(itemID, listedQty)
     return GC.Trigger.For(GC.Data.GetItemValue(itemID), GC.db.settings.sniper, listedQty)
   end,
+  -- An item that just had a deal and that neither poll asks about is drilled again whenever its
+  -- floor moves, at any price (GC.Sniper._hot). The polls read theirs every round.
+  watchMoves = function(itemID)
+    return GC.Sniper._In(GC.Sniper._hot, itemID) and not GC.Sniper._keyPoll:Polls(itemID)
+      and not GC.Sniper._capPoll:Polls(itemID)
+  end,
   -- Scores a hit the SAME way discovery already scores a browse row (Core/FullScan.lua's
   -- own RowsFromBrowse + DealMath.Evaluate pipeline), so the drill queue's priority mirrors
   -- what a live Check would approve, not just how far under mv the floor sits.
@@ -4137,7 +4143,8 @@ GC.Sniper._bookPass = GC.BookPass.New({
       GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
     if deal then estProfit = deal.estProfit end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
-      confidence = GC.DrillQueue.Confidence(value), speed = GC.DrillQueue.Speed(value and value.sold) })
+      confidence = GC.DrillQueue.Confidence(value),
+      speed = GC.DrillQueue.Speed(value and value.sold, GC.Sniper._In(GC.Sniper._hot, hit.itemID)) })
   end,
   -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping), just
   -- triggered from BookPass's own tail instead of from a raw browse event handler. No page count
@@ -4364,6 +4371,8 @@ end
 -- see GC.Sniper.OnThrottleReady.
 GC.Sniper._keyPoll = GC.KeyPoll.New({
   now = time,
+  -- Every target is in every round; an item that just had a deal leads it.
+  leads = function(itemID) return GC.Sniper._In(GC.Sniper._hot, itemID) end,
   -- The realm reference's own trigger, and nothing else: a cap is the cap poll's to judge
   -- (GC.Sniper._capPoll below), at the cap's own item level. Judged here as well, on this poll's
   -- aggregate floor, a cap woke to every price of a variant below its level (caps fixes 4c).
@@ -4392,7 +4401,8 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
       return
     end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
-      estProfit = math.floor(value.mv * 0.95) - hit.floor })
+      estProfit = math.floor(value.mv * 0.95) - hit.floor,
+      speed = GC.DrillQueue.Speed(nil, GC.Sniper._In(GC.Sniper._hot, hit.itemID)) })
   end,
   -- Keys rows are browse rows: the same aggregate-per-itemKey shape a pass page produces, so
   -- they go through the same RowsFromBrowse -> DealMath path, with the realm reference
@@ -4538,6 +4548,8 @@ GC.Sniper._capPoll = GC.KeyPoll.New({
     local every = GC.DrillQueue.Fast(value and value.sold) or GC.Sniper._In(GC.Sniper._cheapCaps, itemID)
     return every and 1 or LIM.CAP_SLOW_PERIOD
   end,
+  -- An item that just had a deal leads every round (and is in every one).
+  leads = function(itemID) return GC.Sniper._In(GC.Sniper._hot, itemID) end,
   -- At or under the cap: Core/KeyPoll.lua fires on floor < trigger, and TriggerFor is cap + 1.
   triggerFor = function(itemID) return GC.Caps and GC.Caps.TriggerFor(itemID) or nil end,
   -- Caps fixes 4c: at the cap's own item level. The poll then judges -- and ratchets -- the
@@ -7853,6 +7865,8 @@ stampVerdict = function(deal, data, manual)
     if row.deal and row.deal.itemID == deal.itemID
         and row.deal.unitPrice == deal.unitPrice and row:IsShown() then
       flashRow(row)
+      -- A deal: the item is looked at more often for a while (GC.Sniper._hot).
+      if GC.Sniper._hot then GC.Sniper._hot:Mark(deal.itemID) end
       -- The player's pick (UI/DealSound.lua); it was always the raid's ready check, at the
       -- master volume, until players asked for a quieter one (owner, 2026-11-23).
       if GC.DealSound and GC.db and GC.db.settings then GC.DealSound.Ring(GC.db.settings.sniper) end
@@ -11862,6 +11876,7 @@ drainCapPings = function(allowOpen)
       if GC.Caps.Announce(deal) then
         GC.Sniper._rangAt[deal.itemID] = now
         ring[#ring + 1] = deal
+        if GC.Sniper._hot then GC.Sniper._hot:Mark(deal.itemID) end
       end
     end
     -- Final review I5: never out of the player's hands. onBuyClick refuses to replace a dialog

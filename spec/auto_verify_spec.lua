@@ -129,6 +129,7 @@ describe("Deals background verification", function()
     }
     if not _G.time then _G.time = os.time end
     helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/HotSet.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("Core/Util.lua", GC)
@@ -759,6 +760,18 @@ describe("Deals background verification", function()
     tickAt(api, 140)
     api.GC.Sniper.OnCommoditySearchResults(1)
     assert.equal(3, #sounds)
+  end)
+
+  -- After a deal, look again: the item the bell rang for is hot for the next ten minutes, sound or
+  -- no sound, and an item that was only checked is not.
+  it("marks the item hot when its deal rings, even with the sound off", function()
+    local api = loadSniper(safe)
+    api.GC.db.settings.sniper.sound = false
+    board(api, { deal(1, 100), deal(2, 200) })
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.is_true(api.GC.Sniper._hot:Has(1))
+    assert.is_false(api.GC.Sniper._hot:Has(2))
   end)
 
   it("keeps quiet when the sound setting is off", function()

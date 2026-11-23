@@ -917,6 +917,45 @@ describe("Caps polling", function()
         assert.same({ { 41, 42, 43 }, { 41, 42, 43 }, { 41, 43 }, { 41, 43 }, { 41, 42, 43 } }, keysSent)
       end)
 
+      it("puts an item that just had a deal first in every round of both polls", function()
+        local GC = loadSniper()
+        openAH(GC)
+        adoptCaps(GC, { { i = 41, c = 100 }, { i = 42, c = 100 }, { i = 43, c = 100 } })
+        GC.Sniper._hot:Mark(43)
+        for r = 1, 4 do
+          assert.is_true(GC.Sniper._TrySendCapBatch())
+          answer(GC, {})
+          now = now + 5
+          assert.equal(43, keysSent[r][1], "round " .. r)
+        end
+        GC.Sniper._keyPoll:SetTargets({ 7, 8, 9 })
+        GC.Sniper._hot:Mark(9)
+        assert.same({ 9, 7, 8 }, GC.Sniper._keyPoll:NextBatch())
+      end)
+
+      it("drills an item that just had a deal again when its floor moves, unless a poll reads it", function()
+        local GC = loadSniper()
+        openAH(GC)
+        local fact = { kind = "region_commodity", source = "region", mv = 1000, stressUnit = 900, sold = 500,
+          sellThroughBps = 9000, liquidityConfidence = 90, listings = 10, currentQty = 100 }
+        values[77], values[78] = fact, fact
+        GC.Sniper._keyPoll:SetTargets({ 78 })
+        GC.Sniper._hot:Mark(77)
+        GC.Sniper._hot:Mark(78)
+        local results
+        _G.C_AuctionHouse.GetBrowseResults = function() return results end
+        local function pass(floor)
+          results = { browseRow(77, floor, 10), browseRow(78, floor, 10) }
+          GC.Sniper._bookPass:Start("classes")
+          GC.Sniper._bookPass:OnResultsUpdated()
+        end
+        pass(2000) -- far over the market: no hit, the floor is only seen
+        assert.is_false(GC.Sniper._drillQueue:Has(77))
+        pass(2100)
+        assert.is_true(GC.Sniper._drillQueue:Has(77))
+        assert.is_false(GC.Sniper._drillQueue:Has(78))
+      end)
+
       it("rests between two rounds", function()
         local GC = loadSniper()
         openAH(GC)
