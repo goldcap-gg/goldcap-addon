@@ -588,7 +588,7 @@ describe("ForeverDeals", function()
       assert.same({ 2, 449, 2 }, { r.maxUnits, r.exitUnit, r.qty })
       -- The player already holds one: room for one more, which the 400c lot it leaves undercuts.
       rows = D.Build(fold({ [5762] = "300,3,3,;0x1 100x1 50x1" }),
-        c({ salesFor = sold(35, 1000), roomFor = function(_, perDay) return 2 - 1 end }))
+        c({ salesFor = sold(35, 1000), roomFor = function() return 2 - 1 end }))
       assert.same({ 1, 399 }, { rows[1].qty, rows[1].exitUnit })
       assert.equal(0, #D.Build(fold({ [5762] = "300,1,1,;0x1" }),
         c({ salesFor = sold(35, 1000), roomFor = function() return 0 end })))

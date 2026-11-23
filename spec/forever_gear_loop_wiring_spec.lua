@@ -337,6 +337,55 @@ describe("Forever gear loop wiring", function()
     end)
   end)
 
+  -- ClickUp 1an60dzy9nt: a key far under what its own version sold for.
+  describe("a key under what its version sells for", function()
+    before_each(function()
+      helper.loadModule("Core/ForeverItemMarket.lua", GC)
+      state.versionReads = 0
+      local versions = { [14299] = "12729", [14300] = "12730" }
+      GC.Buy = { _VersionOfKey = function(_, lot)
+        state.versionReads = state.versionReads + 1
+        return versions[lot.itemSuffix]
+      end }
+      GC.Data = {
+        ForeverVersionsKnown = function() return true end,
+        ForeverVersionTop = function(id) return id == 15210 and 6000 or nil end,
+        ForeverVersionSales = function(id, version)
+          if id == 15210 and version == "12729" then
+            return { units = 14, sales = 14, median = 6000, p25 = 5500, perDay = 2, hours = 168 }
+          end
+          return { units = 0, sales = 0, perDay = 0, hours = 168 }
+        end,
+        ForeverSales = function() return nil end,
+      }
+      vendor[15210] = 300
+      advance(2.25)
+      answer({ row(15210, 16, 14299, 2000, 1), row(15210, 16, 14300, 1900, 1), row(15210, 16, 14301, 5000, 1) }, false, true)
+    end)
+
+    it("is an Under market row priced for its version, whose Check searches that key alone", function()
+      local r = GC.ForeverDeals.LiveRow(15210)
+      assert.same({ "market", "12729", 6000, 2000 }, { r.forever, r.version, r.refUnit, r.unitPrice })
+      assert.equal(1, state.rang)
+      -- 14301 at 5000 is over 40% of the dearest version's median: its version is never read.
+      assert.equal(2, state.versionReads)
+      local key = GC.KeyPoll.VariantKeyFor(S._named[15210].entry, 0)
+      assert.equal(14299, key.itemSuffix)
+    end)
+
+    it("writes the find and what its Check made of it into the journal", function()
+      assert.is_true(turn())
+      assert.equal(15210, checked[1].itemID)
+      assert.matches("^50000 15210/16/14299 2000 m6000 ", GC.db.foreverGearLoop.hits[1])
+      S._GearOutcome(15210, { candidate = { auctionID = 1 } }, 1)
+      S._GearOutcome(4242, { candidate = { auctionID = 1 } }, 1)   -- no row of it: nothing
+      assert.matches(" =armed$", GC.db.foreverGearLoop.hits[1])
+      GC.ForeverDeals.Bought(15210, 1)
+      assert.matches(" =armed =bought$", GC.db.foreverGearLoop.hits[1])
+      assert.is_nil(GC.ForeverDeals.LiveRow(15210))
+    end)
+  end)
+
   it("closing the auction house ends the round and forgets what waited", function()
     advance(2.25)
     answer({ row(3021, 20, 0, 2200, 1) }, false, true)

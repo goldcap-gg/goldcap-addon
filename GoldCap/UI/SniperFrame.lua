@@ -8664,6 +8664,8 @@ end
 -- WoW: Forever's browse of all gear between scans (UI/SniperGearLoop_Camelot.lua, which replaces
 -- these two). Nothing on retail: no turn is ever taken, no browse answer is ever its own.
 function GC.Sniper._GearTurn() return false end
+-- What a Check made of a gear loop find, for its journal (UI/SniperGearLoop_Camelot.lua).
+function GC.Sniper._GearOutcome() end
 function GC.Sniper._GearBrowse() return false end
 
 -- Whether Auto is on with the Deals board on screen and nothing holding it but the Items board
@@ -9161,9 +9163,14 @@ local function evaluateLiveItemDeal(itemID)
   -- WoW: Forever: a row from the player's own scan buys one auction at or under its ceiling,
   -- named by its auctionID -- the live per-auction walk's own answer (GC.Sniper._DecideCeilingLot).
   -- The lots are walked only for an item with a ceiling: on retail, never.
-  local ceilingLot = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
-    and GC.Sniper._DecideCeilingLot(itemID, driver.itemLots(itemID))
-  if ceilingLot then return { isCommodity = false, decision = ceilingLot } end
+  if GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID) then
+    local lots = driver.itemLots(itemID)
+    local ceilingLot = GC.Sniper._DecideCeilingLot(itemID, lots)
+    if ceilingLot then
+      GC.Sniper._GearOutcome(itemID, ceilingLot, #lots)
+      return { isCommodity = false, decision = ceilingLot }
+    end
+  end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
   -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured
   -- across the region, naming that exact auction as a candidate. It is still never SAFE and

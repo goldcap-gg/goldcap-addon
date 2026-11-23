@@ -7,8 +7,9 @@ local _, GC = ...
 -- While Auto is on and the Items board is up, where Auto's own pass stands down, weapons and then
 -- armor are browsed whole, round after round. A key listed under what a vendor pays becomes a row
 -- of the Items board at once (GC.ForeverDeals.Live) and is given a live Check on the next turn,
--- by the key the round saw it under. It buys nothing: a purchase is the player's click in the buy
--- window, as for every other row.
+-- by the key the round saw it under. So does a key far under what its own version sells for on the
+-- house (GC.ForeverDeals.LiveMarket, ClickUp 1an60dzy9nt). It buys nothing: a purchase is the
+-- player's click in the buy window, as for every other row.
 --
 -- One browse list serves everybody, so the loop keeps to the arbiter's rules:
 --   * it sends only in a turn GC.Sniper.OnThrottleReady hands it, one message a turn, in the
@@ -38,15 +39,57 @@ local function trace(tag)
   if GC.Util and GC.Util.Trace then GC.Util.Trace(tag) end
 end
 
+-- ClickUp 1an60dzy9nt: a key far under what its own version sold for on the house (GCF1's V,
+-- GC.ForeverItemMarket's gear rule). It is screened against the dearest version's median first,
+-- so the version -- the key's sample link, which the client answers right after the browse (HERO
+-- probe P3, GC.Buy._VersionOfKey) -- is read only for a key that could be a deal at all. Gear the
+-- site lists no versions of is measured against the item's own figure (S), and only once the
+-- payload tells versions apart at all: before V, S's figure may be every version together.
+-- `refs` keeps a round's answers per item and version: a class holds many keys of one item.
+local refs = {}
+local function marketFor(itemID, key, unit)
+  local IM, D = GC.ForeverItemMarket, GC.Data
+  if not (IM and D and D.ForeverVersionsKnown and D.ForeverVersionsKnown()) then return nil end
+  local rule = IM.C.GEAR
+  local version
+  local top = D.ForeverVersionTop(itemID)
+  if top then
+    if unit > math.floor(math.min(top, rule.maxRef - 1) * rule.share) then return nil end
+    version = GC.Buy and GC.Buy._VersionOfKey and GC.Buy._VersionOfKey(itemID,
+      { itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0, species = key.battlePetSpeciesID or 0 })
+    if not version then return nil end
+  end
+  local slot = itemID .. ":" .. (version or "")
+  local ref = refs[slot]
+  if ref == nil then
+    ref = IM.Reference(version and D.ForeverVersionSales(itemID, version) or D.ForeverSales(itemID), true) or false
+    refs[slot] = ref
+  end
+  if not ref or unit > ref.ceiling then return nil end
+  return { ref = ref, version = version, ceiling = ref.ceiling, vendor = GC.ForeverValue.VendorUnit(itemID, false),
+    key = { itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0 } }
+end
+
 local rounds = Loop.New({
   vendorFor = function(itemID) return GC.ForeverValue.VendorUnit(itemID, false) end,
   known = function(itemID) return GC.ForeverValue.Known(itemID) end,
   listed = function(itemID) return GC.ForeverDeals.Listed(itemID) end,
+  marketFor = marketFor,
 })
 G.rounds = rounds
 
--- An item's keys, left where a browse by its name leaves them (GC.Sniper._named).
+-- An item's keys, left where a browse by its name leaves them (GC.Sniper._named). An "Under market"
+-- row is priced for one version, so its Check searches that version's key alone.
 local function nameFrom(itemID, variants)
+  local row = GC.ForeverDeals.LiveRow(itemID)
+  if row and row.forever == "market" and row.keySuffix ~= nil and type(variants) == "table" then
+    local only = {}
+    for i = 1, #variants do
+      local v = variants[i]
+      if v.itemSuffix == row.keySuffix and v.itemLevel == row.keyLevel then only[#only + 1] = v end
+    end
+    if #only > 0 then variants = only end
+  end
   S._named[itemID] = { at = GetTime(), entry = { itemID = itemID, variants = variants } }
 end
 
@@ -83,20 +126,34 @@ local function askAbout(list)
   end
 end
 
+-- A key far under what its version sells for goes to the board as an "Under market" row.
+local function takeMarket(m, settled)
+  if GC.ForeverDeals.LiveMarket(m.itemID, m.unit, m.qty, m.market, time(), settled) ~= "new" then return false end
+  rounds:Push(m.itemID, m.unit, GetTime())
+  trace(("gear: %s at %d, median %d (version %s)"):format(Loop.KeyText(m.key), m.unit, m.market.ref.ref,
+    tostring(m.market.version)))
+  return true
+end
+
 local function onRows(tail)
-  local under, ask = rounds:Fold(tail)
-  local fresh = false
+  local under, ask, market = rounds:Fold(tail)
+  local fresh, touched = false, {}
   for i = 1, #under do
     local u = under[i]
-    -- Its keys so far, this one the cheapest of them, go to the Check at once: it searches that
-    -- key, with no browse of its own over this one.
-    nameFrom(u.itemID, rounds:Variants(u.itemID))
+    touched[u.itemID] = true
     local key = u.key
     if take(u.itemID, { floor = u.unit, qty = u.qty, vendor = u.vendor, itemLevel = key.itemLevel,
         itemSuffix = key.itemSuffix }) then
       fresh = true
     end
   end
+  for i = 1, #market do
+    touched[market[i].itemID] = true
+    if takeMarket(market[i]) then fresh = true end
+  end
+  -- Its keys so far go to the Check at once: it searches the cheapest of them (an "Under market"
+  -- row's own key), with no browse of its own.
+  for itemID in pairs(touched) do nameFrom(itemID, rounds:Variants(itemID)) end
   askAbout(ask)
   if fresh then repaint(true) end
 end
@@ -104,20 +161,38 @@ end
 local function endRound()
   local figures = rounds:EndRound(GetTime())
   if not figures then return end
-  -- Every key of each item is read now: its row settles on the cheapest one, and a row of an item
-  -- the round did not see under the vendor price is of a lot that is gone.
-  local fresh = false
-  for itemID, variants in pairs(figures.under) do
-    local best
-    for i = 1, #variants do
-      if not best or variants[i].floor < best.floor then best = variants[i] end
+  refs = {}
+  -- Every key of each item is read now: its row settles on the sighting that makes most -- the
+  -- cheapest key under the vendor price, or a key far under its version's median -- and a row of
+  -- an item the round saw neither way is of a lot that is gone.
+  local fresh, seen = false, {}
+  for itemID in pairs(figures.under) do seen[itemID] = true end
+  for itemID in pairs(figures.market or {}) do seen[itemID] = true end
+  for itemID in pairs(seen) do
+    local sightings, best = {}, nil
+    local under = figures.under[itemID] or {}
+    for i = 1, #under do
+      if not best or under[i].floor < best.floor then best = under[i] end
     end
-    if best and take(itemID, best, true) then fresh = true end
+    if best then sightings[1] = { unit = best.floor, qty = best.qty, vendor = best.vendor } end
+    local market = figures.market and figures.market[itemID] or {}
+    for i = 1, #market do
+      sightings[#sightings + 1] = { kind = "market", unit = market[i].floor, qty = market[i].qty, info = market[i].market }
+    end
+    if GC.ForeverDeals.LiveBest(itemID, sightings, time()) == "new" then
+      local row = GC.ForeverDeals.LiveRow(itemID)
+      if row then rounds:Push(itemID, row.unitPrice, GetTime()) end
+      fresh = true
+    end
+    local keys = {}
+    for i = 1, #under do keys[#keys + 1] = under[i] end
+    for i = 1, #market do keys[#keys + 1] = market[i] end
+    nameFrom(itemID, keys)
   end
-  local gone = GC.ForeverDeals.LiveKeep(figures.under)
+  local gone = GC.ForeverDeals.LiveKeep(seen)
   Loop.NoteRound(GC.db, time(), figures)
-  trace(("gear: round %.1f s, %d rows, %d under vendor, %d unknown, %d gone"):format(figures.seconds,
-    figures.rows, figures.underCount, figures.unknown, gone))
+  trace(("gear: round %.1f s, %d rows, %d under vendor, %d under market, %d unknown, %d gone"):format(figures.seconds,
+    figures.rows, figures.underCount, figures.marketCount or 0, figures.unknown, gone))
   if fresh or gone > 0 then repaint(fresh) end
 end
 
@@ -218,7 +293,7 @@ local function checkNext()
       if S._CheckNow(row) then
         rounds:Take(hit.itemID)
         local key = named and named.entry and GC.KeyPoll.VariantKeyFor(named.entry, 0) or { itemID = hit.itemID }
-        Loop.NoteHit(GC.db, time(), Loop.KeyText(key), hit.unit, row.refUnit, GetTime() - hit.at)
+        Loop.NoteHit(GC.db, time(), Loop.KeyText(key), hit.unit, row.refUnit, GetTime() - hit.at, row.forever)
         return true
       end
     end
@@ -342,6 +417,28 @@ if type(hooksecurefunc) == "function" and C_AuctionHouse then
   for _, name in ipairs({ "SendBrowseQuery", "SearchForItemKeys", "SearchForFavorites" }) do
     if type(C_AuctionHouse[name]) == "function" then pcall(hooksecurefunc, C_AuctionHouse, name, foreign) end
   end
+end
+
+-- What became of a find (ClickUp 1an60dzy9nt): its Check's answer, from the one routing point every
+-- live decision on a lot goes through (UI/SniperFrame.lua's evaluateLiveItemDeal), and the buy.
+-- Written into the find's line of the save's journal, for reading where lots are lost.
+function S._GearOutcome(itemID, decision, lotCount)
+  if not GC.ForeverDeals.LiveRow(itemID) or type(decision) ~= "table" then return end
+  local outcome
+  if lotCount == 0 then
+    outcome = "gone"
+  elseif decision.candidate then
+    outcome = "armed"
+  else
+    outcome = "refused:" .. tostring(decision.reasons and decision.reasons[1])
+  end
+  Loop.NoteOutcome(GC.db, itemID, outcome)
+end
+
+local bought = GC.ForeverDeals.Bought
+function GC.ForeverDeals.Bought(itemID, qty)
+  if GC.ForeverDeals.LiveRow(itemID) then Loop.NoteOutcome(GC.db, itemID, "bought") end
+  return bought(itemID, qty)
 end
 
 -- The vendor price of an item the loop asked about is kept the moment the client has it.

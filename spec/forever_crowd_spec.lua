@@ -168,6 +168,7 @@ describe("adopting the crowd payload", function()
     assert.same({ units = 0, sales = 0, perDay = 0, hours = 48, at = at }, GC.Data.ForeverVersionSales(15210, "12730"))
     assert.is_true(GC.Data.ForeverHasVersions(15210))
     assert.is_false(GC.Data.ForeverHasVersions(2589))
+    assert.is_true(GC.Data.ForeverVersionsKnown())
     assert.is_nil(GC.Data.ForeverVersionSales(2589, "0"))
     -- The highest median of any version, what a browse key is screened against before its version is read.
     assert.equal(6000, GC.Data.ForeverVersionTop(15210))
@@ -176,6 +177,10 @@ describe("adopting the crowd payload", function()
     GC.Data.AdoptAppData()
     assert.is_nil(GC.Data.ForeverVersionSales(15210, "12729"))
     assert.is_false(GC.Data.ForeverHasVersions(15210))
+    assert.is_false(GC.Data.ForeverVersionsKnown())
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71" }
+    GC.Data.AdoptAppData()
+    assert.is_false(GC.Data.ForeverVersionsKnown()) -- a site from before V
   end)
 
   it("never adopts another market's prices as this character's", function()

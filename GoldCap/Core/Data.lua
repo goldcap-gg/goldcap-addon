@@ -660,6 +660,15 @@ local function versionsOf(itemID)
   return item, hours, p.ts
 end
 
+-- Whether the payload carries V at all: without it (an older site, or a house with no suffixed
+-- sale) S's figure for an item may be every version of a piece together, and no piece of gear is
+-- measured against it.
+function GC.Data.ForeverVersionsKnown()
+  local p = adoptedPayload()
+  local hours = p and p.salesHours
+  return type(hours) == "number" and hours >= GC.Data.FOREVER_SALES_MIN_HOURS and type(p.versions) == "table"
+end
+
 -- Whether the site tells this item's versions apart (ClickUp 1an60dzy9nt): when it does, a lot of it
 -- is measured against its own version, never against S's figure for every version together.
 function GC.Data.ForeverHasVersions(itemID)
