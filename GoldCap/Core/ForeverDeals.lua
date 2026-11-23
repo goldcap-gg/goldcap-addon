@@ -257,6 +257,32 @@ local function underMarket(itemID, e, ctx, isCommodity)
   return row
 end
 
+-- ClickUp 1an60dzy9nt: an item that is not a commodity and not gear, against what it sold for on the
+-- house (GC.ForeverItemMarket: half its median at most, 35 sales a week or more). Its lots are one
+-- unit each, so the fold's cheapest levels are the lots a buy would take, as many as the player has
+-- room for (`ctx.roomFor`, half a day of its sales less what is held). Gear is the gear loop's
+-- (UI/SniperGearLoop_Camelot.lua): a fold entry holds every version of a piece together, and a
+-- piece is measured against its own version. The minimum profit is one press's: an item buy is
+-- one lot (Build admits the row on `firstProfit`).
+local function itemUnderMarket(itemID, e, ctx, isCommodity, vendor)
+  local IM = GC.ForeverItemMarket
+  if not (IM and ctx.salesFor) or e.gear then return nil end
+  if ctx.qualityFor then
+    local quality = ctx.qualityFor(itemID)
+    if type(quality) ~= "number" or quality < 1 then return nil end
+  end
+  local ref = IM.Reference(ctx.salesFor(itemID), false)
+  if not ref or e.ladder[1][1] > ref.ceiling then return nil end
+  if isCommodity() ~= false then return nil end
+  local room = ctx.roomFor and ctx.roomFor(itemID, ref.perDay) or IM.HeldCap(ref.perDay)
+  local plan = IM.Plan(ref, IM.Units(e.ladder), IM.Deposit(vendor), room)
+  if not plan or plan.profit <= 0 then return nil end
+  local row = lead(itemID, e, "market", ref.ceiling, ref.ref, plan.take, plan.cost, plan.profit)
+  row.exitUnit, row.depositUnit, row.firstProfit = plan.exit, plan.deposit, plan.firstProfit
+  row.refSource, row.soldPerDay, row.maxUnits, row.item = "sold", ref.perDay, room, true
+  return row
+end
+
 -- A followed group's item (Core/GroupRules.lua's Followed): the group's price held to a resale
 -- that pays (GC.Caps.DealLimit, as retail's cap rows are), measured against the usual price the
 -- site worked the group out from. The player picked the group, so the thin-book, grey and
@@ -333,11 +359,14 @@ function GC.ForeverDeals.Build(fold, ctx)
       local groupRow = groupName and underGroup(itemID, e,
         { price = groupPrice, usual = groupUsual }, ctx, isCommodity) or nil
       local marketRow = underMarket(itemID, e, ctx, isCommodity)
+      local itemRow = not marketRow and itemUnderMarket(itemID, e, ctx, isCommodity, vendor) or nil
       local row
       if groupRow and GC.DealMath.BoardAdmits(groupRow, admit) then
         row = groupRow
       elseif marketRow and GC.DealMath.BoardAdmits(marketRow, admit) then
         row = marketRow
+      elseif itemRow and GC.DealMath.BoardAdmits({ itemID = itemID, estProfit = itemRow.firstProfit }, admit) then
+        row = itemRow
       end
       -- The vendor row wins unless the resale pays more. A resale row's ceiling is over the vendor
       -- price whenever it does, so its buy takes the vendor row's units too, and those keep the
