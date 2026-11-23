@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.34.0 (unreleased)
+
+- WoW: Forever: new deals on DEALS now show within seconds of being listed, instead of waiting for
+  the next full scan, and a deal that sells or goes up in price leaves the board just as fast.
+
 ## 0.33.0 (2026-11-23)
 
 - WoW: Forever: ITEMS now finds items listed far under what they sell for on your auction house,
