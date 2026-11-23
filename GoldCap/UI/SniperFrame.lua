@@ -3604,9 +3604,8 @@ pingNewHotDeals = function(newHotDeals)
       end
     end
   end
-  if matched and GC.db.settings.sniper.sound then
-    PlaySound(SOUNDKIT.MAP_PING or 3175)
-  end
+  -- The deal sound the player picked (UI/DealSound.lua), when the switch is on.
+  if matched and GC.DealSound then GC.DealSound.Ring(GC.db.settings.sniper) end
   -- A sniper is an alarm, not a dashboard (the pattern every dedicated sniping addon ships:
   -- PBS's Alert, AnS's flashWoWIcon): a HOT deal found while the player is alt-tabbed must
   -- reach them, and FlashClientIcon is the platform's one sanctioned way to flash the
@@ -7710,9 +7709,9 @@ stampVerdict = function(deal, data, manual)
     if row.deal and row.deal.itemID == deal.itemID
         and row.deal.unitPrice == deal.unitPrice and row:IsShown() then
       flashRow(row)
-      if GC.db and GC.db.settings and GC.db.settings.sniper.sound then
-        PlaySound(SOUNDKIT.READY_CHECK or SOUNDKIT.MAP_PING or 3175, "Master")
-      end
+      -- The player's pick (UI/DealSound.lua); it was always the raid's ready check, at the
+      -- master volume, until players asked for a quieter one (owner, 2026-11-23).
+      if GC.DealSound and GC.db and GC.db.settings then GC.DealSound.Ring(GC.db.settings.sniper) end
       return
     end
   end

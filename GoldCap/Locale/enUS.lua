@@ -535,6 +535,24 @@ GC.Locales.enUS = {
   ["Paste your realm string from goldcap.gg and press Import."] = "Paste your realm string from goldcap.gg and press Import.",
   ["Per-unit price of this auction"] = "Per-unit price of this auction",
   ["Play a sound when a checked deal turns SAFE."] = "Play a sound when a checked deal turns SAFE.",
+  ["Deal sound"] =
+    "Deal sound",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it.",
+  ["Even with sound effects off"] =
+    "Even with sound effects off",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume.",
+  ["Coins"] =
+    "Coins",
+  ["Quest complete"] =
+    "Quest complete",
+  ["Whisper"] =
+    "Whisper",
+  ["Map ping"] =
+    "Map ping",
+  ["Ready check"] =
+    "Ready check",
   ["Position scope changed"] = "Position scope changed",
   ["Post"] = "Post",
   ["Post above the cheapest"] = "Post above the cheapest",

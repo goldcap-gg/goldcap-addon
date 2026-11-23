@@ -419,6 +419,24 @@ GC.Locales.koKR = {
     "goldcap.gg의 서버 문자열을 붙여넣고 Import를 누르세요.",
   ["Per-unit price of this auction"] = "이 경매의 개당 가격",
   ["Play a sound when a checked deal turns SAFE."] = "검증된 거래가 SAFE가 되면 소리를 재생합니다.",
+  ["Deal sound"] =
+    "거래 알림음",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "거래가 SAFE가 되거나 새 거래가 나타날 때 나는 소리입니다. 하나를 고르면 들어볼 수 있습니다.",
+  ["Even with sound effects off"] =
+    "효과음을 꺼도 재생",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "켜짐: 효과음을 꺼도 게임의 주 음량으로 알림음을 재생합니다. 꺼짐: 효과음 음량을 따릅니다.",
+  ["Coins"] =
+    "동전",
+  ["Quest complete"] =
+    "퀘스트 완료",
+  ["Whisper"] =
+    "귓속말",
+  ["Map ping"] =
+    "지도 신호",
+  ["Ready check"] =
+    "전투 준비 확인",
   ["Position scope changed"] = "항목 범위가 바뀌었습니다",
   ["Post"] = "등록",
   ["Post above the cheapest"] = "최저가보다 높게 등록",

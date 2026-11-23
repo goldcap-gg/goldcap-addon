@@ -417,6 +417,24 @@ GC.Locales.zhTW = {
     "貼上你在 goldcap.gg 取得的伺服器字串，然後按 Import。",
   ["Per-unit price of this auction"] = "該拍賣的每件價格",
   ["Play a sound when a checked deal turns SAFE."] = "已核查的交易變為 SAFE 時播放提示音。",
+  ["Deal sound"] =
+    "交易提示音",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "交易變為 SAFE 或出現新交易時播放的聲音。選擇一個即可試聽。",
+  ["Even with sound effects off"] =
+    "關閉音效時也播放",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "開啟：即使關閉了音效，交易提示音也以遊戲主音量播放。關閉：跟隨音效音量。",
+  ["Coins"] =
+    "金幣",
+  ["Quest complete"] =
+    "任務完成",
+  ["Whisper"] =
+    "密語",
+  ["Map ping"] =
+    "地圖信號",
+  ["Ready check"] =
+    "準備確認",
   ["Position scope changed"] = "項目範圍已變更",
   ["Post"] = "上架",
   ["Post above the cheapest"] = "高於最低價上架",

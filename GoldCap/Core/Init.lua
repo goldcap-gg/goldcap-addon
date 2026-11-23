@@ -120,6 +120,12 @@ GC.DEFAULTS = {
       autoOpen = true,
       auto = false,
       sound = true,
+      -- Which sound a deal makes, and whether it plays at the master volume even with the game's
+      -- sound effects off (UI/DealSound.lua, SETTINGS -> AUTOMATION & ALERTS). The master volume
+      -- is how the deal sound always played; the coins replaced the raid's ready check, which
+      -- players found too loud (owner, 2026-11-23).
+      dealSound = "coins",
+      soundMaster = true,
       -- Sell tab: post at the highest occupied rung the item's floor still reaches within a
       -- day, when the queue under it fits the item's own turnover (Flips.RecommendPost's
       -- overcut mode; docs/superpowers/specs/2026-09-10-sell-reach-pricing-design.md). On by

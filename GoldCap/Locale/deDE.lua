@@ -439,6 +439,24 @@ GC.Locales.deDE = {
   ["Per-unit price of this auction"] = "Stückpreis dieser Auktion",
   ["Play a sound when a checked deal turns SAFE."] =
     "Einen Ton abspielen, wenn ein geprüfter Deal SAFE wird.",
+  ["Deal sound"] =
+    "Deal-Ton",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "Der Ton, wenn ein Deal SAFE wird oder ein neuer auftaucht. Wähle einen, um ihn zu hören.",
+  ["Even with sound effects off"] =
+    "Auch bei stummen Soundeffekten",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "An: Der Deal-Ton spielt mit der Gesamtlautstärke des Spiels, auch wenn die Soundeffekte stumm sind. Aus: Er folgt der Lautstärke der Soundeffekte.",
+  ["Coins"] =
+    "Münzen",
+  ["Quest complete"] =
+    "Quest abgeschlossen",
+  ["Whisper"] =
+    "Flüstern",
+  ["Map ping"] =
+    "Kartensignal",
+  ["Ready check"] =
+    "Bereitschaftscheck",
   ["Position scope changed"] = "Positionsbereich geändert",
   ["Post"] = "Einstellen",
   ["Post above the cheapest"] = "Über dem Günstigsten anbieten",

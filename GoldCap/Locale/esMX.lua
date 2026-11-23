@@ -444,6 +444,24 @@ GC.Locales.esMX = {
   ["Per-unit price of this auction"] = "Precio por unidad de esta subasta",
   ["Play a sound when a checked deal turns SAFE."] =
     "Reproducir un sonido cuando una oferta verificada pasa a SAFE.",
+  ["Deal sound"] =
+    "Sonido de oferta",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "El sonido de una oferta cuando pasa a SAFE o aparece una nueva. Elige uno para oírlo.",
+  ["Even with sound effects off"] =
+    "Aunque los efectos estén silenciados",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "Activado: el sonido de oferta suena con el volumen general del juego, aunque los efectos de sonido estén silenciados. Desactivado: sigue el volumen de los efectos.",
+  ["Coins"] =
+    "Monedas",
+  ["Quest complete"] =
+    "Misión completada",
+  ["Whisper"] =
+    "Susurro",
+  ["Map ping"] =
+    "Aviso en el mapa",
+  ["Ready check"] =
+    "Comprobación de listos",
   ["Position scope changed"] = "El ámbito de la posición ha cambiado",
   ["Post"] = "Publicar",
   ["Post above the cheapest"] = "Publicar arriba del más barato",

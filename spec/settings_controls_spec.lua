@@ -321,6 +321,8 @@ describe("Settings controls", function()
     -- The nine skins' defs, which the Skin row names and tints its menu from.
     helper.loadModule("UI/Kit/Tokens.lua", GC)
     helper.loadModule("UI/Kit/Skins.lua", GC)
+    -- The deal sound's choices and names, which its row offers (UI/DealSound.lua).
+    helper.loadModule("UI/DealSound.lua", GC)
     helper.loadModule("UI/SettingsFrame.lua", GC)
   end)
 
@@ -918,7 +920,8 @@ describe("Settings controls", function()
         "Max units per buy" },
       ["RISK CHECKS"] = { "Dump-trend cap %", "Spike-trend threshold %", "Wall absorb window (hours)" },
       ["POSTING"] = { "Duration", "Buy cap (% of usual price)", "Min. undercut to cancel (%)" },
-      ["AUTOMATION & ALERTS"] = { "Sound on SAFE deal", "Auto-scan on next AH visit", "Post above the cheapest",
+      ["AUTOMATION & ALERTS"] = { "Sound on SAFE deal", "Deal sound", "Even with sound effects off",
+        "Auto-scan on next AH visit", "Post above the cheapest",
         "Stop and open the buy window on your price" },
       ["DISPLAY"] = { "Font scale", "Window position & size", "Language", "Skin" },
     }
@@ -963,14 +966,14 @@ describe("Settings controls", function()
       local panel = settingsPanel()
       -- 256 is a card at the 640 minimum. "Stop and open the buy window on your price" needs two
       -- lines in the 188 a toggle leaves, and so does "Open GoldCap with the auction house" (34);
-      -- the line under that one takes three across the card (48); the rest of AUTOMATION & ALERTS
-      -- one line each.
+      -- the line under that one takes three across the card (48); the rest of AUTOMATION & ALERTS,
+      -- the deal sound's picker and its master-volume switch with them, one line each.
       local automation = cardByTitle(panel, "AUTOMATION & ALERTS")
       layOut(automation, 256)
       local stop = labelIn(automation, "Stop and open the buy window on your price")
       assert.equal(256 - 12 - 36 - 8 - 12, stop.width)
-      assert.equal(-(24 + 3 * 26 + 34 + 48), top(stop))
-      assert.equal(24 + 3 * 26 + 34 + 48 + 34 + 6, automation.height)
+      assert.equal(-(24 + 5 * 26 + 34 + 48), top(stop))
+      assert.equal(24 + 5 * 26 + 34 + 48 + 34 + 6, automation.height)
 
       -- DISPLAY: "Font scale" in the 58 the slider leaves and "Window position & size" in the 104
       -- the reset button leaves take two lines; the button and the language row move down.
@@ -1010,7 +1013,7 @@ describe("Settings controls", function()
       automation.width = 256
       for _, fn in ipairs(hooks) do fn(1.3) end
       assert.equal(188, labelIn(automation, "Stop and open the buy window on your price").width)
-      assert.equal(24 + 3 * 26 + 34 + 48 + 34 + 6, automation.height)
+      assert.equal(24 + 5 * 26 + 34 + 48 + 34 + 6, automation.height)
     end)
   end)
 
@@ -1068,6 +1071,40 @@ describe("Settings controls", function()
     assert.is_nil(GC.db.settings.sniper.window)
     assert.same({ 720, 600 }, { _G.GoldCapSniperFrame.width, _G.GoldCapSniperFrame.height })
     assert.same({ { "CENTER" } }, _G.GoldCapSniperFrame.points)
+  end)
+
+  -- Owner, 2026-11-23: players asked for a quieter deal sound than the raid's ready check. The row
+  -- shows the pick, the menu offers the game's own sounds, and picking one stores it and plays it.
+  it("offers a deal sound picker that stores the pick and plays it", function()
+    local played = {}
+    _G.PlaySound = function(kit, channel) played[#played + 1] = { kit, channel }; return true end
+    GC.db.settings.sniper.dealSound = nil
+    GC.SettingsUI.Toggle()
+    local button = buttonLabeled(_G.GoldCapSniperFrame, "Coins")
+    assert.is_not_nil(button)
+    local captured
+    _G.MenuUtil = {
+      CreateRadioContextMenu = function(owner, isSelected, setSelected, ...)
+        captured = { isSelected = isSelected, setSelected = setSelected, entries = { ... } }
+      end,
+    }
+    button.scripts.OnClick(button)
+    assert.equal(#GC.DealSound.CHOICES, #captured.entries)
+    assert.is_true(captured.isSelected("coins"))
+    captured.setSelected("whisper")
+    assert.equal("whisper", GC.db.settings.sniper.dealSound)
+    assert.equal("Whisper", button.label)
+    assert.same({ { 3081, "Master" } }, played)
+    _G.MenuUtil, _G.PlaySound = nil, nil
+  end)
+
+  it("writes the master-volume switch to settings.sniper.soundMaster, on until turned off", function()
+    GC.db.settings.sniper.soundMaster = nil
+    GC.SettingsUI.Toggle()
+    local t = toggleOf(_G.GoldCapSniperFrame, "Even with sound effects off")
+    assert.is_true(t.checkButton:GetChecked())
+    t.checkButton.scripts.OnClick(t.checkButton) -- the fake's click flips it, as the engine's does
+    assert.is_false(GC.db.settings.sniper.soundMaster)
   end)
 
   it("offers a language picker that writes the setting and re-applies it", function()

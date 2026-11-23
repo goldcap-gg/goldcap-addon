@@ -425,6 +425,24 @@ GC.Locales.ruRU = {
   ["Per-unit price of this auction"] = "Цена за одну штуку в этом лоте",
   ["Play a sound when a checked deal turns SAFE."] =
     "Проигрывать звук, когда проверенная сделка становится SAFE.",
+  ["Deal sound"] =
+    "Звук сделки",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "Звук, когда сделка становится SAFE или появляется новая. Выберите звук, чтобы его услышать.",
+  ["Even with sound effects off"] =
+    "Даже с выключенными эффектами",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "Вкл.: звук сделки играет на общей громкости игры, даже если звуковые эффекты выключены. Выкл.: он следует громкости эффектов.",
+  ["Coins"] =
+    "Монеты",
+  ["Quest complete"] =
+    "Задание выполнено",
+  ["Whisper"] =
+    "Шепот",
+  ["Map ping"] =
+    "Сигнал на карте",
+  ["Ready check"] =
+    "Проверка готовности",
   ["Position scope changed"] = "Область позиции изменилась",
   ["Post"] = "Выставить",
   ["Post above the cheapest"] = "Выставлять выше самого дешёвого",

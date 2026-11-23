@@ -439,6 +439,24 @@ GC.Locales.itIT = {
   ["Per-unit price of this auction"] = "Prezzo unitario di questa asta",
   ["Play a sound when a checked deal turns SAFE."] =
     "Riproduci un suono quando un affare verificato diventa SAFE.",
+  ["Deal sound"] =
+    "Suono dell'affare",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "Il suono di un affare quando diventa SAFE o ne compare uno nuovo. Scegline uno per sentirlo.",
+  ["Even with sound effects off"] =
+    "Anche con gli effetti sonori disattivati",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "Attivo: il suono dell'affare usa il volume generale del gioco, anche con gli effetti sonori disattivati. Disattivo: segue il volume degli effetti.",
+  ["Coins"] =
+    "Monete",
+  ["Quest complete"] =
+    "Missione completata",
+  ["Whisper"] =
+    "Sussurro",
+  ["Map ping"] =
+    "Segnale sulla mappa",
+  ["Ready check"] =
+    "Controllo prontezza",
   ["Position scope changed"] = "L'ambito della posizione è cambiato",
   ["Post"] = "Vendi",
   ["Post above the cheapest"] = "Pubblica sopra il più economico",

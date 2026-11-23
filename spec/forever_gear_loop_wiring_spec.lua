@@ -101,6 +101,7 @@ describe("Forever gear loop wiring", function()
     }
     S = GC.Sniper
     S.OnThrottleReady = function() return turn() end
+    helper.loadModule("UI/DealSound.lua", GC)
     helper.loadModule("UI/SniperGearLoop_Camelot.lua", GC)
     state.onEvent(nil, "AUCTION_HOUSE_SHOW")
   end)

@@ -10,6 +10,9 @@
 - DEALS: the boards are tabs with the game's icons, each saying what is on it, with how many
   deals it holds on the icon. AUTO wears a pocket watch, and SCAN and HIDDEN are icons: hover one
   for its name.
+- A deal now rings with coins instead of the raid's ready check. In SETTINGS, under AUTOMATION &
+  ALERTS, pick another of the game's sounds (picking one plays it), and choose whether it still
+  plays with the game's sound effects off.
 - WoW: Forever: at the neutral auction house in Booty Bay, Gadgetzan and Everlook GoldCap no longer
   scans. What it lists was counted as your own faction's prices, on DEALS and on goldcap.gg.
 - An item's name no longer turns into "Item 12345" on SELL, in the status line or in the crafting

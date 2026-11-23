@@ -432,6 +432,24 @@ GC.Locales.ukUA = {
     "Вставте рядок свого реалму з goldcap.gg і натисніть Import.",
   ["Per-unit price of this auction"] = "Ціна за одну штуку в цьому лоті",
   ["Play a sound when a checked deal turns SAFE."] = "Відтворювати звук, коли перевірена угода стає SAFE.",
+  ["Deal sound"] =
+    "Звук угоди",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "Звук, коли угода стає SAFE або з'являється нова. Виберіть звук, щоб його почути.",
+  ["Even with sound effects off"] =
+    "Навіть із вимкненими ефектами",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "Увімк.: звук угоди грає на загальній гучності гри, навіть якщо звукові ефекти вимкнено. Вимк.: він іде за гучністю ефектів.",
+  ["Coins"] =
+    "Монети",
+  ["Quest complete"] =
+    "Завдання виконано",
+  ["Whisper"] =
+    "Шепіт",
+  ["Map ping"] =
+    "Сигнал на мапі",
+  ["Ready check"] =
+    "Перевірка готовності",
   ["Position scope changed"] = "Область позиції змінилася",
   ["Post"] = "Виставити",
   ["Post above the cheapest"] = "Виставляти вище найдешевшого",

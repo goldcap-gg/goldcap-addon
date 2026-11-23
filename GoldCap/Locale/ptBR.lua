@@ -437,6 +437,24 @@ GC.Locales.ptBR = {
     "Cole a string do seu reino do goldcap.gg e clique em Import.",
   ["Per-unit price of this auction"] = "Preço por unidade deste leilão",
   ["Play a sound when a checked deal turns SAFE."] = "Tocar um som quando uma oferta verificada fica SAFE.",
+  ["Deal sound"] =
+    "Som da oferta",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "O som de uma oferta quando fica SAFE ou aparece uma nova. Escolha um para ouvi-lo.",
+  ["Even with sound effects off"] =
+    "Mesmo com efeitos sonoros desligados",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "Ligado: o som da oferta toca no volume geral do jogo, mesmo com os efeitos sonoros desligados. Desligado: segue o volume dos efeitos.",
+  ["Coins"] =
+    "Moedas",
+  ["Quest complete"] =
+    "Missão concluída",
+  ["Whisper"] =
+    "Sussurro",
+  ["Map ping"] =
+    "Sinal no mapa",
+  ["Ready check"] =
+    "Verificação de prontidão",
   ["Position scope changed"] = "O escopo da posição mudou",
   ["Post"] = "Anunciar",
   ["Post above the cheapest"] = "Anunciar acima do mais barato",

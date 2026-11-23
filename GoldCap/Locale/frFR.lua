@@ -438,6 +438,24 @@ GC.Locales.frFR = {
     "Collez la chaîne de votre royaume depuis goldcap.gg et appuyez sur Import.",
   ["Per-unit price of this auction"] = "Prix unitaire de cette enchère",
   ["Play a sound when a checked deal turns SAFE."] = "Jouer un son quand une affaire vérifiée devient SAFE.",
+  ["Deal sound"] =
+    "Son d'une affaire",
+  ["The sound a deal makes when it turns SAFE or a new one shows up. Pick one to hear it."] =
+    "Le son d'une affaire quand elle devient SAFE ou qu'une nouvelle apparaît. Choisissez-en un pour l'entendre.",
+  ["Even with sound effects off"] =
+    "Même sans effets sonores",
+  ["On: the deal sound plays at the game's master volume, even with sound effects muted. Off: it follows the sound effects volume."] =
+    "Activé : le son joue au volume général du jeu, même si les effets sonores sont coupés. Désactivé : il suit le volume des effets sonores.",
+  ["Coins"] =
+    "Pièces",
+  ["Quest complete"] =
+    "Quête terminée",
+  ["Whisper"] =
+    "Chuchotement",
+  ["Map ping"] =
+    "Signal sur la carte",
+  ["Ready check"] =
+    "Appel",
   ["Position scope changed"] = "Périmètre de la position modifié",
   ["Post"] = "Vendre",
   ["Post above the cheapest"] = "Poster au-dessus du moins cher",
