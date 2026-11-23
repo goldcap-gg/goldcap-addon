@@ -853,6 +853,27 @@ describe("ForeverDeals", function()
       assert.equal(1, #D.Rows(clock + 2))
     end)
 
+    -- ClickUp 1an60dzy9nt: an item under what it sells for. The Check prices one lot against the
+    -- median, sells under the lots it leaves, and stops at half a day of the item's sales held.
+    it("hands a live Check an item row's median, deposit and room, and counts what was bought", function()
+      GC.db.commodityByItem[5762] = false
+      vendor[5762] = 100
+      saved = { at = 5000, items = { [5762] = "400,2,2,;0x1 100x1" } }
+      GC.Data = { ForeverSales = function() return { units = 70, sales = 70, median = 1000, p25 = 900, perDay = 10, hours = 168 } end }
+      local held = 0
+      _G.C_Item = { RequestLoadItemDataByID = function() end, GetItemCount = function() return held end }
+      D.Rows(clock)
+      assert.same({ ceilingUnit = 500, kind = "market", exitUnit = 1000, refUnit = 1000, depositUnit = 20,
+        minimumProfit = 20, maxUnits = 5, item = true, perDay = 10 }, D.CeilingFor(5762))
+      assert.equal(5, D.Room(5762, 10))
+      held = 2
+      assert.equal(3, D.Room(5762, 10))
+      D.Bought(5762, 1)                     -- in the mail, not the bags, until it is collected
+      assert.equal(2, D.Room(5762, 10))
+      held = 9
+      assert.equal(0, D.Room(5762, 10))
+    end)
+
     -- The client, shaped as it is (AuctionHouseDocumentation, live and forever alike):
     -- GetItemCommodityStatus takes an ItemLocation, a bag slot, and refuses an item ID;
     -- GetItemKeyInfo answers an item key, and nothing until the client has cached it.

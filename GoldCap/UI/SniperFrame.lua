@@ -2969,9 +2969,16 @@ end
 function GC.Sniper._DecideCeilingLot(itemID, lots)
   local ceiling = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
   if not ceiling then return nil end
-  return GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind,
+  local input = { ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind,
     exitUnit = ceiling.exitUnit, lots = type(lots) == "table" and lots or {},
-    minimumProfit = ceiling.minimumProfit })
+    minimumProfit = ceiling.minimumProfit }
+  -- An item under what it sells for (ClickUp 1an60dzy9nt): its median, its version, and the room
+  -- the player has left for it, read now, so a lot bought a moment ago counts.
+  if ceiling.item then
+    input.refUnit, input.depositUnit, input.version = ceiling.refUnit, ceiling.depositUnit, ceiling.version
+    input.room = GC.ForeverDeals.Room(itemID, ceiling.perDay)
+  end
+  return GC.SniperDecision.EvaluateCeilingLot(input)
 end
 
 -- Units a day, as the check panel and the buy line print it: under one a day is "<1", never "0"
@@ -3341,6 +3348,10 @@ driver = {
           -- own decision path: two lots of "the same" item can be twenty levels apart.
           itemLevel = info.itemKey and info.itemKey.itemLevel or 0,
           quantity = 1,
+          -- The lot's version (its link's bonus IDs, GC.ForeverGear.BonusKey), which a WoW: Forever
+          -- "Under market" row of a piece of gear is priced for (ClickUp 1an60dzy9nt). nil while the
+          -- link has not loaded.
+          ver = GC.ForeverGear and GC.ForeverGear.BonusKey(info.itemLink) or nil,
         }
       end
     end

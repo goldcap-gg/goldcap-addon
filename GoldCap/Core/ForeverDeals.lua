@@ -441,6 +441,8 @@ local bought = {}
 -- refused: the price a live row's Check found nothing at, and when: the same lot is not put back
 -- for LIVE_REFUSED_SECONDS, a different price is news at once.
 local live, refused = {}, {}
+-- heldBought: units "Under market" item rows bought this session, per item (GC.ForeverDeals.Room).
+local heldBought = {}
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
@@ -533,6 +535,7 @@ local function rebuild(fold, now)
     vendorFor = function(itemID) return value.VendorUnit(itemID, ask(itemID)) end,
     qualityFor = value.Quality and function(itemID) return value.Quality(itemID, ask(itemID)) end or nil,
     salesFor = GC.Data and GC.Data.ForeverSales,
+    roomFor = GC.ForeverDeals.Room,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
     -- its deposit -- not only those the Sell tab once saw in the bags (final review I2). The
@@ -707,9 +710,32 @@ function GC.ForeverDeals.CeilingFor(itemID)
   local row = cache.byItem[itemID]
   if not row then return nil end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
-  return { ceilingUnit = row.ceiling, kind = row.forever, exitUnit = row.refUnit,
+  local out = { ceilingUnit = row.ceiling, kind = row.forever, exitUnit = row.refUnit,
     depositUnit = row.depositUnit, minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     maxUnits = row.maxUnits }
+  -- An item under what it sells for (ClickUp 1an60dzy9nt): the median the Check sells against,
+  -- the version it was priced for (gear), and its sales a day, which the room is worked out from.
+  if row.item then
+    out.item, out.refUnit, out.version, out.perDay = true, row.refUnit, row.version, row.soldPerDay
+  end
+  return out
+end
+
+-- How many more of an item the player should take from "Under market" rows (ClickUp 1an60dzy9nt):
+-- half a day of its sales (GC.ForeverItemMarket.HeldCap), less what the bags hold and what such
+-- rows bought this session (a purchase comes by mail, so the bags do not see it yet). Never under 0.
+function GC.ForeverDeals.Room(itemID, perDay)
+  local IM = GC.ForeverItemMarket
+  if not IM then return 0 end
+  local held = 0
+  local item = _G.C_Item
+  local count = item and item.GetItemCount or _G.GetItemCount
+  if type(count) == "function" then
+    local ok, n = pcall(count, itemID)
+    if ok and type(n) == "number" and n > 0 then held = n end
+  end
+  local room = IM.HeldCap(perDay) - held - (heldBought[itemID] or 0)
+  return room > 0 and room or 0
 end
 
 -- A buy from the row that took `qty` units: the row stays with what is left, through every
@@ -717,6 +743,9 @@ end
 function GC.ForeverDeals.Bought(itemID, qty)
   local from = cache.from
   local row = cache.byItem[itemID]
+  if row and row.item and type(qty) == "number" and qty > 0 then
+    heldBought[itemID] = (heldBought[itemID] or 0) + qty
+  end
   -- A live row's lot is bought: the row goes, and the next round puts it back if more are up at
   -- the price.
   if live[itemID] then

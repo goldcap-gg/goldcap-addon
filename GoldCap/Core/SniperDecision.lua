@@ -1149,10 +1149,11 @@ end
 -- The same question for one auction (gear, most often): the cheapest lot at or under the
 -- ceiling, by unit, from the live per-auction walk. An item auction has no quote step, so the
 -- lot IS the purchase -- its auctionID and exact buyout -- and the shape is the one
--- onDialogPrimaryClick buys a lot on: WATCH plus a candidate. Kind "vendor" only (plan 3c,
--- Decision 3): the vendor's price for the lot is exact; a resale estimate for a single
--- auction is not, and nothing would catch it before PlaceBid.
+-- onDialogPrimaryClick buys a lot on: WATCH plus a candidate. Kind "vendor": the vendor's price
+-- for the lot is exact. Kind "market" (ClickUp 1an60dzy9nt): an item far under what it, or its
+-- version, sold for on the house -- marketLot below.
 function GC.SniperDecision.EvaluateCeilingLot(input)
+  if type(input) == "table" and input.kind == "market" then return GC.SniperDecision._MarketLot(input) end
   if type(input) ~= "table" or input.kind ~= "vendor"
       or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
       or not isInteger(input.exitUnit) or input.exitUnit <= 0
@@ -1179,6 +1180,50 @@ function GC.SniperDecision.EvaluateCeilingLot(input)
     -- The two figures the check panel's lot view reads (Core/CheckVerdict.lua, tone
     -- "unverified"): what the buy makes, and the price it is measured against.
     estProfit = profit, reference = input.exitUnit,
+  }
+end
+
+-- Kind "market" of EvaluateCeilingLot. The resale estimate a single auction has no quote step to
+-- check is held to the live lots instead: GC.ForeverItemMarket.Plan sells at 90% of the median,
+-- or one copper under the first lot the buy leaves (one it has no `room` for included), after
+-- the 5% cut and `depositUnit`, and the press buys the cheapest lot under the ceiling when that
+-- one lot makes the minimum. `version`: the bonus key the row was priced for; a lot whose link
+-- names another is not weighed (a lot with no link yet is the searched key's, which holds one
+-- version). `room`: how many more of the item the player should take (half a day of its sales,
+-- less what is held).
+function GC.SniperDecision._MarketLot(input)
+  local IM = GC.ForeverItemMarket
+  if not IM or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
+      or not isInteger(input.refUnit) or input.refUnit <= 0 or not isInteger(input.room)
+      or type(input.lots) ~= "table" or not isInteger(input.minimumProfit) or input.minimumProfit < 0 then
+    return refusal("invalid_input")
+  end
+  local same, other = {}, false
+  for _, lot in ipairs(input.lots) do
+    if positiveEntry(lot, "auctionID", "buyout") then
+      if input.version and lot.ver and lot.ver ~= input.version then
+        other = true
+      else
+        same[#same + 1] = lot
+      end
+    end
+  end
+  if #same == 0 then return refusal(other and "no_comparable_lot" or "price_rose") end
+  if input.room < 1 then return refusal("demand_limit") end
+  table.sort(same, function(a, b) return a.buyout < b.buyout end)
+  local units = {}
+  for i, lot in ipairs(same) do units[i] = lot.buyout end
+  local plan = IM.Plan({ ref = input.refUnit, ceiling = input.ceilingUnit }, units, input.depositUnit, input.room)
+  if not plan then return refusal("price_rose") end
+  if plan.firstProfit < input.minimumProfit then return refusal("profit_below_minimum") end
+  local picked = GC.Caps.DecideRealm({ c = input.ceilingUnit, l = 0 }, { same[1] })
+  if not picked then return refusal("price_rose") end
+  return {
+    version = GC.SniperDecision.VERSION, status = "WATCH", buyable = false, reasons = {},
+    candidate = picked.candidate, quantity = picked.quantity, entryTotal = picked.entryTotal,
+    entryUnitDisplay = picked.entryUnitDisplay, unit = picked.unit, ceiling = input.ceilingUnit,
+    forever = "market", exitUnit = plan.exit, refUnit = input.refUnit, stressProfit = plan.firstProfit,
+    estProfit = plan.firstProfit, reference = input.refUnit,
   }
 end
 
