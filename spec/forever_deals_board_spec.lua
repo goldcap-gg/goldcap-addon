@@ -364,6 +364,10 @@ describe("WoW: Forever", function()
     verdicts[2589] = { unitPrice = 8, at = 100, buyable = false, status = "AVOID", reason = "requote_broke_safety" }
     setRowDeal(row, foreverRow(2589, "commodities"))
     assert.equal("AVOID", row.tierChip.label)
+    -- An Items-board lot whose Check armed Buy says its kind too, not WATCH.
+    verdicts[19019] = { unitPrice = 8, at = 100, buyable = false, unverified = true, status = "WATCH" }
+    setRowDeal(row, foreverRow(19019, "items", "market"))
+    assert.equal("Under market", row.tierChip.label)
   end)
 
   it("still says SAFE on a retail row", function()

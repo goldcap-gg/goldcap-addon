@@ -1472,8 +1472,12 @@ local function setRowDeal(row, deal)
   -- seconds, so "SAFE +31c" used to replace the kind on all of them, and a 2% "Below vendor" row
   -- read as a retail verdict (owner, beta 2026-09-27). The Buy button already says a row is
   -- buyable, and the PROFIT cell carries the figure.
+  --
+  -- An Items-board lot whose Check armed Buy (`unverified`: WATCH with a candidate) is not a
+  -- refusal either: it read WATCH, and the player took the board's one row ready to buy for one
+  -- still waiting on its Check (owner, 2026-11-23, "Deanship Claymore ... WATCH").
   local chip = GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID])
-  if deal.forever and (not verdict or verdict.buyable) then
+  if deal.forever and (not verdict or verdict.buyable or verdict.unverified) then
     -- A row of an item in a group the player follows says so (GC.Sniper._GroupNote has the rest);
     -- its kind is in the tooltip.
     chip = deal.capFollowed and GC.L["GROUP"] or GC.Sniper._ForeverLabel(deal.forever)
