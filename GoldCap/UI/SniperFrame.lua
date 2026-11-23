@@ -1585,7 +1585,8 @@ local function setRowDeal(row, deal)
   -- The notes are asked again at every stamp: the one after the item loads is the first whose
   -- collection answer can be more than "unknown".
   local function stampName(named)
-    row._nameParts = { named .. qtySuffix(deal, qty), capSuffix, watchSuffix, GC.Sniper._RowNotes(deal) }
+    row._nameParts = { named .. qtySuffix(deal, qty), capSuffix, watchSuffix, GC.Sniper._RowNotes(deal),
+      GC.Sniper._RowNotes(deal, true) }
     GC.Sniper._FitRowName(row)
   end
   GC.Sniper._StampItem(row, deal, stampName)
@@ -1688,11 +1689,18 @@ end
 -- What a flip row says under its name on the Items board: how soon it sells on the realm to sell
 -- it on (S, Core/SellRoute.lua's RowText), else how often it sold this week (F), and its mark. ""
 -- anywhere else. What the line leaves out is the row's tooltip (GC.Sniper._RowDetails).
-function GC.Sniper._RowNotes(deal)
-  if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then return "" end
+-- On every board the line also says how often one listing of the item sells (GC.Data.SellChance),
+-- unless `bare`: the line without it, for GC.Sniper._FitRowName to fall back on.
+function GC.Sniper._RowNotes(deal, bare)
+  local chance = not bare and deal and deal.itemID and GC.Data and GC.Data.SellChance
+    and GC.Util.SellChanceText(GC.Data.SellChance(deal.itemID), true) or nil
+  if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then
+    return chance and ("\n" .. GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, chance)) or ""
+  end
   local line = GC.SellRoute and GC.SellRoute.RowText(GC.SellRoute.ForItem(deal.itemID, deal.unitPrice),
     GC.SellRoute.RealmName)
   if not line and GC.Data.FlipFacts then line = GC.ItemsBoard.SoldText(GC.Data.FlipFacts(deal.itemID)) end
+  if chance then line = line and (line .. " · " .. chance) or chance end
   return GC.Sniper._UnderName(line, deal.itemID)
 end
 
@@ -6797,8 +6805,8 @@ function GC.Sniper._CardModel(deal, verdict, pinned)
 end
 
 -- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
--- quantity, the cap row's group suffix, the watching suffix, and the Items board's line under the
--- name, which starts with its own newline), leaving the group out when the cell has no room for
+-- quantity, the cap row's group suffix, the watching suffix, the line under the name, which starts
+-- with its own newline, and that line without the sell chance), leaving the group out when the cell has no room for
 -- it, and the line under the name when the name alone takes both of a row's two lines (owner,
 -- 2026-10-25: "more than two lines is not needed"). The line's facts are in the row's tooltip; a
 -- name is never cut. Asked again by the row's own OnSizeChanged (createRow): decided once at the
@@ -6817,7 +6825,10 @@ function GC.Sniper._FitRowName(row)
   local under = parts[4] or ""
   if under == "" then return end
   text:SetText(name .. under)
-  if text.GetNumLines and text:GetNumLines() > 2 then text:SetText(name) end
+  if not (text.GetNumLines and text:GetNumLines() > 2) then return end
+  -- Too long with the sell chance: the line without it (parts[5]), then the name alone.
+  text:SetText(name .. (parts[5] or ""))
+  if text:GetNumLines() > 2 then text:SetText(name) end
 end
 
 -- A watched row's market reference, for its tooltip: the figures on the row are measured

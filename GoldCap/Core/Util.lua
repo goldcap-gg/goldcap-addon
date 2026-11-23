@@ -146,6 +146,14 @@ function GC.Util.PerDay(n)
   return GC.Util.Grouped(n)
 end
 
+-- How often one listing of an item sells (GC.Data.SellChance), in words: the full line for the
+-- tooltip and SELL, `short` for a DEALS row. nil unless a whole percent 0..100: a missing figure
+-- means too few listings ended to say, and is never shown as 0%.
+function GC.Util.SellChanceText(pct, short)
+  if type(pct) ~= "number" or pct ~= math.floor(pct) or pct < 0 or pct > 100 then return nil end
+  return (short and GC.L["%d%% of listings sell"] or GC.L["Sells from %d%% of listings"]):format(pct)
+end
+
 local function coinTextFallback(copper)
   -- Round first, sign the ROUNDED magnitude: a value that rounds to zero (e.g. -0.4) prints
   -- "0<copper icon>", never "-0<copper icon>".

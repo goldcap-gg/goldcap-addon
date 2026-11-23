@@ -169,6 +169,10 @@ function GC.Tooltip.BuildLines(v, now, opts)
     end
   end
   local liveShown = lines[1] == live
+  -- How often one listing sells (opts.sellChance), beside the sale speed: its own measurement, so
+  -- it is shown on every path, a realm item's too. Nothing without a figure.
+  local chance = GC.Util.SellChanceText(opts.sellChance)
+  local chanceLine = chance and { kind = "text", left = chance, right = "" } or nil
   -- Trend, sale speed and depth belong to a REGION-wide measurement: the trend and sold
   -- fields ride commodity tokens (a realm item's I token carries neither -- see itemToken in
   -- packages/tsm), and the depth pair rides the verification token, which the server writes
@@ -183,6 +187,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
     if v.sold then
       lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = GC.Util.PerDay(v.sold) }
     end
+    lines[#lines + 1] = chanceLine
     -- Depth. `currentQty` (units on the region's shelf) and `listings` (auctions holding them)
     -- ride the import string's verification token -- so this is an imported-commodity line by
     -- construction: the bundled snapshot carries no verification at all. The shelf count is
@@ -200,6 +205,8 @@ function GC.Tooltip.BuildLines(v, now, opts)
       -- no item has ever shown a sales rate and an auction count together.
       lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = wholeCount(v.listings) }
     end
+  else
+    lines[#lines + 1] = chanceLine
   end
   if live and not liveShown then lines[#lines + 1] = live end
   if opts.unitCost then
@@ -317,6 +324,7 @@ function GC.Tooltip.ItemLines(itemID, now, link)
     origin = GC.Data.OriginState and GC.Data.OriginState() or nil,
     live = GC.Sniper and GC.Sniper.LiveFloor and GC.Sniper.LiveFloor(itemID, now) or nil,
     forever = forever,
+    sellChance = GC.Data.SellChance and GC.Data.SellChance(itemID) or nil,
   })
 end
 

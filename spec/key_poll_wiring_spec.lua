@@ -597,6 +597,23 @@ describe("Key poll wiring", function()
         assert.same({}, GC.Sniper._RowDetails(deal(10)))
       end)
 
+      -- How often one listing sells (GC.Data.SellChance), on every board, 0% too; nothing without a
+      -- figure, and the line without it is there for the item cell to fall back on.
+      it("says how often one listing sells under the name, on every board", function()
+        local GC = load()
+        split(GC, {}, {}, { [10] = { ref = 300000, sales7d = 6, realms = 3 } })
+        local chances = { [10] = 42, [11] = 0 }
+        GC.Data.SellChance = function(id) return chances[id] end
+        assert.equal("\nSold 6 times in 7 days · 42% of listings sell", helper.plain(GC.Sniper._RowNotes(deal(10))))
+        assert.equal("\nSold 6 times in 7 days", helper.plain(GC.Sniper._RowNotes(deal(10), true)))
+        assert.equal("\n0% of listings sell", helper.plain(GC.Sniper._RowNotes(deal(11))))
+        assert.equal("", GC.Sniper._RowNotes(deal(12)))
+        GC.db.settings.sniper.board = "commodities"
+        assert.equal("\n42% of listings sell", helper.plain(GC.Sniper._RowNotes(deal(10))))
+        assert.equal("", GC.Sniper._RowNotes(deal(10), true))
+        assert.equal("", GC.Sniper._RowNotes(deal(12)))
+      end)
+
       -- Where a flip sells (the payload's C, S and K): this realm is Tarren Mill, the account has a
       -- character on Kazzak, and Silvermoon is a realm it has none on.
       describe("where a flip sells", function()
@@ -738,6 +755,15 @@ describe("Key poll wiring", function()
           wide = true
           GC.Sniper._FitRowName(row)
           assert.equal("Teebu's Scorching Straight Sword x1 of 2\nSold 39 times in 7 days", row.nameText.text)
+        end)
+
+        it("drops the sell chance before the line it rides on", function()
+          local GC = load()
+          local row = cell(function(t) return select(2, t:gsub("\n", "")) + (t:find("sell", 1, true) and 2 or 1) end)
+          row._nameParts = { "Glaive Tosser x1 of 2", "", "", "\nSold 6 times in 7 days · 42% of listings sell",
+            "\nSold 6 times in 7 days" }
+          GC.Sniper._FitRowName(row)
+          assert.equal("Glaive Tosser x1 of 2\nSold 6 times in 7 days", row.nameText.text)
         end)
 
         it("writes a row with no line under its name as it was", function()

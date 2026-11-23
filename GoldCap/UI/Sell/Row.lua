@@ -472,6 +472,8 @@ function Row.PaintPosition(row, entry, ctx)
     stockParts[#stockParts + 1] =
       (GC.L["paid %s each"]):format(moneyHex() .. formatCell(paidUnit) .. "|r")
   end
+  -- How often one listing of it sells, when goldcap.gg has a figure; the line wraps to hold it.
+  stockParts[#stockParts + 1] = GC.Util.SellChanceText(GC.Data and GC.Data.SellChance and GC.Data.SellChance(p.itemID))
   -- The quality pip goes in the label rather than beside it: this row and
   -- the Sniper's deal row anchor their cells completely differently, and an
   -- inline atlas escape needs no layout in either. Empty for the vast

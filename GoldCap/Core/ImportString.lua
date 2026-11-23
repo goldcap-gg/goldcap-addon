@@ -240,6 +240,18 @@ local function readCheap(body, into)
   end
 end
 
+-- P (GCM1 and GCF1): how often one listing of an item sells, `itemId=pct`, pct a whole 0..100: of
+-- the item's listings that ended in the last 14 days, the share that sold rather than ran out. Only
+-- items with enough ended listings to say are sent, so an item P leaves out has no figure, never
+-- 0%. Anchored per token; a malformed or out of range one drops itself.
+local function readSellChance(body, into)
+  for token in body:gmatch("[^,]+") do
+    local id, pct = token:match("^(%d+)=(%d+)$")
+    id, pct = tonumber(id), tonumber(pct)
+    if id and id > 0 and pct <= 100 then into[id] = pct end
+  end
+end
+
 -- W (site watchlist) and N (item ids the site has no name for -- Blizzard's API 404s them;
 -- Core/ItemNames.lua resolves them from the client and the Companion reports the names back):
 -- plain id lists, in order.
@@ -374,6 +386,9 @@ function GC.ImportString.ParseRegion(str)
     elseif kind == "K" then
       result.cheap = result.cheap or {}
       readCheap(body, result.cheap)
+    elseif kind == "P" then
+      result.sellChance = result.sellChance or {}
+      readSellChance(body, result.sellChance)
     end
   end
 
@@ -446,6 +461,10 @@ function GC.ImportString.ParseForever(str)
         local id, price = token:match("^(%d+)=(%d+)$")
         if id then result.recent[tonumber(id)] = tonumber(price) end
       end
+    elseif kind == "P" then
+      -- How often one listing sells in this house (readSellChance). The site may leave it out.
+      result.sellChance = result.sellChance or {}
+      readSellChance(body, result.sellChance)
     elseif kind == "B" then
       -- WoW: Forever's neutral Blackwater auction house (Booty Bay, Gadgetzan, Everlook): the items
       -- it sells for less than this market's own house, from Blizzard's hourly snapshot of both

@@ -2147,4 +2147,8 @@ GC.Locales.deDE = {
     "nach 5%% Gebühr, wenn du je eins dieser %d bei den Schwarzmeerräubern kaufst und daheim verkaufst",
   ["This is Blackwater, the neutral auction house. GoldCap does not scan it: its prices are not your faction's."] =
     "Das ist das Auktionshaus der Schwarzmeerräuber, das neutrale. GoldCap scannt es nicht: seine Preise sind nicht die deiner Fraktion.",
+  ["Sells from %d%% of listings"] =
+    "Verkauft sich bei %d%% der Angebote",
+  ["%d%% of listings sell"] =
+    "%d%% der Angebote verkauft",
 }
