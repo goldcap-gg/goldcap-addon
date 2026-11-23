@@ -716,6 +716,8 @@ function GC.ForeverScan.New(driver)
   end
 
   function obj:IsBusy() return state ~= "idle" end
+  -- Whether the auction house open is Blackwater: nothing read there is this house's.
+  function obj:Neutral() return neutral end
   -- Whether a full list may be asked for now: no scan running, the home auction house open, and
   -- the account's throttle spent (Auto asks then, GC.Sniper's startScan).
   function obj:Due()
@@ -1257,17 +1259,18 @@ end
 function GC.ForeverScan.OnReplicateUpdate() local s = scanner(); if s then s:OnReplicateUpdate(); repaint() end end
 -- Every pass between full scans also moves the Deals board's live view (GC.ForeverDeals.OnBrowsePass),
 -- before the scanner takes the pass: a full scan's pass then lands in a new fold, which starts
--- the view anew.
-local function toBoard(book, whole)
+-- the view anew. Not at Blackwater: what it lists is not the fold's house.
+local function toBoard(s, book, whole)
+  if s:Neutral() then return end
   if GC.ForeverDeals and GC.ForeverDeals.OnBrowsePass then GC.ForeverDeals.OnBrowsePass(book, whole) end
 end
 function GC.ForeverScan.OnBrowsePassDone(book)
   local s = scanner()
-  if s then toBoard(book, true); s:OnBrowsePassDone(book); repaint() end
+  if s then toBoard(s, book, true); s:OnBrowsePassDone(book); repaint() end
 end
 function GC.ForeverScan.OnBrowsePassAbandoned(book)
   local s = scanner()
-  if s then toBoard(book, false); s:OnBrowsePassAbandoned(book); repaint() end
+  if s then toBoard(s, book, false); s:OnBrowsePassAbandoned(book); repaint() end
 end
 function GC.ForeverScan.OnAuctionHouseShow() local s = scanner(); local r = s and s:OnAuctionHouseShow() or nil; repaint(); return r end
 function GC.ForeverScan.OnAuctionHouseClosed() local s = scanner(); if s then s:OnAuctionHouseClosed(); repaint() end end

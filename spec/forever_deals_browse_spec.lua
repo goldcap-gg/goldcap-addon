@@ -148,26 +148,42 @@ describe("ForeverDeals live view from browse passes", function()
     end)
   end)
 
-  it("an item the fold lacks is a floor-only row, and does not read as a cut scan", function()
-    D.OnBrowsePass(pass({}, "classes", { [4306] = { 400, 3 } }), true)
+  it("items the fold lacks are floor-only rows, and do not read as a cut scan", function()
+    vendor[4307], vendor[4308] = 500, 500
+    D.OnBrowsePass(pass({}, "classes", { [4306] = { 400, 3 }, [4307] = { 400, 3 }, [4308] = { 400, 3 } }), true)
     D.Refresh(clock)
     local r = rows()[4306]
     assert.equal(400, r.unitPrice)
     assert.equal(1, r.qty)
-    clock = clock + 60
-    D.OnItemInfo(4306)
-    GC.db.settings.sniper.foreverMinimumProfitCopper = 20
-    saved.rev = 2 -- a whole build reads the view too
+    GC.GroupRules = { rev = 1 } -- a followed group changed: the whole board is built again
     D.Refresh(clock)
-    assert.is_nil(rows()[4306])
-    assert.is_false(D.MostlyFloors())
+    assert.equal(400, rows()[4308].unitPrice)
+    assert.is_false(D.MostlyFloors()) -- three floor-only items over a fold of two
   end)
 
   it("a whole build reads the view over the fold", function()
     D.OnBrowsePass(pass({}, "classes", { [2589] = { 60, 51 } }), true)
-    GC.GroupRules = { rev = 1 } -- a followed group changed: the whole board is built again
+    GC.GroupRules = { rev = 1 }
     D.Refresh(clock)
     assert.equal(60, rows()[2589].unitPrice)
+  end)
+
+  it("a row bought from shows what is left once, through patches and passes at its floor", function()
+    vendor[2589] = 130 -- 60c x1, 100c x10, 120c x10 under it
+    local book = pass({}, "classes", { [2589] = { 60, 51 }, [2592] = { 100, 50 } })
+    D.OnBrowsePass(book, true)
+    D.Refresh(clock)
+    assert.equal(21, rows()[2589].qty)
+    D.Bought(2589, 5)
+    assert.equal(16, rows()[2589].qty)
+    D.OnBrowsePass(pass(book, "classes", { [2589] = { 60, 46 }, [2592] = { 70, 50 } }), true)
+    assert.is_true(D.Refresh(clock)) -- 2592's floor moved: a patch
+    assert.equal(16, rows()[2589].qty)
+    D.OnBrowsePass(pass(book, "classes", { [2589] = { 60, 40 }, [2592] = { 60, 50 } }), true)
+    D.Refresh(clock)
+    D.Refresh(clock)
+    assert.equal(16, rows()[2589].qty)
+    assert.equal(40, rows()[2589].avail)
   end)
 
   it("never counts an item twice", function()

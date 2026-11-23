@@ -527,6 +527,12 @@ end
 -- same `at`. Keyed to `at` alone, a row stayed off through a merge that brought the item a newer
 -- entry, since a merge keeps `at` (review, 2026-11-06); keyed to every write, a browse-only top-up
 -- that kept the item's saved entry would put a lead the player just bought straight back.
+-- Whether an encoded entry is gear's (its flags, read off the string's head).
+local function isGear(entry)
+  local flags = type(entry) == "string" and entry:match("^%d+,%d+,%d*,(%a*);") or ""
+  return flags:find("g", 1, true) ~= nil
+end
+
 -- The view of `fold`, started anew when it is another fold's.
 local function viewOf(fold)
   if view.base ~= fold or view.at ~= fold.at or view.itemCount ~= fold.itemCount or view.rev ~= fold.rev then
@@ -956,11 +962,13 @@ function GC.ForeverDeals.OnBrowsePass(book, whole)
           local entry = o == nil and fold.items[itemID] or o or nil
           was = entry and tonumber(entry:match("^(%d+),"))
           -- Gear's floor is one version's: not the item's (GC.ForeverFold.Overlay).
-          if entry and (entry:match("^%d+,%d+,%d*,(%a*);") or ""):find("g", 1, true) then was = floor end
+          if isGear(entry) then was = floor end
         end
         if was ~= floor then set(itemID, { floor = floor, qty = row.qty }, was, floor) end
       end
-      if type(row.qty) == "number" and shown(itemID) and (not prev or prev.qty ~= row.qty) then
+      -- A variant's units, or gear's, are one version's too.
+      if not row.variants and type(row.qty) == "number" and (not prev or prev.qty ~= row.qty) and shown(itemID)
+          and not isGear(fold.items[itemID]) then
         unitsDue[itemID] = row.qty
       end
     end
