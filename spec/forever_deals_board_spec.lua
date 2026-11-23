@@ -209,6 +209,30 @@ describe("WoW: Forever", function()
     assert.is_nil(api.emptyText)
   end)
 
+  -- Owner, WoW: Forever 2026-11-23: Auto on, the scan's two commodity rows refused by their Checks
+  -- and hidden (HIDDEN 2), and the board said only "Scanning the auction house…" under "deals 3".
+  it("names the rows the live Check refused, during a scan and after it, and does not count them", function()
+    local api = loadSniper()
+    local busy = true
+    forever(api, { foreverRow(2589, "commodities"), foreverRow(2592, "commodities"), foreverRow(19019, "items") },
+      { at = 1, itemCount = 6900, items = {} })
+    api.GC.ForeverScan.IsBusy = function() return busy end
+    api.GC.Game = { IsForever = function() return true end, Passport = function() return {} end }
+    local verdicts = upvalue(upvalue(upvalue(api.refreshRows, "setRowDeal"), "verdictFor"), "verdicts")
+    verdicts[2589] = { unitPrice = 8, at = 100, buyable = false, status = "AVOID", reason = "price_rose" }
+    verdicts[2592] = { unitPrice = 8, at = 100, buyable = false, status = "AVOID", reason = "gone" }
+    assert.same({}, ids(api.renderList()))
+    api.GC.Sniper._UpdateEmptyState(0)
+    assert.is_truthy(api.emptyText:find("2 refused by live checks.", 1, true))
+    assert.is_truthy(api.emptyText:find("Scanning the auction house…", 1, true))
+    busy = false
+    api.GC.Sniper._UpdateEmptyState(0)
+    assert.is_truthy(api.emptyText:find("No deals passed the safety checks right now.", 1, true))
+    assert.is_truthy(api.emptyText:find("2 refused by live checks.", 1, true))
+    assert.is_nil(api.emptyText:find("No deals in your last scan.", 1, true))
+    assert.is_truthy(api.GC.Sniper._ForeverReadout():find("deals |cfff7cf5a1|r · items 6900", 1, true))
+  end)
+
   -- Owner, WoW: Forever 2026-11-06: the readout said "deals 0 · items 615 · filtered 615" over a
   -- board full of rows. It counts the board's own rows there, and the items the scan saw.
   it("reads the board's own rows and the scan's items on Forever, and nothing on retail", function()

@@ -985,6 +985,15 @@ end
 -- the row beneath it moves into the top LIM.VERIFY_TOP_ROWS, and gets checked in its turn. The
 -- count it leaves behind in `refusedCount` is not optional -- a silently shorter list is its
 -- own lie, so the toolbar carries the number and the switch to see them.
+-- A row the live Check refused, which the board hides until HIDDEN shows it (renderList). A pin, a
+-- cap, a Check the player is reading, a lot found under its region reference and a deal only the
+-- wallet refused are never among them: see renderList for why each.
+local function refusedByCheck(deal, verdict)
+  return verdict ~= nil and not verdict.buyable and not verdict.manual and not verdict.unverified
+    and not verdict.cap and not verdict.needsGold and not isPinned(deal.itemID)
+end
+GC.Sniper._RefusedByCheck = function(deal) return refusedByCheck(deal, verdictFor(deal)) end
+
 local function renderList()
   local list = applySortOverride(sortedDeals())
   local show = showRefused()
@@ -1018,8 +1027,7 @@ local function renderList()
     if GC.Sniper._ItemHidden(deal.itemID) and not pinned then
       hiddenItems = hiddenItems + 1
       if show then kept[#kept + 1] = deal end
-    elseif verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
-        and not verdict.cap and not verdict.needsGold and not pinned then
+    elseif refusedByCheck(deal, verdict) then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
     else
@@ -2109,13 +2117,18 @@ function GC.Sniper._ForeverReadout()
     return nil
   end
   local fold = GC.ForeverScan.Fold and GC.ForeverScan.Fold() or nil
-  local leads = GC.ForeverDeals.Rows() or {}
+  -- The rows the live Check refused are not counted: they are hidden (HIDDEN), and "deals 3" over
+  -- an empty board read as a board that lost its rows (owner, 2026-11-23).
+  local leads = 0
+  for _, lead in ipairs(GC.ForeverDeals.Rows() or {}) do
+    if not GC.Sniper._RefusedByCheck(lead) then leads = leads + 1 end
+  end
   local items = fold and fold.itemCount
   if type(items) ~= "number" then
     items = 0
     for _ in pairs(fold and fold.items or {}) do items = items + 1 end
   end
-  local found = #leads > 0 and GC.Util.Colored(GC.Kit.Tokens.color.goldText, #leads) or "0"
+  local found = leads > 0 and GC.Util.Colored(GC.Kit.Tokens.color.goldText, leads) or "0"
   local line = (GC.L["deals %s · items %s"]):format(found, tostring(items))
   -- The server cut the last full scan short (owner, 2026-11-06: every dump of the evening at 1023
   -- rows, the board at "deals 0" with nothing saying why): the rows come from lowest prices only.
@@ -2787,10 +2800,17 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   -- The rows themselves are not cleared by a scan there: the board reads the saved fold, which
   -- only changes when the scan commits. Retail keeps its own rule: a mid-refill commodity board
   -- says nothing.
+  -- WoW: Forever: the rows the live Check refused (the cheap lots go in minutes, and a scan's deals
+  -- are Checked one by one) are hidden, not gone, and that is why the board is empty: it comes
+  -- first. Auto keeps the scan state on between full scans, and the board said only "Scanning the
+  -- auction house…" under HIDDEN 2 and a readout still counting them (owner, 2026-11-23).
+  local refusedLine = refusedCount > 0 and (GC.L["%d refused by live checks. Press %s above to review them"]):format(
+    refusedCount, WIN.InlineIcon(frame.verifyBtn, GC.L["HIDDEN %d"]:format(refusedCount))) or nil
   if GC.Sniper.ScanActive() then
     if isForever() then
-      label:SetText(GC.L["Scanning the auction house…"] .. "\n"
-        .. GC.L["Deals appear as soon as the scan finds them."])
+      local text = GC.L["Scanning the auction house…"] .. "\n"
+        .. GC.L["Deals appear as soon as the scan finds them."]
+      label:SetText(refusedLine and (refusedLine .. "\n" .. text) or text)
       label:Show()
       return
     end
@@ -2803,7 +2823,9 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   local text
   if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() then
     -- WoW: Forever: the rows are the player's own scan's (Core/ForeverDeals.lua), on both boards.
-    if GC.ForeverScan.Fold and GC.ForeverScan.Fold() then
+    if GC.ForeverScan.Fold and GC.ForeverScan.Fold() and refusedLine then
+      text = GC.L["No deals passed the safety checks right now."] .. "\n" .. refusedLine
+    elseif GC.ForeverScan.Fold and GC.ForeverScan.Fold() then
       text = GC.L["No deals in your last scan."] .. "\n"
         .. GC.L["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."]
     else
