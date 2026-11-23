@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.33.0 (unreleased)
+
+- SELL, in retail WoW: POST no longer offers to post an item for less than a vendor pays for it
+  after the auction house's 5% cut. Its row says "vendor pays more", and the dock says to sell it
+  to a vendor instead, as it already did on WoW: Forever.
+
 ## 0.32.0 (2026-11-23)
 
 - WoW: Forever: DEALS has a third board, BLACKWATER. It lists what the neutral auction house in

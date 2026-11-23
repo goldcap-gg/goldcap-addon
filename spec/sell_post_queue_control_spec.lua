@@ -557,6 +557,79 @@ describe("Sell tab, the posting queue control", function()
     assert.matches("a vendor pays more: sell it there", GC.SellUI.Dock.HeldBackHint(), 1, true)
   end)
 
+  -- Retail reads the vendor's price from the client itself (C_Item.GetItemInfo's 11th answer), and
+  -- holds an item back on it exactly as WoW: Forever does, and on nothing else of Forever's.
+  describe("in retail WoW, against what a vendor pays", function()
+    local function vendorPays(prices)
+      _G.C_Item.GetItemInfo = function(id)
+        return ITEM_NAMES[id], nil, 1, nil, nil, nil, nil, 1000, "", nil, prices[id]
+      end
+    end
+
+    local function reasonOf(positionKey)
+      for _, skip in ipairs(GC.SellState.queueSkipped) do
+        if skip.positionKey == positionKey then return skip.reason end
+      end
+    end
+
+    local function queued(positionKey)
+      for _, entry in ipairs(GC.SellState.queueEntries) do
+        if entry.positionKey == positionKey then return true end
+      end
+      return false
+    end
+
+    it("holds Eternium Ore back when a vendor pays as much as the post brings after the cut", function()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local unit = GC.SellState.queueEntries[1].unitPrice
+      vendorPays({ [23427] = math.floor(unit * 0.95) })
+      ready()
+      assert.is_false(queued("commodity:23427"))
+      assert.equal("below_vendor", reasonOf("commodity:23427"))
+      assert.matches("a vendor pays more: sell it there", GC.SellUI.Dock.HeldBackHint(), 1, true)
+    end)
+
+    it("still queues an item a vendor pays less for, or that the client has not loaded", function()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local unit = GC.SellState.queueEntries[1].unitPrice
+      vendorPays({ [23427] = math.floor(unit * 0.95) - 1 })
+      compose()
+      assert.is_true(queued("commodity:23427"))
+      vendorPays({})
+      compose()
+      assert.is_true(queued("commodity:23427"))
+    end)
+
+    -- As on WoW: Forever, the dock still stops at it and says in red why GoldCap would not list it.
+    it("says in the dock, in red, that a vendor pays more", function()
+      vendorPays({ [23427] = 10 ^ 9 })
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      assert.equal("below_vendor", reasonOf("commodity:23427"))
+      assert.equal("Eternium Ore", container.queueLabel.text)
+      assert.equal("a vendor pays more: sell it there", container.dockSub.text)
+      assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
+      -- ...and its row says so too.
+      local ore
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then ore = row end
+      end
+      assert.is_truthy(ore.itemStock.text:find("vendor pays more", 1, true))
+    end)
+
+    it("turns on none of WoW: Forever's other holds", function()
+      local opts = GC.Sell._QueueOpts()
+      assert.is_function(opts.vendorUnit)
+      assert.is_nil(opts.depositFor)
+      assert.is_nil(opts.durationFor)
+      assert.is_nil(opts.unitFor)
+      assert.is_nil(opts.minimumProfit)
+      assert.is_nil(opts.returnHold)
+    end)
+  end)
+
   -- WoW: Forever (2026-11-06): the deposit a post puts up, which the client quotes for the item,
   -- the duration and the quantity, and which nothing on the tab named (99c on seven Stringy Wolf
   -- Meat at 35c on the owner's save).

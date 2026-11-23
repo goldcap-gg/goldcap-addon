@@ -370,8 +370,7 @@ UI.SKIP_TEXT = {
   no_fresh_price = "needs a fresh price. Press REFRESH",
   below_breakeven = "would sell at a loss",
   unresolved_identity = "GoldCap can't pin down which bag stack this is",
-  -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for
-  -- it after the AH's cut.
+  -- Core/PostQueue.lua's below_vendor: a vendor pays at least as much for it after the AH's cut.
   below_vendor = "a vendor pays more: sell it there",
   -- WoW: Forever only (Core/PostQueue.lua's below_deposit): the tooltip's own verdict, in its
   -- own words, for the whole post.
