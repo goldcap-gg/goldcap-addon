@@ -49,6 +49,75 @@ describe("Auto says why it is not scanning", function()
     assert.equal("AUTO · PAUSED: MAILBOX OPEN", autoButtonText("PAUSED", { mail = true, buy = true }))
   end)
 
+  -- Owner, 2026-11-23: with the auction house left open, Auto browsed on over a full list as old as
+  -- the opening; a new one was asked for only on opening and on SCAN.
+  -- Asked at the start of Auto's pass, it never came on the Items board, where the pass waits:
+  -- "why does it not scan at 15 minutes, 19 have gone by" (owner, the same day). Auto's clock asks.
+  describe("on WoW: Forever, the full list when one is due", function()
+    local GC, feedAuto, autoScan, asked, due
+    before_each(function()
+      GC, feedAuto, autoScan = loadSniper()
+      asked, due = {}, true
+      GC.Game = { Passport = function() return {} end, IsForever = function() return true end }
+      GC.ForeverScan = { Due = function() return due end,
+        Request = function(reason) asked[#asked + 1] = reason; return "started" end }
+      GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+    end)
+
+    it("is asked for on Auto's clock, mid-pass too, and not again before it is due", function()
+      feedAuto("toggleOn")
+      autoScan:Tick(101)
+      assert.equal("SCANNING", autoScan:State())
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({ "auto" }, asked)
+      due = false
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({ "auto" }, asked)
+    end)
+
+    it("is asked for on the Items board, where Auto's pass waits", function()
+      feedAuto("toggleOn")
+      feedAuto("pause:items")
+      assert.equal("PAUSED", autoScan:State())
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({ "auto" }, asked)
+    end)
+
+    it("waits while Auto is off, waits on the player, or the player is busy", function()
+      GC.Sniper._AskFullListWhenDue()
+      feedAuto("toggleOn")
+      feedAuto("pause:mail")
+      GC.Sniper._AskFullListWhenDue()
+      feedAuto("resume:mail")
+      GC.AuctionHouseTab.PlayerIsBusy = function() return true end
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({}, asked)
+    end)
+
+    -- Owner, 2026-11-23: "I cannot tell it is not a plain scan but the full one, which matters".
+    it("puts FULL SCAN on the chip while the full list is on, on the Items board too", function()
+      local own, _, _, autoButtonText = loadSniper()
+      local full = true
+      own.Game = GC.Game
+      own.ForeverScan = { FullListOn = function() return full end }
+      assert.equal("AUTO · FULL SCAN", autoButtonText("SCANNING", {}))
+      local text, held, working = autoButtonText("PAUSED", { items = true })
+      assert.equal("AUTO · FULL SCAN", text)
+      assert.is_false(held)
+      assert.is_true(working)
+      full = false
+      assert.equal("AUTO · SCANNING", autoButtonText("SCANNING", {}))
+      assert.equal("AUTO · PAUSED: MAILBOX OPEN", autoButtonText("PAUSED", { mail = true }))
+    end)
+
+    it("is not asked for on retail", function()
+      GC.Game.IsForever = function() return false end
+      feedAuto("toggleOn")
+      GC.Sniper._AskFullListWhenDue()
+      assert.same({}, asked)
+    end)
+  end)
+
   it("says in the tooltip what holds it and what the player can do, every reason", function()
     local GC, feedAuto = loadSniper()
     feedAuto("toggleOn")

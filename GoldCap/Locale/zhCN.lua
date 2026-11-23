@@ -103,6 +103,7 @@ GC.Locales.zhCN = {
   ["AH, cheapest version"] = "拍卖行，最便宜版本",
   ["AUTO"] = "自动",
   ["AUTO · SCANNING"] = "自动 · 扫描中",
+  ["AUTO · FULL SCAN"] = "自动 · 完整扫描",
   ["AUTOMATION & ALERTS"] = "自动化与提醒",
   ["AVOID"] = "避开",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
@@ -957,6 +958,10 @@ GC.Locales.zhCN = {
   ["The scan found nothing to save"] = "扫描没有找到可保存的内容",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "扫描整个拍卖行以获取价格:完整列表最多每 15 分钟一次,期间通过浏览进行扫描。打开拍卖行时 GoldCap 也会自动扫描。",
+  ["Next full list in %d min."] =
+    "%d 分钟后可获取下一份完整列表。",
+  ["The next full list is ready: press SCAN, or Auto asks for it on its own."] =
+    "下一份完整列表已可获取：按“扫描”，或由“自动”自行请求。",
   -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
   -- POST queue holding back what a vendor pays at least as much for.
   ["Your bags: %s at a vendor, %s on the AH after its cut"] =

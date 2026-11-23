@@ -147,6 +147,46 @@ describe("ForeverGearLoop", function()
     end)
   end)
 
+  -- ClickUp 1an60dzy9nt: a key far under what its version sells for (the driver's marketFor, which
+  -- reads the version and judges it) is a find of its own, beside the vendor test.
+  describe("a key under what its version sells for", function()
+    local function marketLoop(answers)
+      return L.New({
+        vendorFor = function(id) return vendor[id] end,
+        known = function() return true end,
+        marketFor = function(_, key, unit)
+          local a = answers[L.KeyText(key)]
+          return a and unit <= a.ceiling and a or nil
+        end,
+      })
+    end
+
+    it("is found beside the vendor test, and its keys kept for the Check", function()
+      vendor = { [15210] = 300 }
+      local loop = marketLoop({ ["15210/16/14299"] = { ceiling = 2000, version = "12729" } })
+      loop:BeginRound(100)
+      local under, _, market = loop:Fold({ row(15210, 16, 14299, 1800, 2), row(15210, 16, 14300, 1800, 1) })
+      assert.same({}, under)
+      assert.equal(1, #market)
+      assert.same({ 15210, 1800, 2, "12729" }, { market[1].itemID, market[1].unit, market[1].qty, market[1].market.version })
+      assert.equal("15210/16/14299", L.KeyText(market[1].key))
+      assert.equal(2, #loop:Variants(15210))         -- every key of the item from its first find on
+      local figures = loop:EndRound(130)
+      assert.equal(1, figures.marketCount)
+      assert.equal(1, #figures.market[15210])
+      assert.equal("12729", figures.market[15210][1].market.version)
+    end)
+
+    it("is not asked of a key with nothing up", function()
+      local asked = 0
+      local loop = L.New({ vendorFor = function() return nil end, known = function() return true end,
+        marketFor = function() asked = asked + 1 end })
+      loop:BeginRound(100)
+      loop:Fold({ row(15210, 16, 14299, 0, 0) })
+      assert.equal(0, asked)
+    end)
+  end)
+
   describe("the lots waiting for their Check", function()
     it("come oldest first, one an item, and are let go after HIT_WAIT_SECONDS", function()
       local loop = new()
@@ -171,10 +211,28 @@ describe("ForeverGearLoop", function()
         L.NoteRound(root, 1000 + i, { seconds = 19.25, rows = 13963, pages = 29, underCount = 2, unknown = 40 })
       end
       assert.equal(L.C.KEEP_ROUNDS, #root.foreverGearLoop.rounds)
-      assert.equal(("%d 19.2 13963 29 2 40"):format(1000 + L.C.KEEP_ROUNDS + 3),
+      assert.equal(("%d 19.2 13963 29 2 40 0 0"):format(1000 + L.C.KEEP_ROUNDS + 3),
         root.foreverGearLoop.rounds[L.C.KEEP_ROUNDS])
       L.NoteHit(root, 2000, "3021/20/0", 2200, 2426, 0.75)
       assert.equal("2000 3021/20/0 2200 v2426 0.8", root.foreverGearLoop.hits[1])
+      L.NoteHit(root, 2001, "15210/16/14299", 1800, 6000, 0.5, "market")
+      assert.equal("2001 15210/16/14299 1800 m6000 0.5", root.foreverGearLoop.hits[2])
+    end)
+
+    -- What became of a find, for reading where the lots are lost: gone before the Check, armed,
+    -- refused (and why), or bought.
+    it("ends a find's line with what its Check and the player's press made of it", function()
+      local root = {}
+      L.NoteHit(root, 2000, "3021/20/0", 2200, 2426, 0.75)
+      L.NoteHit(root, 2001, "15210/16/14299", 1800, 6000, 0.5, "market")
+      L.NoteOutcome(root, 15210, "armed")
+      L.NoteOutcome(root, 15210, "armed")          -- a second Check of the same find says nothing new
+      L.NoteOutcome(root, 15210, "bought")
+      L.NoteOutcome(root, 3021, "refused:price_rose")
+      L.NoteOutcome(root, 4242, "gone")            -- no find of it: nothing written
+      assert.equal("2000 3021/20/0 2200 v2426 0.8 =refused:price_rose", root.foreverGearLoop.hits[1])
+      assert.equal("2001 15210/16/14299 1800 m6000 0.5 =armed =bought", root.foreverGearLoop.hits[2])
+      assert.equal(2, #root.foreverGearLoop.hits)
     end)
 
     it("leaves a store of another shape alone", function()

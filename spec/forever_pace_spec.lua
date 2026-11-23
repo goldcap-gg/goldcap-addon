@@ -267,6 +267,49 @@ describe("WoW: Forever's sale pace", function()
       assert.is_nil(position.tape)
       assert.is_false(asked)
     end)
+
+    -- ClickUp 1an60dzy9nt: a suffixed piece bought under its version's median is sold against what
+    -- that version sold, read off its bag stack's link (salesFor's second argument).
+    it("a suffixed piece of WoW: Forever gear hears its own version's tape, by its bag link", function()
+      local link = "|cff1eff00|Hitem:15210::::::::16:::1:12729:::::|h[Raider's Shortsword of the Monkey]|h|r"
+      local sold = { units = 14, sales = 14, median = 6000, perDay = 2, hours = 168 }
+      local seen
+      local position = GC.SellPositions.Build({ acquisitions = {}, ownedLots = {},
+        bagStock = { { positionKey = "item:15210:16:14299:0", itemID = 15210, quoteKey = "item:15210:16:14299:0",
+          itemName = "Shortsword", quantity = 1, stacks = { { bag = 0, slot = 1, quantity = 1, link = link } } } },
+        quotes = {}, statsByItemID = {}, context = CONTEXT, now = 10, oneLevelPerItem = true,
+        salesFor = function(itemID, l) seen = { itemID, l }; return l and sold or nil end })[1]
+      assert.equal("level", position.variantKind)
+      assert.same({ 15210, link }, seen)
+      assert.equal(sold, position.tape)
+    end)
+
+    describe("a suffixed piece bought under its version's median is posted near it", function()
+      local link = "|cff1eff00|Hitem:15210::::::::16:::1:12729:::::|h[Raider's Shortsword of the Monkey]|h|r"
+      local KEY = "item:15210:16:14299:0"
+      local function post(quotes)
+        helper.loadModule("Core/ForeverItemMarket.lua", GC)
+        return GC.SellPositions.Build({ acquisitions = {}, ownedLots = {},
+          bagStock = { { positionKey = KEY, itemID = 15210, quoteKey = KEY, itemName = "Shortsword", quantity = 1,
+            stacks = { { bag = 0, slot = 1, quantity = 1, link = link } } } },
+          quotes = quotes, statsByItemID = {}, context = CONTEXT, now = 10, oneLevelPerItem = true,
+          salesFor = function(_, l) return l and { units = 14, sales = 14, median = 6000, perDay = 2, hours = 168 } end,
+        })[1].postRecommendation
+      end
+
+      it("at 90% of that median with no other lot of it up", function()
+        local rec = post({})
+        assert.equal(5400, rec.unit)
+      end)
+
+      -- The buy's plan priced its exit just under the next lot up when that was lower (2 a day
+      -- sell: a post over a lot ahead waits for it), and the post matches that lot as ever.
+      it("at the cheapest lot up when one is up under it", function()
+        local rec = post({ [KEY] = { unit = 2500, at = 9, fresh = true,
+          levels = { { unitPrice = 2500, quantity = 1 }, { unitPrice = 9000, quantity = 1 } } } })
+        assert.equal(2500, rec.unit)
+      end)
+    end)
   end)
 
   -- Review of Tasks 4-5, I2: A5 prices a post one rung above a tiny cheap lot, and the repost

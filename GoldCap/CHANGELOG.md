@@ -1,5 +1,31 @@
 # GoldCap
 
+## 0.33.0 (2026-11-23)
+
+- WoW: Forever: ITEMS now finds items listed far under what they sell for on your auction house,
+  not only under what a vendor pays. Each lot is held against what the same item sold for over the
+  past week, and for a piece of gear with a random suffix, against what that same version sold for.
+  Only items that sell often enough to be bought and sold again make it: at most half their price
+  for items that sell 35 times a week or more, at most 40% for gear that sells 7 times a week or
+  more and goes for under 10g. The row says "Under market" and how many sell a day, and its
+  PROFIT is what you make listing it at 90% of that price, or just under the next lot up when
+  that is lower.
+- ITEMS never suggests more of one item than half a day of its sales, counting the ones already in
+  your bags.
+- A row on ITEMS whose check has BUY ready shows its kind instead of WATCH.
+- SELL: a piece of gear with a random suffix is priced against what that version sold for on your
+  auction house, not only the lots of it up right now.
+- DEALS: when the live check has turned down every row on a board, the board says so and points to
+  HIDDEN, instead of only "Scanning the auction house...". The deals count next to AUTO no longer
+  counts those rows.
+- WoW: Forever: SCAN works while AUTO is on. It answered "full scan already in progress" and scanned
+  nothing. AUTO itself now takes a new full list every 15 minutes while the auction house stays
+  open, on every board, instead of only when you open it, so DEALS no longer grows stale. The
+  SCAN button shows how many minutes are left until the next one, and its tooltip says it too.
+- WoW: Forever: while a full list of the auction house comes in, AUTO reads "AUTO · FULL SCAN" and
+  the SCAN spyglass turns, from the request until the last of the list is read, and only then. The
+  game hands a list over in two parts a minute apart, and both used to go quiet after the first.
+
 ## 0.32.0 (2026-11-23)
 
 - WoW: Forever: DEALS has a third board, BLACKWATER. It lists what the neutral auction house in

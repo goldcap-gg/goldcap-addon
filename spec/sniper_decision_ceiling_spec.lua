@@ -8,6 +8,7 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
     helper.loadModule("Core/Trigger.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/ForeverItemMarket.lua", GC)
     S = GC.SniperDecision
   end)
 
@@ -351,9 +352,54 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
       assert.is_nil(d.candidate)
     end)
 
-    it("is vendor-only", function()
-      assert.same({ "invalid_input" }, S.EvaluateCeilingLot({ ceilingUnit = 99, kind = "market",
-        exitUnit = 100, lots = LOTS, minimumProfit = 1 }).reasons)
+    -- ClickUp 1an60dzy9nt: an item under what it (or its version) sells for. The lot is still the
+    -- purchase, one per press; the resale is held to the live lots the buy leaves behind.
+    describe("kind market", function()
+      local function market(over)
+        local i = { ceilingUnit = 500, kind = "market", refUnit = 1000, exitUnit = 1000, depositUnit = 20,
+          room = 2, minimumProfit = 20,
+          lots = { { auctionID = 7, buyout = 400, quantity = 1, itemLevel = 20 },
+            { auctionID = 8, buyout = 1100, quantity = 1, itemLevel = 20 } } }
+        for k, v in pairs(over or {}) do i[k] = v end
+        return i
+      end
+
+      it("names the cheapest lot under the ceiling and what one press makes at 90% of the median", function()
+        local d = S.EvaluateCeilingLot(market())
+        assert.equal("WATCH", d.status); assert.is_false(d.buyable)
+        assert.equal(7, d.candidate.auctionID)
+        assert.same({ 1, 400, 900, "market", 1000 }, { d.quantity, d.entryTotal, d.exitUnit, d.forever, d.reference })
+        assert.equal(900 - 45 - 20 - 400, d.stressProfit)
+        assert.equal(d.stressProfit, d.estProfit)
+      end)
+
+      it("resells one copper under a lot the player has no room left to take", function()
+        local lots = { { auctionID = 7, buyout = 400, quantity = 1 }, { auctionID = 9, buyout = 450, quantity = 1 } }
+        local d = S.EvaluateCeilingLot(market({ lots = lots, room = 1, minimumProfit = 0 }))
+        assert.equal(449 - 23 - 20 - 400, d.stressProfit)
+        assert.same({ "profit_below_minimum" }, S.EvaluateCeilingLot(market({ lots = lots, room = 1, minimumProfit = 10 })).reasons)
+      end)
+
+      it("refuses once the player holds half a day of its sales", function()
+        assert.same({ "demand_limit" }, S.EvaluateCeilingLot(market({ room = 0 })).reasons)
+      end)
+
+      it("weighs only lots of the version it was priced for", function()
+        local lots = { { auctionID = 7, buyout = 300, quantity = 1, ver = "12730" },
+          { auctionID = 8, buyout = 400, quantity = 1, ver = "12729" } }
+        local d = S.EvaluateCeilingLot(market({ lots = lots, version = "12729" }))
+        assert.equal(8, d.candidate.auctionID)
+        assert.same({ "no_comparable_lot" }, S.EvaluateCeilingLot(market({ lots = { lots[1] }, version = "12729" })).reasons)
+        -- A lot whose link has not loaded is taken as the key's own version: the key holds one.
+        assert.equal(9, S.EvaluateCeilingLot(market({ version = "12729",
+          lots = { { auctionID = 9, buyout = 400, quantity = 1 } } })).candidate.auctionID)
+      end)
+
+      it("refuses when the cheapest lot is over the ceiling, and malformed input", function()
+        assert.same({ "price_rose" }, S.EvaluateCeilingLot(market({ lots = { { auctionID = 8, buyout = 501, quantity = 1 } } })).reasons)
+        assert.same({ "invalid_input" }, S.EvaluateCeilingLot(market({ refUnit = 0 })).reasons)
+        assert.same({ "invalid_input" }, S.EvaluateCeilingLot(market({ room = 1.5 })).reasons)
+      end)
     end)
 
     -- A lot is one item at its buyout, as on retail since addon 0.15.2: driver.itemLots hands

@@ -47,6 +47,9 @@ end
 ---   vendorFor(itemID)  what a vendor pays for one, from the kept answers only; nil when none is kept
 ---   known(itemID)      whether an answer about the item is kept (a kept "no vendor price" included)
 ---   listed(itemID)     whether the board already shows a row of the item (optional)
+---   marketFor(itemID, key, unit)  (optional, ClickUp 1an60dzy9nt) the key's version judged against
+---                      what that version sells for (GC.ForeverItemMarket), an answer when `unit` is
+---                      a deal at it, else nil
 function L.New(driver)
   local obj = {}
   local round = nil      -- { startedAt, rows, pages, under = { [itemID] = { variants } }, asked }
@@ -54,7 +57,8 @@ function L.New(driver)
   local asked = {}       -- itemID -> true: the client was asked about it this session
 
   function obj:BeginRound(now)
-    round = { startedAt = now, rows = 0, pages = 0, under = {}, keys = {}, underCount = 0, unknown = 0, hits = 0 }
+    round = { startedAt = now, rows = 0, pages = 0, under = {}, keys = {}, underCount = 0, unknown = 0, hits = 0,
+      market = {}, marketCount = 0 }
   end
 
   function obj:InRound() return round ~= nil end
@@ -62,10 +66,12 @@ function L.New(driver)
   -- A page of browse rows. Answers:
   --   under    the rows cheaper than the vendor price, each { itemID, key, unit, qty, vendor };
   --   ask      items with no kept answer the client may be asked about now (ASKS_PER_PAGE at most,
-  --            each once a session).
+  --            each once a session);
+  --   market   the rows far under what their version sells for, each { itemID, key, unit, qty,
+  --            market } (`market`: driver.marketFor's answer).
   function obj:Fold(rows)
-    local under, ask = {}, {}
-    if not round or type(rows) ~= "table" then return under, ask end
+    local under, ask, market = {}, {}, {}
+    if not round or type(rows) ~= "table" then return under, ask, market end
     round.pages = round.pages + 1
     for i = 1, #rows do
       local row = rows[i]
@@ -77,17 +83,29 @@ function L.New(driver)
         if whole(unit) and whole(qty) then
           local vendor = driver.vendorFor(itemID)
           local isUnder = whole(vendor) and unit < vendor
+          local deal = driver.marketFor and driver.marketFor(itemID, key, unit) or nil
           -- Every key with lots of an item the board shows, or is about to, is kept for its Check.
           local keys = round.keys[itemID]
-          if not keys and (isUnder or (driver.listed and driver.listed(itemID))) then
+          if not keys and (isUnder or deal or (driver.listed and driver.listed(itemID))) then
             keys = {}
             round.keys[itemID] = keys
           end
           local variant
           if keys then
             variant = { itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0,
-              battlePetSpeciesID = key.battlePetSpeciesID or 0, floor = unit, qty = qty, vendor = vendor }
+              battlePetSpeciesID = key.battlePetSpeciesID or 0, floor = unit, qty = qty, vendor = vendor,
+              market = deal }
             keys[#keys + 1] = variant
+          end
+          if deal then
+            local seen = round.market[itemID]
+            if not seen then
+              seen = {}
+              round.market[itemID] = seen
+              round.marketCount = round.marketCount + 1
+            end
+            seen[#seen + 1] = variant
+            market[#market + 1] = { itemID = itemID, key = key, unit = unit, qty = qty, market = deal }
           end
           if whole(vendor) then
             if isUnder then
@@ -110,7 +128,7 @@ function L.New(driver)
         end
       end
     end
-    return under, ask
+    return under, ask, market
   end
 
   --- The keys with lots this round has read of an item the board shows, shaped as a browse by the
@@ -126,13 +144,15 @@ function L.New(driver)
   end
 
   --- The round read both classes whole. Answers its figures, with `under`: the items it saw under
-  --- the vendor price. A live row of any other item is of a lot that is gone.
+  --- the vendor price, and `market`: the items it saw far under what their version sells for. A
+  --- live row of any other item is of a lot that is gone.
   function obj:EndRound(now)
     local r = round
     round = nil
     if not r then return nil end
     return { seconds = now - r.startedAt, rows = r.rows, pages = r.pages, under = r.under,
-      underCount = r.underCount, unknown = r.unknown, hits = r.hits }
+      underCount = r.underCount, unknown = r.unknown, hits = r.hits, market = r.market,
+      marketCount = r.marketCount }
   end
 
   --- The round was cut short (a scan, the player's own search, the auction house closing): what it
@@ -172,7 +192,11 @@ end
 
 --- The save's journal of the loop (GoldCapDB.foreverGearLoop, made by the first round, only on
 --- Forever): the last rounds and the last lots found, for reading how the loop does in the game.
----   { v = 1, rounds = { "at seconds rows pages under unknown" }, hits = { "at key unit vVendor checkedAfter" } }
+---   { v = 1, rounds = { "at seconds rows pages under unknown market unread" },
+---     hits = { "at key unit vVendor|mMedian checkedAfter [=outcome ...]" } }
+--- `unread`: keys cheap enough for their dearest version whose own version the client did not say
+--- (no sample link yet), so a round with no market find can be told from one that could not look.
+--- A round line before 0.33.0 has neither; a find's outcomes (NoteOutcome) follow it.
 function L.Journal(root, create)
   if type(root) ~= "table" then return nil end
   local j = root.foreverGearLoop
@@ -193,12 +217,30 @@ function L.NoteRound(root, at, figures)
   local j = L.Journal(root, true)
   if not j or type(figures) ~= "table" then return end
   keep(j.rounds, ("%d %.1f %d %d %d %d"):format(at, figures.seconds or 0, figures.rows or 0,
-    figures.pages or 0, figures.underCount or 0, figures.unknown or 0), L.C.KEEP_ROUNDS)
+    figures.pages or 0, figures.underCount or 0, figures.unknown or 0)
+    .. (" %d %d"):format(figures.marketCount or 0, figures.unread or 0), L.C.KEEP_ROUNDS)
 end
 
-function L.NoteHit(root, at, keyText, unit, vendor, checkedAfter)
+-- `ref`: what a vendor pays, or for kind "market" the version's median sale.
+function L.NoteHit(root, at, keyText, unit, ref, checkedAfter, kind)
   local j = L.Journal(root, true)
   if not j then return end
-  keep(j.hits, ("%d %s %d v%d %s"):format(at, keyText, unit, vendor,
+  keep(j.hits, ("%d %s %d %s%d %s"):format(at, keyText, unit, kind == "market" and "m" or "v", ref,
     checkedAfter and ("%.1f"):format(checkedAfter) or "-"), L.C.KEEP_HITS)
+end
+
+--- What became of the newest find of the item: "gone" (its Check found no lot), "armed" (Buy is
+--- ready), "refused:<reason>", "bought". The same outcome twice in a row is written once.
+function L.NoteOutcome(root, itemID, outcome)
+  local j = L.Journal(root, false)
+  if not j or type(itemID) ~= "number" or type(outcome) ~= "string" then return end
+  local prefix = " " .. itemID .. "/"
+  for i = #j.hits, 1, -1 do
+    local line = j.hits[i]
+    if line:find(prefix, 1, true) then
+      local tag = " =" .. outcome
+      if line:sub(-#tag) ~= tag then j.hits[i] = line .. tag end
+      return
+    end
+  end
 end

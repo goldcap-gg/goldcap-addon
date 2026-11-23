@@ -77,6 +77,7 @@ Core/ForeverGear.lua
 Core/ForeverScan.lua
 Core/ForeverNames.lua
 Core/ForeverValue.lua
+Core/ForeverItemMarket.lua
 Core/ForeverDeals.lua
 Core/ForeverGearLoop.lua
 Core/ForeverDisenchant.lua

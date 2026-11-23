@@ -649,6 +649,56 @@ function GC.Data.ForeverSales(itemID)
     recent = p.recent and p.recent[itemID] or nil, perDay = s.units * 24 / hours, hours = hours, at = p.ts }
 end
 
+-- The versions GCF1's V section lists for the item (each version of a piece with random suffixes),
+-- under the same day-of-tape rule as ForeverSales; nil when there are none to read.
+local function versionsOf(itemID)
+  local p = adoptedPayload()
+  local hours = p and p.salesHours
+  if type(hours) ~= "number" or hours < GC.Data.FOREVER_SALES_MIN_HOURS then return nil end
+  local item = p.versions and p.versions[itemID]
+  if not item then return nil end
+  return item, hours, p.ts
+end
+
+-- Whether the payload carries V at all: without it (an older site, or a house with no suffixed
+-- sale) S's figure for an item may be every version of a piece together, and no piece of gear is
+-- measured against it.
+function GC.Data.ForeverVersionsKnown()
+  local p = adoptedPayload()
+  local hours = p and p.salesHours
+  return type(hours) == "number" and hours >= GC.Data.FOREVER_SALES_MIN_HOURS and type(p.versions) == "table"
+end
+
+-- Whether the site tells this item's versions apart (ClickUp 1an60dzy9nt): when it does, a lot of it
+-- is measured against its own version, never against S's figure for every version together.
+function GC.Data.ForeverHasVersions(itemID)
+  return versionsOf(itemID) ~= nil
+end
+
+-- What one version of the item sold for, shaped as ForeverSales: `version` is the bonus key
+-- (GC.ForeverGear.BonusKey, "0" the plain one). A version the item's V entries leave out sold
+-- nothing. nil when the site does not tell the item's versions apart.
+function GC.Data.ForeverVersionSales(itemID, version)
+  local item, hours, at = versionsOf(itemID)
+  if not item then return nil end
+  local s = type(version) == "string" and item[version] or nil
+  if not s then return { units = 0, sales = 0, perDay = 0, hours = hours, at = at } end
+  return { units = s.units, sales = s.sales, median = s.median, p25 = s.p25,
+    perDay = s.units * 24 / hours, hours = hours, at = at }
+end
+
+-- The highest median of any of the item's versions: a browse key whose cheapest lot is not far
+-- under even that is no deal whichever version it is, and its version is never read.
+function GC.Data.ForeverVersionTop(itemID)
+  local item = versionsOf(itemID)
+  if not item then return nil end
+  local top
+  for _, s in pairs(item) do
+    if not top or s.median > top then top = s.median end
+  end
+  return top
+end
+
 function GC.Data.GetItemValue(itemID)
   -- 1. The region payload (GCM1): every commodity of the region at its latest snapshot, facts
   -- where it sold in the last day, p25 and reach where it has them. Ahead of the import on

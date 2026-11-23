@@ -985,6 +985,15 @@ end
 -- the row beneath it moves into the top LIM.VERIFY_TOP_ROWS, and gets checked in its turn. The
 -- count it leaves behind in `refusedCount` is not optional -- a silently shorter list is its
 -- own lie, so the toolbar carries the number and the switch to see them.
+-- A row the live Check refused, which the board hides until HIDDEN shows it (renderList). A pin, a
+-- cap, a Check the player is reading, a lot found under its region reference and a deal only the
+-- wallet refused are never among them: see renderList for why each.
+local function refusedByCheck(deal, verdict)
+  return verdict ~= nil and not verdict.buyable and not verdict.manual and not verdict.unverified
+    and not verdict.cap and not verdict.needsGold and not isPinned(deal.itemID)
+end
+GC.Sniper._RefusedByCheck = function(deal) return refusedByCheck(deal, verdictFor(deal)) end
+
 local function renderList()
   local list = applySortOverride(sortedDeals())
   local show = showRefused()
@@ -1018,8 +1027,7 @@ local function renderList()
     if GC.Sniper._ItemHidden(deal.itemID) and not pinned then
       hiddenItems = hiddenItems + 1
       if show then kept[#kept + 1] = deal end
-    elseif verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
-        and not verdict.cap and not verdict.needsGold and not pinned then
+    elseif refusedByCheck(deal, verdict) then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
     else
@@ -1464,8 +1472,12 @@ local function setRowDeal(row, deal)
   -- seconds, so "SAFE +31c" used to replace the kind on all of them, and a 2% "Below vendor" row
   -- read as a retail verdict (owner, beta 2026-09-27). The Buy button already says a row is
   -- buyable, and the PROFIT cell carries the figure.
+  --
+  -- An Items-board lot whose Check armed Buy (`unverified`: WATCH with a candidate) is not a
+  -- refusal either: it read WATCH, and the player took the board's one row ready to buy for one
+  -- still waiting on its Check (owner, 2026-11-23, "Deanship Claymore ... WATCH").
   local chip = GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID])
-  if deal.forever and (not verdict or verdict.buyable) then
+  if deal.forever and (not verdict or verdict.buyable or verdict.unverified) then
     -- A row of an item in a group the player follows says so (GC.Sniper._GroupNote has the rest);
     -- its kind is in the tooltip.
     chip = deal.capFollowed and GC.L["GROUP"] or GC.Sniper._ForeverLabel(deal.forever)
@@ -2109,13 +2121,18 @@ function GC.Sniper._ForeverReadout()
     return nil
   end
   local fold = GC.ForeverScan.Fold and GC.ForeverScan.Fold() or nil
-  local leads = GC.ForeverDeals.Rows() or {}
+  -- The rows the live Check refused are not counted: they are hidden (HIDDEN), and "deals 3" over
+  -- an empty board read as a board that lost its rows (owner, 2026-11-23).
+  local leads = 0
+  for _, lead in ipairs(GC.ForeverDeals.Rows() or {}) do
+    if not GC.Sniper._RefusedByCheck(lead) then leads = leads + 1 end
+  end
   local items = fold and fold.itemCount
   if type(items) ~= "number" then
     items = 0
     for _ in pairs(fold and fold.items or {}) do items = items + 1 end
   end
-  local found = #leads > 0 and GC.Util.Colored(GC.Kit.Tokens.color.goldText, #leads) or "0"
+  local found = leads > 0 and GC.Util.Colored(GC.Kit.Tokens.color.goldText, leads) or "0"
   local line = (GC.L["deals %s · items %s"]):format(found, tostring(items))
   -- The server cut the last full scan short (owner, 2026-11-06: every dump of the evening at 1023
   -- rows, the board at "deals 0" with nothing saying why): the rows come from lowest prices only.
@@ -2787,10 +2804,17 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   -- The rows themselves are not cleared by a scan there: the board reads the saved fold, which
   -- only changes when the scan commits. Retail keeps its own rule: a mid-refill commodity board
   -- says nothing.
+  -- WoW: Forever: the rows the live Check refused (the cheap lots go in minutes, and a scan's deals
+  -- are Checked one by one) are hidden, not gone, and that is why the board is empty: it comes
+  -- first. Auto keeps the scan state on between full scans, and the board said only "Scanning the
+  -- auction house…" under HIDDEN 2 and a readout still counting them (owner, 2026-11-23).
+  local refusedLine = refusedCount > 0 and (GC.L["%d refused by live checks. Press %s above to review them"]):format(
+    refusedCount, WIN.InlineIcon(frame.verifyBtn, GC.L["HIDDEN %d"]:format(refusedCount))) or nil
   if GC.Sniper.ScanActive() then
     if isForever() then
-      label:SetText(GC.L["Scanning the auction house…"] .. "\n"
-        .. GC.L["Deals appear as soon as the scan finds them."])
+      local text = GC.L["Scanning the auction house…"] .. "\n"
+        .. GC.L["Deals appear as soon as the scan finds them."]
+      label:SetText(refusedLine and (refusedLine .. "\n" .. text) or text)
       label:Show()
       return
     end
@@ -2803,7 +2827,9 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   local text
   if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() then
     -- WoW: Forever: the rows are the player's own scan's (Core/ForeverDeals.lua), on both boards.
-    if GC.ForeverScan.Fold and GC.ForeverScan.Fold() then
+    if GC.ForeverScan.Fold and GC.ForeverScan.Fold() and refusedLine then
+      text = GC.L["No deals passed the safety checks right now."] .. "\n" .. refusedLine
+    elseif GC.ForeverScan.Fold and GC.ForeverScan.Fold() then
       text = GC.L["No deals in your last scan."] .. "\n"
         .. GC.L["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."]
     else
@@ -2969,9 +2995,16 @@ end
 function GC.Sniper._DecideCeilingLot(itemID, lots)
   local ceiling = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
   if not ceiling then return nil end
-  return GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind,
+  local input = { ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind,
     exitUnit = ceiling.exitUnit, lots = type(lots) == "table" and lots or {},
-    minimumProfit = ceiling.minimumProfit })
+    minimumProfit = ceiling.minimumProfit }
+  -- An item under what it sells for (ClickUp 1an60dzy9nt): its median, its version, and the room
+  -- the player has left for it, read now, so a lot bought a moment ago counts.
+  if ceiling.item then
+    input.refUnit, input.depositUnit, input.version = ceiling.refUnit, ceiling.depositUnit, ceiling.version
+    input.room = GC.ForeverDeals.Room(itemID, ceiling.perDay)
+  end
+  return GC.SniperDecision.EvaluateCeilingLot(input)
 end
 
 -- Units a day, as the check panel and the buy line print it: under one a day is "<1", never "0"
@@ -3341,6 +3374,10 @@ driver = {
           -- own decision path: two lots of "the same" item can be twenty levels apart.
           itemLevel = info.itemKey and info.itemKey.itemLevel or 0,
           quantity = 1,
+          -- The lot's version (its link's bonus IDs, GC.ForeverGear.BonusKey), which a WoW: Forever
+          -- "Under market" row of a piece of gear is priced for (ClickUp 1an60dzy9nt). nil while the
+          -- link has not loaded.
+          ver = GC.ForeverGear and GC.ForeverGear.BonusKey(info.itemLink) or nil,
         }
       end
     end
@@ -4662,6 +4699,27 @@ autoScan = GC.AutoScan.New({}, {
   abortScan = cancelFullScan,
 })
 
+-- WoW: Forever: while Auto is on, a full list is asked for as soon as the server's throttle allows
+-- another (GC.ForeverScan.Due), on Auto's clock and whatever board is up. It used to be asked only
+-- when the auction house opened and on SCAN, so with the auction house left open Auto browsed on
+-- over a list as old as the opening (owner, 2026-11-23: "your scan, 13m ago" and climbing). Asked
+-- at the start of Auto's pass instead, it never came on the Items board, where Auto's pass waits
+-- (pause:items) and the gear loop stands aside for the scan (UI/SniperGearLoop_Camelot.lua's
+-- G.MayRun). Not while Auto waits on the player (a buy window, the mailbox, another tab, their own
+-- search), nor while an answer of theirs or a keys batch is out.
+function GC.Sniper._AskFullListWhenDue()
+  if not isForever() or not (GC.ForeverScan and GC.ForeverScan.Due) then return end
+  if autoScan:State() == "OFF" then return end
+  for reason in pairs(autoScan:PauseReasons()) do
+    if reason ~= "items" then return end
+  end
+  local tab = GC.AuctionHouseTab
+  if tab and tab.PlayerIsBusy and tab.PlayerIsBusy() then return end
+  if GC.Sniper._BrowseOwned and GC.Sniper._BrowseOwned() then return end
+  if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return end
+  if GC.ForeverScan.Due() then GC.ForeverScan.Request("auto") end
+end
+
 feedAuto = function(event)
   local before = autoScan:State()
   autoScan:Input(event, GetTime())
@@ -4755,7 +4813,8 @@ end
 local function autoButtonText(state, reasons)
   if state == "PAUSED" then
     local items = itemsBoardHold(reasons)
-    if items then return GC.L[AUTO_PAUSE_LABEL[items][1]], items ~= "items", items == "items" end
+    if items == "items" then return GC.Sniper._AutoAtWork(), false, true end
+    if items then return GC.L[AUTO_PAUSE_LABEL[items][1]], true, false end
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
       if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]], true end
     end
@@ -4764,6 +4823,17 @@ local function autoButtonText(state, reasons)
   local held = (state == "WAITING" or state == "IDLE") and AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
   if held then return GC.L[held[1]], true end
   if state == "OFF" then return GC.L["AUTO"] end
+  return GC.Sniper._AutoAtWork()
+end
+
+-- Auto at work, in the chip's words. WoW: Forever: "AUTO · FULL SCAN" from the request for a full
+-- list until the last of it is read (GC.ForeverScan.FullListOn), "AUTO · SCANNING" for the browsing
+-- in between, while SCAN counts the minutes to the next one. Both read the same, and the full list,
+-- the one that matters, could not be told from a browse (owner, 2026-11-23).
+function GC.Sniper._AutoAtWork()
+  if isForever() and GC.ForeverScan and GC.ForeverScan.FullListOn and GC.ForeverScan.FullListOn() then
+    return GC.L["AUTO · FULL SCAN"]
+  end
   return GC.L["AUTO · SCANNING"]
 end
 
@@ -4933,11 +5003,25 @@ refreshScanButton = function(targetFrame)
   end
   -- ...and for the Items board's look the player is waiting on (GC.Sniper._ItemsChecking).
   if not busy and GC.Sniper._ItemsChecking() then busy = true end
+  -- WoW: Forever: the spyglass turns for the full list and for nothing else, from the request to
+  -- its last stage read, the wait for that stage included (GC.ForeverScan.FullListOn): it stopped
+  -- when the first 1024 rows were saved, and the rest of the list came in unseen (owner,
+  -- 2026-11-23). A browse in the throttle's place has the minutes on the spyglass instead.
+  if isForever() and GC.ForeverScan and GC.ForeverScan.FullListOn then
+    busy = GC.ForeverScan.FullListOn()
+  end
   sizeScanButton(f.fullScanBtn)
   -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
   -- The spyglass's ring turns while it scans: the word is no longer drawn (createFrame).
   if f.fullScanBtn.SetBusy then f.fullScanBtn:SetBusy(busy and true or false) end
+  -- WoW: Forever: the minutes until the throttle allows the next full list, on the spyglass, the
+  -- way HIDDEN carries its count (owner, 2026-11-23: "how long is left to wait, in the tooltip and
+  -- by the icon"). Nothing while it scans, nor once the list may be asked for.
+  if f.fullScanBtn.SetCount then
+    local wait = not busy and isForever() and GC.ForeverScan and GC.ForeverScan.DueIn and GC.ForeverScan.DueIn() or 0
+    f.fullScanBtn:SetCount(wait > 0 and math.ceil(wait / 60) or nil)
+  end
   -- `active`, not `primary`, and not Disable(): a disabled button reads as
   -- broken, and the click while busy has something useful to say (see
   -- onFullScanClick). Same reasoning as the Auto button's on-state.
@@ -4997,7 +5081,12 @@ end
 function GC.Sniper._ForeverScanPress()
   local tab = GC.AuctionHouseTab
   if tab and tab.ReleaseBrowseList then tab.ReleaseBrowseList() end
-  return GC.Sniper.ScanActive() or GC.ForeverScan.Request("button") == "busy"
+  -- Only the market scan itself running is "already in progress". Auto's own browse pass runs back
+  -- to back while Auto is on, and counting it (GC.Sniper.ScanActive) answered every press with
+  -- "full scan already in progress" and asked for nothing (owner, 2026-11-23: 15 minutes of SCAN,
+  -- no scan). A scan asked for over a pass takes that pass's end as its own.
+  if GC.ForeverScan.IsBusy and GC.ForeverScan.IsBusy() then return true end
+  return GC.ForeverScan.Request("button") == "busy"
 end
 
 local function onFullScanClick()
@@ -8653,6 +8742,8 @@ end
 -- WoW: Forever's browse of all gear between scans (UI/SniperGearLoop_Camelot.lua, which replaces
 -- these two). Nothing on retail: no turn is ever taken, no browse answer is ever its own.
 function GC.Sniper._GearTurn() return false end
+-- What a Check made of a gear loop find, for its journal (UI/SniperGearLoop_Camelot.lua).
+function GC.Sniper._GearOutcome() end
 function GC.Sniper._GearBrowse() return false end
 
 -- Whether Auto is on with the Deals board on screen and nothing holding it but the Items board
@@ -9150,9 +9241,14 @@ local function evaluateLiveItemDeal(itemID)
   -- WoW: Forever: a row from the player's own scan buys one auction at or under its ceiling,
   -- named by its auctionID -- the live per-auction walk's own answer (GC.Sniper._DecideCeilingLot).
   -- The lots are walked only for an item with a ceiling: on retail, never.
-  local ceilingLot = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
-    and GC.Sniper._DecideCeilingLot(itemID, driver.itemLots(itemID))
-  if ceilingLot then return { isCommodity = false, decision = ceilingLot } end
+  if GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID) then
+    local lots = driver.itemLots(itemID)
+    local ceilingLot = GC.Sniper._DecideCeilingLot(itemID, lots)
+    if ceilingLot then
+      GC.Sniper._GearOutcome(itemID, ceilingLot, #lots)
+      return { isCommodity = false, decision = ceilingLot }
+    end
+  end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
   -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured
   -- across the region, naming that exact auction as a candidate. It is still never SAFE and
@@ -12768,6 +12864,16 @@ local function createFrame()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(GC.Util.ClientText(self.label or GC.L["SCAN"]), 1, 1, 1)
     GameTooltip:AddLine(GC.Util.ClientText(scanHelp), GC.Kit.Tokens.blizzard.tipWhite[1], GC.Kit.Tokens.blizzard.tipWhite[2], GC.Kit.Tokens.blizzard.tipWhite[3], true)
+    -- WoW: Forever: when the next full list comes, the number on the spyglass in words.
+    local wait = isForever() and GC.ForeverScan and GC.ForeverScan.DueIn and not GC.ForeverScan.IsBusy()
+      and not (GC.ForeverScan.FullListOn and GC.ForeverScan.FullListOn()) and GC.ForeverScan.DueIn() or nil
+    if wait then
+      local soft = GC.Kit.Tokens.blizzard.tipSoft
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(GC.Util.ClientText(wait > 0
+        and (GC.L["Next full list in %d min."]):format(math.ceil(wait / 60))
+        or GC.L["The next full list is ready: press SCAN, or Auto asks for it on its own."]), soft[1], soft[2], soft[3], true)
+    end
     GameTooltip:Show()
   end)
   fullScanBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -13406,6 +13512,7 @@ function GC.Sniper.OnAuctionHouseShow()
     -- First, so a tab the player has just opened or left counts before the machine moves.
     GC.Sniper._SyncAside()
     autoScan:Tick(GetTime())
+    GC.Sniper._AskFullListWhenDue()
     -- Background verification rides the same clock, for the same reason the toolbar buttons do
     -- (below): one place drives it, so it cannot be forgotten by a path that changes state.
     tickAutoVerify()

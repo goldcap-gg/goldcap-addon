@@ -113,6 +113,7 @@ GC.Locales.enUS = {
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSED: SELL TAB",
   ["AUTO · PAUSED: YOUR SEARCH"] = "AUTO · PAUSED: YOUR SEARCH",
   ["AUTO · SCANNING"] = "AUTO · SCANNING",
+  ["AUTO · FULL SCAN"] = "AUTO · FULL SCAN",
   ["AUTO · WAITING FOR YOU"] = "AUTO · WAITING FOR YOU",
   ["AUTO · WAITING: YOUR AH SEARCH"] = "AUTO · WAITING: YOUR AH SEARCH",
   ["AUTOMATION & ALERTS"] = "AUTOMATION & ALERTS",
@@ -1037,6 +1038,9 @@ GC.Locales.enUS = {
   ["The scan found nothing to save"] = "The scan found nothing to save",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house.",
+  ["Next full list in %d min."] = "Next full list in %d min.",
+  ["The next full list is ready: press SCAN, or Auto asks for it on its own."] =
+    "The next full list is ready: press SCAN, or Auto asks for it on its own.",
   -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
   -- POST queue holding back what a vendor pays at least as much for.
   ["Your bags: %s at a vendor, %s on the AH after its cut"] =

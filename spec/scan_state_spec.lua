@@ -92,6 +92,44 @@ describe("one scan state for the toolbar", function()
       return b
     end
 
+    -- Owner, WoW: Forever 2026-11-23: "how long is left to wait, in the tooltip and by the icon".
+    it("carries the minutes to the next full list on the spyglass, none while it scans or once due", function()
+      local GC = loadSniper()
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
+      local b = fakeButton(function(t) return #t * 8 end)
+      b.SetCount = function(self, n) self.count = n end
+      local wait = 250
+      GC.ForeverScan.DueIn = function() return wait end
+      refresh({ fullScanBtn = b })
+      assert.equal(5, b.count)
+      wait = 0
+      refresh({ fullScanBtn = b })
+      assert.is_nil(b.count)
+      wait, foreverBusy = 250, true
+      refresh({ fullScanBtn = b })
+      assert.is_nil(b.count)
+      foreverBusy, forever = false, false
+      refresh({ fullScanBtn = b })
+      assert.is_nil(b.count)
+    end)
+
+    -- Owner, 2026-11-23: the spyglass stopped once the list's first 1024 rows were saved, and the
+    -- rest of it came in unseen; a browse in the throttle's place turned it like a full list.
+    it("turns for the full list from its request to its last stage, and for nothing else", function()
+      local GC = loadSniper()
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
+      local b = fakeButton(function(t) return #t * 8 end)
+      local full = true
+      GC.ForeverScan.FullListOn = function() return full end
+      refresh({ fullScanBtn = b })                 -- between the stages: the scanner idle
+      assert.equal("SCANNING…", b.labels[#b.labels])
+      assert.equal("active", b.variant)
+      full, foreverBusy = false, true              -- a browse in the throttle's place
+      refresh({ fullScanBtn = b })
+      assert.equal("SCAN", b.labels[#b.labels])
+      assert.equal("ghost", b.variant)
+    end)
+
     it("says the scanner's state: SCANNING while one runs, SCAN when none does", function()
       local GC = loadSniper()
       local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
@@ -380,14 +418,26 @@ describe("one scan state for the toolbar", function()
       assert.same({ "release", "request button" }, order)
     end)
 
-    it("a press while a scan runs starts nothing, and still takes the list back", function()
+    it("a press while the market scan runs starts nothing, and still takes the list back", function()
       local GC = loadSniper()
       local order = {}
       GC.AuctionHouseTab = { ReleaseBrowseList = function() order[#order + 1] = "release" end }
       GC.ForeverScan.Request = function() order[#order + 1] = "request"; return "started" end
-      GC.Sniper._bookPass:Start("wide")          -- armed, and waiting behind that search
+      GC.ForeverScan.IsBusy = function() return true end
       assert.is_true(GC.Sniper._ForeverScanPress())
       assert.same({ "release" }, order)
+    end)
+
+    -- Owner, 2026-11-23: Auto on, SCAN pressed for 15 minutes, "full scan already in progress"
+    -- every time and no scan: Auto's own pass counted as the scan.
+    it("a press while only a browse pass pages (Auto's) asks for the scan", function()
+      local GC = loadSniper()
+      local order = {}
+      GC.ForeverScan.Request = function(reason) order[#order + 1] = "request " .. reason; return "started" end
+      GC.ForeverScan.IsBusy = function() return false end
+      GC.Sniper._bookPass:Start("wide")
+      assert.is_false(GC.Sniper._ForeverScanPress())
+      assert.same({ "request button" }, order)
     end)
 
     it("a press the scanner refuses as busy says a scan runs", function()

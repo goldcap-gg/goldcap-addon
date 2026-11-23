@@ -257,6 +257,32 @@ local function underMarket(itemID, e, ctx, isCommodity)
   return row
 end
 
+-- ClickUp 1an60dzy9nt: an item that is not a commodity and not gear, against what it sold for on the
+-- house (GC.ForeverItemMarket: half its median at most, 35 sales a week or more). Its lots are one
+-- unit each, so the fold's cheapest levels are the lots a buy would take, as many as the player has
+-- room for (`ctx.roomFor`, half a day of its sales less what is held). Gear is the gear loop's
+-- (UI/SniperGearLoop_Camelot.lua): a fold entry holds every version of a piece together, and a
+-- piece is measured against its own version. The minimum profit is one press's: an item buy is
+-- one lot (Build admits the row on `firstProfit`).
+local function itemUnderMarket(itemID, e, ctx, isCommodity, vendor)
+  local IM = GC.ForeverItemMarket
+  if not (IM and ctx.salesFor) or e.gear then return nil end
+  if ctx.qualityFor then
+    local quality = ctx.qualityFor(itemID)
+    if type(quality) ~= "number" or quality < 1 then return nil end
+  end
+  local ref = IM.Reference(ctx.salesFor(itemID), false)
+  if not ref or e.ladder[1][1] > ref.ceiling then return nil end
+  if isCommodity() ~= false then return nil end
+  local room = ctx.roomFor and ctx.roomFor(itemID, ref.perDay) or IM.HeldCap(ref.perDay)
+  local plan = IM.Plan(ref, IM.Units(e.ladder), IM.Deposit(vendor), room)
+  if not plan or plan.profit <= 0 then return nil end
+  local row = lead(itemID, e, "market", ref.ceiling, ref.ref, plan.take, plan.cost, plan.profit)
+  row.exitUnit, row.depositUnit, row.firstProfit = plan.exit, plan.deposit, plan.firstProfit
+  row.refSource, row.soldPerDay, row.maxUnits, row.item = "sold", ref.perDay, room, true
+  return row
+end
+
 -- A followed group's item (Core/GroupRules.lua's Followed): the group's price held to a resale
 -- that pays (GC.Caps.DealLimit, as retail's cap rows are), measured against the usual price the
 -- site worked the group out from. The player picked the group, so the thin-book, grey and
@@ -333,11 +359,14 @@ function GC.ForeverDeals.Build(fold, ctx)
       local groupRow = groupName and underGroup(itemID, e,
         { price = groupPrice, usual = groupUsual }, ctx, isCommodity) or nil
       local marketRow = underMarket(itemID, e, ctx, isCommodity)
+      local itemRow = not marketRow and itemUnderMarket(itemID, e, ctx, isCommodity, vendor) or nil
       local row
       if groupRow and GC.DealMath.BoardAdmits(groupRow, admit) then
         row = groupRow
       elseif marketRow and GC.DealMath.BoardAdmits(marketRow, admit) then
         row = marketRow
+      elseif itemRow and GC.DealMath.BoardAdmits({ itemID = itemID, estProfit = itemRow.firstProfit }, admit) then
+        row = itemRow
       end
       -- The vendor row wins unless the resale pays more. A resale row's ceiling is over the vendor
       -- price whenever it does, so its buy takes the vendor row's units too, and those keep the
@@ -412,6 +441,8 @@ local bought = {}
 -- refused: the price a live row's Check found nothing at, and when: the same lot is not put back
 -- for LIVE_REFUSED_SECONDS, a different price is news at once.
 local live, refused = {}, {}
+-- heldBought: units "Under market" item rows bought this session, per item (GC.ForeverDeals.Room).
+local heldBought = {}
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
@@ -461,7 +492,29 @@ end
 -- A live sighting as a board row: one lot at `unit`, a "vendor" lead like the fold's (WATCH,
 -- "Check", never buyable by itself), admitted by the minimum profit of one buy. An Items-board buy
 -- is one lot, so the row is one unit whatever `qty` says is up at that price or above.
+--
+-- Kind "market" (ClickUp 1an60dzy9nt, GC.ForeverDeals.LiveMarket): the lot far under what its
+-- version sells for, an "Under market" lead priced as the fold's item rows are (itemUnderMarket),
+-- resold at 90% of the version's median with no lot after it known yet: its Check reads them.
 function GC.ForeverDeals._LiveRow(itemID, l, admit)
+  if l.kind == "market" then
+    local IM = GC.ForeverItemMarket
+    if not IM then return nil end
+    local room = GC.ForeverDeals.Room(itemID, l.ref.perDay)
+    local plan = IM.Plan(l.ref, { l.unit }, IM.Deposit(l.vendor), room)
+    if not plan or plan.profit <= 0
+        or not GC.DealMath.BoardAdmits({ itemID = itemID, estProfit = plan.firstProfit }, admit) then
+      return nil
+    end
+    local row = lead(itemID, { ladder = { { l.unit, 1 } }, qty = l.qty }, "market", l.ref.ceiling, l.ref.ref,
+      1, l.unit, plan.profit)
+    row.exitUnit, row.depositUnit, row.firstProfit = plan.exit, plan.deposit, plan.firstProfit
+    row.refSource, row.soldPerDay, row.maxUnits, row.item, row.version = "sold", l.ref.perDay, room, true, l.version
+    -- The key its Check searches: the version's own (UI/SniperGearLoop_Camelot.lua's nameFrom).
+    row.keyLevel, row.keySuffix = l.keyLevel, l.keySuffix
+    row.isCommodity, row.board, row.live = false, "items", true
+    return row
+  end
   local row = belowVendor(itemID, { ladder = { { l.unit, 1 } }, qty = l.qty }, l.vendor)
   if not row or not GC.DealMath.BoardAdmits(row, admit) then return nil end
   row.isCommodity, row.board, row.live = false, "items", true
@@ -473,6 +526,37 @@ local function unlist(itemID)
   for i = #cache.rows, 1, -1 do
     if cache.rows[i].itemID == itemID then table.remove(cache.rows, i) end
   end
+end
+
+-- A live sighting `l` taken onto the board (Live, LiveMarket): "same" for the lot the row already
+-- shows (what is up refreshed), "new" when it is a row now, nil when it makes none. Until the round
+-- has read every key (`settled`), a sighting replaces the item's live row only when it makes more:
+-- a dearer key of the same item, another version or another kind, waits for the round's end.
+local function liveTake(itemID, l, now, settled)
+  now = now or time()
+  l.at = now
+  local r = refused[itemID]
+  if r then
+    if r.unit == l.unit and now - r.at < C.LIVE_REFUSED_SECONDS then return nil end
+    refused[itemID] = nil
+  end
+  local prior = live[itemID]
+  local shown = cache.byItem[itemID]
+  if prior and prior.unit == l.unit and prior.sig == l.sig and shown and shown.live then
+    prior.qty, prior.at = l.qty, now
+    shown.avail = l.qty
+    return "same"
+  end
+  local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
+  local row = GC.ForeverDeals._LiveRow(itemID, l,
+    { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins })
+  if not row then return nil end
+  if prior and not settled and shown and shown.live and (row.profit or 0) <= (shown.profit or 0) then return nil end
+  live[itemID] = l
+  unlist(itemID)
+  cache.rows[#cache.rows + 1] = row
+  cache.byItem[itemID] = row
+  return "new"
 end
 
 local function rebuild(fold, now)
@@ -504,6 +588,7 @@ local function rebuild(fold, now)
     vendorFor = function(itemID) return value.VendorUnit(itemID, ask(itemID)) end,
     qualityFor = value.Quality and function(itemID) return value.Quality(itemID, ask(itemID)) end or nil,
     salesFor = GC.Data and GC.Data.ForeverSales,
+    roomFor = GC.ForeverDeals.Room,
     isCommodity = realIsCommodity,
     -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
     -- its deposit -- not only those the Sell tab once saw in the bags (final review I2). The
@@ -678,9 +763,32 @@ function GC.ForeverDeals.CeilingFor(itemID)
   local row = cache.byItem[itemID]
   if not row then return nil end
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
-  return { ceilingUnit = row.ceiling, kind = row.forever, exitUnit = row.refUnit,
+  local out = { ceilingUnit = row.ceiling, kind = row.forever, exitUnit = row.refUnit,
     depositUnit = row.depositUnit, minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     maxUnits = row.maxUnits }
+  -- An item under what it sells for (ClickUp 1an60dzy9nt): the median the Check sells against,
+  -- the version it was priced for (gear), and its sales a day, which the room is worked out from.
+  if row.item then
+    out.item, out.refUnit, out.version, out.perDay = true, row.refUnit, row.version, row.soldPerDay
+  end
+  return out
+end
+
+-- How many more of an item the player should take from "Under market" rows (ClickUp 1an60dzy9nt):
+-- half a day of its sales (GC.ForeverItemMarket.HeldCap), less what the bags hold and what such
+-- rows bought this session (a purchase comes by mail, so the bags do not see it yet). Never under 0.
+function GC.ForeverDeals.Room(itemID, perDay)
+  local IM = GC.ForeverItemMarket
+  if not IM then return 0 end
+  local held = 0
+  local item = _G.C_Item
+  local count = item and item.GetItemCount or _G.GetItemCount
+  if type(count) == "function" then
+    local ok, n = pcall(count, itemID)
+    if ok and type(n) == "number" and n > 0 then held = n end
+  end
+  local room = IM.HeldCap(perDay) - held - (heldBought[itemID] or 0)
+  return room > 0 and room or 0
 end
 
 -- A buy from the row that took `qty` units: the row stays with what is left, through every
@@ -688,6 +796,9 @@ end
 function GC.ForeverDeals.Bought(itemID, qty)
   local from = cache.from
   local row = cache.byItem[itemID]
+  if row and row.item and type(qty) == "number" and qty > 0 then
+    heldBought[itemID] = (heldBought[itemID] or 0) + qty
+  end
   -- A live row's lot is bought: the row goes, and the next round puts it back if more are up at
   -- the price.
   if live[itemID] then
@@ -732,30 +843,47 @@ function GC.ForeverDeals.Live(itemID, unit, qty, vendor, now, settled)
   if not currentFold() then return nil end
   local function count(n) return type(n) == "number" and n > 0 and n == math.floor(n) end
   if not (count(itemID) and count(unit) and count(qty) and count(vendor) and unit < vendor) then return nil end
-  now = now or time()
-  local r = refused[itemID]
-  if r then
-    if r.unit == unit and now - r.at < C.LIVE_REFUSED_SECONDS then return nil end
-    refused[itemID] = nil
+  return liveTake(itemID, { unit = unit, qty = qty, vendor = vendor, sig = "v" .. vendor }, now, settled)
+end
+
+-- A key the gear loop saw far under what its own version sells for (ClickUp 1an60dzy9nt): `info`
+-- is { ref = GC.ForeverItemMarket.Reference's answer, version = its bonus key, vendor = what a
+-- vendor pays, for the deposit }. Answers as Live does.
+function GC.ForeverDeals.LiveMarket(itemID, unit, qty, info, now, settled)
+  if not currentFold() then return nil end
+  local function count(n) return type(n) == "number" and n > 0 and n == math.floor(n) end
+  if not (count(itemID) and count(unit) and count(qty) and type(info) == "table" and type(info.ref) == "table"
+      and count(info.ref.ref) and count(info.ref.ceiling) and unit <= info.ref.ceiling) then
+    return nil
   end
-  local prior = live[itemID]
-  if prior and prior.unit == unit and prior.vendor == vendor and cache.byItem[itemID]
-      and cache.byItem[itemID].live then
-    prior.qty, prior.at = qty, now
-    cache.byItem[itemID].avail = qty
-    return "same"
-  end
-  if prior and prior.unit < unit and not settled then return nil end
+  local key = type(info.key) == "table" and info.key or {}
+  return liveTake(itemID, { kind = "market", unit = unit, qty = qty, ref = info.ref, version = info.version,
+    vendor = info.vendor, keyLevel = key.itemLevel, keySuffix = key.itemSuffix,
+    sig = "m" .. info.ref.ref .. ":" .. tostring(info.version) }, now, settled)
+end
+
+-- A round read every key: of the item's sightings -- { unit, qty, vendor } under a vendor price,
+-- { kind = "market", unit, qty, info } under its version's median (LiveMarket's `info`) -- the
+-- one whose row makes the most is the item's row, whatever showed before. Answers as Live does.
+function GC.ForeverDeals.LiveBest(itemID, sightings, now)
+  local best, bestProfit
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
-  local l = { unit = unit, qty = qty, vendor = vendor, at = now }
-  local row = GC.ForeverDeals._LiveRow(itemID, l,
-    { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins })
-  if not row then return nil end
-  live[itemID] = l
-  unlist(itemID)
-  cache.rows[#cache.rows + 1] = row
-  cache.byItem[itemID] = row
-  return "new"
+  local admit = { minimumProfitCopper = GC.ForeverDeals.MinimumProfit(settings), watchPins = settings.watchPins }
+  for _, s in ipairs(type(sightings) == "table" and sightings or {}) do
+    local answer
+    if s.kind == "market" then
+      local key = type(s.info) == "table" and type(s.info.key) == "table" and s.info.key or {}
+      answer = type(s.info) == "table" and type(s.info.ref) == "table" and { kind = "market", unit = s.unit, qty = s.qty,
+        ref = s.info.ref, version = s.info.version, vendor = s.info.vendor, keyLevel = key.itemLevel,
+        keySuffix = key.itemSuffix, sig = "m" .. tostring(s.info.ref.ref) .. ":" .. tostring(s.info.version) } or nil
+    elseif type(s.vendor) == "number" and type(s.unit) == "number" and s.unit < s.vendor then
+      answer = { unit = s.unit, qty = s.qty, vendor = s.vendor, sig = "v" .. s.vendor }
+    end
+    local row = answer and GC.ForeverDeals._LiveRow(itemID, answer, admit)
+    if row and (not bestProfit or row.profit > bestProfit) then best, bestProfit = answer, row.profit end
+  end
+  if not (best and currentFold()) then return nil end
+  return liveTake(itemID, best, now, true)
 end
 
 -- A round read all gear: a live row of an item not in `seen` (item id -> anything) is of a lot

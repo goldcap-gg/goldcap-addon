@@ -22,6 +22,7 @@ describe("ForeverDeals", function()
     helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/FullScan.lua", GC)
     helper.loadModule("Core/ForeverFold.lua", GC)
+    helper.loadModule("Core/ForeverItemMarket.lua", GC)
     helper.loadModule("Core/ForeverDeals.lua", GC)
     D = GC.ForeverDeals
     vendor, commodity = {}, {}
@@ -555,6 +556,69 @@ describe("ForeverDeals", function()
     end)
   end)
 
+  -- ClickUp 1an60dzy9nt: an item that is not a commodity, measured against what it sold for
+  -- (GC.ForeverItemMarket). Gear is the gear loop's, per version; the fold holds versions together.
+  describe("Build, an item under what it sells for", function()
+    local function sold(sales, median)
+      return function() return { units = sales, sales = sales, median = median, p25 = median, hours = 168, perDay = sales / 7 } end
+    end
+    local function c(over)
+      local base = { salesFor = sold(70, 1000), qualityFor = function() return 2 end }
+      for k, v in pairs(over or {}) do base[k] = v end
+      return ctx(base)
+    end
+
+    it("lists the lots at half the median or under, resold at 90% of it after the cut and a deposit", function()
+      commodity[5762], vendor[5762] = false, 100
+      local rows = D.Build(fold({ [5762] = "400,3,3,;0x1 100x1 600x1" }), c())  -- 400, 500, 1100
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.same({ "market", "items", true, 1000, 500, 2, 900 }, { r.forever, r.board, r.item, r.refUnit, r.ceiling, r.qty, r.exitUnit })
+      assert.equal(20, r.depositUnit)            -- 20% of the 100c vendor price, one 8-hour post
+      assert.equal(2 * (900 - 45 - 20) - 900, r.profit)
+      assert.equal(900 - 45 - 20 - 400, r.firstProfit)
+      assert.same({ 10, 5, "sold" }, { r.soldPerDay, r.maxUnits, r.refSource }) -- room: half a day's sales
+      assert.equal(60, math.floor(r.discount * 100 + 0.5))
+    end)
+
+    it("takes no more than half a day of its sales, and has the resale beat the lot it leaves", function()
+      commodity[5762] = false
+      local rows = D.Build(fold({ [5762] = "300,3,3,;0x1 100x1 50x1" }), c({ salesFor = sold(35, 1000) })) -- 300, 400, 450
+      local r = rows[1]
+      assert.same({ 2, 449, 2 }, { r.maxUnits, r.exitUnit, r.qty })
+      -- The player already holds one: room for one more, which the 400c lot it leaves undercuts.
+      rows = D.Build(fold({ [5762] = "300,3,3,;0x1 100x1 50x1" }),
+        c({ salesFor = sold(35, 1000), roomFor = function() return 2 - 1 end }))
+      assert.same({ 1, 399 }, { rows[1].qty, rows[1].exitUnit })
+      assert.equal(0, #D.Build(fold({ [5762] = "300,1,1,;0x1" }),
+        c({ salesFor = sold(35, 1000), roomFor = function() return 0 end })))
+    end)
+
+    it("lists nothing sold under 35 times a week, over half its median, grey, or a commodity", function()
+      commodity[5762] = false
+      local cheap = { [5762] = "400,1,1,;0x1" }
+      assert.equal(0, #D.Build(fold(cheap), c({ salesFor = sold(34, 1000) })))
+      assert.equal(0, #D.Build(fold({ [5762] = "501,1,1,;0x1" }), c()))
+      assert.equal(0, #D.Build(fold(cheap), c({ qualityFor = function() return 0 end })))
+      commodity[5762] = true
+      assert.equal(0, #D.Build(fold(cheap), c()))
+    end)
+
+    it("leaves gear to the gear loop: a fold entry holds every version of it together", function()
+      commodity[15210] = false
+      assert.equal(0, #D.Build(fold({ [15210] = "400,1,1,g;0x1" }), c()))
+    end)
+
+    it("is admitted by what one press makes, and beats a vendor row only by paying more", function()
+      commodity[5762], vendor[5762] = false, 450
+      -- One lot at 400: a vendor pays 450 (+50 each); the resale makes 900 - 45 - 90 deposit - 400 = 365.
+      local rows = D.Build(fold({ [5762] = "400,1,1,;0x1" }), c())
+      assert.equal("market", rows[1].forever)
+      -- With 400c the minimum, one press making 365c is not enough, and the 50c vendor row neither.
+      assert.equal(0, #D.Build(fold({ [5762] = "400,1,1,;0x1" }), c({ minimumProfit = 400 })))
+    end)
+  end)
+
   describe("MinimumProfit", function()
     it("is 20c unless the player set the Forever field; retail's own field never applies", function()
       assert.equal(20, D.MinimumProfit({ minimumProfitCopper = 50000 }))
@@ -787,6 +851,27 @@ describe("ForeverDeals", function()
       assert.is_nil(D.CeilingFor(2589))
       saved = { at = 7000, items = saved.items }
       assert.equal(1, #D.Rows(clock + 2))
+    end)
+
+    -- ClickUp 1an60dzy9nt: an item under what it sells for. The Check prices one lot against the
+    -- median, sells under the lots it leaves, and stops at half a day of the item's sales held.
+    it("hands a live Check an item row's median, deposit and room, and counts what was bought", function()
+      GC.db.commodityByItem[5762] = false
+      vendor[5762] = 100
+      saved = { at = 5000, items = { [5762] = "400,2,2,;0x1 100x1" } }
+      GC.Data = { ForeverSales = function() return { units = 70, sales = 70, median = 1000, p25 = 900, perDay = 10, hours = 168 } end }
+      local held = 0
+      _G.C_Item = { RequestLoadItemDataByID = function() end, GetItemCount = function() return held end }
+      D.Rows(clock)
+      assert.same({ ceilingUnit = 500, kind = "market", exitUnit = 1000, refUnit = 1000, depositUnit = 20,
+        minimumProfit = 20, maxUnits = 5, item = true, perDay = 10 }, D.CeilingFor(5762))
+      assert.equal(5, D.Room(5762, 10))
+      held = 2
+      assert.equal(3, D.Room(5762, 10))
+      D.Bought(5762, 1)                     -- in the mail, not the bags, until it is collected
+      assert.equal(2, D.Room(5762, 10))
+      held = 9
+      assert.equal(0, D.Room(5762, 10))
     end)
 
     -- The client, shaped as it is (AuctionHouseDocumentation, live and forever alike):

@@ -19,6 +19,7 @@ describe("ForeverDeals live rows", function()
     helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/FullScan.lua", GC)
     helper.loadModule("Core/ForeverFold.lua", GC)
+    helper.loadModule("Core/ForeverItemMarket.lua", GC)
     helper.loadModule("Core/ForeverDeals.lua", GC)
     D = GC.ForeverDeals
     vendor = {}
@@ -150,5 +151,69 @@ describe("ForeverDeals live rows", function()
     assert.is_nil(rowOf(3021))
     assert.equal("new", D.Live(3021, 2200, 1, 2426, clock))
     assert.equal(2200, rowOf(3021).unitPrice)
+  end)
+
+  -- ClickUp 1an60dzy9nt: a key far under what its own version sells for (40% of its median at most),
+  -- seen by the gear loop, is an "Under market" row of the Items board.
+  describe("under what its version sells for", function()
+    local function info(over)
+      local i = { ref = { ref = 5000, ceiling = 2000, perDay = 2, gear = true }, version = "12729", vendor = 300 }
+      for k, v in pairs(over or {}) do i[k] = v end
+      return i
+    end
+
+    it("is a market lead for one lot, priced for its version, still needing its Check", function()
+      assert.equal("new", D.LiveMarket(15210, 1800, 2, info(), clock))
+      local r = rowOf(15210)
+      assert.same({ "market", "items", true, true, "12729", 5000, 2000, 1 },
+        { r.forever, r.board, r.live, r.item, r.version, r.refUnit, r.ceiling, r.qty })
+      -- 90% of 5000 = 4500, less 225 cut, less a 60c deposit, less 1800
+      assert.equal(2415, r.profit)
+      assert.equal(2415, r.firstProfit)
+      assert.same({ "Check", false, true }, { r.action, r.buyable, r.stale })
+      local ceiling = D.CeilingFor(15210)
+      assert.same({ 2000, "market", 5000, "12729", 2, 60, true },
+        { ceiling.ceilingUnit, ceiling.kind, ceiling.refUnit, ceiling.version, ceiling.perDay, ceiling.depositUnit, ceiling.item })
+    end)
+
+    it("makes no row over the ceiling, under the minimum, or with no room left", function()
+      assert.is_nil(D.LiveMarket(15210, 2001, 1, info(), clock))
+      GC.db.settings.sniper.foreverMinimumProfitCopper = 5000
+      assert.is_nil(D.LiveMarket(15210, 1800, 1, info(), clock))
+      GC.db.settings.sniper.foreverMinimumProfitCopper = nil
+      _G.C_Item = { GetItemCount = function() return 1 end }
+      assert.is_nil(D.LiveMarket(15210, 1800, 1, info(), clock)) -- 2 a day: room for one, and one is held
+      _G.C_Item = nil
+      assert.is_nil(rowOf(15210))
+    end)
+
+    it("takes the place of a vendor row of the item that makes less, mid-round", function()
+      assert.equal("new", D.Live(15210, 250, 1, 300, clock))
+      assert.equal("new", D.LiveMarket(15210, 1800, 1, info(), clock))
+      assert.equal("market", rowOf(15210).forever)
+      -- and a vendor sighting making less does not take it back before the round ends
+      assert.is_nil(D.Live(15210, 260, 1, 300, clock))
+      assert.equal("market", rowOf(15210).forever)
+      assert.equal("same", D.LiveMarket(15210, 1800, 3, info(), clock))
+    end)
+
+    it("at the round's end is the item's row when it makes the most, whatever the other kind", function()
+      local market = { kind = "market", unit = 1800, qty = 1, info = info({ key = { itemLevel = 16, itemSuffix = 14299 } }) }
+      assert.equal("new", D.LiveBest(15210, { { unit = 250, qty = 1, vendor = 300 }, market }, clock))
+      local r = rowOf(15210)
+      assert.same({ "market", 16, 14299 }, { r.forever, r.keyLevel, r.keySuffix })
+      -- The next round's end saw only a vendor lot: that is the row now.
+      assert.equal("new", D.LiveBest(15210, { { unit = 100, qty = 1, vendor = 300 } }, clock))
+      assert.equal("vendor", rowOf(15210).forever)
+      assert.is_nil(D.LiveBest(15210, { { unit = 299, qty = 1, vendor = 300 } }, clock)) -- 1c: under the minimum
+    end)
+
+    it("stands through a rebuild, and leaves once a round no longer sees it", function()
+      D.LiveMarket(15210, 1800, 1, info(), clock)
+      saved = { at = 4500, items = {} }
+      assert.equal("market", rowOf(15210).forever)
+      assert.equal(1, D.LiveKeep({}))
+      assert.is_nil(rowOf(15210))
+    end)
   end)
 end)

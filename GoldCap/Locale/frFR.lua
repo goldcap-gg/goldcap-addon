@@ -100,6 +100,7 @@ GC.Locales.frFR = {
   ["AH, cheapest version"] = "HV, version la moins chère",
   ["AUTO"] = "AUTO",
   ["AUTO · SCANNING"] = "AUTO · SCAN",
+  ["AUTO · FULL SCAN"] = "AUTO · SCAN COMPLET",
   ["AUTOMATION & ALERTS"] = "AUTOMATISATION & ALERTES",
   ["AVOID"] = "ÉVITER",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
@@ -1034,6 +1035,10 @@ GC.Locales.frFR = {
   ["The scan found nothing to save"] = "Le scan n'a rien trouvé à enregistrer",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Scanne tout l'hôtel des ventes pour les prix : une liste complète au plus une fois toutes les 15 minutes, avec un scan par parcours entre-temps. GoldCap scanne aussi à l'ouverture de l'hôtel des ventes.",
+  ["Next full list in %d min."] =
+    "Prochaine liste complète dans %d min.",
+  ["The next full list is ready: press SCAN, or Auto asks for it on its own."] =
+    "La prochaine liste complète est disponible : appuyez sur SCAN, ou AUTO la demande tout seul.",
   -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
   -- POST queue holding back what a vendor pays at least as much for.
   ["Your bags: %s at a vendor, %s on the AH after its cut"] =

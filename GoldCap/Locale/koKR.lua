@@ -102,6 +102,7 @@ GC.Locales.koKR = {
   ["AH, cheapest version"] = "경매장, 최저가 버전",
   ["AUTO"] = "자동",
   ["AUTO · SCANNING"] = "자동 · 검색 중",
+  ["AUTO · FULL SCAN"] = "자동 · 전체 검색",
   ["AUTOMATION & ALERTS"] = "자동화 및 알림",
   ["AVOID"] = "회피",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
@@ -981,6 +982,10 @@ GC.Locales.koKR = {
   ["The scan found nothing to save"] = "저장할 검색 결과가 없습니다",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "경매장 전체를 검색해 가격을 확인합니다: 전체 목록은 최대 15분에 한 번, 그 사이에는 둘러보기로 검색합니다. 경매장을 열면 GoldCap도 자동으로 검색합니다.",
+  ["Next full list in %d min."] =
+    "다음 전체 목록까지 %d분.",
+  ["The next full list is ready: press SCAN, or Auto asks for it on its own."] =
+    "다음 전체 목록을 받을 수 있습니다: 검색을 누르거나 자동이 알아서 요청합니다.",
   -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
   -- POST queue holding back what a vendor pays at least as much for.
   ["Your bags: %s at a vendor, %s on the AH after its cut"] =

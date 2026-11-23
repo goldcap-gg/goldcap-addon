@@ -435,8 +435,16 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   local marketStats = not position.variantKind and statsByItemID and statsByItemID[position.itemID] or nil
   -- WoW: Forever (`salesFor`, GC.Data.ForeverSales): what this item sold on the player's auction
   -- house lately, which Core/ForeverPace.lua reads the pace from and the post recommendation below
-  -- its overcut. Per item ID, so a variant has none, as it has no market figures.
-  position.tape = not position.variantKind and salesFor and salesFor(position.itemID) or nil
+  -- its overcut. Per item ID, so a variant has none, as it has no market figures -- except a
+  -- suffixed piece of gear (ClickUp 1an60dzy9nt): its own version's sales, which `salesFor` reads
+  -- off its bag stack's link when the site tells the item's versions apart.
+  if not position.variantKind then
+    position.tape = salesFor and salesFor(position.itemID) or nil
+  else
+    local stack = position.variantKind == "level" and type(position.bagStacks) == "table" and position.bagStacks[1]
+    local link = type(stack) == "table" and type(stack.link) == "string" and stack.link or nil
+    position.tape = link and salesFor and salesFor(position.itemID, link) or nil
+  end
   local tapeAt = type(position.tape) == "table" and position.tape.at or nil
   if type(tapeAt) == "number" and type(now) == "number"
       and now - tapeAt > GC.SellPositions.TAPE_STALE_HOURS * 3600 then
@@ -616,8 +624,20 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
     trendPct = marketStats and marketStats.trend, reachUnit = reachUnit or tapeReach, quarterUnit = quarterUnit,
     isCommodity = commodity }
+  -- A suffixed piece of WoW: Forever gear (ClickUp 1an60dzy9nt) has no market value as a variant,
+  -- and with no other lot of it up nothing priced its post at all. With its own version's tape it
+  -- falls back to the exit its buy on the Deals board was planned at: 90% of that version's median
+  -- (GC.ForeverItemMarket.C.EXIT_SHARE). Above, the tape already caps the climb over lots that are up.
+  local fallbackValue = position.marketValue
+  local IM = GC.ForeverItemMarket
+  if fallbackValue == nil and position.variantKind and IM and type(tape) == "table"
+      and type(tape.hours) == "number" and tape.hours >= GC.SellPositions.TAPE_OVERCUT_HOURS
+      and type(tape.sales) == "number" and tape.sales >= GC.SellPositions.TAPE_OVERCUT_SALES
+      and positive(tape.median) then
+    fallbackValue = math.floor(tape.median * IM.C.EXIT_SHARE)
+  end
   if positive(position.bagQty) then
-    position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue, postOpts)
+    position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, fallbackValue, postOpts)
   else
     position.postRecommendation = nil
   end

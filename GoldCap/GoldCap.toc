@@ -75,6 +75,7 @@ Core/ForeverFold.lua
 Core/ForeverGear.lua
 Core/ForeverScan.lua
 Core/ForeverValue.lua
+Core/ForeverItemMarket.lua
 Core/ForeverDeals.lua
 Core/ForeverRoad.lua
 Core/ForeverUpgrades.lua

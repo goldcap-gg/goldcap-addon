@@ -120,6 +120,94 @@ describe("ForeverScan", function()
     end)
   end)
 
+  it("is due again once the throttle is spent, with the auction house open and nothing running", function()
+    local s = GC.ForeverScan.New(driver())
+    assert.is_false(s:Due())                      -- closed
+    rows = { { 2589, 20, 1340, true } }
+    s:OnAuctionHouseShow()
+    assert.is_false(s:Due())                      -- reading
+    runAll()
+    assert.equal("idle", s:State())
+    assert.is_false(s:Due())                      -- inside the throttle
+    now = now + GC.ForeverScan.C.COOLDOWN_SECONDS
+    assert.is_true(s:Due())
+    s:OnAuctionHouseClosed()
+    assert.is_false(s:Due())
+  end)
+
+  -- Owner's journal, 2026-11-23 19:19: asked on opening, 1024 rows at once, the wide pass given up
+  -- when the player opened ITEMS, the cut stage saved, the scanner idle and SCAN still; the rest,
+  -- 298,578 rows, came 64 s after the request and was read as somebody else's list, the throttle
+  -- stamped again. "I want to see from start to end that a full scan is running."
+  describe("the full list, from the request to its last stage", function()
+    local s, asked
+    before_each(function()
+      d.browseAnswer = "started"
+      s = GC.ForeverScan.New(driver())
+      s:OnAuctionHouseShow()
+      asked = now
+      rows = dump(1024)
+      s:OnReplicateUpdate()
+      runRead(s)
+    end)
+
+    it("stays on through a cut stage's save until the rest is read, on the request's stamp", function()
+      assert.equal("browsing", s:State())
+      assert.is_true(s:FullListOn())
+      s:OnBrowsePassAbandoned({})
+      runAll()
+      assert.equal("idle", s:State())
+      assert.is_true(s:FullListOn())
+      assert.equal(asked, s:Since())
+      now = now + 64
+      rows = dump(1500)
+      s:OnReplicateUpdate()
+      assert.equal("browsing", s:State())        -- read in one frame, its classes pass out
+      assert.is_true(s:FullListOn())
+      assert.equal(asked, store.requestedAt)
+      assert.equal(asked, s:Since())
+      runRead(s)
+      s:OnBrowsePassDone({})
+      runAll()
+      assert.equal("idle", s:State())
+      assert.is_false(s:FullListOn())
+      assert.equal(GC.ForeverScan.C.COOLDOWN_SECONDS - 64, s:DueIn())
+    end)
+
+    it("lets a rest that never comes go, and a browse in the throttle's place is not a full list", function()
+      s:OnBrowsePassAbandoned({})
+      runAll()
+      now = now + GC.ForeverScan.C.REST_WAIT_SECONDS
+      assert.is_false(s:FullListOn())
+      assert.equal("cooldown", s:Request("button"))
+      assert.equal("browsing", s:State())
+      assert.is_false(s:FullListOn())
+    end)
+
+    it("ends with the auction house closed", function()
+      s:OnAuctionHouseClosed()
+      runAll()
+      assert.is_false(s:FullListOn())
+    end)
+  end)
+
+  -- The countdown on SCAN (owner, 2026-11-23: "how long is left to wait, in the tooltip and by the
+  -- icon"): the same stamp Due reads, counted down to 0.
+  it("counts down to the next full list from the request, and a clock that stepped back is no wait", function()
+    local s = GC.ForeverScan.New(driver())
+    local C = GC.ForeverScan.C
+    assert.equal(0, s:DueIn())                    -- never asked
+    rows = { { 2589, 20, 1340, true } }
+    s:OnAuctionHouseShow()
+    assert.equal(C.COOLDOWN_SECONDS, s:DueIn())
+    now = now + 600
+    assert.equal(C.COOLDOWN_SECONDS - 600, s:DueIn())
+    now = now + C.COOLDOWN_SECONDS
+    assert.equal(0, s:DueIn())
+    now = now - 10 * C.COOLDOWN_SECONDS
+    assert.equal(0, s:DueIn())
+  end)
+
   it("asks once on open, reads the dump at the first rows and saves the fold with its passport", function()
     local s = GC.ForeverScan.New(driver())
     rows = { { 2589, 20, 1340, true }, { 2589, 5, 350, true }, { 2592, 1, 5000, false } }

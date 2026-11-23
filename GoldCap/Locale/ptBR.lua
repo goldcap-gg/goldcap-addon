@@ -101,6 +101,7 @@ GC.Locales.ptBR = {
   ["AH, cheapest version"] = "Leilão, versão mais barata",
   ["AUTO"] = "AUTO",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
+  ["AUTO · FULL SCAN"] = "AUTO · VARREDURA COMPLETA",
   ["AUTOMATION & ALERTS"] = "AUTOMAÇÃO E ALERTAS",
   ["AVOID"] = "EVITAR",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
@@ -1029,6 +1030,10 @@ GC.Locales.ptBR = {
   ["The scan found nothing to save"] = "A varredura não encontrou nada para salvar",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Varre toda a casa de leilões em busca de preços: uma lista completa no máximo a cada 15 minutos, navegando enquanto isso. O GoldCap também varre quando você abre a casa de leilões.",
+  ["Next full list in %d min."] =
+    "Próxima lista completa em %d min.",
+  ["The next full list is ready: press SCAN, or Auto asks for it on its own."] =
+    "A próxima lista completa está pronta: aperte VARRER ou o AUTO a pede sozinho.",
   -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
   -- POST queue holding back what a vendor pays at least as much for.
   ["Your bags: %s at a vendor, %s on the AH after its cut"] =
