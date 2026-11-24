@@ -77,6 +77,9 @@ describe("the holdings record", function()
       GC.db.holdings = newer
       assert.is_false(HR.Record("Bob-Argent Dawn", "eu", "bags", { [2589] = 3 }, true, NOW))
       assert.is_false(HR.RecordWarband("eu", { [2589] = 3 }, true, NOW))
+      assert.is_false(HR.RecordGuildTab("Gold Hands-Argent Dawn", "eu", 1, { [2589] = 3 }, NOW))
+      HR.PendingSend("Alt-Argent Dawn", { [2589] = 3 }, NOW)
+      assert.is_false(HR.SendSucceeded(NOW))
       HR.Prune(NOW + 400 * DAY)
       assert.equal(newer, GC.db.holdings)
       assert.same({ v = 2, chars = { ["Bob-Argent Dawn"] = { something = "else" } } }, GC.db.holdings)
@@ -319,12 +322,232 @@ describe("the holdings record", function()
       assert.same({ at = NOW + 61, full = true, items = {} }, place("Bob-Argent Dawn", "mail"))
     end)
   end)
+
+  describe("the guild bank", function()
+    local G = "Gold Hands-Argent Dawn"
+    local function guild() return GC.db.holdings.guilds[G] end
+
+    it("a visit loading 3 of 4 viewable tabs is not full", function()
+      HR.GuildVisitStart(G)
+      for tab = 1, 3 do assert.is_true(HR.RecordGuildTab(G, "eu", tab, { [2589] = tab }, NOW)) end
+      assert.is_false(HR.GuildVisitDone(G, { 1, 2, 3, 4 }, NOW))
+      assert.is_false(guild().full)
+      HR.RecordGuildTab(G, "eu", 4, { [2592] = 1 }, NOW + 5)
+      assert.is_true(HR.GuildVisitDone(G, { 1, 2, 3, 4 }, NOW + 5))
+      assert.same({ region = "eu", at = NOW + 5, full = true, tabs = {
+        { at = NOW, items = { [2589] = 1 } }, { at = NOW, items = { [2589] = 2 } },
+        { at = NOW, items = { [2589] = 3 } }, { at = NOW + 5, items = { [2592] = 1 } },
+      } }, guild())
+    end)
+
+    it("a tab not loaded this visit keeps its items", function()
+      HR.GuildVisitStart(G)
+      for tab = 1, 4 do HR.RecordGuildTab(G, "eu", tab, { [2589] = tab }, NOW) end
+      assert.is_true(HR.GuildVisitDone(G, { 1, 2, 3, 4 }, NOW))
+      HR.GuildVisitStart(G)
+      for tab = 1, 3 do HR.RecordGuildTab(G, "eu", tab, { [2592] = tab }, NOW + DAY) end
+      assert.is_false(HR.GuildVisitDone(G, { 1, 2, 3, 4 }, NOW + DAY))
+      assert.same({ at = NOW, items = { [2589] = 4 } }, guild().tabs[4])
+      assert.same({ at = NOW + DAY, items = { [2592] = 1 } }, guild().tabs[1])
+    end)
+
+    it("a character who can view no tab reads nothing full", function()
+      HR.GuildVisitStart(G)
+      HR.RecordGuildTab(G, "eu", 1, { [2589] = 1 }, NOW)
+      assert.is_false(HR.GuildVisitDone(G, {}, NOW))
+      assert.is_false(HR.GuildVisitDone("Nobody-Argent Dawn", {}, NOW))
+    end)
+
+    it("refuses a guild without a realm, a bad tab and a bad item list", function()
+      assert.is_false(HR.RecordGuildTab("Gold Hands", "eu", 1, { [2589] = 1 }, NOW))
+      assert.is_false(HR.RecordGuildTab(G, "cn", 1, { [2589] = 1 }, NOW))
+      assert.is_false(HR.RecordGuildTab(G, "eu", 0, { [2589] = 1 }, NOW))
+      assert.is_false(HR.RecordGuildTab(G, "eu", 1, { [2589] = 0 }, NOW))
+      assert.is_nil(GC.db.holdings)
+    end)
+
+    it("keeps 10 guilds, the oldest read going first", function()
+      for i = 1, 11 do HR.RecordGuildTab("Guild" .. i .. "-Realm", "eu", 1, { [1] = 1 }, NOW + i) end
+      assert.is_nil(GC.db.holdings.guilds["Guild1-Realm"])
+      assert.is_not_nil(GC.db.holdings.guilds["Guild2-Realm"])
+      assert.is_not_nil(GC.db.holdings.guilds["Guild11-Realm"])
+      -- The guild just read is never the one that goes, whatever its clock says.
+      HR.RecordGuildTab("Late-Realm", "eu", 1, { [1] = 1 }, NOW - DAY)
+      assert.is_not_nil(GC.db.holdings.guilds["Late-Realm"])
+      assert.is_nil(GC.db.holdings.guilds["Guild2-Realm"])
+    end)
+
+    describe("ReadGuildTab", function()
+      -- SLOTS[tab][slot] = { link, count }, as GetGuildBankItemInfo and GetGuildBankItemLink answer.
+      local SLOTS
+      local api = {
+        GetGuildBankItemInfo = function(tab, slot)
+          local s = SLOTS[tab] and SLOTS[tab][slot]
+          if s then return "texture", s.count, false, false, 1 end
+        end,
+        GetGuildBankItemLink = function(tab, slot)
+          local s = SLOTS[tab] and SLOTS[tab][slot]
+          return s and s.link or nil
+        end,
+      }
+      local function link(id) return ("|cffffffff|Hitem:%d::::::::70:::::|h[Item]|h|r"):format(id) end
+
+      before_each(function() SLOTS = {} end)
+
+      it("reads every slot by the item its link names, a caged pet as the cage", function()
+        SLOTS[2] = { [1] = { link = link(2589), count = 20 }, [98] = { link = link(2589), count = 5 },
+          [40] = { link = "|cff0070dd|Hbattlepet:868:1:3:155:12:12:0x0|h[Pet]|h|r", count = 1 } }
+        assert.same({ [2589] = 25, [82800] = 1 }, HR.ReadGuildTab(api, 2))
+      end)
+
+      it("a tab showing nothing cannot be told from one not loaded yet, and reads as nil", function()
+        assert.is_nil(HR.ReadGuildTab(api, 1))
+      end)
+
+      it("an item with no link yet, or a call that raises, makes the tab nil", function()
+        SLOTS[1] = { [1] = { link = link(2589), count = 20 }, [2] = { count = 1 } }
+        assert.is_nil(HR.ReadGuildTab(api, 1))
+        SLOTS[1][2] = nil
+        assert.is_nil(HR.ReadGuildTab({ GetGuildBankItemInfo = function() error("no") end,
+          GetGuildBankItemLink = api.GetGuildBankItemLink }, 1))
+      end)
+    end)
+
+    describe("at the guild bank", function()
+      local SLOTS, VIEWABLE, queried
+
+      before_each(function()
+        SLOTS, VIEWABLE, queried = {}, { true, true, false }, {}
+        _G.GetRealmName = function() return "Argent Dawn" end
+        _G.GetGuildInfo = function() return "Gold Hands", "Banker", 3, nil end
+        _G.GetNumGuildBankTabs = function() return #VIEWABLE end
+        _G.GetGuildBankTabInfo = function(tab) return "Tab " .. tab, "icon", VIEWABLE[tab], true, 0, 0 end
+        _G.QueryGuildBankTab = function(tab) queried[#queried + 1] = tab end
+        _G.GetGuildBankItemInfo = function(tab, slot)
+          local n = SLOTS[tab] and SLOTS[tab][slot]
+          if n then return "texture", n end
+        end
+        _G.GetGuildBankItemLink = function(tab, slot)
+          return SLOTS[tab] and SLOTS[tab][slot] and ("|Hitem:%d::|h[x]|h"):format(1000 + tab) or nil
+        end
+      end)
+
+      after_each(function()
+        _G.GetRealmName, _G.GetGuildInfo, _G.GetNumGuildBankTabs, _G.GetGuildBankTabInfo = nil, nil, nil, nil
+        _G.QueryGuildBankTab, _G.GetGuildBankItemInfo, _G.GetGuildBankItemLink = nil, nil, nil
+      end)
+
+      it("queries each viewable tab once a visit, and records the tabs as they load", function()
+        HR.OnGuildBankOpened(NOW)
+        HR.OnGuildBankOpened(NOW)
+        assert.same({ 1, 2 }, queried)
+        SLOTS[1] = { [1] = 20 }
+        HR.OnGuildBankSlots(NOW + 1)
+        assert.same({ 1, 2 }, queried)
+        local g = GC.db.holdings.guilds["Gold Hands-Argent Dawn"]
+        assert.same({ [1001] = 20 }, g.tabs[1].items)
+        assert.is_nil(g.tabs[2])
+        assert.is_false(g.full)
+        SLOTS[2] = { [7] = 3 }
+        HR.OnGuildBankSlots(NOW + 2)
+        assert.same({ [1002] = 3 }, g.tabs[2].items)
+        assert.is_true(g.full)
+        -- The next visit asks again.
+        HR.OnGuildBankClosed()
+        HR.OnGuildBankOpened(NOW + DAY)
+        assert.same({ 1, 2, 1, 2 }, queried)
+      end)
+
+      it("keys the guild by its own realm when it is not the character's", function()
+        _G.GetGuildInfo = function() return "Gold Hands", "Banker", 3, "Silvermoon" end
+        SLOTS[1] = { [1] = 20 }
+        HR.OnGuildBankSlots(NOW)
+        assert.is_not_nil(GC.db.holdings.guilds["Gold Hands-Silvermoon"])
+      end)
+
+      it("a character in no guild records nothing", function()
+        _G.GetGuildInfo = function() return nil end
+        SLOTS[1] = { [1] = 20 }
+        HR.OnGuildBankOpened(NOW)
+        HR.OnGuildBankSlots(NOW)
+        assert.same({}, queried)
+        assert.is_nil(GC.db.holdings)
+      end)
+    end)
+  end)
+
+  describe("mail sends", function()
+    local function sends() return GC.db.holdings and GC.db.holdings.sends or {} end
+
+    it("a send is recorded only after MAIL_SEND_SUCCESS", function()
+      assert.is_true(HR.PendingSend("Alt-Argent Dawn", { [2589] = 20, [2592] = 1 }, NOW))
+      assert.same({}, sends())
+      assert.is_true(HR.SendSucceeded(NOW + 2))
+      assert.same({ { from = "Bob-Argent Dawn", to = "Alt-Argent Dawn", region = "eu", at = NOW + 2,
+        items = { [2589] = 20, [2592] = 1 } } }, sends())
+      -- Nothing waits any more: a second answer records nothing.
+      assert.is_false(HR.SendSucceeded(NOW + 3))
+      assert.equal(1, #sends())
+    end)
+
+    it("MAIL_FAILED drops the pending send", function()
+      HR.PendingSend("Alt-Argent Dawn", { [2589] = 20 }, NOW)
+      HR.SendDropped()
+      assert.is_false(HR.SendSucceeded(NOW + 2))
+      assert.same({}, sends())
+    end)
+
+    it('"Bob" sent from Argent Dawn is recorded as "Bob-Argent Dawn"', function()
+      context.char = "Me-Argent Dawn"
+      HR.PendingSend(" Bob ", { [2589] = 1 }, NOW)
+      HR.SendSucceeded(NOW)
+      HR.PendingSend("Bob-ArgentDawn", { [2589] = 1 }, NOW)
+      HR.SendSucceeded(NOW + 1)
+      assert.equal("Bob-Argent Dawn", sends()[1].to)
+      assert.equal("Bob-ArgentDawn", sends()[2].to)
+    end)
+
+    it("a send with no item, to no one, or from a character without a realm records nothing", function()
+      assert.is_false(HR.PendingSend("Alt-Argent Dawn", {}, NOW))
+      assert.is_false(HR.PendingSend("  ", { [2589] = 1 }, NOW))
+      assert.is_false(HR.PendingSend(nil, { [2589] = 1 }, NOW))
+      context.char = "Me"
+      assert.is_false(HR.PendingSend("Bob", { [2589] = 1 }, NOW))
+      assert.is_false(HR.SendSucceeded(NOW))
+      assert.is_nil(GC.db.holdings)
+    end)
+
+    it("a new send replaces the one still waiting", function()
+      HR.PendingSend("Alt-Argent Dawn", { [2589] = 20 }, NOW)
+      HR.PendingSend("Other-Argent Dawn", { [2592] = 1 }, NOW)
+      HR.SendSucceeded(NOW + 1)
+      assert.equal(1, #sends())
+      assert.equal("Other-Argent Dawn", sends()[1].to)
+    end)
+
+    it("sends keep 300 and drop 91-day-old ones", function()
+      HR.PendingSend("Old-Argent Dawn", { [1] = 1 }, NOW - 91 * DAY)
+      HR.SendSucceeded(NOW - 91 * DAY)
+      HR.PendingSend("Ninety-Argent Dawn", { [1] = 1 }, NOW - 90 * DAY)
+      HR.SendSucceeded(NOW - 90 * DAY)
+      HR.Prune(NOW)
+      assert.equal(1, #sends())
+      assert.equal("Ninety-Argent Dawn", sends()[1].to)
+      for i = 1, 305 do
+        HR.PendingSend("Alt" .. i .. "-Argent Dawn", { [1] = 1 }, NOW + i)
+        HR.SendSucceeded(NOW + i)
+      end
+      assert.equal(300, #sends())
+      assert.equal("Alt6-Argent Dawn", sends()[1].to)
+      assert.equal("Alt305-Argent Dawn", sends()[300].to)
+    end)
+  end)
 end)
 
 -- The events that reach the record, through the real Core/Init.lua of each game's TOC.
 for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) do
   describe("the holdings record, wired in " .. toc, function()
-    local GC, onEvent, OWNED, fullOwned
+    local GC, onEvent, OWNED, fullOwned, sendHook
 
     local function stubFrame()
       local f
@@ -384,6 +607,10 @@ for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) d
         GetItemKeyInfo = function() return { isCommodity = true } end,
         HasFullOwnedAuctionResults = function() return fullOwned end,
       }
+      -- The post-hook GoldCap puts on SendMail at ADDON_LOADED, kept so a spec can play the send.
+      sendHook = nil
+      _G.SendMail = function() end
+      _G.hooksecurefunc = function(name, fn) if name == "SendMail" then sendHook = fn end end
 
       GC = {}
       local f = assert(io.open(toc, "r"))
@@ -407,6 +634,9 @@ for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) d
       _G.GetTime, _G.UnitName, _G.GetRealmName, _G.GetCVar = nil, nil, nil, nil
       _G.C_Container, _G.C_AuctionHouse, _G.RETRIEVING_DATA, _G.C_Timer = nil, nil, nil, nil
       _G.GetInboxNumItems, _G.GetInboxHeaderInfo, _G.GetInboxInvoiceInfo, _G.GetInboxItem = nil, nil, nil, nil
+      _G.SendMail, _G.hooksecurefunc, _G.GetSendMailItem, _G.Enum = nil, nil, nil, nil
+      _G.GetGuildInfo, _G.GetNumGuildBankTabs, _G.GetGuildBankTabInfo = nil, nil, nil
+      _G.QueryGuildBankTab, _G.GetGuildBankItemInfo, _G.GetGuildBankItemLink = nil, nil, nil
       _G.time = os.time
     end)
 
@@ -442,6 +672,49 @@ for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) d
       fullOwned = true
       onEvent(nil, "OWNED_AUCTIONS_UPDATED")
       assert.same({ at = 5000, full = true, items = { [2589] = 20 } }, chars()["Aiyana-Dentarg"].auctions)
+    end)
+
+    it("records a mail sent once the server says it went, and drops it when it fails or the mailbox closes", function()
+      assert.is_function(sendHook)
+      _G.GetSendMailItem = function(slot)
+        if slot == 1 then return "Linen Cloth", 2589, "texture", 20, 1 end
+        if slot == 12 then return "Linen Cloth", 2589, "texture", 4, 1 end
+      end
+      sendHook("Alt")
+      assert.is_nil(_G.GoldCapDB.holdings and _G.GoldCapDB.holdings.sends[1])
+      onEvent(nil, "MAIL_SEND_SUCCESS")
+      assert.same({ { from = "Aiyana-Dentarg", to = "Alt-Dentarg", region = "eu", at = 5000,
+        items = { [2589] = 24 } } }, _G.GoldCapDB.holdings.sends)
+      sendHook("Alt")
+      onEvent(nil, "MAIL_FAILED")
+      onEvent(nil, "MAIL_SEND_SUCCESS")
+      sendHook("Alt")
+      onEvent(nil, "MAIL_CLOSED")
+      onEvent(nil, "MAIL_SEND_SUCCESS")
+      assert.equal(1, #_G.GoldCapDB.holdings.sends)
+    end)
+
+    it("reads the guild bank from either open, querying each viewable tab once", function()
+      local queried = {}
+      _G.Enum = { PlayerInteractionType = { Auctioneer = 21, Merchant = 5, GuildBanker = 10 } }
+      _G.GetGuildInfo = function() return "Gold Hands" end
+      _G.GetNumGuildBankTabs = function() return 2 end
+      _G.GetGuildBankTabInfo = function() return "Tab", "icon", true end
+      _G.QueryGuildBankTab = function(tab) queried[#queried + 1] = tab end
+      _G.GetGuildBankItemInfo = function(tab, slot) if slot == 1 then return "texture", tab * 10 end end
+      _G.GetGuildBankItemLink = function(tab, slot) if slot == 1 then return "|Hitem:" .. (500 + tab) .. "::|h[x]|h" end end
+      onEvent(nil, "GUILDBANKFRAME_OPENED")
+      onEvent(nil, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 10)
+      assert.same({ 1, 2 }, queried)
+      onEvent(nil, "GUILDBANKBAGSLOTS_CHANGED")
+      local g = _G.GoldCapDB.holdings.guilds["Gold Hands-Dentarg"]
+      assert.same({ [501] = 10 }, g.tabs[1].items)
+      assert.same({ [502] = 20 }, g.tabs[2].items)
+      assert.is_true(g.full)
+      onEvent(nil, "PLAYER_INTERACTION_MANAGER_FRAME_HIDE", 10)
+      onEvent(nil, "GUILDBANKFRAME_CLOSED")
+      onEvent(nil, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 10)
+      assert.same({ 1, 2, 1, 2 }, queried)
     end)
   end)
 end

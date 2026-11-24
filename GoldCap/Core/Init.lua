@@ -353,6 +353,12 @@ end
 for _, bankEvent in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" }) do
   pcall(frame.RegisterEvent, frame, bankEvent)
 end
+-- What each character holds, for goldcap.gg (Core/HoldingsRecord.lua), both games: the guild bank
+-- while it is open, and the server's answer to a mail sent. Each in its own pcall, like the bank's.
+for _, holdingsEvent in ipairs({ "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED", "GUILDBANKBAGSLOTS_CHANGED",
+    "MAIL_SEND_SUCCESS", "MAIL_FAILED" }) do
+  pcall(frame.RegisterEvent, frame, holdingsEvent)
+end
 frame:RegisterEvent("PLAYER_LOGOUT")
 -- Task 2 (item names from the client): the wanted-list walk needs the world loaded (item
 -- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
@@ -836,6 +842,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Theme and GC.db.settings and GC.db.settings.sniper then
       GC.Theme.SetScale(GC.db.settings.sniper.fontScale)
     end
+    -- The mails sent with items, for goldcap.gg's holdings (Core/HoldingsRecord.lua): a post-hook on
+    -- SendMail, put on once.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.HookSendMail) end
     frame:UnregisterEvent("ADDON_LOADED")
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
     local interactionType = ...
@@ -865,6 +874,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif interactionType == Enum.PlayerInteractionType.Merchant then
       -- The note beside the vendor window: what in the bags fetches more on the auction house.
       if GC.MerchantNote then GC.MerchantNote.OnMerchantShow() end
+    elseif Enum.PlayerInteractionType.GuildBanker ~= nil
+        and interactionType == Enum.PlayerInteractionType.GuildBanker then
+      -- The guild bank opens through the interaction manager on the mainline UI of both games, so
+      -- the holdings record does not wait for GUILDBANKFRAME_OPENED alone (whichever comes first).
+      if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankOpened, time()) end
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
     local interactionType = ...
@@ -881,6 +895,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     elseif interactionType == Enum.PlayerInteractionType.Merchant then
       if GC.MerchantNote then GC.MerchantNote.OnMerchantClosed() end
+    elseif Enum.PlayerInteractionType.GuildBanker ~= nil
+        and interactionType == Enum.PlayerInteractionType.GuildBanker then
+      if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankClosed) end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then
     GC.Util.NoteThrottleEvent(event)
@@ -1101,6 +1118,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     -- The visit Core/MailStock.lua counts the mailbox over ends here (retail only).
     if GC.MailStock then GC.MailStock.Closed() end
+    -- A mail still waiting for the server's answer can no longer be told from one that failed.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.SendDropped) end
+  elseif event == "MAIL_SEND_SUCCESS" then
+    -- The mail SendMail's hook kept went: its recipient now holds what it carried (both games).
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.SendSucceeded, time()) end
+  elseif event == "MAIL_FAILED" then
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.SendDropped) end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
     -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).
@@ -1184,6 +1208,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" then
     if GC.BankRoute then GC.BankRoute.OnTabSlotsChanged() end
     if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnBankSlots) end
+  elseif event == "GUILDBANKFRAME_OPENED" then
+    -- The guild bank, for goldcap.gg's holdings (Core/HoldingsRecord.lua), both games.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankOpened, time()) end
+  elseif event == "GUILDBANKFRAME_CLOSED" then
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankClosed) end
+  elseif event == "GUILDBANKBAGSLOTS_CHANGED" then
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankSlots, time()) end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Rows written while the client named no realm ("Name-", Core/Game.lua) go back under the
     -- character's realm as soon as it is known. Once a session; the GUID is there by now.

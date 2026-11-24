@@ -6,8 +6,13 @@ local _, GC = ...
 --
 -- Store: GC.db.holdings = { v = 1,
 --   chars = { ["Name-Realm"] = { region, bags = P, bank = P, mail = P, auctions = P } },
---   warband = { [region] = P } }
+--   warband = { [region] = P },
+--   guilds = { ["Guild-Realm"] = { region, at, full, tabs = { [tab] = { at, items } } } },
+--   sends = { { from, to, region, at, items } } }
 -- P = { at = time(), full = true | false, items = { [itemID] = count } }.
+-- A guild bank belongs to no one character: each tab keeps the items of the last visit that read
+-- it, and `full` says every tab the character could view was read on the last visit. A send is a
+-- mail that left with items, so the site learns that a bank alt holds what it was sent.
 --
 -- A reading holds every item of its place with its count, not only items GoldCap saw bought, so an
 -- item missing from a full reading is none there. A reading replaces its place whole, so the save
@@ -27,11 +32,18 @@ local C = {
   -- A character with no place read for this long is dropped, and at most this many are kept.
   KEEP_SECONDS = 90 * 86400,
   MAX_CHARS = 50,
+  MAX_GUILDS = 10,
+  MAX_SENDS = 300,
+  -- MAX_GUILDBANK_SLOTS_PER_TAB, a local of Blizzard_GuildBankUI in both games.
+  GUILD_SLOTS = 98,
+  -- A caged battle pet is this item whatever species is inside, as the containers report it.
+  PET_CAGE = 82800,
   -- The bags, as Services/Sell/Bags.lua walks them: the backpack, four bags and the reagent bag.
   BAGS = { 0, 1, 2, 3, 4, 5 },
   MAX_COUNT = 2147483647,
 }
 HR.KEEP_SECONDS, HR.MAX_CHARS, HR.BAGS = C.KEEP_SECONDS, C.MAX_CHARS, C.BAGS
+HR.MAX_GUILDS, HR.MAX_SENDS = C.MAX_GUILDS, C.MAX_SENDS
 
 local function isCount(n)
   return type(n) == "number" and n == math.floor(n) and n >= 1 and n <= C.MAX_COUNT
@@ -62,12 +74,13 @@ local function store(create)
   local s = db.holdings
   if type(s) ~= "table" then
     if not create then return nil end
-    s = { v = C.VERSION, chars = {}, warband = {} }
+    s = { v = C.VERSION, chars = {}, warband = {}, guilds = {}, sends = {} }
     db.holdings = s
   end
   if (tonumber(s.v) or 0) > C.VERSION then return nil end
-  if type(s.chars) ~= "table" then s.chars = {} end
-  if type(s.warband) ~= "table" then s.warband = {} end
+  for _, name in ipairs({ "chars", "warband", "guilds", "sends" }) do
+    if type(s[name]) ~= "table" then s[name] = {} end
+  end
   return s
 end
 
@@ -119,11 +132,24 @@ local function newestAt(c)
   return newest
 end
 
+-- The sends of the last 90 days, at most the 300 newest, oldest first.
+local function pruneSends(s, now)
+  local kept = {}
+  for _, send in ipairs(s.sends) do
+    local at = type(send) == "table" and tonumber(send.at) or nil
+    if at and now - at <= C.KEEP_SECONDS then kept[#kept + 1] = send end
+  end
+  table.sort(kept, function(a, b) return a.at < b.at end)
+  while #kept > C.MAX_SENDS do table.remove(kept, 1) end
+  s.sends = kept
+end
+
 --- Drops the characters whose newest place is more than 90 days old, then keeps the 50 read most
---- recently (the oldest read goes first).
+--- recently (the oldest read goes first). Sends: those of the last 90 days, at most 300.
 function HR.Prune(now)
   local s = store(false)
   if not s or type(now) ~= "number" then return end
+  pruneSends(s, now)
   local kept = {}
   for key, c in pairs(s.chars) do
     local at = newestAt(c)
@@ -328,4 +354,221 @@ function HR.OnInbox(api, opening, now)
   local items, full = HR.ReadMail(api, opening)
   if opening and not full and next(items) == nil then return end
   HR.Record(ctx.char, ctx.region, "mail", items, full, now)
+end
+
+-- The guild bank -----------------------------------------------------------------------------------
+
+-- The visit going on: the guild it is at, the tabs read and the tabs asked for. Kept in memory: a
+-- visit ends with the session at the latest.
+local guildVisit
+local guildOpen = false
+
+--- A visit to `guild`'s bank starts: no tab is read yet (GUILDBANKFRAME_OPENED).
+function HR.GuildVisitStart(guild)
+  guildVisit = { guild = guild, read = {}, queried = {} }
+end
+
+--- Records tab `tab` of `guild` ("Guild-Realm") as read now, replacing that tab whole. At most 10
+--- guilds are kept, the oldest read going first, never the one just written.
+function HR.RecordGuildTab(guild, region, tab, items, now)
+  if not isKey(guild) or not C.REGIONS[region] or not isCount(tab) or type(now) ~= "number" then return false end
+  local copy = cleanItems(items)
+  if not copy then return false end
+  local s = store(true)
+  if not s then return false end
+  local g = s.guilds[guild]
+  if type(g) ~= "table" or type(g.tabs) ~= "table" then
+    g = { tabs = {}, full = false }
+    s.guilds[guild] = g
+  end
+  g.region, g.at = region, now
+  g.tabs[tab] = { at = now, items = copy }
+  if not (guildVisit and guildVisit.guild == guild) then HR.GuildVisitStart(guild) end
+  guildVisit.read[tab] = true
+  local keys = {}
+  for key, other in pairs(s.guilds) do
+    if key ~= guild then keys[#keys + 1] = { key = key, at = type(other) == "table" and tonumber(other.at) or 0 } end
+  end
+  if #keys >= C.MAX_GUILDS then
+    table.sort(keys, function(a, b)
+      if a.at ~= b.at then return a.at < b.at end
+      return a.key < b.key
+    end)
+    for i = 1, #keys - C.MAX_GUILDS + 1 do s.guilds[keys[i].key] = nil end
+  end
+  return true
+end
+
+--- After a pass over `guild`'s bank: the reading is full only when every tab in `viewable` (the tab
+--- numbers the character can view) was read this visit. Returns it; false for a guild never read.
+function HR.GuildVisitDone(guild, viewable, now)
+  local s = store(false)
+  local g = s and s.guilds[guild] or nil
+  if type(g) ~= "table" or type(viewable) ~= "table" then return false end
+  local read = guildVisit and guildVisit.guild == guild and guildVisit.read or {}
+  local full = #viewable > 0
+  for _, tab in ipairs(viewable) do
+    if not read[tab] then full = false end
+  end
+  g.full = full
+  if type(now) == "number" then g.at = now end
+  return full
+end
+
+local function linkedItem(link)
+  if type(link) ~= "string" then return nil end
+  local id = tonumber(link:match("item:(%d+)"))
+  if id then return id end
+  if link:find("battlepet:", 1, true) then return C.PET_CAGE end
+  return nil
+end
+
+--- One guild bank tab as { [itemID] = count }, the id from each slot's link, or nil while it cannot
+--- be read whole: a call that raises, an item with no link or count yet, or a tab that shows no item
+--- at all (an empty tab cannot be told from one the server has not sent yet, so it is never read as
+--- empty). `api`: GetGuildBankItemInfo and GetGuildBankItemLink.
+function HR.ReadGuildTab(api, tab)
+  local items, any = {}, false
+  for slot = 1, C.GUILD_SLOTS do
+    local ok, texture, count = pcall(api.GetGuildBankItemInfo, tab, slot)
+    if not ok then return nil end
+    if texture ~= nil then
+      local got, link = pcall(api.GetGuildBankItemLink, tab, slot)
+      local id = got and linkedItem(link) or nil
+      if not id or not isCount(count) then return nil end
+      items[id] = (items[id] or 0) + count
+      any = true
+    end
+  end
+  return any and items or nil
+end
+
+-- "Guild-Realm" of the character's guild: GetGuildInfo's fourth value is the guild's realm when it
+-- is not the character's own. nil out of a guild or while the realm is unknown.
+local function guildKey()
+  if type(GetGuildInfo) ~= "function" then return nil end
+  local ok, name, _, _, realm = pcall(GetGuildInfo, "player")
+  if not ok or type(name) ~= "string" or name == "" then return nil end
+  if type(realm) ~= "string" or realm == "" then
+    realm = GC.Game and GC.Game.RealmName and GC.Game.RealmName() or nil
+  end
+  local key = type(realm) == "string" and (name .. "-" .. realm) or nil
+  return isKey(key) and key or nil
+end
+
+-- The tabs the character can view, by number.
+local function viewableTabs()
+  local tabs = {}
+  if type(GetNumGuildBankTabs) ~= "function" or type(GetGuildBankTabInfo) ~= "function" then return tabs end
+  local ok, n = pcall(GetNumGuildBankTabs)
+  for tab = 1, ok and tonumber(n) or 0 do
+    local got, _, _, isViewable = pcall(GetGuildBankTabInfo, tab)
+    if got and isViewable then tabs[#tabs + 1] = tab end
+  end
+  return tabs
+end
+
+-- Each viewable tab is asked for once a visit: the server sends a tab's items only when asked.
+local function queryTabs(tabs)
+  if not guildVisit or type(QueryGuildBankTab) ~= "function" then return end
+  for _, tab in ipairs(tabs) do
+    if not guildVisit.queried[tab] then
+      guildVisit.queried[tab] = true
+      pcall(QueryGuildBankTab, tab)
+    end
+  end
+end
+
+--- GUILDBANKBAGSLOTS_CHANGED: every viewable tab the client has now is recorded, the rest keep
+--- their last items; tabs not asked for yet this visit are asked for.
+function HR.OnGuildBankSlots(now)
+  local ctx, guild = context(), guildKey()
+  if not ctx or not guild then return end
+  if not (guildVisit and guildVisit.guild == guild) then HR.GuildVisitStart(guild) end
+  local tabs = viewableTabs()
+  queryTabs(tabs)
+  local api = { GetGuildBankItemInfo = GetGuildBankItemInfo, GetGuildBankItemLink = GetGuildBankItemLink }
+  for _, tab in ipairs(tabs) do
+    local items = HR.ReadGuildTab(api, tab)
+    if items then HR.RecordGuildTab(guild, ctx.region, tab, items, now) end
+  end
+  HR.GuildVisitDone(guild, tabs, now)
+end
+
+--- GUILDBANKFRAME_OPENED, or the interaction manager's GuildBanker (whichever the client sends;
+--- once until the bank closes): a new visit, each viewable tab asked for.
+function HR.OnGuildBankOpened(now)
+  if guildOpen then return end
+  local guild = guildKey()
+  if not guild then return end
+  guildOpen = true
+  HR.GuildVisitStart(guild)
+  HR.OnGuildBankSlots(now)
+end
+
+function HR.OnGuildBankClosed()
+  guildOpen = false
+end
+
+-- Mail sends ---------------------------------------------------------------------------------------
+
+-- The mail being sent, from SendMail until the server answers it. One at a time: Send to alts sends
+-- a mail only once the one before was answered (Core/MailPress.lua).
+local pendingSend
+
+--- A mail is on its way to `to` with `items` ({ [itemID] = count }) from the character at the
+--- keyboard. A recipient with no realm is on the sender's (GC.Game.RealmName, through the key).
+--- False, and nothing waits, for a mail with no item, no recipient, or a sender without a realm.
+function HR.PendingSend(to, items, now)
+  pendingSend = nil
+  local ctx = context()
+  if not ctx or type(to) ~= "string" then return false end
+  to = to:match("^%s*(.-)%s*$")
+  if to == "" then return false end
+  if not to:find("-", 1, true) then to = to .. "-" .. ctx.char:match("^[^%-]+%-(.+)$") end
+  local copy = cleanItems(items)
+  if not isKey(to) or not copy or next(copy) == nil then return false end
+  pendingSend = { from = ctx.char, to = to, region = ctx.region, at = now, items = copy }
+  return true
+end
+
+--- MAIL_SEND_SUCCESS: the mail waiting went. False when none was waiting.
+function HR.SendSucceeded(now)
+  local send = pendingSend
+  pendingSend = nil
+  if not send or type(now) ~= "number" then return false end
+  local s = store(true)
+  if not s then return false end
+  send.at = now
+  s.sends[#s.sends + 1] = send
+  pruneSends(s, now)
+  return true
+end
+
+--- MAIL_FAILED and MAIL_CLOSED: the mail waiting did not go, or its answer can no longer be told.
+function HR.SendDropped()
+  pendingSend = nil
+end
+
+-- The attachments of the Send Mail frame, as { [itemID] = count }.
+local function sendItems()
+  local items = {}
+  if type(GetSendMailItem) ~= "function" then return items end
+  for slot = 1, tonumber(ATTACHMENTS_MAX_SEND) or 12 do
+    local ok, _, itemID, _, count = pcall(GetSendMailItem, slot)
+    if ok and isCount(itemID) then items[itemID] = (items[itemID] or 0) + (isCount(count) and count or 1) end
+  end
+  return items
+end
+
+local sendHooked = false
+
+--- ADDON_LOADED: a post-hook on SendMail keeps the recipient and the attachments, which Blizzard
+--- empties on MAIL_SEND_SUCCESS. Once; nothing where the client has no hooksecurefunc or SendMail.
+function HR.HookSendMail()
+  if sendHooked or type(hooksecurefunc) ~= "function" or type(SendMail) ~= "function" then return false end
+  sendHooked = pcall(hooksecurefunc, "SendMail", function(recipient)
+    pcall(function() HR.PendingSend(recipient, sendItems(), time()) end)
+  end)
+  return sendHooked
 end
