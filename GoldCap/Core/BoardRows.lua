@@ -8,7 +8,7 @@ local _, GC = ...
 -- on a row again once a verdict exists.
 GC.BoardRows = {}
 
-local BUCKET_RANK = { CAP = 0, SAFE = 1, GOLD = 2, GROUP = 2.5, WATCH = 3, PENDING = 4, UNVERIFIED = 5 }
+local BUCKET_RANK = { CAP = 0, SAFE = 1, BUY = 1, GOLD = 2, GROUP = 2.5, WATCH = 3, PENDING = 4, UNVERIFIED = 5 }
 
 -- SAFE only once the live Check actually approved it; anything else WITH a verdict is a
 -- refusal. Without a verdict there are two different states, and conflating them was a lie:
@@ -33,10 +33,19 @@ local BUCKET_RANK = { CAP = 0, SAFE = 1, GOLD = 2, GROUP = 2.5, WATCH = 3, PENDI
 -- other, measured and ranked by its profit: a commodity's, whose live book was read, under the
 -- buys and over the refusals; a realm lot's with the realm rows, whose sale speed nothing measured
 -- either (Rank).
+--
+-- BUY is a lot the Check found worth buying (`unverified`: WATCH with a candidate, the shape the
+-- buy window arms Buy on) whose resale IS measured: a WoW: Forever "vendor" lot, which the vendor
+-- pays exactly, or a Forever "market" lot priced against its version's sales with a known pace
+-- (`perDay`). It reads and ranks like SAFE. A retail realm lot carries neither and stays WATCH.
 function GC.BoardRows.Bucket(verdict, pending)
   if verdict and verdict.cap then return verdict.followed and "GROUP" or "CAP" end
   if verdict and verdict.buyable then return "SAFE" end
   if verdict and verdict.needsGold then return "GOLD" end
+  if verdict and verdict.unverified and (verdict.forever == "vendor"
+      or (verdict.forever == "market" and type(verdict.perDay) == "number" and verdict.perDay > 0)) then
+    return "BUY"
+  end
   if verdict then return "WATCH" end
   if pending then return "PENDING" end
   return "UNVERIFIED"
@@ -48,6 +57,13 @@ function GC.BoardRows.Rank(verdict, pending)
   local bucket = GC.BoardRows.Bucket(verdict, pending)
   if bucket == "GROUP" and not verdict.buyable then return BUCKET_RANK.WATCH end
   return BUCKET_RANK[bucket]
+end
+
+-- Whether the verdict is a buy: SAFE, BUY, the player's own price, or a followed group's buy. The
+-- board's Buy button, the deal bell and AUTO's "deals" all ask this.
+function GC.BoardRows.IsBuy(verdict)
+  local bucket = GC.BoardRows.Bucket(verdict)
+  return bucket == "SAFE" or bucket == "BUY" or bucket == "CAP" or (bucket == "GROUP" and verdict.buyable == true)
 end
 
 -- What the row's verdict cell says. SHORT, deliberately: it is one column on a row, and the
@@ -66,7 +82,7 @@ function GC.BoardRows.Label(verdict, pending)
   if bucket == "GROUP" then return GC.L["GROUP"] end
   if bucket == "CAP" then
     return GC.L["YOUR PRICE"]
-  elseif bucket == "SAFE" then
+  elseif bucket == "SAFE" or bucket == "BUY" then
     -- GC.Util.FormatGoldFloor, not FormatMoney: this cell is a fixed width and FormatMoney's
     -- gold+silver form ("61g35s") is two units, wide enough to clip. Gold only, floored.
     return (GC.L["SAFE +%s"]):format(GC.Util.FormatGoldFloor(verdict.stressProfit or 0))
@@ -131,7 +147,7 @@ function GC.BoardRows.ProfitTone(deal, verdict)
   return "refused"
 end
 
--- Board sort order: CAP, SAFE, a deal that needs gold, a followed group's commodity deal, WATCH (a
+-- Board sort order: CAP, SAFE and BUY, a deal that needs gold, a followed group's commodity deal, WATCH (a
 -- group's realm lot with it), pending, then everything else, by
 -- the profit the row shows (Figures) descending within each bucket. Pins are partitioned ahead of
 -- this by the caller (renderList), unchanged.

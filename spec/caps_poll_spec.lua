@@ -81,6 +81,7 @@ describe("Caps polling", function()
     GC.Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end }
     GC.Print = function() end
     GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+    helper.loadModule("Core/BoardRows.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     return GC
   end

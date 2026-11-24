@@ -1200,7 +1200,8 @@ end
 -- one lot makes the minimum. `version`: the bonus key the row was priced for; a lot whose link
 -- names another is not weighed (a lot with no link yet is the searched key's, which holds one
 -- version). `room`: how many more of the item the player should take (half a day of its sales,
--- less what is held).
+-- less what is held). `perDay`: its sales a day, carried onto the answer: the board reads a lot
+-- whose pace is known as a buy (GC.BoardRows.Bucket).
 function GC.SniperDecision._MarketLot(input)
   local IM = GC.ForeverItemMarket
   if not IM or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
@@ -1233,7 +1234,7 @@ function GC.SniperDecision._MarketLot(input)
     candidate = picked.candidate, quantity = picked.quantity, entryTotal = picked.entryTotal,
     entryUnitDisplay = picked.entryUnitDisplay, unit = picked.unit, ceiling = input.ceilingUnit,
     forever = "market", exitUnit = plan.exit, refUnit = input.refUnit, stressProfit = plan.firstProfit,
-    estProfit = plan.firstProfit, reference = input.refUnit,
+    estProfit = plan.firstProfit, reference = input.refUnit, perDay = input.perDay,
   }
 end
 

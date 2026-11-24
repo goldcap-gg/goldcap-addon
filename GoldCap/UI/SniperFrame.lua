@@ -1384,7 +1384,7 @@ local function setRowDeal(row, deal)
   local sig = table.concat({
     deal.itemID, deal.unitPrice, qty, tostring(deal.avail), tostring(total),
     (GC.Sniper._pendingRows or {})[deal.itemID] and 1 or 0, profit, tostring(deal.discount),
-    (verdict and verdict.unverified) and 1 or 0,
+    (verdict and verdict.unverified) and 1 or 0, GC.BoardRows.Bucket(verdict),
     deal.pinPlaceholder and 1 or 0, deal.priceUnknown and 1 or 0, tostring(deal.action),
     pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
     (verdict and verdict.reason) or "", (verdict and verdict.stressProfit) or "",
@@ -1433,7 +1433,9 @@ local function setRowDeal(row, deal)
     row:SetAlpha(1)
     row.buy:Show() -- undo the placeholder branch's Hide() for a pooled row reused after a placeholder
     row.buy:Enable()
-    if verdict and verdict.buyable then
+    -- A lot the Check would buy (GC.BoardRows.Bucket's BUY) reads Buy too; the click opens the check
+    -- panel with Buy armed, as for any other row.
+    if verdict and (verdict.buyable or GC.BoardRows.Bucket(verdict) == "BUY") then
       row.buy:SetLabel(GC.L["Buy"])
       row.buy:SetVariant("primary")
     elseif verdict and verdict.needsGold then
@@ -1470,7 +1472,7 @@ local function setRowDeal(row, deal)
     row.pinBg:Hide()
   end
   local verdictColor
-  if verdict and verdict.buyable then
+  if verdict and (verdict.buyable or GC.BoardRows.Bucket(verdict) == "BUY") then
     verdictColor = Theme.color.green
   elseif verdict and verdict.needsGold then
     verdictColor = Theme.color.gold
@@ -3058,7 +3060,7 @@ function GC.Sniper._DecideCeilingLot(itemID, lots)
   -- the player has left for it, read now, so a lot bought a moment ago counts.
   if ceiling.item then
     input.refUnit, input.depositUnit, input.version = ceiling.refUnit, ceiling.depositUnit, ceiling.version
-    input.room = GC.ForeverDeals.Room(itemID, ceiling.perDay)
+    input.room, input.perDay = GC.ForeverDeals.Room(itemID, ceiling.perDay), ceiling.perDay
   end
   return GC.SniperDecision.EvaluateCeilingLot(input)
 end
@@ -5584,7 +5586,7 @@ local function setDialogHeader(deal, decision)
   local rowVerdict = verdictFor(deal)
   if rowVerdict then
     dialog.tierChip:SetLabel(GC.BoardRows.Label(rowVerdict),
-      rowVerdict.buyable and Theme.color.green or Theme.tier.WATCH)
+      (rowVerdict.buyable or GC.BoardRows.Bucket(rowVerdict) == "BUY") and Theme.color.green or Theme.tier.WATCH)
     dialog.tierChip:Show()
   else
     dialog.tierChip:Hide()
@@ -8023,6 +8025,9 @@ stampVerdict = function(deal, data, manual)
     -- What the buy needs, when the wallet limit alone refused it (SniperDecision.Evaluate):
     -- renderList keeps the row, GC.BoardRows labels it "needs <gold>".
     needsGold = decision and decision.needsGold or nil,
+    -- WoW: Forever's kind and an item's sales a day: a lot whose resale they measure is a buy on
+    -- the board (GC.BoardRows.Bucket's BUY).
+    forever = decision and decision.forever or nil, perDay = decision and decision.perDay or nil,
     -- The cheapest levels this check read, for the check panel's ladder when it opens on this
     -- verdict after the book itself has gone (dialog.bookLevels is the panel's, and cleared).
     levels = data and GC.Sniper._KeepLevels(data.levels) or nil,
