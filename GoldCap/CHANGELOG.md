@@ -30,6 +30,8 @@
 - WoW: Forever: while the auction house is still handing over its list, the full scan now says
   "receiving the auction house list" with the count so far, then counts up the lots it reads,
   instead of numbers that jumped back and forth.
+- SELL knows what you paid for gear with a random suffix ("of the Bear") bought on DEALS,
+  including pieces bought before this update.
 
 ## 0.33.0 (2026-11-23)
 
