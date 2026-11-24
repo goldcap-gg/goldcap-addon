@@ -16,7 +16,9 @@
 --   opts = {
 --     recipes = { [recipeID] = { info = TradeSkillRecipeInfo, schematic = CraftingRecipeSchematic,
 --       inSkillLine = bool (default true), craftable = n, quality = { itemID, ... },
---       professionName = name (GetProfessionInfoByRecipeID) } },
+--       professionName = name (GetProfessionInfoByRecipeID),
+--       operation = CraftingOperationInfo | "error" (GetCraftingOperationInfo's answer, or it raises),
+--       outputLinks = { [craftingQualityID] = hyperlink } (GetRecipeOutputItemData asked for a quality) } },
 --     filtered = { recipeID, ... }, all = { recipeID, ... } | nil, professionID = n,
 --     professionName = name (GetChildProfessionInfo), professionTexture = fileID (GetTradeSkillTexture),
 --     baseProfession = { professionID, professionName } (GetBaseProfessionInfo), recasts = n
@@ -36,6 +38,7 @@
 --     item's link, as Blizzard's crafting order forms ask it; the tier's atlas on that link's tooltip,
 --     C_TooltipInfo.GetHyperlink),
 --     classes = { [itemID] = classID } (GetItemInfoInstant's sixth return; nothing for another id),
+--     itemLevels = { [hyperlink] = actualItemLevel } (GetDetailedItemLevelInfo; nothing for another),
 --     craftingReagents = { [itemID] = bool } (GetItemInfo's isCraftingReagent, its 17th return;
 --     nothing for another id, as for an item the client has not cached),
 --     owned = { OwnedAuctionInfo, ... },
@@ -167,6 +170,8 @@ function TS.install(opts)
       local r = recipes[id]
       if qualityID then
         local byQuality = r and r.qualityOutputs or {}
+        local link = r and r.outputLinks and r.outputLinks[qualityID] or nil
+        if link then return { itemID = byQuality[qualityID] or r.schematic.outputItemID, hyperlink = link } end
         return byQuality[qualityID] and { itemID = byQuality[qualityID] } or nil
       end
       if opts.open and opts.open.recipeID == id and opts.open.output then
@@ -175,6 +180,14 @@ function TS.install(opts)
       return r and r.schematic and { itemID = r.schematic.outputItemID } or nil
     end,
     GetRecipeQualityItemIDs = function(id) return recipes[id] and recipes[id].quality or nil end,
+    -- CraftingOperationInfo (TradeSkillUITypesDocumentation.lua) of a craft with these reagents:
+    -- craftingQuality the rank it makes, craftingQualityID that rank's id. MayReturnNothing.
+    GetCraftingOperationInfo = function(id, reagents, guid, applyConcentration)
+      record("GetCraftingOperationInfo", id, reagents, guid, applyConcentration)
+      local op = recipes[id] and recipes[id].operation
+      if op == "error" then error("GetCraftingOperationInfo: no profession open") end
+      return op
+    end,
     -- An item's crafting quality (1 to 3 here): a reagent's, and crafted gear's of the second
     -- call; nil for an item without one.
     GetItemReagentQualityByItemInfo = function(id) return (opts.tiers or {})[id] end,
@@ -266,6 +279,12 @@ function TS.install(opts)
     end,
     GetItemNameByID = function(id) return (opts.names or {})[id] end,
     GetItemIconByID = function(id) return (opts.icons or {})[id] end,
+    -- actualItemLevel, previewLevel, sparseItemLevel of an item's link.
+    GetDetailedItemLevelInfo = function(link)
+      record("GetDetailedItemLevelInfo", link)
+      local level = (opts.itemLevels or {})[link]
+      return level, level, level
+    end,
     GetItemQualityByID = function(id) return (opts.qualities or {})[id] end,
     RequestLoadItemDataByID = function(id) record("RequestLoadItemDataByID", id) end,
     -- ItemDocumentation.lua: itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subClassID.

@@ -296,20 +296,183 @@ describe("craft client", function()
   it("reads sold per day with the sell price", function()
     load({})
     VALUES[900] = commodity(10000, 12)
-    assert.same({ 10000, 12 }, { CC.SellOf(900) })
-    assert.same({}, { CC.SellOf(901) })
+    assert.same({ 10000, 12, { kind = "market" } }, { CC.SellOf(900) })
+    assert.is_nil((CC.SellOf(901)))
   end)
 
   it("prices a recipe with the window's allocation through the profit maths", function()
     load({ recipes = { [7] = potion() } })
     VALUES[101], VALUES[103], VALUES[300], VALUES[900] = commodity(500), commodity(400), commodity(100), commodity(10000)
     local r = CC.Snapshot(7)
-    assert.same({ cost = 1300, sells = 19000, profit = 17700 }, CC.ProfitOf(r))
-    assert.same({ cost = 1600, sells = 19000, profit = 17400 },
+    local market = { kind = "market" }
+    assert.same({ cost = 1300, sells = 19000, profit = 17700, output = 900, basis = market }, CC.ProfitOf(r))
+    assert.same({ cost = 1600, sells = 19000, profit = 17400, output = 900, basis = market },
       CC.ProfitOf(r, { recipeID = 7, alloc = { [1] = { { itemID = 101, q = 3 } } } }))
     -- Another recipe's allocation is not this one's.
-    assert.same({ cost = 1300, sells = 19000, profit = 17700 },
+    assert.same({ cost = 1300, sells = 19000, profit = 17700, output = 900, basis = market },
       CC.ProfitOf(r, { recipeID = 8, alloc = { [1] = { { itemID = 101, q = 3 } } } }))
+    -- Nothing asks the game which version a commodity's craft makes.
+    assert.equal(0, #TS.callsOf("GetCraftingOperationInfo"))
+  end)
+
+  -- Items sold per piece (gear, tools, bags) are priced at what the version the character makes
+  -- sold for this week (the region payload's X), never at the region's listed median: real
+  -- Core/Data.lua with a GCM1 payload adopted. The rods' week, 2026-11-24, EU.
+  describe("crafted versions", function()
+    local TS_ = 1783598400
+    local X = ";X:244175=1.180.20.14.2110000/5.206.21.14.8600000"
+      .. ",244176=2.212.8.5.5160000/3.218.17.9.3000000/4.225.17.10.5500000/5.232.1208.89.11100000"
+      .. ",244174=0.0.91.35.880000,999=1.180.20.14.500000,998=0.0.9.9.400000"
+    -- 101 a commodity reagent; 244174 a reagent sold per piece, its listings' median 223g; 7935 a
+    -- realm item with only its listings' median.
+    local BASE = "GCM1;eu;" .. TS_ .. ";I:101=1000;M:244174=2239850=40,244175=20003600=31,7935=480000=6"
+
+    local function rod(id, output, extra)
+      return { info = TS.info(id, "Rod " .. id, { supportsQualities = true }),
+        schematic = TS.schematic(id, output, { TS.slot(1, 2, TS.items(101)) }), operation = extra and extra.operation,
+        outputLinks = extra and extra.outputLinks }
+    end
+
+    local function world(payloadTail, recipes, open)
+      restore = TS.install({ recipes = recipes, open = open,
+        itemLevels = { ["|Hitem:244175::r1|h[Copper Rod]|h"] = 180 } })
+      _G.GetCVar = function(k) if k == "portal" then return "EU" end end
+      GC = helper.loadModule("Core/Util.lua")
+      for _, path in ipairs({ "Core/ImportString.lua", "Core/Data.lua", "Core/Trigger.lua", "UI/Tooltip.lua",
+        "Core/CraftCapture.lua", "Core/CraftMath.lua", "Core/CraftVersion.lua", "Core/CraftQueue.lua",
+        "Services/CraftClient.lua" }) do
+        helper.loadModule(path, GC)
+      end
+      GC.db = { settings = {} }
+      GC.Data.Init(GC.db)
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = TS_, items = {}, watchlist = {} })
+      assert.is_truthy(GC.Data.AdoptRegionPayload(BASE .. (payloadTail or "")))
+      GC.AppRuns = { VendorUnitFor = function() return nil end }
+      CC = GC.CraftClient
+    end
+
+    after_each(function() _G.GetCVar = nil end)
+
+    local RANK1 = { operation = { recipeID = 70, craftingQuality = 1, craftingQualityID = 11 },
+      outputLinks = { [11] = "|Hitem:244175::r1|h[Copper Rod]|h" } }
+
+    it("prices a crafted rod at the rank the character makes", function()
+      world(X, { [70] = rod(70, 244175, RANK1) })
+      local unit, perDay, basis = CC.SellOf(244175, 1)
+      assert.equal(2110000, unit)
+      assert.is_nil(perDay)
+      assert.same({ "proven", 1, 180, 20, 14 }, { basis.kind, basis.rank, basis.ilvl, basis.sales, basis.realms })
+      assert.same({ 1, 180 }, { CC.RankOf(70, {}, nil) })
+      local result = CC.ProfitOf(CC.Snapshot(70))
+      assert.equal(math.floor(2110000 * 0.95), result.sells)
+      assert.equal(2000, result.cost)
+      assert.same({ 244175, "proven", 1, 180 }, { result.output, result.basis.kind, result.rank, result.ilvl })
+      -- The game asked with no reagents, no item and no concentration.
+      local op = TS.callsOf("GetCraftingOperationInfo")
+      assert.equal(2, #op)
+      assert.same({ 70, {}, nil, false }, { op[2].args[1], op[2].args[2], op[2].args[3], op[2].args[4] })
+      local out = TS.callsOf("GetRecipeOutputItemData")
+      assert.equal(11, out[#out].args[4])
+    end)
+
+    it("an unsold rank has no price and says so", function()
+      world(X, { [71] = rod(71, 244176, { operation = { recipeID = 71, craftingQuality = 1, craftingQualityID = 11 } }) })
+      local unit, _, basis = CC.SellOf(244176, 1)
+      assert.is_nil(unit)
+      assert.equal("unsold", basis.kind)
+      assert.same({ rank = 5, ilvl = 232, median = 11100000, sales = 1208 }, basis.others[1])
+      local result = CC.ProfitOf(CC.Snapshot(71))
+      assert.same({ { itemID = 244176 } }, result.missing)
+      assert.same({ "unsold", 1, 2000 }, { result.basis.kind, result.rank, result.cost })
+      assert.is_nil(result.ilvl) -- no link for that rank
+    end)
+
+    it("a reagent sold per piece costs its proven sales", function()
+      world(X, {})
+      assert.equal(880000, CC.UnitOf(244174))
+      assert.equal(1000, CC.UnitOf(101))
+      assert.is_nil(CC.UnitOf(7935))
+    end)
+
+    it("the window's reagents set the open recipe's rank", function()
+      world(X, { [70] = rod(70, 244175, RANK1) }, { recipeID = 70, guid = "Item-1-2", allocations = {} })
+      local open = CC.OpenRecipe()
+      assert.same({ 1, 180 }, { open.rank, open.ilvl })
+      local op = TS.callsOf("GetCraftingOperationInfo")
+      assert.equal(1, #op)
+      assert.same({ 70, TS.reagentInfoTbl, "Item-1-2", false }, op[1].args)
+      local result = CC.ProfitOf(CC.Snapshot(70), open)
+      assert.equal(1, #TS.callsOf("GetCraftingOperationInfo")) -- the window's rank, not asked again
+      assert.equal(1, result.rank)
+      -- A rank the window says is the rank priced, whatever an empty allocation would make.
+      open.rank = 5
+      assert.equal(math.floor(8600000 * 0.95), CC.ProfitOf(CC.Snapshot(70), open).sells)
+    end)
+
+    it("the operation call failing leaves the rank unknown", function()
+      world(X, { [70] = rod(70, 244175, { operation = "error" }) }, { recipeID = 70, allocations = {} })
+      assert.is_nil(CC.RankOf(70, {}, nil))
+      local open = CC.OpenRecipe()
+      assert.is_not_nil(open)
+      assert.is_nil(open.rank)
+      local result = CC.ProfitOf(CC.Snapshot(70))
+      assert.equal("unknown", result.basis.kind)
+      assert.same({ { itemID = 244175 } }, result.missing)
+      -- No answer at all is the same.
+      restore()
+      world(X, { [70] = rod(70, 244175) })
+      assert.is_nil(CC.RankOf(70, {}, nil))
+      assert.equal("unknown", CC.ProfitOf(CC.Snapshot(70)).basis.kind)
+    end)
+
+    it("a recipe without qualities makes version 0", function()
+      local r = rod(72, 998)
+      r.info.supportsQualities = false
+      world(X, { [72] = r })
+      assert.equal(0, (CC.RankOf(72, {}, nil)))
+      assert.equal(0, #TS.callsOf("GetCraftingOperationInfo"))
+      assert.equal(math.floor(400000 * 0.95), CC.ProfitOf(CC.Snapshot(72)).sells)
+    end)
+
+    it("a commodity output prices as before", function()
+      world(X, { [73] = rod(73, 101) })
+      assert.same({ 1000, nil, { kind = "market" } }, { CC.SellOf(101) })
+      assert.equal("market", CC.ProfitOf(CC.Snapshot(73)).basis.kind)
+      assert.equal(0, #TS.callsOf("GetCraftingOperationInfo"))
+    end)
+
+    it("a second output takes no rank", function()
+      world(X, { [70] = rod(70, 244175, RANK1) })
+      local recipe = CC.Snapshot(70)
+      recipe.outputs = { 998, 999, 244175 }
+      -- The window shows the second output: its rank is not the recipe's.
+      local result = CC.ProfitOf(recipe, { recipeID = 70, output = 999, rank = 1, alloc = {} })
+      assert.same({ { itemID = 999 } }, result.missing)
+      assert.same({ 999, "unknown" }, { result.output, result.basis.kind })
+      -- One with no ranks is priced at version 0.
+      result = CC.ProfitOf(recipe, { recipeID = 70, output = 998, rank = 1, alloc = {} })
+      assert.equal(math.floor(400000 * 0.95), result.sells)
+    end)
+
+    it("a realm item X does not name is never priced at its listed median", function()
+      world(X, { [74] = rod(74, 7935) })
+      local unit, _, basis = CC.SellOf(7935, 1)
+      assert.is_nil(unit)
+      assert.equal("nosales", basis.kind)
+      assert.equal("nosales", CC.ProfitOf(CC.Snapshot(74)).basis.kind)
+    end)
+
+    it("without X a realm item's price is said to come with the Companion", function()
+      world("", { [70] = rod(70, 244175, RANK1) })
+      local unit, _, basis = CC.SellOf(244175, 1)
+      assert.is_nil(unit)
+      assert.equal("nodata", basis.kind)
+      local result = CC.ProfitOf(CC.Snapshot(70))
+      assert.equal("nodata", result.basis.kind)
+      assert.same({ { itemID = 244175 } }, result.missing)
+      assert.equal(0, #TS.callsOf("GetCraftingOperationInfo"))
+      assert.is_nil(CC.OpenRecipe())
+    end)
   end)
 
   it("counts bags, bank, reagent bank and warband bank", function()
