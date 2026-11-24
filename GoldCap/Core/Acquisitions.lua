@@ -1590,6 +1590,8 @@ end
 -- Its batch goes whole when nothing was sold from it; otherwise only what is left goes, and the
 -- sales already booked keep the cost they were booked at. Stamped once via
 -- db.mailAttachmentRepairVersion; returns how many ledger rows it repaired.
+local FOREIGN_MAIL_REPAIR_LIMIT = 3
+
 function GC.Acquisitions.RepairForeignMailAttachments()
   if not db or db.mailAttachmentRepairVersion ~= nil then return 0 end
   db.mailAttachmentRepairVersion = 1
@@ -1610,18 +1612,24 @@ function GC.Acquisitions.RepairForeignMailAttachments()
       know(batch.itemID, batch.positionKey, batch.itemName)
     end
   end
-  local foreign, repaired = {}, 0
+  local rows = {}
   for _, entry in ipairs(ledger) do
     if type(entry) == "table" and entry.kind == "buy" and entry.source == "mail"
         and isNonEmptyString(entry.key) and isPositiveInteger(entry.itemID)
         and isNonEmptyString(entry.itemName) and names[entry.itemID]
         and not names[entry.itemID][entry.itemName] then
-      foreign[entry.key] = true
-      entry.itemID = nil
-      repaired = repaired + 1
+      rows[#rows + 1] = entry
     end
   end
-  if repaired == 0 then return 0 end
+  -- The misread is one mail in many. Many commodities bought by mail under other names than the
+  -- player's own records give them is a client whose language changed since those records were
+  -- made, and then nothing is cut.
+  if #rows == 0 or #rows > FOREIGN_MAIL_REPAIR_LIMIT then return 0 end
+  local foreign = {}
+  for _, entry in ipairs(rows) do
+    foreign[entry.key] = true
+    entry.itemID = nil
+  end
   for index = #db.acquisitions, 1, -1 do
     local batch = db.acquisitions[index]
     if type(batch) == "table" and batch.source == "auction_house"
@@ -1634,7 +1642,7 @@ function GC.Acquisitions.RepairForeignMailAttachments()
       end
     end
   end
-  return repaired
+  return #rows
 end
 
 local function copyMailEvidence(entry)

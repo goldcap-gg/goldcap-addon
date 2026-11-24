@@ -906,9 +906,16 @@ describe("Ledger inbox scan", function()
   -- the fish became 30 crates at a sixteenth of their price in the Sell tab. `slots` models
   -- each attachment slot as the client answers it: HasInboxItem, and GetInboxItem's name and id.
   describe("the item id of a buy mail", function()
-    local function slotApi(slots, invoiceName)
+    local function slotApi(slots, invoiceName, headerCount)
       local api = apiFor({ mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0,
         itemName = invoiceName or "Raw Fish" } }) })
+      if headerCount then
+        local header = api.GetInboxHeaderInfo
+        api.GetInboxHeaderInfo = function(i)
+          local a, b, sender, subject, money, cod, daysLeft, _, read, returned, text, canReply = header(i)
+          return a, b, sender, subject, money, cod, daysLeft, headerCount, read, returned, text, canReply
+        end
+      end
       api.HasInboxItem = function(_, slot) return slots[slot] ~= nil and slots[slot].has == true end
       api.GetInboxItem = function(i, slot)
         assert(type(i) == "number" and type(slot) == "number")
@@ -942,6 +949,18 @@ describe("Ledger inbox scan", function()
         context, 1000)
       assert.is_nil(GC.Ledger.GetEntries()[1].itemID)
       assert.equal(0, #GC.Acquisitions.GetAll())
+    end)
+
+    it("is read as before when HasInboxItem finds none of the attachments the header counts", function()
+      GC.Ledger.ScanInbox(slotApi({ [1] = { has = false, name = "Raw Fish", itemID = 900002 } },
+        nil, 1), context, 1000)
+      assert.equal(900002, GC.Ledger.GetEntries()[1].itemID)
+    end)
+
+    it("still drops another item's id on that path", function()
+      GC.Ledger.ScanInbox(slotApi({ [1] = { has = false, name = "Crate", itemID = 900001 } },
+        nil, 1), context, 1000)
+      assert.is_nil(GC.Ledger.GetEntries()[1].itemID)
     end)
 
     it("is kept while the attachment's name has not loaded yet", function()
@@ -1030,6 +1049,16 @@ describe("Ledger inbox scan", function()
       assert.equal(1, GC.Acquisitions.RepairForeignMailAttachments())
       db.ledger[1].itemID = CRATE
       assert.equal(0, GC.Acquisitions.RepairForeignMailAttachments())
+    end)
+
+    it("cuts nothing when many rows read as other names, as after a change of client language", function()
+      seed()
+      for n = 1, 3 do
+        db.ledger[#db.ledger + 1] = row("OTHER" .. n, CRATE, "Kiste " .. n, 1, 100)
+      end
+      assert.equal(0, GC.Acquisitions.RepairForeignMailAttachments())
+      assert.equal(3, #GC.Acquisitions.GetAll())
+      assert.equal(CRATE, db.ledger[1].itemID)
     end)
 
     it("touches nothing when no record names the id", function()

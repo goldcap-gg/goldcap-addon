@@ -505,13 +505,28 @@ end
 
 local ATTACHMENT_SLOTS = 16
 
+-- Whether HasInboxItem decides which slots of this row hold an item. Blizzard's own mail window
+-- asks it before every GetInboxItem (Blizzard_MailFrame/MailFrame.lua, retail and Forever
+-- alike), but only of the mail that is open, and the readers here ask it of every row. A row the
+-- header counts attachments on while HasInboxItem finds none in any slot is the client
+-- contradicting itself, and is read as it was before HasInboxItem was asked. So is every row on
+-- a client without it.
+local function trustsHasInboxItem(api, index, itemCount)
+  if not api.HasInboxItem then return false end
+  if type(itemCount) ~= "number" or itemCount <= 0 then return true end
+  for slot = 1, ATTACHMENT_SLOTS do
+    local ok, has = pcall(api.HasInboxItem, index, slot)
+    if not ok then return false end
+    if has then return true end
+  end
+  return false
+end
+
 -- The item in one attachment slot of an inbox row, as (name, itemID, count), or nil for a slot
--- that holds nothing. Blizzard's own mail window asks HasInboxItem before every GetInboxItem
--- (Blizzard_MailFrame/MailFrame.lua, retail and Forever alike), and so does every reader here:
--- the answer GetInboxItem gives for a slot the client calls empty is not one to build on. A
--- client without HasInboxItem is read as before.
-local function inboxAttachment(api, index, slot)
-  if api.HasInboxItem then
+-- that holds nothing. With `gated` (trustsHasInboxItem) a slot HasInboxItem calls empty is empty,
+-- whatever GetInboxItem answers for it.
+local function inboxAttachment(api, index, slot, gated)
+  if gated then
     local okHas, has = pcall(api.HasInboxItem, index, slot)
     if okHas and not has then return nil end
   end
@@ -537,9 +552,10 @@ local function returnedLot(api, index, subject, now, daysLeft, itemCount, kinds)
   local bucket = expiryBucket(now, daysLeft)
   if not bucket or not exactNonNegative(itemCount) then return false end
   local counts, order, found = {}, {}, 0
+  local gated = trustsHasInboxItem(api, index, itemCount)
   for slot = 1, ATTACHMENT_SLOTS do
     if found >= itemCount then break end
-    local _, itemID, count = inboxAttachment(api, index, slot)
+    local _, itemID, count = inboxAttachment(api, index, slot, gated)
     if itemID ~= nil then
       if type(itemID) ~= "number" then return false end
       found = found + 1
@@ -606,8 +622,9 @@ local function readInboxMail(api, index, context, now, noInvoice, kinds)
   -- name has not loaded yet is no contradiction, so it is read as before.
   local itemID
   if isBuy then
+    local gated = trustsHasInboxItem(api, index, attachments)
     for slot = 1, ATTACHMENT_SLOTS do
-      local boughtName, boughtID = inboxAttachment(api, index, slot)
+      local boughtName, boughtID = inboxAttachment(api, index, slot, gated)
       if boughtID ~= nil then
         if type(boughtID) == "number" and (boughtName == nil or boughtName == itemName) then
           itemID = boughtID

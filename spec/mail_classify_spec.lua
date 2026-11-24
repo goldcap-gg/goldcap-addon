@@ -64,6 +64,19 @@ describe("MailClassify, reading an inbox row", function()
       assert.same({}, mail.items)
     end)
 
+    it("skips a slot HasInboxItem calls empty", function()
+      local box = Mailbox.new({ { sender = "Friend",
+        items = { [1] = { itemID = 11, count = 3 }, [2] = { itemID = 12, count = 1 } } } })
+      box.api.HasInboxItem = function(_, slot) return slot == 2 end
+      assert.same({ { slot = 2, itemID = 12, count = 1 } }, GC.MailClassify.Read(box.api, 1).items)
+    end)
+
+    it("reads every slot when HasInboxItem finds none of the attachments the header counts", function()
+      local box = Mailbox.new({ { sender = "Friend", items = { [1] = { itemID = 11, count = 3 } } } })
+      box.api.HasInboxItem = function() return false end
+      assert.same({ { slot = 1, itemID = 11, count = 3 } }, GC.MailClassify.Read(box.api, 1).items)
+    end)
+
     it("reads the cash on delivery amount", function()
       assert.equal(1000, read({ sender = "Friend", cod = 1000, items = { [1] = { itemID = 1, count = 1 } } }).cod)
     end)
