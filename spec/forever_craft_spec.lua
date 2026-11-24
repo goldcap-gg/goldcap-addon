@@ -176,8 +176,10 @@ describe("Forever craft panel", function()
       VALUES[901] = nil
       ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
       local card = show().card
+      -- The scan never saw the bag: the card says so (owner, 2026-11-24).
       assert.equal(GC.L["No GoldCap price for %s"]:format("Linen Bag") .. " "
-        .. GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1))), card.missing:GetText())
+        .. GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1))) .. " "
+        .. GC.L["Not seen on your auction house"], card.missing:GetText())
     end)
   end)
 
@@ -360,6 +362,7 @@ describe("Forever craft panel", function()
     VALUES[901] = nil
     ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
     local sentence = GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1)))
+      .. " " .. GC.L["Not seen on your auction house"]
     local text = GC.CraftStrip.Lines(CC.ProfitOf(CC.Snapshot(1)))[1].text
     assert.equal(sentence, text:sub(-#sentence))
     assert.equal(text, show().card.missing:GetText())
@@ -489,15 +492,19 @@ describe("Forever craft panel", function()
     end)
 
     -- No E (an older site, or E dropped for size): a proven price from 20 listed or more, as before,
-    -- and a thin book among those with no estimate while the switch is on.
-    it("without E prices from the listings as before, a thin book among none", function()
+    -- and a thin book, or an item the scan never saw, among those with no estimate while the switch
+    -- is on (owner, 2026-11-24: the craft costs this much, and the market has no price).
+    it("without E prices from the listings as before, a thin book and an unseen item among none", function()
       world()
       GC.Data.ForeverPoolMin = function() return nil end
       VALUES[901] = scan(2000, { currentQty = 25 })
       VALUES[902] = scan(2000, { currentQty = 19, min = 1500 })
-      -- The robe and the hat have nothing listed: no price, counted under the list as before.
-      assert.same({ { "Own Belt", "main" }, { "Earthen Silk Belt", "none" }, { "Pooled Cloak", "none" } }, groups())
-      assert.same({ 2, 0 }, { select(2, P.Rows()) })
+      -- The robe and the hat have nothing listed: no price, last among none, by name.
+      assert.same({ { "Own Belt", "main" }, { "Earthen Silk Belt", "none" }, { "Pooled Cloak", "none" },
+        { "Lossy Robe", "none" }, { "Unsold Hat", "none" } }, groups())
+      assert.same({ 0, 0 }, { select(2, P.Rows()) })
+      show()
+      assert.truthy(P._rows[5].widget.math:GetText():find(GC.L["Not seen on your auction house"], 1, true))
       assert.equal("+" .. GC.Util.Money(1800), (function() show() return P._rows[1].widget.profit:GetText() end)())
       assert.same({ "listings", "listings" }, { P._rows[1].result.basis.kind, P._rows[2].result.basis.kind })
       GC.db.craftUnproven = false

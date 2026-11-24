@@ -139,6 +139,14 @@ local function floorLine(itemID)
   return GC.L["If it does not sell: vendor %s"]:format(Money(vendor))
 end
 
+-- Whether the result lacks a price for the item the recipe makes (its reagents may be priced).
+local function outputUnpriced(result)
+  for _, m in ipairs(result.missing or {}) do
+    if m.itemID ~= nil and m.itemID == result.output then return true end
+  end
+  return false
+end
+
 -- What a result's price rests on, a sentence each: nothing for a proven price.
 local function basisLines(result)
   local b, out = result.basis, {}
@@ -157,6 +165,12 @@ local function basisLines(result)
       add(GC.L["Sold %d times: %s"]:format(#b.sales, table.concat(each, ", ")))
     end
     if b.xregion then add(GC.L["Sells for %s in %s"]:format(Money(b.xregion.median), b.xregion.region:upper())) end
+    add(floorLine(result.output))
+  elseif b.kind == "listings" and outputUnpriced(result) then
+    -- No sales to read (no Companion, under a day of tape, or no E): only the scan speaks, and an
+    -- item it never saw is said to be unseen, never priced (owner, 2026-11-24: the craft costs this
+    -- much, and the market has no price, it was not seen).
+    if (b.listed or 0) == 0 then add(GC.L["Not seen on your auction house"]) end
     add(floorLine(result.output))
   end
   return out
@@ -213,7 +227,7 @@ end
 local function groupOf(result)
   local b = type(result) == "table" and result.basis or nil
   if type(b) ~= "table" then return "main" end
-  if b.kind == "none" or (b.kind == "listings" and b.thin) then return "none" end
+  if b.kind == "none" or (b.kind == "listings" and (b.thin or outputUnpriced(result))) then return "none" end
   if b.kind == "pooled" and result.missing == nil then return "estimate" end
   return "main"
 end
