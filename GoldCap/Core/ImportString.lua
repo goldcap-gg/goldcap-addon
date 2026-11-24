@@ -252,6 +252,19 @@ local function readSellChance(body, into)
   end
 end
 
+-- D (GCM1 and GCS1): a commodity's typical day of sales, `itemId=unitsPerDay`: the median of the
+-- units it sold on each of the last 7 complete UTC days, whole, 0 allowed. I's `sold` is the last
+-- 24 hours alone, which one busy day multiplies tenfold. Only for I commodities; an item D leaves
+-- out keeps I's figure. A section of its own, never a field of I: I's readers are anchored at
+-- their field counts. Anchored per token; a malformed one drops itself.
+local function readTypical(body, into)
+  for token in body:gmatch("[^,]+") do
+    local id, units = token:match("^(%d+)=(%d+)$")
+    id = tonumber(id)
+    if id and id > 0 then into[id] = tonumber(units) end
+  end
+end
+
 -- W (site watchlist) and N (item ids the site has no name for -- Blizzard's API 404s them;
 -- Core/ItemNames.lua resolves them from the client and the Companion reports the names back):
 -- plain id lists, in order.
@@ -315,6 +328,10 @@ function GC.ImportString.Parse(str)
       readIds(body, result.watchlist)
     elseif kind == "N" then
       readIds(body, result.namesWanted)
+    -- D only when the site had room for it after N: a string without one parses as before.
+    elseif kind == "D" then
+      result.typical = result.typical or {}
+      readTypical(body, result.typical)
     end
   end
 
@@ -389,6 +406,10 @@ function GC.ImportString.ParseRegion(str)
     elseif kind == "P" then
       result.sellChance = result.sellChance or {}
       readSellChance(body, result.sellChance)
+    -- D the same way: a region the site has no week of sales for carries none.
+    elseif kind == "D" then
+      result.typical = result.typical or {}
+      readTypical(body, result.typical)
     end
   end
 

@@ -329,23 +329,39 @@ end
 -- what one buy may take toward a day's share of the sales, and what is held already stands in that
 -- share, so it comes off (GC.Holdings.Limit): a cap the holdings fill is 0, refused as demand_limit
 -- like any other row with no room. Caps (GC.Caps.DecideCommodity) never come here.
+--
+-- The units a day it reads are CapPerDay's: the item's typical day of the last week where the
+-- site sends one, else the last 24 hours.
 function GC.SniperDecision.DemandCap(market, config, visible, held)
   if type(market) ~= "table" or type(config) ~= "table"
       or not isFinite(config.maxDailyDemandShare) or not isFinite(config.maxQuantity) then
     return 0
   end
-  if not (isFinite(market.soldPerDay) and market.soldPerDay >= GC.SniperDecision.MIN_SOLD_PER_DAY and visible) then return 0 end
+  local perDay = GC.SniperDecision.CapPerDay(market)
+  if not (isFinite(perDay) and perDay >= GC.SniperDecision.MIN_SOLD_PER_DAY and visible) then return 0 end
   local demandShare = clamp(config.maxDailyDemandShare, 0, GC.SniperDecision.MAX_DAILY_DEMAND_SHARE)
   local maxQuantity = clamp(config.maxQuantity, 1, GC.SniperDecision.MAX_QUANTITY_CEILING)
   local mad = market.madBps or 0
   local stressDiscount = clamp(0.10 + 2 * mad / 10000, 0.10, 0.30)
   local stock = math.max(market.currentQty or 0, visible)
-  local supplyFactor = market.soldPerDay / (market.soldPerDay + stock)
-  local demandCap = math.max(1, math.floor(market.soldPerDay * demandShare
+  local supplyFactor = perDay / (perDay + stock)
+  local demandCap = math.max(1, math.floor(perDay * demandShare
     * supplyFactor * (1 - stressDiscount)))
   local cap = math.min(demandCap, maxQuantity)
   if held ~= nil and GC.Holdings then return GC.Holdings.Limit(cap, held) end
   return cap
+end
+
+-- The units a day DemandCap sizes a buy from, and what the Check prints as sold a day beside it:
+-- the median of the item's last 7 complete days (GCM1/GCS1's D, `typicalPerDay`) where the site
+-- sends one, else the last 24 hours (`soldPerDay`). The last 24 hours alone jump tenfold on one
+-- busy day and fall away on a quiet one; a week's typical day misses less both ways. nil when
+-- neither is known.
+function GC.SniperDecision.CapPerDay(market)
+  if type(market) ~= "table" then return nil end
+  local typical = market.typicalPerDay
+  if isFinite(typical) and typical >= 0 then return typical end
+  return market.soldPerDay
 end
 
 -- Which quantities Evaluate tries. It used to be every one from 1 to the cap, which was sound
@@ -1273,8 +1289,10 @@ function GC.SniperDecision.PreScreen(market, config)
   if market.stressUnit == nil or market.stressUnit <= 0 then add("stress_exit_missing") end
 
   -- No demand-cap screen here, deliberately. Evaluate's cap is floored at 1
-  -- (`math.max(1, ...)`), so it can only reach zero when soldPerDay is missing or under MIN_SOLD_PER_DAY --
-  -- which the velocity gates above already catch. The other way `demand_limit` appears is a
+  -- (`math.max(1, ...)`), so it can only reach zero when CapPerDay is missing or under MIN_SOLD_PER_DAY.
+  -- Without a typical day that is soldPerDay, which the velocity gates above already catch; an item
+  -- whose typical day is under it while the last 24 hours are not is listed at one unit and its
+  -- Check refuses it as demand_limit. The other way `demand_limit` appears is a
   -- player typing a quantity larger than the cap, which needs a live book to know.
   orderReasons(reasons)
   return reasons
@@ -1313,6 +1331,7 @@ function GC.SniperDecision.MarketFromValue(value)
     estimated = value.estimated,
     stressUnit = value.stressUnit,
     soldPerDay = value.sold,
+    typicalPerDay = value.typical,
     sellThroughBps = value.sellThroughBps,
     liquidityConfidence = value.liquidityConfidence,
     currentQty = value.currentQty,
