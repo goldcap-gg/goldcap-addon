@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.36.1 (unreleased)
+## 0.36.1 (2026-11-24)
 
 - A purchase collected from the mailbox could be filed under another item, so SELL showed that item
   at a cost you never paid. Purchases are now read only from what the mail holds, and a purchase
