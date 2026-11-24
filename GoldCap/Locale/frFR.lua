@@ -546,6 +546,7 @@ GC.Locales.frFR = {
     "Ignorer un achat si le profit ne représente pas au moins cette part de ce que vous payez.",
   ["Snapshot value"] = "Valeur de l'instantané",
   ["Sold per day"] = "Ventes par jour",
+  ["Sold in the last 24h"] = "Ventes sur 24 h",
   ["Sold/day"] = "Ventes/jour",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Triez dessus pour décider quoi vérifier en premier, pas quoi acheter.",
@@ -739,6 +740,7 @@ GC.Locales.frFR = {
   ["auto-synced data stale: /goldcap import"] =
     "données synchronisées périmées : /goldcap import",
   ["auto: paused"] = "auto : en pause",
+  ["auto: browsing gear"] = "auto : tour d'équipement en cours",
   ["below the %s breakeven"] = "sous le seuil de rentabilité de %s",
   ["below the %s you paid"] = "sous les %s que tu as payés",
   ["big buy"] = "gros achat",
@@ -896,6 +898,8 @@ GC.Locales.frFR = {
     "%d enregistrements d'achat en double supprimés, laissés par un bug d'analyse du courrier",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "%d enregistrements de vente en double supprimés, laissés par un bug d'analyse du courrier",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "achats retirés qu'un bug d'analyse du courrier avait attribués au mauvais objet",
   ["sale name ambiguous"] = "nom de la vente ambigu",
   ["sale proceeds pending"] = "recettes de vente en attente",
   ["scanned %d listings over %d passes"] = "%d ventes scannées en %d passages",

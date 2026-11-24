@@ -547,6 +547,7 @@ GC.Locales.deDE = {
     "Kauf überspringen, wenn der Gewinn nicht mindestens diesen Anteil des Kaufpreises beträgt.",
   ["Snapshot value"] = "Snapshot-Wert",
   ["Sold per day"] = "Verkäufe pro Tag",
+  ["Sold in the last 24h"] = "Verkäufe in 24h",
   ["Sold/day"] = "Verkäufe/Tag",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Danach sortieren, um zu entscheiden, was zuerst geprüft wird, nicht, was gekauft wird.",
@@ -741,6 +742,7 @@ GC.Locales.deDE = {
   ["auto-synced data stale: /goldcap import"] =
     "automatisch synchronisierte Daten veraltet: /goldcap import",
   ["auto: paused"] = "auto: pausiert",
+  ["auto: browsing gear"] = "auto: Ausrüstungsrunde läuft",
   ["below the %s breakeven"] = "unter dem Break-even von %s",
   ["below the %s you paid"] = "unter den %s, die du bezahlt hast",
   ["big buy"] = "großer Kauf",
@@ -899,6 +901,8 @@ GC.Locales.deDE = {
     "%d doppelte Kaufeinträge entfernt, die ein Fehler beim Postscan hinterlassen hat",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "%d doppelte Verkaufseinträge entfernt, die ein Fehler beim Postscan hinterlassen hat",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "Käufe entfernt, die ein Fehler beim Postscan dem falschen Gegenstand zugeordnet hatte",
   ["sale name ambiguous"] = "Verkaufsname mehrdeutig",
   ["sale proceeds pending"] = "Verkaufserlös ausstehend",
   ["scanned %d listings over %d passes"] = "%d Angebote in %d Durchläufen gescannt",

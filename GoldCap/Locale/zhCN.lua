@@ -515,6 +515,7 @@ GC.Locales.zhCN = {
   ["Skip a buy unless the profit is at least this share of what you pay."] = "若利润达不到你支付金额的这个比例，就跳过这笔购买。",
   ["Snapshot value"] = "快照价值",
   ["Sold per day"] = "日销量",
+  ["Sold in the last 24h"] = "24小时销量",
   ["Sold/day"] = "每日成交",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "用它排序来决定先检查什么，而不是决定买什么。",
@@ -688,6 +689,7 @@ GC.Locales.zhCN = {
   ["auto-synced data for %s loaded (%s old)"] = "已加载 %s 的自动同步数据（已过 %s）",
   ["auto-synced data stale: /goldcap import"] = "自动同步的数据已过期：/goldcap import",
   ["auto: paused"] = "自动：已暂停",
+  ["auto: browsing gear"] = "自动：装备轮巡中",
   ["below the %s breakeven"] = "低于保本价 %s",
   ["below the %s you paid"] = "低于你付出的 %s",
   ["big buy"] = "大额购买",
@@ -830,6 +832,8 @@ GC.Locales.zhCN = {
     "已删除邮件扫描错误留下的 %d 条重复购买记录",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "已删除邮件扫描错误留下的 %d 条重复销售记录",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "已移除邮件扫描错误记到错误物品下的购买记录",
   ["sale name ambiguous"] = "销售名称有歧义",
   ["sale proceeds pending"] = "销售款项待入账",
   ["scanned %d listings over %d passes"] = "扫描了 %d 条挂单，共 %d 轮",

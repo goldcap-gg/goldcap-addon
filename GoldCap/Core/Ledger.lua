@@ -505,6 +505,36 @@ end
 
 local ATTACHMENT_SLOTS = 16
 
+-- Whether HasInboxItem decides which slots of this row hold an item. Blizzard's own mail window
+-- asks it before every GetInboxItem (Blizzard_MailFrame/MailFrame.lua, retail and Forever
+-- alike), but only of the mail that is open, and the readers here ask it of every row. A row the
+-- header counts attachments on while HasInboxItem finds none in any slot is the client
+-- contradicting itself, and is read as it was before HasInboxItem was asked. So is every row on
+-- a client without it.
+local function trustsHasInboxItem(api, index, itemCount)
+  if not api.HasInboxItem then return false end
+  if type(itemCount) ~= "number" or itemCount <= 0 then return true end
+  for slot = 1, ATTACHMENT_SLOTS do
+    local ok, has = pcall(api.HasInboxItem, index, slot)
+    if not ok then return false end
+    if has then return true end
+  end
+  return false
+end
+
+-- The item in one attachment slot of an inbox row, as (name, itemID, count), or nil for a slot
+-- that holds nothing. With `gated` (trustsHasInboxItem) a slot HasInboxItem calls empty is empty,
+-- whatever GetInboxItem answers for it.
+local function inboxAttachment(api, index, slot, gated)
+  if gated then
+    local okHas, has = pcall(api.HasInboxItem, index, slot)
+    if okHas and not has then return nil end
+  end
+  local ok, name, itemID, _, count = pcall(api.GetInboxItem, index, slot)
+  if not ok or itemID == nil then return nil end
+  return name, itemID, count
+end
+
 -- The lot a lapsed-auction mail brought back: a list of { itemID, count, reason, expiresAt }, one
 -- per item it holds (a lot is one item, in as many stacks as the auction house split it into), or
 -- {} for a mail of no lot, or false while the client has not loaded every attachment yet.
@@ -522,10 +552,11 @@ local function returnedLot(api, index, subject, now, daysLeft, itemCount, kinds)
   local bucket = expiryBucket(now, daysLeft)
   if not bucket or not exactNonNegative(itemCount) then return false end
   local counts, order, found = {}, {}, 0
+  local gated = trustsHasInboxItem(api, index, itemCount)
   for slot = 1, ATTACHMENT_SLOTS do
     if found >= itemCount then break end
-    local ok, _, itemID, _, count = pcall(api.GetInboxItem, index, slot)
-    if ok and itemID ~= nil then
+    local _, itemID, count = inboxAttachment(api, index, slot, gated)
+    if itemID ~= nil then
       if type(itemID) ~= "number" then return false end
       found = found + 1
       if not counts[itemID] then order[#order + 1] = itemID end
@@ -583,10 +614,24 @@ local function readInboxMail(api, index, context, now, noInvoice, kinds)
   -- money attached and nothing else. Attachment lookup remains best-effort:
   -- losing a cache lookup must not turn authoritative invoice evidence into an
   -- invented item identity or abort a trustworthy invoice snapshot.
+  --
+  -- The id is the first attachment the client says is there (a stack already taken leaves its
+  -- slot empty), and only while that attachment does not name another item than the invoice
+  -- does. Forever, 2026-11-16: an invoice for 30 fish came back with a crate's id, and the fish
+  -- became 30 crates at a sixteenth of their price in the Sell tab's cost. An attachment whose
+  -- name has not loaded yet is no contradiction, so it is read as before.
   local itemID
   if isBuy then
-    local gotItem, _, boughtID = pcall(api.GetInboxItem, index, 1)
-    if gotItem and type(boughtID) == "number" then itemID = boughtID end
+    local gated = trustsHasInboxItem(api, index, attachments)
+    for slot = 1, ATTACHMENT_SLOTS do
+      local boughtName, boughtID = inboxAttachment(api, index, slot, gated)
+      if boughtID ~= nil then
+        if type(boughtID) == "number" and (boughtName == nil or boughtName == itemName) then
+          itemID = boughtID
+        end
+        break
+      end
+    end
   end
   local pending = invoiceType == "seller_temp_invoice"
   local invoiceClass = isSale and "sale" or "buy"

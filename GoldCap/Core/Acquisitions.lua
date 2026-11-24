@@ -1578,6 +1578,73 @@ function GC.Acquisitions.RepairRescannedMailSales()
   return removed
 end
 
+-- One-shot repair for the 2026-11-16 foreign-attachment read (root fix: Core/Ledger.lua's
+-- readInboxMail, which now reads only an attachment the client says is there and drops an id
+-- whose attachment names another item). A buyer invoice was filed under another item's id, so
+-- its cost became a batch of that item: 30 fish bought for 480c stood in the Sell tab as 30
+-- crates at 16c. The shape is exact only for a commodity, which has one name per id (gear shares
+-- an id across its suffixes): a mail buy whose invoice names an item the player's own records
+-- never call that id -- a post or an owned lot of it, or a purchase GoldCap made itself.
+-- The row stays in the ledger, since the gold was really spent, but loses its id: the state a
+-- buy mail with an unreadable attachment is already kept in, which no later pass files again.
+-- Its batch goes whole when nothing was sold from it; otherwise only what is left goes, and the
+-- sales already booked keep the cost they were booked at. Stamped once via
+-- db.mailAttachmentRepairVersion; returns how many ledger rows it repaired.
+local FOREIGN_MAIL_REPAIR_LIMIT = 3
+
+function GC.Acquisitions.RepairForeignMailAttachments()
+  if not db or db.mailAttachmentRepairVersion ~= nil then return 0 end
+  db.mailAttachmentRepairVersion = 1
+  local ledger = type(db.ledger) == "table" and db.ledger or {}
+  local names = {}
+  local function know(itemID, positionKey, itemName)
+    if isPositiveInteger(itemID) and isNonEmptyString(itemName)
+        and positionKey == GC.Acquisitions.PositionKey(itemID, nil, true) then
+      names[itemID] = names[itemID] or {}
+      names[itemID][itemName] = true
+    end
+  end
+  for _, activity in pairs(type(db.acquisitionActivity) == "table" and db.acquisitionActivity or {}) do
+    if type(activity) == "table" then know(activity.itemID, activity.positionKey, activity.itemName) end
+  end
+  for _, batch in ipairs(db.acquisitions or {}) do
+    if type(batch) == "table" and (batch.source == "goldcap" or batch.source == "goldcap_buy") then
+      know(batch.itemID, batch.positionKey, batch.itemName)
+    end
+  end
+  local rows = {}
+  for _, entry in ipairs(ledger) do
+    if type(entry) == "table" and entry.kind == "buy" and entry.source == "mail"
+        and isNonEmptyString(entry.key) and isPositiveInteger(entry.itemID)
+        and isNonEmptyString(entry.itemName) and names[entry.itemID]
+        and not names[entry.itemID][entry.itemName] then
+      rows[#rows + 1] = entry
+    end
+  end
+  -- The misread is one mail in many. Many commodities bought by mail under other names than the
+  -- player's own records give them is a client whose language changed since those records were
+  -- made, and then nothing is cut.
+  if #rows == 0 or #rows > FOREIGN_MAIL_REPAIR_LIMIT then return 0 end
+  local foreign = {}
+  for _, entry in ipairs(rows) do
+    foreign[entry.key] = true
+    entry.itemID = nil
+  end
+  for index = #db.acquisitions, 1, -1 do
+    local batch = db.acquisitions[index]
+    if type(batch) == "table" and batch.source == "auction_house"
+        and type(batch.mailEvidenceKey) == "string" and foreign[batch.mailEvidenceKey] then
+      if batch.remainingQty == batch.originalQty
+          and next(type(batch.consumedEvidenceKeys) == "table" and batch.consumedEvidenceKeys or {}) == nil then
+        table.remove(db.acquisitions, index)
+      else
+        batch.remainingQty, batch.remainingTotal = 0, 0
+      end
+    end
+  end
+  return #rows
+end
+
 local function copyMailEvidence(entry)
   return { key = entry.key, kind = entry.kind, source = entry.source, itemID = entry.itemID,
     itemName = entry.itemName, qty = entry.qty, total = entry.total, at = entry.at,

@@ -522,6 +522,7 @@ GC.Locales.koKR = {
     "수익이 지불액의 이 비율 이상이 아니면 구매를 건너뜁니다.",
   ["Snapshot value"] = "스냅숏 가치",
   ["Sold per day"] = "일일 판매량",
+  ["Sold in the last 24h"] = "24시간 판매량",
   ["Sold/day"] = "일일 판매량",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "무엇을 살지가 아니라, 무엇을 먼저 확인할지 정할 때 이 기준으로 정렬하세요.",
@@ -701,6 +702,7 @@ GC.Locales.koKR = {
   ["auto-synced data for %s loaded (%s old)"] = "%s의 자동 동기화 자료를 불러왔습니다 (%s 경과)",
   ["auto-synced data stale: /goldcap import"] = "자동 동기화 자료가 오래됨. /goldcap import",
   ["auto: paused"] = "자동: 일시중지",
+  ["auto: browsing gear"] = "자동: 장비 순회 중",
   ["below the %s breakeven"] = "손익분기점 %s보다 낮음",
   ["below the %s you paid"] = "지불한 %s보다 낮음",
   ["big buy"] = "대량 구매",
@@ -851,6 +853,8 @@ GC.Locales.koKR = {
     "우편 검사 오류로 남은 중복 구매 기록 %d건을 삭제했습니다",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "우편 검사 오류로 남은 중복 판매 기록 %d건을 삭제했습니다",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "우편 검사 오류로 다른 아이템에 기록된 구매 내역을 제외했습니다",
   ["sale name ambiguous"] = "판매 항목 이름이 모호함",
   ["sale proceeds pending"] = "판매 대금 대기 중",
   ["scanned %d listings over %d passes"] = "등록 %d건을 %d번 순회로 검색했습니다",

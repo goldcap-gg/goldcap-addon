@@ -549,6 +549,7 @@ GC.Locales.esES = {
     "Omitir una compra si el beneficio no es al menos esta parte de lo que pagas.",
   ["Snapshot value"] = "Valor del snapshot",
   ["Sold per day"] = "Ventas por día",
+  ["Sold in the last 24h"] = "Ventas en 24 h",
   ["Sold/day"] = "Ventas/día",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordena por él para decidir qué comprobar primero, no qué comprar.",
@@ -741,6 +742,7 @@ GC.Locales.esES = {
   ["auto-synced data stale: /goldcap import"] =
     "los datos sincronizados están caducados: /goldcap import",
   ["auto: paused"] = "auto: en pausa",
+  ["auto: browsing gear"] = "auto: ronda de equipo en curso",
   ["below the %s breakeven"] = "por debajo del punto de equilibrio de %s",
   ["below the %s you paid"] = "por debajo de los %s que pagaste",
   ["big buy"] = "compra grande",
@@ -899,6 +901,8 @@ GC.Locales.esES = {
     "borrados %d registros de compra duplicados que dejó un fallo al leer el correo",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "borrados %d registros de venta duplicados que dejó un fallo al leer el correo",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "quitadas las compras que un fallo al leer el correo había anotado al objeto equivocado",
   ["sale name ambiguous"] = "nombre de la venta ambiguo",
   ["sale proceeds pending"] = "ingresos de la venta pendientes",
   ["scanned %d listings over %d passes"] = "escaneadas %d publicaciones en %d pasadas",

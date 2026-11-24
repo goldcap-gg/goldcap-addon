@@ -294,7 +294,7 @@ local function facts(ctx)
   end
   return {
     marketValue = market.marketValue or deal.refUnit, listed = listed,
-    soldPerDay = market.soldPerDay or deal.soldPerDay,
+    soldPerDay = GC.SniperDecision.CapPerDay(market) or deal.soldPerDay,
     entryTotal = decision.entryTotal, quantity = decision.quantity,
     -- Forever's AH value or vendor price; retail's exit is a stress price, not a market value.
     refUnit = decision.refUnit or (deal.forever and decision.exitUnit) or deal.refUnit,

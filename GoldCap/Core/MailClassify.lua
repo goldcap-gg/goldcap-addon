@@ -8,11 +8,25 @@ GC.MailClassify = {}
 local SLOTS = 16
 
 -- `items` are the attachments the client has named; a slot that holds an item id the client has
--- not named yet is left out.
+-- not named yet is left out, and so is a slot the client says is empty (HasInboxItem, the check
+-- Blizzard's own mail window makes before every read). Only called for a row whose header counts
+-- attachments, so a HasInboxItem that finds none in any slot contradicts the header, and the row
+-- is read without it (Core/Ledger.lua's trustsHasInboxItem, the same rule).
 local function readItems(api, index)
+  local has = {}
+  local gated = false
+  if api.HasInboxItem then
+    for slot = 1, SLOTS do
+      local ok, here = pcall(api.HasInboxItem, index, slot)
+      if not ok then gated = false; break end
+      has[slot] = here and true or false
+      if here then gated = true end
+    end
+  end
   local items = {}
   for slot = 1, SLOTS do
-    local ok, name, itemID, _, count = pcall(api.GetInboxItem, index, slot)
+    local ok, name, itemID, _, count
+    if not gated or has[slot] then ok, name, itemID, _, count = pcall(api.GetInboxItem, index, slot) end
     if ok and name then
       items[#items + 1] = { slot = slot, itemID = itemID, count = count or 1 }
     end

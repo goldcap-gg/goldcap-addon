@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.36.0 (unreleased)
+## 0.37.0 (unreleased)
 
 - Worth crafting prices gear, tools and bags at what the version you make sold for this week across
   the region, no longer at the price they are listed for, which is every version's at once. A
@@ -15,6 +15,21 @@
 - The tooltip of a crafted item says what its version sold for this week, or that it did not sell,
   and names the listed price for what it is: every version's, across the region.
 - Without the Companion, these recipes say that sale prices by version come with it.
+
+## 0.36.1 (2026-11-24)
+
+- A purchase collected from the mailbox could be filed under another item, so SELL showed that item
+  at a cost you never paid. Purchases are now read only from what the mail holds, and a purchase
+  filed this way is taken out the next time you log in, with a line in chat saying so.
+
+## 0.36.0 (2026-11-24)
+
+- DEALS, in retail WoW: a commodity buy is sized from how much it sells on a typical day of the last
+  week, not the last 24 hours alone, so one busy day no longer makes it buy too many and a quiet day
+  no longer stops it buying. The item tooltip's "Sold per day" shows that typical day, with the last
+  24 hours under it.
+- WoW: Forever: with AUTO on, the Items board on DEALS says the gear browse is running instead of
+  "paused".
 
 ## 0.35.0 (2026-11-24)
 

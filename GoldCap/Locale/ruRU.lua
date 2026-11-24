@@ -532,6 +532,7 @@ GC.Locales.ruRU = {
     "Пропустить покупку, если прибыль меньше этой доли от уплаченной суммы.",
   ["Snapshot value"] = "Значение из снимка",
   ["Sold per day"] = "Продаж в день",
+  ["Sold in the last 24h"] = "Продаж за 24ч",
   ["Sold/day"] = "Продаж в день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортируйте по нему, чтобы решить, что проверить первым, а не что покупать.",
@@ -710,6 +711,7 @@ GC.Locales.ruRU = {
   ["auto-synced data stale: /goldcap import"] =
     "автосинхронизированные данные устарели: /goldcap import",
   ["auto: paused"] = "авто: пауза",
+  ["auto: browsing gear"] = "авто: идёт обход снаряжения",
   ["below the %s breakeven"] = "ниже точки безубыточности %s",
   ["below the %s you paid"] = "ниже %s, которые вы заплатили",
   ["big buy"] = "крупная покупка",
@@ -864,6 +866,8 @@ GC.Locales.ruRU = {
     "удалено %d дублирующих записей покупки, оставленных ошибкой сканирования почты",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "удалено %d дублирующих записей продажи, оставленных ошибкой сканирования почты",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "убраны покупки, которые ошибка сканирования почты записала не на тот предмет",
   ["sale name ambiguous"] = "имя в продаже неоднозначно",
   ["sale proceeds pending"] = "выручка ожидается",
   ["scanned %d listings over %d passes"] = "просканировано %d лотов за %d проходов",

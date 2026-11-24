@@ -1456,6 +1456,38 @@ describe("ForeverScan", function()
       assert.is_nil(GC.ForeverScan.Fold())
     end)
 
+    -- Forever's client answers GetRealmName() with "" for a while after login, and the fold is read
+    -- on every price read: 23 minutes of that at 43 reads a second, the passport read on each.
+    it("reads the passport at most once every few seconds while the realm is unnamed, and settles once it is", function()
+      local realm, calls = nil, 0
+      now = 0
+      GC.ForeverScan.Init(db, driver({ passport = function()
+        calls = calls + 1
+        return { interface = 16001, region = 90, realm = realm, faction = "Horde" }
+      end }))
+      db.foreverScan = { fold = { region = 90, realm = "Forever", faction = "Horde", at = 5000,
+        items = { [2589] = "67,1,1,;0x1" } } }
+      calls = 0
+      local reads = 0
+      for second = 0, 23 * 60 - 1 do
+        now = second
+        for _ = 1, 43 do
+          GC.ForeverScan.Fold()
+          reads = reads + 1
+        end
+      end
+      assert.equal(59340, reads)
+      assert.equal(23 * 60 / GC.ForeverScan.SETTLE_SECONDS, calls)
+      assert.is_nil(GC.ForeverScan._realm)
+      -- Named now: the next read past the interval takes it, and none reads the passport again.
+      realm, now = "Other", now + GC.ForeverScan.SETTLE_SECONDS
+      assert.is_nil(GC.ForeverScan.Fold())
+      assert.equal("Other", GC.ForeverScan._realm)
+      calls = 0
+      for _ = 1, 100 do GC.ForeverScan.Fold() end
+      assert.equal(0, calls)
+    end)
+
     it("creates its store only in Forever, and summarises it in English", function()
       GC.ForeverScan.Init(db, passport(16001, 90, "Forever"))
       assert.equal(db.foreverScan, GC.ForeverScan.Store())

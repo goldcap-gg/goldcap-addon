@@ -1030,6 +1030,8 @@ function GC.ForeverScan.Init(db, driver)
   -- Kept for Fold: a client that has not settled the realm or faction at ADDON_LOADED answers
   -- nil there, and the fold is only as safe as the house it is compared against.
   GC.ForeverScan._passport = on and driver.passport or nil
+  GC.ForeverScan._now = on and driver.now or nil
+  GC.ForeverScan._settleAt = nil
   GC.ForeverScan._scanner = on and GC.ForeverScan.New(driver) or nil
   if on and type(db) == "table" and type(db.foreverScan) ~= "table" then db.foreverScan = {} end
   -- The fold this save already holds is this account's own scan, whatever build saved it.
@@ -1067,10 +1069,18 @@ function GC.ForeverScan.Root()
   return GC.ForeverScan._db
 end
 
--- The character's realm and faction, read again while the load-time read left one unnamed.
+-- The character's realm and faction, read again while the load-time read left one unnamed: at
+-- once the first time, then at most once every SETTLE_SECONDS. Fold and House are asked on every
+-- price read, and Forever's client answers GetRealmName() with "" for a while after login: read on
+-- each of them, the passport's six client calls ran tens of thousands of times a session.
+GC.ForeverScan.SETTLE_SECONDS = 5
+
 local function settleHouse()
   local F = GC.ForeverScan
   if (F._realm ~= nil and F._faction ~= nil) or not F._passport then return end
+  local now = F._now and F._now() or nil
+  if F._settleAt and now and now - F._settleAt < F.SETTLE_SECONDS then return end
+  F._settleAt = now
   local ok, p = pcall(F._passport)
   if not ok or type(p) ~= "table" then return end
   if F._realm == nil then F._realm = p.realm end

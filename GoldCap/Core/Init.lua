@@ -776,6 +776,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
           and GC.L["removed %d duplicate sale record left by a mail-scan bug"]
           or GC.L["removed %d duplicate sale records left by a mail-scan bug"]):format(rescanned))
       end
+      -- And for the 2026-11-16 purchases filed under another item's id.
+      local foreign = GC.Acquisitions.RepairForeignMailAttachments
+        and GC.Acquisitions.RepairForeignMailAttachments() or 0
+      if foreign > 0 and GC.Print then
+        GC.Print(GC.L["took out purchases a mail-scan bug had filed under the wrong item"])
+      end
     end
     -- One-shot repair of the 2026-08-28 region defect: rows stamped with the region of the
     -- last IMPORT instead of the region the character plays in (see GC.Ledger.Context and
@@ -1071,6 +1077,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         GetInboxHeaderInfo = GetInboxHeaderInfo,
         GetInboxInvoiceInfo = GetInboxInvoiceInfo,
         GetInboxItem = GetInboxItem,
+        HasInboxItem = HasInboxItem,
         -- The client's own subjects for the auction mails that never carry an invoice; a
         -- global this client lacks is simply absent, and its mails stay "not loaded yet". Keyed,
         -- so the scan can tell a lot that came back (expired, cancelled) for the returns log.

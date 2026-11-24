@@ -216,6 +216,10 @@ function GC.Data.SetImported(parsed)
   if parsed.targets and next(parsed.targets) then
     imported.targets = parsed.targets
   end
+  -- D section (a commodity's typical day of sales). Named here for the same reason again.
+  if parsed.typical and next(parsed.typical) then
+    imported.typical = parsed.typical
+  end
   if not db then return end -- defensive: mirrors GetItemValue/GetStatus/GetWatchlist, which all tolerate Init not having run
   db.imported = imported
   -- A working import is the answer to "the Companion wrote prices this addon could not read":
@@ -405,6 +409,20 @@ local function payloadFor(itemID)
   local p = activePayload()
   if p and p.items[itemID] and not importOutranks(p, itemID) then return p end
   return nil
+end
+
+-- A commodity's typical day of sales (D: the median of its last 7 complete days), or nil when
+-- neither source carries one. Both the payload (GCM1) and the import (GCS1) may: the newer of the
+-- two that name the item wins, as the facts do (importOutranks), and on the same ts the payload,
+-- since the import outranks it only when strictly newer. Read per item, so one source's D never
+-- hides the other's for an item it leaves out.
+local function typicalFor(itemID)
+  local p = activePayload()
+  local fromPayload = p and p.typical and p.typical[itemID]
+  local imp = db and db.imported
+  local fromImport = imp and imp.typical and imp.typical[itemID]
+  if fromImport and (fromPayload == nil or (imp.ts or 0) > p.ts) then return fromImport end
+  return fromPayload
 end
 
 --- The one answer to "which facts does item X have". The payload's, for every item the payload
@@ -736,7 +754,7 @@ function GC.Data.GetItemValue(itemID)
   local pe = p and p.items[itemID]
   if pe then
     local value = { mv = pe.m, sold = pe.s, trend = pe.t, ts = p.ts, source = "region",
-      kind = "region_commodity", p25 = p.quarter[itemID], reach = p.reach[itemID] }
+      kind = "region_commodity", p25 = p.quarter[itemID], reach = p.reach[itemID], typical = typicalFor(itemID) }
     local fact = GC.Data.Facts(itemID)
     if fact then return withFacts(value, fact) end
     -- No fact (nothing sold in a day): still this snapshot's price, so its age is the payload's;
@@ -770,7 +788,7 @@ function GC.Data.GetItemValue(itemID)
     local fact = GC.Data.Facts(itemID)
     if fact then
       return withFacts({ mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import",
-        kind = "region_commodity", p25 = p25, reach = reach }, fact)
+        kind = "region_commodity", p25 = p25, reach = reach, typical = typicalFor(itemID) }, fact)
     end
     return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import", kind = "realm_item",
       p25 = p25, reach = reach,

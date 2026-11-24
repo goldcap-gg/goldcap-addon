@@ -541,6 +541,7 @@ GC.Locales.ukUA = {
     "Пропустити купівлю, якщо прибуток менший за цю частку від сплаченого.",
   ["Snapshot value"] = "Значення зі знімка",
   ["Sold per day"] = "Продажів на день",
+  ["Sold in the last 24h"] = "Продажів за 24г",
   ["Sold/day"] = "Продажів на день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортуйте за ним, щоб вирішити, що перевірити першим, а не що купувати.",
@@ -720,6 +721,7 @@ GC.Locales.ukUA = {
   ["auto-synced data stale: /goldcap import"] =
     "автосинхронізовані дані застаріли: /goldcap import",
   ["auto: paused"] = "авто: пауза",
+  ["auto: browsing gear"] = "авто: триває обхід спорядження",
   ["below the %s breakeven"] = "нижче точки беззбитковості %s",
   ["below the %s you paid"] = "нижче %s, які ви заплатили",
   ["big buy"] = "велика купівля",
@@ -876,6 +878,8 @@ GC.Locales.ukUA = {
     "видалено %d дубльованих записів купівлі, залишених помилкою сканування пошти",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "видалено %d дубльованих записів продажу, залишених помилкою сканування пошти",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "прибрано покупки, які помилка сканування пошти записала не на той предмет",
   ["sale name ambiguous"] = "назва в продажу неоднозначна",
   ["sale proceeds pending"] = "виторг очікується",
   ["scanned %d listings over %d passes"] = "проскановано %d лотів за %d проходів",
