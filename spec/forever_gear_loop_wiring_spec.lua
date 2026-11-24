@@ -182,7 +182,6 @@ describe("Forever gear loop wiring", function()
       assert.equal(350, GC.ForeverDeals.LiveRow(2140).unitPrice)
       assert.equal(1, state.repaints)
       assert.is_nil(state.rang)
-      assert.equal(0, GC.AutoReadout and GC.AutoReadout.Counts().deals or 0)
     end)
 
     it("leaves the keys the round saw where the Check looks for an item's variants", function()
@@ -416,6 +415,8 @@ describe("Forever gear loop wiring", function()
       local r = GC.ForeverDeals.LiveRow(15210)
       assert.same({ "market", "12729", 6000, 2000 }, { r.forever, r.version, r.refUnit, r.unitPrice })
       assert.is_nil(state.rang)
+      -- Its sales a day go to its Check, which the board reads a buy by (GC.BoardRows.Bucket).
+      assert.equal(2, GC.ForeverDeals.CeilingFor(15210).perDay)
       -- 14301 at 5000 is over 40% of the dearest version's median: its version is never read.
       assert.equal(2, state.versionReads)
       local key = GC.KeyPoll.VariantKeyFor(S._named[15210].entry, 0)

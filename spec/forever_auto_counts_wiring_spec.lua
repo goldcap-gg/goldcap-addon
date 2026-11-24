@@ -166,21 +166,46 @@ describe("Forever AUTO checks wiring", function()
 
   -- A piece of gear under its vendor price: one lot at 60c, which the vendor pays 90c for. Its
   -- Check answers WATCH with a candidate, the lot shape, which the board reads as a buy.
-  it("a gear lot's first answer that the board reads BUY is a deal", function()
-    vendorRow(1)
+  local function checkLot(kind, buyout)
     _G.Enum = { AuctionHouseSortOrder = { Buyout = 4 } }
     _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = false } end
     _G.C_AuctionHouse.GetNumItemSearchResults = function() return 1 end
     _G.C_AuctionHouse.GetItemSearchResultInfo = function(_, i)
       if i == 1 then
         return { itemKey = { itemID = 3021, itemLevel = 20, itemSuffix = 0, battlePetSpeciesID = 0 },
-          auctionID = 77, buyoutAmount = 60, quantity = 1, containsOwnerItem = false }
+          auctionID = 77, buyoutAmount = buyout, quantity = 1, containsOwnerItem = false }
       end
     end
-    assert.is_true(GC.Sniper._CheckNow({ itemID = 3021, unitPrice = 60, qty = 1, forever = "vendor", stale = true }))
+    assert.is_true(GC.Sniper._CheckNow({ itemID = 3021, unitPrice = buyout, qty = 1, forever = kind, stale = true }))
     GC.Sniper.OnItemSearchResults(3021)
     assert.same({ 3021 }, checked)
+  end
+
+  it("a gear lot's first answer that the board reads BUY is a deal", function()
+    vendorRow(1)
+    checkLot("vendor", 60)
     assert.equal(1, GC.AutoReadout.Counts().deals)
+  end)
+
+  -- Under market: a lot at 2000c of a piece whose version sold for 6000c, twice a day.
+  local function marketRow(perDay)
+    GC.ForeverDeals.CeilingFor = function()
+      return { ceilingUnit = 2400, kind = "market", exitUnit = 6000, minimumProfit = 1, item = true,
+        refUnit = 6000, depositUnit = 10, perDay = perDay }
+    end
+    GC.ForeverDeals.Checked = function(itemID) checked[#checked + 1] = itemID; return true end
+  end
+
+  it("an Under market lot's buy with a known sales pace is a deal", function()
+    marketRow(2)
+    checkLot("market", 2000)
+    assert.equal(1, GC.AutoReadout.Counts().deals)
+  end)
+
+  it("an Under market lot with no sales pace is no deal", function()
+    marketRow(nil)
+    checkLot("market", 2000)
+    assert.equal(0, GC.AutoReadout.Counts().deals)
   end)
 
   it("a recheck that is a buy is no new deal", function()
