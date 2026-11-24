@@ -955,6 +955,7 @@ GC.Locales.zhCN = {
   ["The auction house did not answer the full scan. Scanning by browsing instead"] =
     "拍卖行未响应完整扫描。改用浏览方式扫描",
   ["reading the auction house: %s of %s lots"] = "正在读取拍卖行:%s / %s 个拍卖项",
+  ["receiving the auction house list: %s lots so far"] = "正在接收拍卖行列表:目前 %s 个拍卖项",
   ["The scan found nothing to save"] = "扫描没有找到可保存的内容",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "扫描整个拍卖行以获取价格:完整列表最多每 15 分钟一次,期间通过浏览进行扫描。打开拍卖行时 GoldCap 也会自动扫描。",

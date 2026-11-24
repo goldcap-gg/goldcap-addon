@@ -1027,6 +1027,7 @@ GC.Locales.ptBR = {
   ["The auction house did not answer the full scan. Scanning by browsing instead"] =
     "A casa de leilões não respondeu à varredura completa. Varrendo por navegação em vez disso",
   ["reading the auction house: %s of %s lots"] = "lendo a casa de leilões: %s de %s lotes",
+  ["receiving the auction house list: %s lots so far"] = "recebendo a lista da casa de leilões: %s lotes até agora",
   ["The scan found nothing to save"] = "A varredura não encontrou nada para salvar",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Varre toda a casa de leilões em busca de preços: uma lista completa no máximo a cada 15 minutos, navegando enquanto isso. O GoldCap também varre quando você abre a casa de leilões.",

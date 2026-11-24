@@ -1035,6 +1035,7 @@ GC.Locales.enUS = {
   ["The auction house did not answer the full scan. Scanning by browsing instead"] =
     "The auction house did not answer the full scan. Scanning by browsing instead",
   ["reading the auction house: %s of %s lots"] = "reading the auction house: %s of %s lots",
+  ["receiving the auction house list: %s lots so far"] = "receiving the auction house list: %s lots so far",
   ["The scan found nothing to save"] = "The scan found nothing to save",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house.",

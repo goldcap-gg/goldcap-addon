@@ -1010,6 +1010,7 @@ GC.Locales.ukUA = {
   ["The auction house did not answer the full scan. Scanning by browsing instead"] =
     "Аукціон не відповів на повне сканування. Натомість скануємо через огляд",
   ["reading the auction house: %s of %s lots"] = "читаємо аукціон: %s з %s лотів",
+  ["receiving the auction house list: %s lots so far"] = "отримуємо список аукціону: поки %s лотів",
   ["The scan found nothing to save"] = "Сканування не знайшло, що зберегти",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Сканує весь аукціон у пошуках цін: повний список не частіше разу на 15 хвилин, а між ними через огляд. GoldCap також сканує, коли ви відкриваєте аукціон.",

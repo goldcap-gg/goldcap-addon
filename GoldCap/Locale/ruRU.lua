@@ -996,6 +996,7 @@ GC.Locales.ruRU = {
   ["The auction house did not answer the full scan. Scanning by browsing instead"] =
     "Аукцион не ответил на полное сканирование. Вместо него сканируем через обзор",
   ["reading the auction house: %s of %s lots"] = "читаем аукцион: %s из %s лотов",
+  ["receiving the auction house list: %s lots so far"] = "получаем список аукциона: пока %s лотов",
   ["The scan found nothing to save"] = "Сканирование не нашло, что сохранить",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Сканирует весь аукцион в поисках цен: полный список не чаще раза в 15 минут, а между ними через обзор. GoldCap также сканирует при открытии аукциона.",

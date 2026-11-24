@@ -1035,6 +1035,7 @@ GC.Locales.esES = {
   ["The auction house did not answer the full scan. Scanning by browsing instead"] =
     "La casa de subastas no respondió al escaneo completo. Escaneando por búsqueda en su lugar",
   ["reading the auction house: %s of %s lots"] = "leyendo la casa de subastas: %s de %s lotes",
+  ["receiving the auction house list: %s lots so far"] = "recibiendo la lista de la casa de subastas: %s lotes por ahora",
   ["The scan found nothing to save"] = "El escaneo no encontró nada que guardar",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Escanea toda la casa de subastas en busca de precios: una lista completa como máximo cada 15 minutos, buscando mientras tanto. GoldCap también escanea cuando abres la casa de subastas.",

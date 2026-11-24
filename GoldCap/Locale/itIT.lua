@@ -1031,6 +1031,7 @@ GC.Locales.itIT = {
   ["The auction house did not answer the full scan. Scanning by browsing instead"] =
     "La casa d'aste non ha risposto alla scansione completa. Si scansiona sfogliando invece",
   ["reading the auction house: %s of %s lots"] = "lettura della casa d'aste: %s di %s lotti",
+  ["receiving the auction house list: %s lots so far"] = "ricezione dell'elenco della casa d'aste: %s lotti finora",
   ["The scan found nothing to save"] = "La scansione non ha trovato nulla da salvare",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Scansiona l'intera casa d'aste per i prezzi: una lista completa al massimo ogni 15 minuti, sfogliando nel frattempo. GoldCap scansiona anche quando apri la casa d'aste.",
