@@ -2204,4 +2204,40 @@ GC.Locales.itIT = {
   ["round %s"] = "giro %s",
   ["round %s s"] = "giro %s s",
   ["waiting"] = "in attesa",
+  ["Without a proven price too"] =
+    "Anche senza prezzo provato",
+  ["Estimated from other markets"] =
+    "Stimato da altri mercati",
+  ["No estimate"] =
+    "Nessuna stima",
+  ["About %s from %d sales: %d here, %d %s, %d on other servers"] =
+    "Circa %s da %d vendite: %d qui, %d %s, %d su altri server",
+  ["About %s from %d sales: %d here, %d %s"] =
+    "Circa %s da %d vendite: %d qui, %d %s",
+  ["About %s from %d sales on other servers"] =
+    "Circa %s da %d vendite su altri server",
+  ["About %s from %s's sales"] =
+    "Circa %s dalle vendite dell'%s",
+  ["about +%s"] =
+    "circa +%s",
+  ["%d here at %s"] =
+    "%d qui a %s",
+  ["%d listed here, none sold this week"] =
+    "%d in vendita qui, nessuno venduto questa settimana",
+  ["Not seen on your auction house"] =
+    "Mai visto nella tua casa d'aste",
+  ["At today's cheapest lot %s: %s"] =
+    "Al lotto più economico di oggi %s: %s",
+  ["Sold %d times: %s"] =
+    "Venduto %d volte: %s",
+  ["Sells for %s in %s"] =
+    "Si vende a %s in %s",
+  ["If it does not sell: disenchant about %s, vendor %s"] =
+    "Se non si vende: disincanta circa %s, mercante %s",
+  ["If it does not sell: vendor %s"] =
+    "Se non si vende: mercante %s",
+  ["Alliance"] =
+    "Alleanza",
+  ["Horde"] =
+    "Orda",
 }

@@ -2192,4 +2192,40 @@ GC.Locales.enUS = {
   ["round %s"] = "round %s",
   ["round %s s"] = "round %s s",
   ["waiting"] = "waiting",
+  ["Without a proven price too"] =
+    "Without a proven price too",
+  ["Estimated from other markets"] =
+    "Estimated from other markets",
+  ["No estimate"] =
+    "No estimate",
+  ["About %s from %d sales: %d here, %d %s, %d on other servers"] =
+    "About %s from %d sales: %d here, %d %s, %d on other servers",
+  ["About %s from %d sales: %d here, %d %s"] =
+    "About %s from %d sales: %d here, %d %s",
+  ["About %s from %d sales on other servers"] =
+    "About %s from %d sales on other servers",
+  ["About %s from %s's sales"] =
+    "About %s from %s's sales",
+  ["about +%s"] =
+    "about +%s",
+  ["%d here at %s"] =
+    "%d here at %s",
+  ["%d listed here, none sold this week"] =
+    "%d listed here, none sold this week",
+  ["Not seen on your auction house"] =
+    "Not seen on your auction house",
+  ["At today's cheapest lot %s: %s"] =
+    "At today's cheapest lot %s: %s",
+  ["Sold %d times: %s"] =
+    "Sold %d times: %s",
+  ["Sells for %s in %s"] =
+    "Sells for %s in %s",
+  ["If it does not sell: disenchant about %s, vendor %s"] =
+    "If it does not sell: disenchant about %s, vendor %s",
+  ["If it does not sell: vendor %s"] =
+    "If it does not sell: vendor %s",
+  ["Alliance"] =
+    "Alliance",
+  ["Horde"] =
+    "Horde",
 }

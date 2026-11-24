@@ -37,6 +37,13 @@ local KEYS = {
   "Nothing to buy. Take what waits in your mailbox before you craft.",
   "Some reagents wait in your mailbox. Take them out before you craft.",
   "BUY list %s is ready in the BUY tab at the auction house", "Currency %d",
+  -- WoW: Forever's recipes without a proven price, their groups and what each price rests on.
+  "Without a proven price too", "Estimated from other markets", "No estimate",
+  "About %s from %d sales: %d here, %d %s, %d on other servers", "About %s from %d sales: %d here, %d %s",
+  "About %s from %d sales on other servers", "About %s from %s's sales", "about +%s", "%d here at %s",
+  "%d listed here, none sold this week", "Not seen on your auction house", "At today's cheapest lot %s: %s",
+  "Sold %d times: %s", "Sells for %s in %s", "If it does not sell: disenchant about %s, vendor %s",
+  "If it does not sell: vendor %s", "Alliance", "Horde",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot
@@ -57,6 +64,19 @@ describe("crafting strings", function()
         local value = GC.Locales[code][key]
         assert.is_string(value, ("%s has no %q"):format(code, key))
         assert.is_true(value ~= "", ("%s: %q is empty"):format(code, key))
+      end
+    end
+  end)
+
+  -- Lua 5.1 has no positional arguments: a translation that reorders a %s and a %d breaks the
+  -- panel's paint, so every one is formatted with the key's own arguments.
+  it("formats every crafting string with the arguments its key takes", function()
+    for _, code in ipairs(helper.localeCodes()) do
+      for _, key in ipairs(KEYS) do
+        local args = {}
+        for spec in key:gmatch("%%[ds]") do args[#args + 1] = spec == "%d" and 7 or "x" end
+        local ok, err = pcall(string.format, GC.Locales[code][key], unpack(args))
+        assert.is_true(ok, ("%s: %q %s"):format(code, key, tostring(err)))
       end
     end
   end)

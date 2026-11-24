@@ -2272,4 +2272,40 @@ GC.Locales.ruRU = {
   ["round %s"] = "круг %s",
   ["round %s s"] = "круг %s с",
   ["waiting"] = "ожидание",
+  ["Without a proven price too"] =
+    "И без проверенной цены",
+  ["Estimated from other markets"] =
+    "Оценка по другим рынкам",
+  ["No estimate"] =
+    "Без оценки",
+  ["About %s from %d sales: %d here, %d %s, %d on other servers"] =
+    "Около %s по %d продажам: %d здесь, %d %s, %d на других серверах",
+  ["About %s from %d sales: %d here, %d %s"] =
+    "Около %s по %d продажам: %d здесь, %d %s",
+  ["About %s from %d sales on other servers"] =
+    "Около %s по %d продажам на других серверах",
+  ["About %s from %s's sales"] =
+    "Около %s по продажам фракции %s",
+  ["about +%s"] =
+    "около +%s",
+  ["%d here at %s"] =
+    "%d здесь по %s",
+  ["%d listed here, none sold this week"] =
+    "%d выставлено здесь, за неделю ни одного не продано",
+  ["Not seen on your auction house"] =
+    "Не замечен на вашем аукционе",
+  ["At today's cheapest lot %s: %s"] =
+    "По самому дешёвому лоту сегодня %s: %s",
+  ["Sold %d times: %s"] =
+    "Продано %d раз: %s",
+  ["Sells for %s in %s"] =
+    "Продаётся за %s в %s",
+  ["If it does not sell: disenchant about %s, vendor %s"] =
+    "Если не продастся: распыление около %s, торговцу %s",
+  ["If it does not sell: vendor %s"] =
+    "Если не продастся: торговцу %s",
+  ["Alliance"] =
+    "Альянс",
+  ["Horde"] =
+    "Орда",
 }
