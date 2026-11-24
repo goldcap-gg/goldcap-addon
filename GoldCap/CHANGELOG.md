@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.35.0 (unreleased)
+## 0.35.0 (2026-11-24)
 
 - WoW: Forever: Worth crafting no longer hides a recipe because few of the item it makes are listed.
   An item is priced from what it sold for on your auction house when it sold 5 times or more this
