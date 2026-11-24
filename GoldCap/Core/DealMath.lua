@@ -134,13 +134,53 @@ end
 -- the row plans, and the one shaped like the figure Check holds against the same setting. Not a
 -- second formula. Two kinds of row are the player's own choice and never turned away: a pinned
 -- item (`cfg.watchPins`) and a YOUR PRICE row (`deal.cap`). No setting, no floor.
+local function pinned(itemID, cfg)
+  for _, pin in ipairs(type(cfg) == "table" and type(cfg.watchPins) == "table" and cfg.watchPins or {}) do
+    if pin == itemID then return true end
+  end
+  return false
+end
+
 function GC.DealMath.BoardAdmits(deal, cfg)
   local minimum = type(cfg) == "table" and cfg.minimumProfitCopper or nil
-  if type(minimum) ~= "number" or deal.cap then return true end
-  for _, pin in ipairs(type(cfg.watchPins) == "table" and cfg.watchPins or {}) do
-    if pin == deal.itemID then return true end
-  end
+  if type(minimum) ~= "number" or deal.cap or pinned(deal.itemID, cfg) then return true end
   return type(deal.estProfit) ~= "number" or deal.estProfit >= minimum
+end
+
+-- Whether discovery keeps a market row the live Check could still pass: at the best exit the
+-- Check could use, its buy reaches the Check's own profit floor, minimum profit and minimum return
+-- alike (GC.SniperDecision.ExitCanClear). The board showed rows from 10% under the market while
+-- the Check needs about 18% for a 10% return, so many rows were certain to be refused, each after
+-- a drill. A pinned item and a YOUR PRICE row are the player's own and never turned away.
+function GC.DealMath.ExitAdmits(deal, value, cfg)
+  if deal.cap or pinned(deal.itemID, cfg) or not GC.SniperDecision then return true end
+  return GC.SniperDecision.ExitCanClear(GC.SniperDecision.MarketFromValue(value), cfg, deal.unitPrice, deal.qty)
+end
+
+-- The lowest item quality the boards find under the market (settings.sniper.lowestQuality): 0 poor,
+-- 1 common, 2 uncommon, 3 rare, 4 epic. Anything else reads as the default, Common.
+GC.DealMath.QUALITY_DEFAULT, GC.DealMath.QUALITY_MAX = 1, 4
+
+function GC.DealMath.QualityFloor(cfg)
+  local q = type(cfg) == "table" and cfg.lowestQuality or nil
+  if type(q) ~= "number" or q ~= math.floor(q) or q < 0 or q > GC.DealMath.QUALITY_MAX then
+    return GC.DealMath.QUALITY_DEFAULT
+  end
+  return q
+end
+
+-- Whether a row found under the market clears the player's lowest item quality. Never turned away
+-- for it, by the fields the rows carry: a vendor row (`deal.forever == "vendor"`: what a vendor pays
+-- is a profit at any quality), a YOUR PRICE row (`deal.cap`), a followed group's (`capFollowed`, or
+-- WoW: Forever's `refSource == "group"`) and a pinned item. A quality the client has not told us
+-- (`quality` nil) passes: the filter never asks for item info itself.
+function GC.DealMath.QualityAdmits(deal, quality, cfg)
+  if deal.forever == "vendor" or deal.cap or deal.capFollowed or deal.refSource == "group"
+      or pinned(deal.itemID, cfg) then
+    return true
+  end
+  if type(quality) ~= "number" then return true end
+  return quality >= GC.DealMath.QualityFloor(cfg)
 end
 
 function GC.DealMath.PriceIncreaseExceeds(quotedTotal, updatedTotal, maxRatio)

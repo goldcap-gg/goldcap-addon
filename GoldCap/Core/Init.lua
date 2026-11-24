@@ -201,6 +201,10 @@ GC.DEFAULTS = {
       -- Stamped here for a fresh database; migrateSniperDemandShare stamps it for an existing one.
       demandShareVersion = 1,
       maxQuantity = 200,
+      -- The lowest item quality DEALS finds under the market (GC.DealMath.QualityAdmits): 0 poor
+      -- to 4 epic, Common by default, so grey junk stays off the boards. A vendor row, a cap, a
+      -- followed group and a pin are kept whatever the quality. SETTINGS -> WHAT COUNTS AS A DEAL.
+      lowestQuality = 1,
       minimumProfitCopper = 50000,
       -- foreverMinimumProfitCopper: undeclared here on purpose (Task S, UI/SettingsFrame.lua's
       -- own Forever "Min profit per buy" row, Core/ForeverDeals.lua's MinimumProfit). ApplyDefaults

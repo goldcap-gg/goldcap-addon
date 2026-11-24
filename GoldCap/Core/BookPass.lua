@@ -95,7 +95,10 @@ function GC.BookPass.New(driver, opts)
     local changed = not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0)
     local again = not changed and lost[itemID] == true
       and (now - (reportedAt[itemID] or 0)) >= rehitSeconds
-    local hit = trigger and floor < trigger and (changed or again)
+    -- driver.watchMoves(itemID): an item to drill again whenever its floor moves, at any price.
+    local moved = prev ~= nil and prev.floor ~= floor and driver.watchMoves ~= nil
+      and driver.watchMoves(itemID) == true
+    local hit = (trigger and floor < trigger and (changed or again)) or moved
     -- The book is keyed by item, the browse list by item KEY: gear comes back as one row per item
     -- level, and every caged pet as item 82800 with its own species. The row kept is the last one
     -- folded, which says nothing about the item as a whole -- so an item seen as two variants in one
@@ -248,6 +251,14 @@ function GC.BookPass.New(driver, opts)
   end
 
   function obj:IsPaging() return paging end
+
+  -- The pass under way, for DEALS' AUTO readout (Core/AutoReadout.lua): its kind, the pages and
+  -- rows read so far and its seconds. nil between passes.
+  function obj:Progress()
+    if not paging then return nil end
+    return { kind = kind, pages = pagesThisPass, items = rawWatermark,
+      seconds = passStartedAt and (driver.now() - passStartedAt) or 0 }
+  end
 
   function obj:IsWidePassDue()
     return (driver.now() - lastWideAt) >= widePassSeconds

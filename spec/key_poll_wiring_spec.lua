@@ -281,6 +281,33 @@ describe("Key poll wiring", function()
       assert.is_table(GC.Sniper._realmDeals[44])
     end)
 
+    -- The lowest item quality (Common when unset): a grey realm item is neither drilled nor
+    -- boarded; a pinned one is, and so is one whose quality the client has not loaded.
+    it("leaves an item under the lowest item quality off the board and the drills, unless pinned", function()
+      local quality = { [42] = 0, [43] = 2 }
+      _G.C_Item = {
+        IsItemDataCachedByID = function(id) return quality[id] ~= nil end,
+        GetItemQualityByID = function(id) return quality[id] end,
+      }
+      local GC = loadSniper()
+      helper.loadModule("Core/ForeverValue.lua", GC)
+      values[42], values[43], values[44], values[45] = realmValue(), realmValue(), realmValue(), realmValue()
+      quality[45] = 0
+      GC.db.settings.sniper.watchPins = { 45 }
+      targetIds = { 42, 43, 44 }
+      GC.Sniper._RebuildKeyTargets()
+
+      GC.Sniper._keyPoll:Fold({ browseRow(42, 120000, 2), browseRow(43, 120000, 2), browseRow(44, 120000, 2),
+        browseRow(45, 120000, 2) })
+
+      assert.is_false(GC.Sniper._drillQueue:Has(42))
+      assert.is_nil(GC.Sniper._realmDeals[42])
+      for _, itemID in ipairs({ 43, 44, 45 }) do
+        assert.is_true(GC.Sniper._drillQueue:Has(itemID), itemID)
+        assert.is_table(GC.Sniper._realmDeals[itemID], itemID)
+      end
+    end)
+
     -- ClickUp 869fjdhnk: a flip priced at a level (the payload's L) is boarded and drilled at its
     -- cheapest lot at or above that level, never at a lower level's price.
     it("boards and drills a flip priced at a level at its cheapest lot at or above it", function()
@@ -597,6 +624,23 @@ describe("Key poll wiring", function()
         assert.same({}, GC.Sniper._RowDetails(deal(10)))
       end)
 
+      -- How often one listing sells (GC.Data.SellChance), on every board, 0% too; nothing without a
+      -- figure, and the line without it is there for the item cell to fall back on.
+      it("says how often one listing sells under the name, on every board", function()
+        local GC = load()
+        split(GC, {}, {}, { [10] = { ref = 300000, sales7d = 6, realms = 3 } })
+        local chances = { [10] = 42, [11] = 0 }
+        GC.Data.SellChance = function(id) return chances[id] end
+        assert.equal("\nSold 6 times in 7 days · 42% of listings sell", helper.plain(GC.Sniper._RowNotes(deal(10))))
+        assert.equal("\nSold 6 times in 7 days", helper.plain(GC.Sniper._RowNotes(deal(10), true)))
+        assert.equal("\n0% of listings sell", helper.plain(GC.Sniper._RowNotes(deal(11))))
+        assert.equal("", GC.Sniper._RowNotes(deal(12)))
+        GC.db.settings.sniper.board = "commodities"
+        assert.equal("\n42% of listings sell", helper.plain(GC.Sniper._RowNotes(deal(10))))
+        assert.equal("", GC.Sniper._RowNotes(deal(10), true))
+        assert.equal("", GC.Sniper._RowNotes(deal(12)))
+      end)
+
       -- Where a flip sells (the payload's C, S and K): this realm is Tarren Mill, the account has a
       -- character on Kazzak, and Silvermoon is a realm it has none on.
       describe("where a flip sells", function()
@@ -705,6 +749,23 @@ describe("Key poll wiring", function()
           assert.truthy(text:find("Sell on Kazzak for " .. GC.Util.FormatMoney(2200 * G), 1, true))
           assert.truthy(text:find("Sold 6 times in 7 days on 3 realms", 1, true))
         end)
+
+        -- The buy limit counts what the account holds (Core/Holdings.lua): one line where that
+        -- lowered the row, none where it did not.
+        it("says how many are held when that lowered the row's limit", function()
+          local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
+          helper.loadModule("Core/BoardRows.lua", GC)
+          helper.loadModule("Core/DealCard.lua", GC)
+          local function noteTexts(d)
+            local out = {}
+            for _, n in ipairs(GC.Sniper._CardModel(d, nil, false).notes) do out[#out + 1] = n.text end
+            return table.concat(out, "\n")
+          end
+          local held = deal(10)
+          held.held = 6
+          assert.truthy(noteTexts(held):find("You already hold 6", 1, true))
+          assert.falsy(noteTexts(deal(10)):find("You already hold", 1, true))
+        end)
       end)
 
       -- The item cell, as GC.Sniper._FitRowName writes it: the line under the name goes when the
@@ -738,6 +799,15 @@ describe("Key poll wiring", function()
           wide = true
           GC.Sniper._FitRowName(row)
           assert.equal("Teebu's Scorching Straight Sword x1 of 2\nSold 39 times in 7 days", row.nameText.text)
+        end)
+
+        it("drops the sell chance before the line it rides on", function()
+          local GC = load()
+          local row = cell(function(t) return select(2, t:gsub("\n", "")) + (t:find("sell", 1, true) and 2 or 1) end)
+          row._nameParts = { "Glaive Tosser x1 of 2", "", "", "\nSold 6 times in 7 days · 42% of listings sell",
+            "\nSold 6 times in 7 days" }
+          GC.Sniper._FitRowName(row)
+          assert.equal("Glaive Tosser x1 of 2\nSold 6 times in 7 days", row.nameText.text)
         end)
 
         it("writes a row with no line under its name as it was", function()

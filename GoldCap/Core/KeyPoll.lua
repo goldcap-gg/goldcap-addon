@@ -9,11 +9,17 @@ local _, GC = ...
 -- Pure and driver-injected like every module in this batch: no WoW API call lives here. The
 -- caller (UI/SniperFrame.lua) owns the item keys, the throttle slot and what a hit means;
 -- this module owns "which 100 ids go out next" and "is this row news or the same thing we
--- already knew". driver = { now, triggerFor, onHit, onRows, minIlvlFor? }.
+-- already knew". driver = { now, triggerFor, onHit, onRows, minIlvlFor?, periodFor?, leads? }.
 --
 -- One cycle = one visit to every target. HasPending() stays true until the whole set has been
 -- handed out once since BeginCycle(), which the arbiter calls when a fresh book pass starts,
 -- so the keys traffic paces itself against the pass loop instead of running flat out.
+--
+-- Rounds by speed (the caps' poll): with driver.periodFor(itemID) a target is asked about every
+-- that-many rounds instead of every round, its rounds spread by its place in the set, and with
+-- driver.leads(itemID) a target leads every round it is in. The first round of a new set asks
+-- about every target, and a round's last batch is filled up with targets not due yet. A round is built when it is first asked about, so what the driver says then
+-- is what that round holds.
 GC.KeyPoll = {}
 
 -- Blizzard's documented ceiling for one SearchForItemKeys call. More than this disconnects
@@ -129,6 +135,39 @@ function GC.KeyPoll.New(driver, opts)
   local cursor = 1      -- index of the next id to hand out, wrapping
   local handed = 0      -- ids handed out since the last BeginCycle
   local book = {}       -- itemID -> { floor, qty, seenAt }; what each target last looked like
+  local targetSet = {}  -- itemID -> true for every target
+  -- Rounds by speed: this cycle's { itemID, index } list (index nil for a leading target), built
+  -- when first asked, and how many cycles have begun.
+  local tiered = driver.periodFor ~= nil or driver.leads ~= nil
+  local round, cycle = nil, 0
+
+  local function buildRound()
+    round = {}
+    local led = {}
+    for _, id in ipairs(driver.leads and targets or {}) do
+      if driver.leads(id) then
+        led[id] = true
+        round[#round + 1] = { id }
+      end
+    end
+    local total, rest = #targets, {}
+    for k = 0, total - 1 do
+      local i = (cursor - 1 + k) % total + 1
+      local id = targets[i]
+      local period = driver.periodFor and tonumber(driver.periodFor(id)) or 1
+      if not led[id] then
+        local due = cycle == 0 or period <= 1 or (cycle + i) % period == 0
+        if due then round[#round + 1] = { id, i } else rest[#rest + 1] = { id, i } end
+      end
+    end
+    -- A batch costs the same however few it asks about: the round's last one is filled up with
+    -- targets not due yet, so a set that fits one batch is asked about whole every round.
+    local fill = math.max(1, math.ceil(#round / maxBatch)) * maxBatch
+    for _, entry in ipairs(rest) do
+      if #round >= fill then break end
+      round[#round + 1] = entry
+    end
+  end
 
   -- Replaces the poll set. Deduplicated and sorted so the round-robin visits items in the
   -- same order every session. Returns whether anything actually changed: a set identical to
@@ -149,24 +188,55 @@ function GC.KeyPoll.New(driver, opts)
     if nextSignature == signature then return false end
     targets = next_
     signature = nextSignature
+    targetSet = seen
     cursor = 1
     handed = 0
+    round, cycle = nil, 0
     return true
   end
 
   function obj:Count() return #targets end
 
+  -- Where this cycle is, for DEALS' AUTO readout (Core/AutoReadout.lua): the cycle's number, the
+  -- batches handed out of it and how many it has.
+  function obj:Progress()
+    if tiered and not round then buildRound() end
+    local size = tiered and #round or #targets
+    return { cycle = cycle, batch = math.ceil(handed / maxBatch), batches = math.ceil(size / maxBatch) }
+  end
+
+  -- Whether this poll asks about the item at all.
+  function obj:Polls(itemID) return targetSet[itemID] == true end
+
   -- Marks the start of a cycle: every target is owed one visit again. Called at book-pass
   -- start, so a cycle of keys traffic is bounded by the pass loop rather than by a clock.
-  function obj:BeginCycle() handed = 0 end
+  function obj:BeginCycle()
+    handed = 0
+    round = nil
+    cycle = cycle + 1
+  end
 
-  function obj:HasPending() return #targets > 0 and handed < #targets end
+  function obj:HasPending()
+    if not tiered then return #targets > 0 and handed < #targets end
+    if not round then buildRound() end
+    return handed < #round
+  end
 
   -- The next batch of item ids, at most maxBatch of them, or nil when this cycle has already
   -- visited every target. The cursor wraps, so a set that does not divide evenly into batches
   -- still visits every member exactly once per cycle.
   function obj:NextBatch()
     if not obj:HasPending() then return nil end
+    if tiered then
+      local batch = {}
+      for _ = 1, math.min(maxBatch, #round - handed) do
+        handed = handed + 1
+        local entry = round[handed]
+        batch[#batch + 1] = entry[1]
+        if entry[2] then cursor = entry[2] % #targets + 1 end
+      end
+      return batch
+    end
     local total = #targets
     local take = math.min(maxBatch, total - handed)
     local batch = {}
@@ -350,6 +420,7 @@ function GC.KeyPoll.New(driver, opts)
     for itemID in pairs(book) do book[itemID] = nil end
     cursor = 1
     handed = 0
+    round = nil
   end
 
   return obj

@@ -1,5 +1,40 @@
 # GoldCap
 
+## 0.34.0 (2026-11-24)
+
+- How often one listing of an item sells, for example "Sells from 42% of listings", now shows in
+  the item's tooltip, on its card in SELL and under its name on DEALS, in retail WoW and WoW: Forever,
+  wherever goldcap.gg has seen enough of its listings end to say.
+- DEALS no longer shows grey items just because they are cheap. SETTINGS has a new "Lowest item
+  quality" (Common unless you change it, from Poor to Epic), in retail WoW and WoW: Forever. Items
+  under what a vendor pays, your own prices, groups you follow and pinned items still show at any
+  quality.
+- DEALS offers to buy fewer of an item you already have: what is in your bags and banks, in your
+  own auctions still up and, in retail WoW, in the mailboxes of all your characters comes off how
+  many a deal buys, and a deal you already hold enough of leaves the board. The row's tooltip says
+  how many you hold. Your own prices buy as many as before.
+- WoW: Forever: new deals on DEALS now show within seconds of being listed, instead of waiting for
+  the next full scan.
+- DEALS checks what it finds on the Items board sooner: a find there no longer waits for the
+  board to finish reading every price first, and far fewer are given up unchecked.
+- DEALS checks items that sell fast before slow ones, and reads your own prices on fast sellers,
+  and on items that just went under your price, more often than the rest.
+- After DEALS finds a deal on an item, it looks at that item again more often for the next ten
+  minutes, so a second cheap listing is found sooner.
+- DEALS shows fewer commodity rows it would refuse when you Check them: a row now shows only when
+  it is far enough under the market to clear both your minimum profit and your minimum return.
+- DEALS now shows under the square buttons at the top right what AUTO is scanning and how many
+  finds, checks and deals it made in the last five minutes, with more on the AUTO button's tooltip.
+- WoW: Forever: on the Items board the gear browse keeps going while it checks what it finds, so a
+  round no longer stalls for minutes.
+- WoW: Forever: while the auction house is still handing over its list, the full scan now says
+  "receiving the auction house list" with the count so far, then counts up the lots it reads,
+  instead of numbers that jumped back and forth.
+- SELL knows what you paid for gear with a random suffix ("of the Bear") bought on DEALS,
+  including pieces bought before this update.
+- WoW: Forever: a piece of gear the Check finds worth buying now says BUY on DEALS, and the deal
+  sound plays once the Check confirms it.
+
 ## 0.33.0 (2026-11-23)
 
 - WoW: Forever: ITEMS now finds items listed far under what they sell for on your auction house,

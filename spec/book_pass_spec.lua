@@ -151,6 +151,31 @@ describe("BookPass", function()
     assert.equal(80, hits[2].prev.floor)
   end)
 
+  it("hits an item the driver watches whenever its floor moves, at any price, by the table", function()
+    local cases = {
+      -- trigger, first floor, next floor, watched -> hits after the second pass
+      { 100, 150, 160, true, 1 },   -- over the trigger, moved: a watched item is drilled again
+      { 100, 150, 150, true, 0 },   -- did not move
+      { 100, 150, 160, false, 0 },  -- moved, but not watched: over the trigger, nothing
+      { nil, 150, 140, true, 1 },   -- no trigger at all: still drilled when it moves
+      { 100, 90, 95, true, 2 },     -- under the trigger: the hit it always was, once
+    }
+    for i, c in ipairs(cases) do
+      hits = {}
+      sent.triggers = { [1] = c[1] }
+      local driver = fakeDriver()
+      driver.watchMoves = function() return c[4] end
+      local bp = GC.BookPass.New(driver)
+      bp:Start("classes")
+      browseResults, hasFullResults = { row(1, c[2], 10) }, false
+      bp:OnResultsUpdated()
+      bp:Start("classes")
+      browseResults, hasFullResults = { row(1, c[3], 10) }, true
+      bp:OnResultsUpdated()
+      assert.equal(c[5], #hits, "case " .. i)
+    end
+  end)
+
   it("hits again when quantity grows at the same floor, and not when it only shrinks", function()
     sent.triggers[1] = 100
     local bp = newPass()

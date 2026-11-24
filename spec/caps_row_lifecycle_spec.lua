@@ -87,6 +87,7 @@ describe("Caps row lifecycle -- realm key poll (onRows)", function()
     GC.Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end }
     GC.Print = function() end
     GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+    helper.loadModule("Core/BoardRows.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     GC.Sniper._liveTracksScanDeals = true -- so _CurrentLiveDeal reads the scanned board
     return GC

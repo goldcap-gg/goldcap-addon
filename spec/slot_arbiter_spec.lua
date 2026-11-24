@@ -498,8 +498,10 @@ describe("Search slot arbiter", function()
     end)
 
     -- Measured 2026-10-13: drills sent ahead of every batch held an Items round's second batch
-    -- 9.8 s and its third 15.4 s, and the board took 33 s to fill. The round goes first now.
-    it("sends an Items round's batches ahead of a queued drill, then drills, and does not drop a hit only the key poll saw", function()
+    -- 9.8 s and its third 15.4 s, and the board took 33 s to fill. Measured in 0.33.0: a round
+    -- ahead of every drill left half the key-poll hits to age out. The round's first batch goes
+    -- first, then the batches and the drills take turns (GC.DrillQueue.SlotTurn).
+    it("sends an Items round's first batch ahead of a queued drill, then takes turns, and does not drop a hit only the key poll saw", function()
       local GC, watch = load()
       watch.hungry = false
       GC.Sniper._bookPass:Abort()
@@ -520,11 +522,10 @@ describe("Search slot arbiter", function()
       assert.same({ "keys:100" }, sent)
       foldKeys(GC)
       GC.Sniper.OnThrottleReady()
-      assert.same({ "keys:100", "keys:50" }, sent)
-      -- The round is out: the queued hit, which only the key poll ever saw, is drilled next.
-      foldKeys(GC)
+      -- The queued hit, which only the key poll ever saw, is drilled before the round goes on.
+      assert.same({ "keys:100", "drill" }, sent)
       GC.Sniper.OnThrottleReady()
-      assert.same({ "keys:100", "keys:50", "drill" }, sent)
+      assert.same({ "keys:100", "drill", "keys:50" }, sent)
     end)
 
     it("lets a queued drill go between Items rounds", function()

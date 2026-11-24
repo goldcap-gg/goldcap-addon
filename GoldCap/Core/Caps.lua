@@ -225,6 +225,8 @@ function GC.Caps.DecideRealm(cap, lots)
       buyout = best.buyout,
       quantity = quantity,
       itemLevel = best.itemLevel,
+      itemSuffix = best.itemSuffix,
+      battlePetSpeciesID = best.battlePetSpeciesID,
     },
     unit = bestUnit,
     quantity = quantity,

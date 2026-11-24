@@ -120,6 +120,7 @@ local function sendBrowse(text)
   if tab then tab.addonBrowse = true end
   C_AuctionHouse.SendBrowseQuery({ searchString = text, sorts = browseSorts(), filters = {}, itemClassFilters = {} })
   if tab then tab.addonBrowse = false end
+  if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("buy-search") end
 end
 
 local function newRequest()
@@ -136,7 +137,10 @@ local function newRequest()
       return GC.Util.ThrottleReady() and GC.Util.ClaimThrottleSend("buy-search") or false
     end,
     send = sendBrowse,
-    more = function() C_AuctionHouse.RequestMoreBrowseResults() end,
+    more = function()
+      C_AuctionHouse.RequestMoreBrowseResults()
+      if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("buy-search") end
+    end,
     browseSeq = function() return GC.Buy._browseSeq or 0 end,
     results = function() return C_AuctionHouse.GetBrowseResults() or {} end,
     full = function() return C_AuctionHouse.HasFullBrowseResults() end,

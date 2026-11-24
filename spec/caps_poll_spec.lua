@@ -62,6 +62,7 @@ describe("Caps polling", function()
     helper.loadModule("Core/Trigger.lua", GC)
     helper.loadModule("Core/FullScan.lua", GC)
     helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/HotSet.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("Core/WatchSet.lua", GC)
@@ -80,6 +81,7 @@ describe("Caps polling", function()
     GC.Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end }
     GC.Print = function() end
     GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+    helper.loadModule("Core/BoardRows.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     return GC
   end
@@ -900,6 +902,73 @@ describe("Caps polling", function()
         GC.Sniper.OnThrottleReady()
         assert.equal(1, sentBrowse)
         assert.equal(1, #keysSent)
+      end)
+
+      it("asks about a fast cap and a cap just found cheap every round, and the rest in turn, one batch a round", function()
+        local GC = loadSniper()
+        openAH(GC)
+        local caps = {}
+        for id = 1001, 1150 do caps[#caps + 1] = { i = id, c = 100 } end
+        values[1001] = { sold = 100 }
+        adoptCaps(GC, caps)
+        for _ = 1, 5 do
+          assert.is_true(GC.Sniper._TrySendCapBatch())
+          local asked = keysSent[#keysSent]
+          local found = {}
+          for _, id in ipairs(asked) do if id == 1150 then found = { browseRow(1150, 90) } end end
+          answer(GC, found)
+          GC.Sniper._drillQueue:Clear()
+          now = now + 5
+        end
+        -- The first round asks about all 150 in two batches; after it, one batch a round.
+        assert.same({ 100, 50, 100, 100, 100 }, { #keysSent[1], #keysSent[2], #keysSent[3], #keysSent[4], #keysSent[5] })
+        local seen = {}
+        for r = 3, 5 do
+          local inRound = {}
+          for _, id in ipairs(keysSent[r]) do inRound[id], seen[id] = true, true end
+          assert.is_true(inRound[1001], "the fast seller, round " .. r)
+          assert.is_true(inRound[1150], "the cap found cheap, round " .. r)
+        end
+        for id = 1001, 1150 do assert.is_true(seen[id], "cap " .. id) end
+      end)
+
+      it("puts an item that just had a deal first in every round of both polls", function()
+        local GC = loadSniper()
+        openAH(GC)
+        adoptCaps(GC, { { i = 41, c = 100 }, { i = 42, c = 100 }, { i = 43, c = 100 } })
+        GC.Sniper._hot:Mark(43)
+        for r = 1, 4 do
+          assert.is_true(GC.Sniper._TrySendCapBatch())
+          answer(GC, {})
+          now = now + 5
+          assert.equal(43, keysSent[r][1], "round " .. r)
+        end
+        GC.Sniper._keyPoll:SetTargets({ 7, 8, 9 })
+        GC.Sniper._hot:Mark(9)
+        assert.same({ 9, 7, 8 }, GC.Sniper._keyPoll:NextBatch())
+      end)
+
+      it("drills an item that just had a deal again when its floor moves, unless a poll reads it", function()
+        local GC = loadSniper()
+        openAH(GC)
+        local fact = { kind = "region_commodity", source = "region", mv = 1000, stressUnit = 900, sold = 500,
+          sellThroughBps = 9000, liquidityConfidence = 90, listings = 10, currentQty = 100 }
+        values[77], values[78] = fact, fact
+        GC.Sniper._keyPoll:SetTargets({ 78 })
+        GC.Sniper._hot:Mark(77)
+        GC.Sniper._hot:Mark(78)
+        local results
+        _G.C_AuctionHouse.GetBrowseResults = function() return results end
+        local function pass(floor)
+          results = { browseRow(77, floor, 10), browseRow(78, floor, 10) }
+          GC.Sniper._bookPass:Start("classes")
+          GC.Sniper._bookPass:OnResultsUpdated()
+        end
+        pass(2000) -- far over the market: no hit, the floor is only seen
+        assert.is_false(GC.Sniper._drillQueue:Has(77))
+        pass(2100)
+        assert.is_true(GC.Sniper._drillQueue:Has(77))
+        assert.is_false(GC.Sniper._drillQueue:Has(78))
       end)
 
       it("rests between two rounds", function()

@@ -95,6 +95,7 @@ local function quoteDriver()
       else
         C_AuctionHouse.SendSearchQuery(key, { { sortOrder = Enum.AuctionHouseSortOrder.Buyout, reverseSort = false } }, false)
       end
+      if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("sell") end
     end,
     -- Both price against the cheapest level somebody ELSE is selling at. Reading level 1 blind
     -- means pricing against your own auction the moment you are the cheapest seller, so every

@@ -324,7 +324,12 @@ end
 -- including minimumRoi and minimumProfitCopper, which this calculation never reads. Routing
 -- discovery through it would let one unrelated bad value collapse every quantity on the board
 -- to 1 -- silently, and looking exactly like a quiet market rather than a broken setting.
-function GC.SniperDecision.DemandCap(market, config, visible)
+--
+-- `held` (optional): the units the account already holds of the item (GC.Holdings). The cap is
+-- what one buy may take toward a day's share of the sales, and what is held already stands in that
+-- share, so it comes off (GC.Holdings.Limit): a cap the holdings fill is 0, refused as demand_limit
+-- like any other row with no room. Caps (GC.Caps.DecideCommodity) never come here.
+function GC.SniperDecision.DemandCap(market, config, visible, held)
   if type(market) ~= "table" or type(config) ~= "table"
       or not isFinite(config.maxDailyDemandShare) or not isFinite(config.maxQuantity) then
     return 0
@@ -338,7 +343,9 @@ function GC.SniperDecision.DemandCap(market, config, visible)
   local supplyFactor = market.soldPerDay / (market.soldPerDay + stock)
   local demandCap = math.max(1, math.floor(market.soldPerDay * demandShare
     * supplyFactor * (1 - stressDiscount)))
-  return math.min(demandCap, maxQuantity)
+  local cap = math.min(demandCap, maxQuantity)
+  if held ~= nil and GC.Holdings then return GC.Holdings.Limit(cap, held) end
+  return cap
 end
 
 -- Which quantities Evaluate tries. It used to be every one from 1 to the cap, which was sound
@@ -559,7 +566,8 @@ local function evaluate(input, probing)
   if stressUnit == nil or stressUnit <= 0 then
     add("stress_exit_missing", 2)
   end
-  local computedCap = GC.SniperDecision.DemandCap(market, config, visible)
+  -- `input.held`: what the account already holds of the item (GC.Holdings), nil for none known.
+  local computedCap = GC.SniperDecision.DemandCap(market, config, visible, input.held)
   if computedCap <= 0 then
     add("demand_limit", 2)
   elseif not fixed and computedCap < config.maxQuantity then
@@ -939,6 +947,8 @@ function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
     auctionID = best.auctionID,
     buyout = best.buyout,
     itemLevel = isFinite(best.itemLevel) and best.itemLevel or 0,
+    itemSuffix = best.itemSuffix,
+    battlePetSpeciesID = best.battlePetSpeciesID,
     quantity = quantity,
   }
   -- A 0..1 fraction, the same shape Core/DealMath.lua's `discount` carries, so the row and
@@ -1190,7 +1200,8 @@ end
 -- one lot makes the minimum. `version`: the bonus key the row was priced for; a lot whose link
 -- names another is not weighed (a lot with no link yet is the searched key's, which holds one
 -- version). `room`: how many more of the item the player should take (half a day of its sales,
--- less what is held).
+-- less what is held). `perDay`: its sales a day, carried onto the answer: the board reads a lot
+-- whose pace is known as a buy (GC.BoardRows.Bucket).
 function GC.SniperDecision._MarketLot(input)
   local IM = GC.ForeverItemMarket
   if not IM or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
@@ -1223,7 +1234,7 @@ function GC.SniperDecision._MarketLot(input)
     candidate = picked.candidate, quantity = picked.quantity, entryTotal = picked.entryTotal,
     entryUnitDisplay = picked.entryUnitDisplay, unit = picked.unit, ceiling = input.ceilingUnit,
     forever = "market", exitUnit = plan.exit, refUnit = input.refUnit, stressProfit = plan.firstProfit,
-    estProfit = plan.firstProfit, reference = input.refUnit,
+    estProfit = plan.firstProfit, reference = input.refUnit, perDay = input.perDay,
   }
 end
 
@@ -1267,6 +1278,26 @@ function GC.SniperDecision.PreScreen(market, config)
   -- player typing a quantity larger than the cap, which needs a live book to know.
   orderReasons(reasons)
   return reasons
+end
+
+-- Whether a buy of `qty` units at `unitPrice` can clear the live Check's profit floor at the best
+-- exit Evaluate could ever use: its stress exit with no competing ask (Evaluate's exit is never
+-- above market.stressUnit), the 5% cut and no deposit, held to max(minimumProfitCopper, minimumRoi x
+-- the outlay) after normalizeConfig. In real numbers, without the copper rounding: a Check that
+-- passes a buy of at most `qty` units whose cheapest ask is `unitPrice` passes this too, since its
+-- profit per unit is at most 0.95 x stressUnit less what the units cost. True when there is
+-- nothing to judge by (no stress exit, a config Evaluate would refuse): Discovery then keeps the
+-- row, as it always did.
+function GC.SniperDecision.ExitCanClear(market, config, unitPrice, qty)
+  local normalized = normalizeConfig(config)
+  local stress = type(market) == "table" and market.stressUnit or nil
+  if not normalized or not isFinite(stress) or stress <= 0 or not isFinite(unitPrice)
+      or not isFinite(qty) or qty < 1 then
+    return true
+  end
+  local outlay = unitPrice * qty
+  local best = stress * qty * 0.95 - outlay
+  return best + 1e-6 >= math.max(normalized.minimumProfitCopper, outlay * normalized.minimumRoi)
 end
 
 -- The one mapping from a stored import fact to the market table Evaluate and PreScreen read.

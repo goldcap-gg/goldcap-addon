@@ -104,6 +104,12 @@ function WIN.InlineIcon(btn, word)
 end
 -- What DEALS' board tabs leave beside them for the gold line and the session total, at least.
 WIN.BOARD_LINE_MIN = 160
+-- The AUTO readout in the same row, under the toolbar's square buttons (GC.Sniper._PaintAutoReadout):
+-- the widest it is given at font scale 1 (its longest English line, 46 characters of 10pt mono, and
+-- a little over), and the height of its two lines at the largest font scale (1.3), which the row
+-- holds: a tab (Theme.BOARD_TAB.H, 36) is taller, so the headings stay put.
+WIN.READOUT_W = 280
+WIN.READOUT_ROW_H = 2 * math.ceil(10 * 1.3 * 1.15) + 2
 
 -- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) always shifts the deals list
 -- aside while it is open: it used to lie over the list on any window under 990px, the docked
@@ -292,6 +298,13 @@ LIM.KEYS_CYCLE_BREATHER_SECONDS = 5
 LIM.CAPS_BATCH_GAP_SECONDS = 2
 -- And between two full rounds over the caps it rests longer, as the Items board's own loop does.
 LIM.CAPS_ROUND_BREATHER_SECONDS = 5
+-- Rounds by speed (the caps' poll): a cap that sells fast (GC.DrillQueue.Fast), was found under
+-- its price in the last CHEAP_CAP_SECONDS, or is hot (HOT_SECONDS after a live Check found a deal
+-- on it) is asked about every round; the rest every CAP_SLOW_PERIOD-th. Measured in 0.33.0 a
+-- round of 407 caps took about 40 s, so a fast cap waited that long to be read again.
+LIM.CAP_SLOW_PERIOD = 3
+LIM.CHEAP_CAP_SECONDS = 300
+LIM.HOT_SECONDS = 600
 -- Caps fixes 4a, round 2: the longest a player's Check waits for an unanswered keys batch before
 -- it goes anyway (issueRequerySearch). Sent on top of one, it comes back empty -- "listing gone".
 -- Final review S2: a batch of a hundred routinely answers after more than eight seconds (see
@@ -1371,7 +1384,7 @@ local function setRowDeal(row, deal)
   local sig = table.concat({
     deal.itemID, deal.unitPrice, qty, tostring(deal.avail), tostring(total),
     (GC.Sniper._pendingRows or {})[deal.itemID] and 1 or 0, profit, tostring(deal.discount),
-    (verdict and verdict.unverified) and 1 or 0,
+    (verdict and verdict.unverified) and 1 or 0, GC.BoardRows.Bucket(verdict),
     deal.pinPlaceholder and 1 or 0, deal.priceUnknown and 1 or 0, tostring(deal.action),
     pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
     (verdict and verdict.reason) or "", (verdict and verdict.stressProfit) or "",
@@ -1420,7 +1433,9 @@ local function setRowDeal(row, deal)
     row:SetAlpha(1)
     row.buy:Show() -- undo the placeholder branch's Hide() for a pooled row reused after a placeholder
     row.buy:Enable()
-    if verdict and verdict.buyable then
+    -- A lot the Check would buy (GC.BoardRows.Bucket's BUY) reads Buy too; the click opens the check
+    -- panel with Buy armed, as for any other row.
+    if verdict and (verdict.buyable or GC.BoardRows.Bucket(verdict) == "BUY") then
       row.buy:SetLabel(GC.L["Buy"])
       row.buy:SetVariant("primary")
     elseif verdict and verdict.needsGold then
@@ -1457,7 +1472,7 @@ local function setRowDeal(row, deal)
     row.pinBg:Hide()
   end
   local verdictColor
-  if verdict and verdict.buyable then
+  if verdict and (verdict.buyable or GC.BoardRows.Bucket(verdict) == "BUY") then
     verdictColor = Theme.color.green
   elseif verdict and verdict.needsGold then
     verdictColor = Theme.color.gold
@@ -1597,7 +1612,8 @@ local function setRowDeal(row, deal)
   -- The notes are asked again at every stamp: the one after the item loads is the first whose
   -- collection answer can be more than "unknown".
   local function stampName(named)
-    row._nameParts = { named .. qtySuffix(deal, qty), capSuffix, watchSuffix, GC.Sniper._RowNotes(deal) }
+    row._nameParts = { named .. qtySuffix(deal, qty), capSuffix, watchSuffix, GC.Sniper._RowNotes(deal),
+      GC.Sniper._RowNotes(deal, true) }
     GC.Sniper._FitRowName(row)
   end
   GC.Sniper._StampItem(row, deal, stampName)
@@ -1700,11 +1716,18 @@ end
 -- What a flip row says under its name on the Items board: how soon it sells on the realm to sell
 -- it on (S, Core/SellRoute.lua's RowText), else how often it sold this week (F), and its mark. ""
 -- anywhere else. What the line leaves out is the row's tooltip (GC.Sniper._RowDetails).
-function GC.Sniper._RowNotes(deal)
-  if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then return "" end
+-- On every board the line also says how often one listing of the item sells (GC.Data.SellChance),
+-- unless `bare`: the line without it, for GC.Sniper._FitRowName to fall back on.
+function GC.Sniper._RowNotes(deal, bare)
+  local chance = not bare and deal and deal.itemID and GC.Data and GC.Data.SellChance
+    and GC.Util.SellChanceText(GC.Data.SellChance(deal.itemID), true) or nil
+  if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then
+    return chance and ("\n" .. GC.Util.Colored(GC.Kit.Tokens.color.dealMuted, chance)) or ""
+  end
   local line = GC.SellRoute and GC.SellRoute.RowText(GC.SellRoute.ForItem(deal.itemID, deal.unitPrice),
     GC.SellRoute.RealmName)
   if not line and GC.Data.FlipFacts then line = GC.ItemsBoard.SoldText(GC.Data.FlipFacts(deal.itemID)) end
+  if chance then line = line and (line .. " · " .. chance) or chance end
   return GC.Sniper._UnderName(line, deal.itemID)
 end
 
@@ -2371,10 +2394,11 @@ function GC.Sniper._PaintBoardChips(target)
   GC.Sniper._LayoutBoardRow(owner)
 end
 
--- The chips' row, right to left: "Only what I lack" (Items board), the session readout (after a
--- buy this visit), then the gold line in whatever room is left beside the chips. Each ends where
--- the next shown one begins: anchored to a hidden one it would lose the room it needs to be
--- drawn at all. Laid out again only when what is shown changed.
+-- The chips' row, right to left: the AUTO readout under the toolbar's square buttons (DEALS while
+-- the auction house is open, GC.Sniper._PaintAutoReadout), "Only what I lack" (Items board), the
+-- session readout (after a buy this visit), then the gold line in whatever room is left beside the
+-- chips. Each ends where the next shown one begins: anchored to a hidden one it would lose the room
+-- it needs to be drawn at all. Laid out again only when what is shown changed.
 function GC.Sniper._LayoutBoardRow(target)
   local owner = target or frame
   local chips = owner and owner.boardChips
@@ -2382,14 +2406,23 @@ function GC.Sniper._LayoutBoardRow(target)
   local lack, session, line = owner.lackToggle, owner.sessionText, owner.goldLine
   local lackShown = lack ~= nil and lack:IsShown() and true or false
   local lineShown = line ~= nil and line:IsShown() and true or false
+  local sessionShown = session ~= nil and session:IsShown() and true or false
+  local readout = owner._readoutOn == true and owner.readoutTop ~= nil
+  local inset = owner.panelInset or 0
   local width = math.floor(owner.GetWidth and owner:GetWidth() or 0)
-  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-") .. width
+  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-") .. (sessionShown and "s" or "-")
+    .. (readout and "r" or "-") .. width .. ":" .. inset .. ":" .. (Theme.Scale and Theme.Scale() or 1)
   if owner._boardRowLayout == key then return end
   owner._boardRowLayout = key
+  local rowY = owner.boardY - owner.boardRowH / 2
+  local right = -(WIN.CONTENT_RIGHT_GUTTER + inset) -- the square buttons' right edge
   -- The tabs' lines (what is on each board) go, all of them and whole, when the row is short of
-  -- room: the gold line and the session total beside the tabs keep WIN.BOARD_LINE_MIN.
+  -- room: the gold line and the session total beside the tabs keep WIN.BOARD_LINE_MIN, the
+  -- readout WIN.READOUT_W. The readout then has what is left, up to WIN.READOUT_W, and its lines
+  -- drop their least important parts to fit it (Core/AutoReadout.lua); it never reaches a tab.
+  owner._readoutWidth = 0
   if width > 0 then
-    local room = width - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - WIN.BOARD_LINE_MIN
+    local row = width - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER
       - (lackShown and (lack:GetWidth() or 0) + Theme.pad.m or 0)
     local function tabsWidth(withLines)
       local sum = 0
@@ -2402,9 +2435,30 @@ function GC.Sniper._LayoutBoardRow(target)
       end
       return sum
     end
-    if tabsWidth(true) > room then tabsWidth(false) end
+    -- The readout's full width at the font scale in force; the gold line's room only while it,
+    -- or the session total, is up (without the readout the tabs keep it as before).
+    local need = readout and math.ceil(WIN.READOUT_W * (Theme.Scale and Theme.Scale() or 1)) or 0
+    local lines = (lineShown or sessionShown) and WIN.BOARD_LINE_MIN + Theme.pad.m or 0
+    local tabs = tabsWidth(true)
+    if tabs > row - math.max(WIN.BOARD_LINE_MIN, lines + (readout and need + Theme.pad.m or 0)) then tabs = tabsWidth(false) end
+    if readout then
+      owner._readoutWidth = math.max(0, math.floor(math.min(need, row - inset - tabs - Theme.pad.m - lines)))
+    end
   end
-  local rowY = owner.boardY - owner.boardRowH / 2
+  local readoutW = owner._readoutWidth
+  if owner.readoutTop then
+    owner.readoutTop:ClearAllPoints()
+    owner.readoutTop:SetPoint("BOTTOMRIGHT", owner, "TOPRIGHT", right, rowY + 1)
+    owner.readoutBottom:ClearAllPoints()
+    owner.readoutBottom:SetPoint("TOPRIGHT", owner, "TOPRIGHT", right, rowY - 1)
+    owner._readoutFit = nil -- a new width is a new fit
+  end
+  -- What ends where the readout begins: the toggle, or the texts while it is down.
+  local edge = readoutW > 0 and right - readoutW - Theme.pad.m or -WIN.CONTENT_RIGHT_GUTTER
+  if lack then
+    lack:ClearAllPoints()
+    lack:SetPoint("RIGHT", owner, "TOPRIGHT", edge, rowY)
+  end
   -- Both texts take the whole room between the ITEMS chip and the toggle (or the window's edge)
   -- and wrap in it. The session total right-aligned there used to grow left over the chips once
   -- the room ran short (a narrow window, a larger font, retail's toggle up), and the gold line
@@ -2417,7 +2471,7 @@ function GC.Sniper._LayoutBoardRow(target)
     if lackShown then
       widget:SetPoint("RIGHT", lack, "LEFT", -Theme.pad.m, 0)
     else
-      widget:SetPoint("RIGHT", owner, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, rowY)
+      widget:SetPoint("RIGHT", owner, "TOPRIGHT", edge, rowY)
     end
   end
   if session then
@@ -2969,6 +3023,10 @@ function GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
   if type(levels) ~= "table" then
     return { status = "WATCH", buyable = false, reasons = { "live_verification_required" } }
   end
+  -- What the account holds already fills the units its sales allow (GC.ForeverDeals.CeilingFor).
+  if type(ceiling.maxUnits) == "number" and ceiling.maxUnits <= 0 then
+    return { status = "AVOID", buyable = false, reasons = { "demand_limit" } }
+  end
   local settings = GC.db.settings.sniper
   -- A row measured against what sold takes no more units than its sales allow
   -- (GC.ForeverDeals.CeilingFor's maxUnits, ClickUp 869fpab6a): the per-buy limit's units, lowered.
@@ -3002,7 +3060,7 @@ function GC.Sniper._DecideCeilingLot(itemID, lots)
   -- the player has left for it, read now, so a lot bought a moment ago counts.
   if ceiling.item then
     input.refUnit, input.depositUnit, input.version = ceiling.refUnit, ceiling.depositUnit, ceiling.version
-    input.room = GC.ForeverDeals.Room(itemID, ceiling.perDay)
+    input.room, input.perDay = GC.ForeverDeals.Room(itemID, ceiling.perDay), ceiling.perDay
   end
   return GC.SniperDecision.EvaluateCeilingLot(input)
 end
@@ -3056,6 +3114,8 @@ local function evaluateLive(itemID, levels, fixedQuantity, quotedTotal)
     walletCopper = GetMoney(),
     depositForQuantity = function(quantity) return depositFor(itemID, quantity) end,
     config = GC.db.settings.sniper,
+    -- What the account already holds comes off the units the buy may take (Core/Holdings.lua).
+    held = GC.Holdings and GC.Holdings.Of(itemID) or nil,
   })
 end
 
@@ -3223,6 +3283,8 @@ driver = {
       C_AuctionHouse.SendSearchQuery(
         key, { { sortOrder = Enum.AuctionHouseSortOrder.Buyout, reverseSort = false } }, false)
     end
+    -- Drills, pre-warms and the player's own Check alike (GC.Util.NoteSend).
+    if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("search") end
     -- Out until its answer lands (GC.Sniper.RequestOut): a pre-warm, a Check re-query or a drill
     -- sent just before the switch to Sell can still draw an error the Sell tab would otherwise read
     -- as its post's own (review NM-F).
@@ -3373,6 +3435,10 @@ driver = {
           -- The variant's own item level, which is the whole reason a realm item needs its
           -- own decision path: two lots of "the same" item can be twenty levels apart.
           itemLevel = info.itemKey and info.itemKey.itemLevel or 0,
+          -- And the rest of its ItemKey, which the purchase files the cost under: a random suffix
+          -- ("of the Bear") and a caged pet's species are as much the item as its level.
+          itemSuffix = info.itemKey and info.itemKey.itemSuffix or 0,
+          battlePetSpeciesID = info.itemKey and info.itemKey.battlePetSpeciesID or 0,
           quantity = 1,
           -- The lot's version (its link's bonus IDs, GC.ForeverGear.BonusKey), which a WoW: Forever
           -- "Under market" row of a piece of gear is priced for (ClickUp 1an60dzy9nt). nil while the
@@ -3793,6 +3859,7 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   if GC.Caps then
     local hits = GC.Caps.BookHits(GC.Sniper._bookPass:Book(), GC.Sniper._IsCommodityId)
     for _, hit in ipairs(hits) do
+      if GC.Sniper._cheapCaps then GC.Sniper._cheapCaps:Mark(hit.itemID) end
       GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
         estProfit = hit.estProfit, priority = 1, cap = true })
     end
@@ -4013,12 +4080,19 @@ end
 GC.Sniper._drillQueue = GC.DrillQueue.New({
   now = time,
   onLost = function(hit) GC.Sniper._OnDrillLost(hit) end,
+  -- Every new find, for DEALS' AUTO readout (Core/AutoReadout.lua).
+  onQueued = function()
+    if GC.AutoReadout then GC.AutoReadout.Note("finds") end
+    GC.Sniper._lapFinds = (GC.Sniper._lapFinds or 0) + 1
+  end,
 }, { perMinute = LIM.DRILL_PER_MINUTE })
 
 -- The arbiter's fair share (GC.Sniper.OnThrottleReady): drills served in a row while a page
 -- waited (`run`), and since /reload how the contended slots went (`drills`: a drill sent while a
 -- page waited; `pages`: a page a sendable drill stood aside for), for /gc board.
-GC.Sniper._drillShare = { run = 0, drills = 0, pages = 0 }
+-- `sinceBatch`: drills sent since the last keys batch, for the Items board's slot rule (step 1c);
+-- 1 to start, so a round's first batch goes ahead of a queued drill.
+GC.Sniper._drillShare = { run = 0, drills = 0, pages = 0, sinceBatch = 1 }
 
 -- A book-pass page the arbiter just granted: the drills' run is over, and when a drill that could
 -- have gone stood aside for it (`drillStoodAside`) it counts toward /gc board's drillShare.
@@ -4069,6 +4143,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
     if tab then tab.addonBrowse = true end
     C_AuctionHouse.SendBrowseQuery(query)
     if tab then tab.addonBrowse = false end
+    if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("pass") end
     GC.Sniper._browseOutAt = time()
     -- The last pass's readout stays up while this one runs; only the very first pass has nothing
     -- to show yet. Written again rather than left: it replaces whatever one-shot came since.
@@ -4078,6 +4153,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
   requestMoreBrowseResults = function()
     trace("pass: RequestMoreBrowseResults")
     C_AuctionHouse.RequestMoreBrowseResults()
+    if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("pass") end
     GC.Sniper._browseOutAt = time()
     armScanWatchdog(fullScanToken)
   end,
@@ -4085,6 +4161,12 @@ GC.Sniper._bookPass = GC.BookPass.New({
   getBrowseResults = function() return C_AuctionHouse.GetBrowseResults() end,
   triggerFor = function(itemID, listedQty)
     return GC.Trigger.For(GC.Data.GetItemValue(itemID), GC.db.settings.sniper, listedQty)
+  end,
+  -- An item that just had a deal and that neither poll asks about is drilled again whenever its
+  -- floor moves, at any price (GC.Sniper._hot). The polls read theirs every round.
+  watchMoves = function(itemID)
+    return GC.Sniper._In(GC.Sniper._hot, itemID) and not GC.Sniper._keyPoll:Polls(itemID)
+      and not GC.Sniper._capPoll:Polls(itemID)
   end,
   -- Scores a hit the SAME way discovery already scores a browse row (Core/FullScan.lua's
   -- own RowsFromBrowse + DealMath.Evaluate pipeline), so the drill queue's priority mirrors
@@ -4098,19 +4180,23 @@ GC.Sniper._bookPass = GC.BookPass.New({
     local blocked = GC.SniperDecision and GC.SniperDecision.PreScreen
       and GC.SniperDecision.PreScreen(GC.SniperDecision.MarketFromValue(value), GC.db.settings.sniper) or {}
     if #blocked > 0 then return end
+    -- Nor an item under the player's lowest item quality (a pin excepted): its row would never board.
+    if not GC.FullScan.QualityAdmits(hit.itemID, GC.db.settings.sniper) then return end
     local hitRows = GC.FullScan.RowsFromBrowse(
       { { itemKey = { itemID = hit.itemID }, minPrice = hit.floor, totalQuantity = hit.qty } },
       GC.Data.GetItemValue, GC.db.settings.sniper)
     local row, estProfit = hitRows[1], 0
-    if row then
-      local deal = GC.DealMath.Evaluate(
-        { itemID = row.itemID, isCommodity = false,
-          unitPrice = math.floor(row.buyoutStack / row.count), qty = row.count, avail = row.avail },
-        GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
-      if deal then estProfit = deal.estProfit end
-    end
+    -- No row: what the account holds already fills its limit (GC.FullScan.RowsFromBrowse), so the
+    -- board has no room for it and a drill would only be refused.
+    if not row then return end
+    local deal = GC.DealMath.Evaluate(
+      { itemID = row.itemID, isCommodity = false,
+        unitPrice = math.floor(row.buyoutStack / row.count), qty = row.count, avail = row.avail },
+      GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
+    if deal then estProfit = deal.estProfit end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
-      confidence = GC.DrillQueue.Confidence(value) })
+      confidence = GC.DrillQueue.Confidence(value),
+      speed = GC.DrillQueue.Speed(value and value.sold, GC.Sniper._In(GC.Sniper._hot, hit.itemID)) })
   end,
   -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping), just
   -- triggered from BookPass's own tail instead of from a raw browse event handler. No page count
@@ -4133,6 +4219,11 @@ GC.Sniper._bookPass = GC.BookPass.New({
   end,
   onPassDone = function(info)
     GC.Sniper._lastPass = info -- /gc board's lastPass
+    -- When it ended, its finds and, by kind, how many pages it had (the "of N"): DEALS' AUTO readout.
+    GC.Sniper._lastPassAt = time()
+    GC.Sniper._lastPassFinds = GC.Sniper._lapFinds or 0
+    GC.Sniper._lapPages = GC.Sniper._lapPages or {}
+    GC.Sniper._lapPages[info.kind or "?"] = info.pages
     applyFullScanResults(streamRows, info.items, info.kind)
     -- WoW: Forever's scan folds what this pass saw into the player's own prices
     -- (Core/ForeverScan.lua); a no-op anywhere else.
@@ -4337,6 +4428,8 @@ end
 -- see GC.Sniper.OnThrottleReady.
 GC.Sniper._keyPoll = GC.KeyPoll.New({
   now = time,
+  -- Every target is in every round; an item that just had a deal leads it.
+  leads = function(itemID) return GC.Sniper._In(GC.Sniper._hot, itemID) end,
   -- The realm reference's own trigger, and nothing else: a cap is the cap poll's to judge
   -- (GC.Sniper._capPoll below), at the cap's own item level. Judged here as well, on this poll's
   -- aggregate floor, a cap woke to every price of a variant below its level (caps fixes 4c).
@@ -4360,9 +4453,13 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   -- Gear the board leaves off (GC.Sniper._GearPastReach) is not worth a drill either.
   onHit = function(hit)
     local value = GC.Sniper._RealmValue(hit.itemID)
-    if not value or GC.Sniper._GearPastReach(hit.itemID, hit.floor, value.mv) then return end
+    if not value or GC.Sniper._GearPastReach(hit.itemID, hit.floor, value.mv)
+        or not GC.FullScan.QualityAdmits(hit.itemID, GC.db.settings.sniper) then
+      return
+    end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
-      estProfit = math.floor(value.mv * 0.95) - hit.floor })
+      estProfit = math.floor(value.mv * 0.95) - hit.floor,
+      speed = GC.DrillQueue.Speed(nil, GC.Sniper._In(GC.Sniper._hot, hit.itemID)) })
   end,
   -- Keys rows are browse rows: the same aggregate-per-itemKey shape a pass page produces, so
   -- they go through the same RowsFromBrowse -> DealMath path, with the realm reference
@@ -4383,9 +4480,13 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
       local row = realmRows[i]
       local unitPrice = math.floor(row.buyoutStack / row.count)
       -- A rare find is never a flip row (see triggerFor): its row is the Rare finds section's. Nor
-      -- is gear too far under its reference to be the level the reference prices.
+      -- is gear too far under its reference to be the level the reference prices, nor an item under
+      -- the player's lowest item quality (a pin excepted: GC.FullScan.QualityAdmits).
       local value = not GC.Sniper._IsRareFind(row.itemID) and GC.Sniper._RealmValue(row.itemID) or nil
-      if value and GC.Sniper._GearPastReach(row.itemID, unitPrice, value.mv) then value = nil end
+      if value and (GC.Sniper._GearPastReach(row.itemID, unitPrice, value.mv)
+          or not GC.FullScan.QualityAdmits(row.itemID, GC.db.settings.sniper)) then
+        value = nil
+      end
       local deal = value and GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false,
           unitPrice = unitPrice, qty = row.count, avail = row.avail },
@@ -4398,6 +4499,7 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
         deal.reason = "realm_item_unverified"
         deal.action = "Check"
         deal.buyable = false
+        deal.held = row.held
         fresh[#fresh + 1] = deal
         qualified[row.itemID] = true
       end
@@ -4489,8 +4591,22 @@ end
 -- through the same arbiter, the same one-batch interlock and the same throttle claim as every
 -- other keys batch (GC.Sniper._TrySendCapBatch). A hit goes to the drill queue as the player's
 -- own price, first in line; the drill that follows is the one that decides, exactly as before.
+-- The caps just found under their price, and the items a live Check just found a buyable deal on
+-- (Core/HotSet.lua; absent in specs that load this file without it).
+GC.Sniper._cheapCaps = GC.HotSet and GC.HotSet.New(time, LIM.CHEAP_CAP_SECONDS)
+GC.Sniper._hot = GC.HotSet and GC.HotSet.New(time, LIM.HOT_SECONDS)
+function GC.Sniper._In(set, itemID) return set ~= nil and set:Has(itemID) end
+
 GC.Sniper._capPoll = GC.KeyPoll.New({
   now = time,
+  -- Rounds by speed (LIM.CAP_SLOW_PERIOD above).
+  periodFor = function(itemID)
+    local value = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID)
+    local every = GC.DrillQueue.Fast(value and value.sold) or GC.Sniper._In(GC.Sniper._cheapCaps, itemID)
+    return every and 1 or LIM.CAP_SLOW_PERIOD
+  end,
+  -- An item that just had a deal leads every round (and is in every one).
+  leads = function(itemID) return GC.Sniper._In(GC.Sniper._hot, itemID) end,
   -- At or under the cap: Core/KeyPoll.lua fires on floor < trigger, and TriggerFor is cap + 1.
   triggerFor = function(itemID) return GC.Caps and GC.Caps.TriggerFor(itemID) or nil end,
   -- Caps fixes 4c: at the cap's own item level. The poll then judges -- and ratchets -- the
@@ -4503,6 +4619,7 @@ GC.Sniper._capPoll = GC.KeyPoll.New({
   onHit = function(hit)
     local cap = GC.Caps and GC.Caps.For(hit.itemID)
     if not (cap and hit.floor <= cap.c) then return end
+    if GC.Sniper._cheapCaps then GC.Sniper._cheapCaps:Mark(hit.itemID) end
     -- The player's own price: verified first in line (Core/DrillQueue.lua's priority), the saving
     -- under the cap is the profit estimate that orders the caps among themselves.
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
@@ -4640,6 +4757,7 @@ local function startFullScan(kindOverride)
   GC.Sniper._keysFoldedThisCycle = 0
   GC.Sniper._keyPoll:BeginCycle()
   local kind = kindOverride or (GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes")
+  GC.Sniper._lapFinds = 0 -- the finds of this lap (the drill queue's onQueued)
   GC.Sniper._bookPass:Start(kind)
   trace("pass: armed (" .. kind .. "), apiReady=" .. tostring(driver.isReady()))
   -- Start only ARMS the pass now (Core/BookPass.lua): the arbiter is the single sender for
@@ -4854,6 +4972,159 @@ function GC.Sniper._AutoHelp()
     if held then lines[1] = GC.L[held[2]] end
   end
   return lines
+end
+
+-- Whether DEALS' AUTO readout reads as paused, as the chip says it (autoButtonText): Auto off, a
+-- hold the chip names, or a pause that is not the Items board's poll at work. The Items board
+-- pauses Auto's pass ("items") while its own poll runs, and the chip reads AUTO · SCANNING there.
+function GC.Sniper._AutoReadoutPaused(state, reasons)
+  local _, holds, atWork = autoButtonText(state, reasons or {})
+  return state == "OFF" or holds == true or (state == "PAUSED" and not atWork)
+end
+
+-- What AUTO is doing, as plain figures for Core/AutoReadout.lua: the readout under the toolbar's
+-- square buttons and the AUTO tooltip's block. Reads, never writes. The board on screen decides
+-- which loop is "now": the Items board's poll (or WoW: Forever's gear loop, where it is loaded),
+-- else the commodity browse pass. Stamps from time() and GetTime() are turned into seconds here.
+function GC.Sniper._AutoReadoutState()
+  local state = autoScan:State()
+  local t, now = time(), GetTime()
+  local s = { paused = GC.Sniper._AutoReadoutPaused(state, autoScan:PauseReasons()) }
+  local function whole(v) return v and math.floor(v + 0.5) or nil end
+  local items = GC.Sniper._Board() == "items"
+  local pass, last = GC.Sniper._bookPass, GC.Sniper._lastPass
+  local progress = pass.Progress and pass:Progress()
+  if not items then
+    local laps = GC.Sniper._lapPages or {}
+    -- The last lap of this visit only (OnAuctionHouseClosed forgets when it ended).
+    local ended = GC.Sniper._lastPassAt
+    last = ended and last or nil
+    -- Its finds: the drill queue's, or the new rows it put on WoW: Forever's DEALS, which has none.
+    local passRows = GC.ForeverDeals and GC.ForeverDeals.LastPassFinds and GC.ForeverDeals.LastPassFinds()
+    s.pass = { page = progress and math.max(progress.pages, 1) or nil,
+      lapPages = progress and laps[progress.kind or "?"] or nil,
+      items = last and last.items, seconds = whole(last and last.seconds),
+      finds = last and (passRows or GC.Sniper._lastPassFinds), lastAgo = ended and (t - ended) or nil }
+  end
+  local gear = GC.Sniper._gear
+  if items and gear and gear.rounds then
+    local at = gear.rounds:StartedAt()
+    local reading = gear.active and gear.active.Progress and gear.active:Progress()
+    s.gear = { armor = (gear.classAt or 1) > 1, page = reading and reading.pages or 0,
+      seconds = at and whole(now - at) or nil, last = whole(gear.lastRound) }
+  elseif items then
+    local poll = GC.Sniper._keyPoll
+    local p = poll:Progress()
+    local out = GC.Sniper._keysAwaiting and GC.Sniper._keysOwner == "sniper"
+    local done = GC.Sniper._keysCycleDoneAt
+    s.items = { targets = poll:Count(), round = p.cycle, batch = p.batch, batches = p.batches,
+      nextIn = not (poll:HasPending() or out) and done
+        and whole(math.max(0, LIM.KEYS_CYCLE_BREATHER_SECONDS - (t - done))) or nil }
+  end
+  local caps = GC.Sniper._capPoll
+  if caps:Count() > 0 then
+    local p, done = caps:Progress(), GC.Sniper._capsRoundDoneAt
+    s.caps = { count = caps:Count(), batch = p.batch, batches = p.batches,
+      nextIn = not caps:HasPending() and done and whole(math.max(0, LIM.CAPS_ROUND_BREATHER_SECONDS - (now - done))) or nil }
+  end
+  local fs = GC.ForeverScan
+  if fs and fs.Enabled and fs.Enabled() then
+    s.full = { running = fs.IsBusy() or (fs.FullListOn and fs.FullListOn()) or false, dueIn = whole(fs.DueIn and fs.DueIn()) }
+  end
+  local queue = GC.Sniper._drillQueue
+  s.queue = { depth = queue:Depth(), oldest = whole(queue.OldestAge and queue:OldestAge()) }
+  s.hot = GC.Sniper._hot and GC.Sniper._hot:Count() or nil
+  s.counts = GC.AutoReadout.Counts()
+  s.perMinute = GC.Util.SendsPerMinute and GC.Util.SendsPerMinute() or 0
+  return s
+end
+
+-- The AUTO button's tooltip: its description, a sentence for whatever holds Auto now
+-- (GC.Sniper._AutoHelp) and what it is doing, with its figures (GC.Sniper._AutoReadoutState). Built on
+-- hover and again about once a second while it is up (GC.Sniper._TickAutoReadout).
+function GC.Sniper._AutoTooltip(btn)
+  GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+  -- One key for the whole sentence, never a line-break's worth of fragments concatenated: word
+  -- order is not a constant across languages.
+  GameTooltip:SetText(GC.Util.ClientText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."]),
+    1, 1, 1, 1, true)
+  local title, soft = GC.Kit.Tokens.blizzard.tipTitle, GC.Kit.Tokens.blizzard.tipSoft
+  for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(line)), title[1], title[2], title[3], true) end
+  if GC.AutoReadout then
+    GameTooltip:AddLine(" ")
+    for _, line in ipairs(GC.AutoReadout.Tooltip(GC.Sniper._AutoReadoutState())) do
+      GameTooltip:AddLine(GC.Util.ClientText(line), soft[1], soft[2], soft[3], true)
+    end
+  end
+  GameTooltip:Show()
+end
+
+-- The readout under the toolbar's square buttons, in the board tabs' row (GC.Sniper._LayoutBoardRow
+-- gives it its width): two lines at most, each the longest rung of Core/AutoReadout.lua's that fits
+-- whole, none where none does. Paused, it keeps the last figures, dimmed. Shown on DEALS while
+-- the auction house is open; painted once a second off the auction-house ticker, and only what
+-- changed is written.
+function GC.Sniper._PaintAutoReadout(target)
+  local owner = target or frame
+  local top, bottom = owner and owner.readoutTop, owner and owner.readoutBottom
+  if not (top and bottom and GC.AutoReadout) then return end
+  local on = view == "deals" and ahOpen and true or false
+  if on ~= (owner._readoutOn or false) then
+    owner._readoutOn = on
+    GC.Sniper._LayoutBoardRow(owner)
+  end
+  local width = owner._readoutWidth or 0
+  if not on or width <= 0 then
+    top:Hide()
+    bottom:Hide()
+    return
+  end
+  top:Show()
+  bottom:Show()
+  -- Nothing built when nothing changed: the same figures (whole seconds), width and font scale.
+  local state = GC.Sniper._AutoReadoutState()
+  local scale = Theme.Scale and Theme.Scale() or 1
+  if owner._readoutFit == width .. ":" .. scale and GC.AutoReadout.Same(state, owner._readoutState) then return end
+  owner._readoutState, owner._readoutFit = state, width .. ":" .. scale
+  local out = GC.AutoReadout.Lines(state)
+  top:SetAlpha(out.dim and 0.45 or 1)
+  bottom:SetAlpha(out.dim and 0.45 or 1)
+  if out.dim then return end
+  -- Each line is as wide as its text (no width of its own, so the client never cuts it): what
+  -- keeps it in its room is that only a rung no wider than the room is ever written.
+  local function put(fs, rungs)
+    local text = GC.AutoReadout.Fit(rungs, width, function(candidate)
+      fs:SetText(candidate)
+      return fs:GetUnboundedStringWidth() or 0
+    end)
+    fs:SetText(text or "")
+  end
+  put(top, out.now)
+  put(bottom, out.recent)
+end
+
+-- Once a second off the auction-house ticker.
+function GC.Sniper._TickAutoReadout()
+  local now = GetTime()
+  if now - (GC.Sniper._readoutAt or 0) < 1 then return end
+  GC.Sniper._readoutAt = now
+  GC.Sniper._PaintAutoReadout()
+end
+
+-- The AUTO tooltip while the pointer is on the button: built at once, then once a second on a
+-- clock of its own, never the auction-house ticker's (that execution is the one WoW: Forever's
+-- taint log caught, and the tooltip is the client's). It stops when the tooltip goes.
+function GC.Sniper._AutoTipOn(btn)
+  GC.Sniper._AutoTooltip(btn)
+  GC.Sniper._AutoTipOff()
+  GC.Sniper._autoTipTicker = C_Timer.NewTicker(1, function()
+    if btn:IsVisible() and GameTooltip:IsOwned(btn) then GC.Sniper._AutoTooltip(btn) else GC.Sniper._AutoTipOff() end
+  end)
+end
+
+function GC.Sniper._AutoTipOff()
+  if GC.Sniper._autoTipTicker then GC.Sniper._autoTipTicker:Cancel() end
+  GC.Sniper._autoTipTicker = nil
 end
 
 -- A click on AUTO while it reads AUTO · WAITING: YOUR AH SEARCH carries on instead of switching
@@ -5316,7 +5587,7 @@ local function setDialogHeader(deal, decision)
   local rowVerdict = verdictFor(deal)
   if rowVerdict then
     dialog.tierChip:SetLabel(GC.BoardRows.Label(rowVerdict),
-      rowVerdict.buyable and Theme.color.green or Theme.tier.WATCH)
+      (rowVerdict.buyable or GC.BoardRows.Bucket(rowVerdict) == "BUY") and Theme.color.green or Theme.tier.WATCH)
     dialog.tierChip:Show()
   else
     dialog.tierChip:Hide()
@@ -6872,6 +7143,10 @@ function GC.Sniper._CardModel(deal, verdict, pinned)
     note(GC.SniperDecision.ReasonText("realm_no_reference"), B.text3)
   end
   for _, detail in ipairs(GC.Sniper._RowDetails(deal)) do note(detail.text, detail.color) end
+  -- The buy limit counts what the account holds (Core/Holdings.lua): one line where that lowered it.
+  if type(deal.held) == "number" and deal.held > 0 then
+    note(GC.L["You already hold %d"]:format(deal.held), B.text3)
+  end
   if deal.pinPlaceholder then
     note(GC.L["Watching: pinned, but not a deal right now"], B.text3)
     note(GC.Sniper._WatchNote(deal), B.text3)
@@ -6886,8 +7161,8 @@ function GC.Sniper._CardModel(deal, verdict, pinned)
 end
 
 -- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
--- quantity, the cap row's group suffix, the watching suffix, and the Items board's line under the
--- name, which starts with its own newline), leaving the group out when the cell has no room for
+-- quantity, the cap row's group suffix, the watching suffix, the line under the name, which starts
+-- with its own newline, and that line without the sell chance), leaving the group out when the cell has no room for
 -- it, and the line under the name when the name alone takes both of a row's two lines (owner,
 -- 2026-10-25: "more than two lines is not needed"). The line's facts are in the row's tooltip; a
 -- name is never cut. Asked again by the row's own OnSizeChanged (createRow): decided once at the
@@ -6906,7 +7181,10 @@ function GC.Sniper._FitRowName(row)
   local under = parts[4] or ""
   if under == "" then return end
   text:SetText(name .. under)
-  if text.GetNumLines and text:GetNumLines() > 2 then text:SetText(name) end
+  if not (text.GetNumLines and text:GetNumLines() > 2) then return end
+  -- Too long with the sell chance: the line without it (parts[5]), then the name alone.
+  text:SetText(name .. (parts[5] or ""))
+  if text:GetNumLines() > 2 then text:SetText(name) end
 end
 
 -- A watched row's market reference, for its tooltip: the figures on the row are measured
@@ -7388,6 +7666,7 @@ function GC.Sniper._SendNaming(itemID, attempt)
   C_AuctionHouse.SendBrowseQuery({ searchString = name, filters = {}, itemClassFilters = {},
     sorts = order and { { sortOrder = order.Price, reverseSort = false } } or {} })
   if tab then tab.addonBrowse = false end
+  if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("naming") end
   GC.Sniper._browseOutAt = time()
   return "sent"
 end
@@ -7600,7 +7879,7 @@ end
 -- startRequery does) and one parked behind the untagged-result drain fence. A caller that
 -- cannot tell "sent" from "declined" treats a permanently unsendable row as work in progress
 -- -- which is exactly how one bad row at the top of the list starved every row beneath it.
-local function maybeStartPrewarm(deal, auto)
+local function maybeStartPrewarm(deal, auto, find)
   if not deal then return end
   if not auto and not deal.stale then return end -- hover pre-warm only helps the two-click full-scan flow
   if not ahOpen then return end -- fix round 1 M-3: no AH session live (window can stay open/re-shown via /goldcap with leftover deals after AH close) -- nothing to query against
@@ -7639,7 +7918,9 @@ local function maybeStartPrewarm(deal, auto)
   if GC.Sniper._VariantsOwed(itemID) then return GC.Sniper._SendNaming(itemID) == "sent" end
 
   prewarmToken = prewarmToken + 1
-  local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true }
+  -- `find`: the check of something AUTO found (a drill, the gear loop's), counted when it answers.
+  -- `auto`: a background Check (the verify walk's, the gear loop's), never a hover.
+  local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true, find = find, auto = auto }
   prewarmAttempt = attempt
   driver.sendSearch(itemID)
 
@@ -7656,7 +7937,7 @@ end
 
 -- A live Check of a row something has just found, the background walk's own way: no dialog, no
 -- purchase call. Whether a query went out. (WoW: Forever's gear loop, UI/SniperGearLoop_Camelot.lua.)
-function GC.Sniper._CheckNow(deal) return maybeStartPrewarm(deal, true) == true end
+function GC.Sniper._CheckNow(deal) return maybeStartPrewarm(deal, true, true) == true end
 
 -- A row's hover pre-warm (its OnEnter). Caps fixes 4a, round 2: one refused only because a keys
 -- batch was out is owed, and asked again on the first arbiter turn after the batch is gone
@@ -7710,7 +7991,8 @@ stampVerdict = function(deal, data, manual)
   end
   local previous = verdicts[deal.itemID]
   local samePrice = previous and previous.unitPrice == deal.unitPrice
-  local wasBuyable = samePrice and previous.buyable
+  -- A buy, for the bell: SAFE, or a lot the Check would buy (GC.BoardRows.Bucket's BUY).
+  local wasBuyable = samePrice and (previous.buyable or (previous.unverified and GC.BoardRows.Bucket(previous) == "BUY"))
   local kept = manual or (samePrice and previous.manual) or nil
   local decision = data and data.decision
   local buyable = (decision and decision.buyable and decision.status == "SAFE"
@@ -7745,6 +8027,9 @@ stampVerdict = function(deal, data, manual)
     -- What the buy needs, when the wallet limit alone refused it (SniperDecision.Evaluate):
     -- renderList keeps the row, GC.BoardRows labels it "needs <gold>".
     needsGold = decision and decision.needsGold or nil,
+    -- WoW: Forever's kind and an item's sales a day: a lot whose resale they measure is a buy on
+    -- the board (GC.BoardRows.Bucket's BUY).
+    forever = decision and decision.forever or nil, perDay = decision and decision.perDay or nil,
     -- The cheapest levels this check read, for the check panel's ladder when it opens on this
     -- verdict after the book itself has gone (dialog.bookLevels is the panel's, and cleared).
     levels = data and GC.Sniper._KeepLevels(data.levels) or nil,
@@ -7771,7 +8056,8 @@ stampVerdict = function(deal, data, manual)
     setStatus(GC.Sniper._hiddenShown, 4)
   end
 
-  if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  local buys = buyable or (unverified and GC.BoardRows.Bucket(verdicts[deal.itemID]) == "BUY")
+  if manual or not buys or wasBuyable then return end -- ping the transition only, never every re-check
   -- Final review I6: a cap decision rings through drainCapPings instead (the cap branch of
   -- evaluateLiveCommodityDeal/evaluateLiveItemDeal queues the deal into pendingCapPings, and it
   -- rings once its row is on screen). A commodity cap decision is SAFE and buyable, so without
@@ -7798,9 +8084,14 @@ stampVerdict = function(deal, data, manual)
     if row.deal and row.deal.itemID == deal.itemID
         and row.deal.unitPrice == deal.unitPrice and row:IsShown() then
       flashRow(row)
+      -- A deal: the item is looked at more often for a while (GC.Sniper._hot). A lot is not: its
+      -- Check is the gear loop's.
+      if buyable and GC.Sniper._hot then GC.Sniper._hot:Mark(deal.itemID) end
       -- The player's pick (UI/DealSound.lua); it was always the raid's ready check, at the
-      -- master volume, until players asked for a quieter one (owner, 2026-11-23).
-      if GC.DealSound and GC.db and GC.db.settings then GC.DealSound.Ring(GC.db.settings.sniper) end
+      -- master volume, until players asked for a quieter one (owner, 2026-11-23). A lot rings
+      -- no more often than WoW: Forever's gear loop lets it (GC.Sniper._GearRingDue).
+      local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
+      if GC.DealSound and sniper and (buyable or GC.Sniper._GearRingDue(sniper)) then GC.DealSound.Ring(sniper) end
       return
     end
   end
@@ -7835,6 +8126,16 @@ local function resolvePrewarm(itemID, data)
   if not attempt or attempt.itemID ~= itemID then return end
   local deal = attempt.deal
   prewarmAttempt = nil
+  -- A WoW: Forever row's first background Check is counted by its board, once per appearance,
+  -- whether the walk or the gear loop asked; any other is counted when it is the check of a find.
+  -- That answer, when it is a buy, is a deal (DEALS' AUTO readout, Core/AutoReadout.lua).
+  local counted = false
+  if deal and deal.forever and GC.ForeverDeals and GC.ForeverDeals.Checked then
+    counted = attempt.auto and GC.ForeverDeals.Checked(itemID) or false
+  elseif attempt.find and GC.AutoReadout then
+    GC.AutoReadout.Note("checked")
+    counted = true
+  end
   if not deal then return end
   deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
   -- Final review I1: a cap decision has already filed its own verdict, against the deal the cap
@@ -7843,8 +8144,10 @@ local function resolvePrewarm(itemID, data)
   -- at the browse floor -- so stamping it again would overwrite the row's verdict with one
   -- filed under a price nothing on the board is asking. The pre-warm cache above is still set:
   -- that is keyed by the attempt, not by price.
-  if data and data.decision and data.decision.cap then return end
-  stampVerdict(deal, data)
+  if not (data and data.decision and data.decision.cap) then stampVerdict(deal, data) end
+  if counted and data and GC.AutoReadout and GC.BoardRows.IsBuy(verdicts[itemID]) then
+    GC.AutoReadout.Note("deals")
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -8617,6 +8920,7 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   for i = 1, #batch do keys[i] = C_AuctionHouse.MakeItemKey(batch[i]) end
   GC.Sniper._keysAwaiting = time()
   GC.Sniper._keysOwner = who
+  GC.Sniper._drillShare.sinceBatch = 0
   -- What this batch asked about, by name. The fold needs it to tell "no row came back for
   -- this item" (sold out, or repriced) from "this item was not in the batch at all".
   GC.Sniper._keysBatch = batch
@@ -8629,6 +8933,7 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   trace("keys: SearchForItemKeys x" .. #keys .. " (" .. who .. ")")
   if GC.BuyWaitDiag then GC.BuyWaitDiag.Note("keys", "armed", ("owner=%s x%d"):format(who, #keys)) end
   C_AuctionHouse.SearchForItemKeys(keys, {})
+  if GC.Util and GC.Util.NoteSend then GC.Util.NoteSend(who == "sniper" and "keys" or who) end
   -- Its answer is what the Buy pane's list shows next: the veil says so (UI/AuctionHouseTab.lua).
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonBrowse then GC.AuctionHouseTab.NoteAddonBrowse() end
   return true
@@ -8740,11 +9045,15 @@ function GC.Sniper._TickKeys()
 end
 
 -- WoW: Forever's browse of all gear between scans (UI/SniperGearLoop_Camelot.lua, which replaces
--- these two). Nothing on retail: no turn is ever taken, no browse answer is ever its own.
+-- these three). Nothing on retail: no turn is ever taken, no browse answer is ever its own.
+function GC.Sniper._GearShare() return false end
 function GC.Sniper._GearTurn() return false end
 -- What a Check made of a gear loop find, for its journal (UI/SniperGearLoop_Camelot.lua).
 function GC.Sniper._GearOutcome() end
 function GC.Sniper._GearBrowse() return false end
+-- Whether a lot the Check would buy may ring now: WoW: Forever's gear loop keeps its own gap
+-- between bells (UI/SniperGearLoop_Camelot.lua). Always, without it.
+function GC.Sniper._GearRingDue() return true end
 
 -- Whether Auto is on with the Deals board on screen and nothing holding it but the Items board
 -- itself (GC.Sniper._SetBoard pauses Auto's own pass there). Asked by that gear loop.
@@ -8817,17 +9126,28 @@ function GC.Sniper.OnThrottleReady()
   local playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
     and GC.AuctionHouseTab.PlayerIsBusy()) and true or false
 
-  -- 1c. An Items round that still has batches to ask goes ahead of the drills it feeds (the owner,
-  -- 2026-10-11: "only after about twenty seconds did anything appear"). Measured 2026-10-13: a
-  -- round's first batch put 29 rows up, then 23 drills held its second batch 9.8 s and 35 more held
-  -- the third 15.4 s, so the board reached 100 rows at +33 s. Back to back the round takes about
-  -- 1.3 s. The caps keep their place ahead of the Items batch, every veto stays in
-  -- _TrySendKeysBatchFor, and the drills lose no throughput: their budget is per minute, and a
-  -- round is four messages. Between rounds (the breather) the drills have the slot as before.
+  -- 1c. An Items round that still has batches to ask shares the slot with the drills it feeds
+  -- (GC.DrillQueue.SlotTurn). It used to go ahead of every drill (the owner, 2026-10-11: "only
+  -- after about twenty seconds did anything appear"; measured 2026-10-13, drills ahead of every
+  -- batch held a round's third batch 15.4 s). But with 600 targets and 407 caps a round is always
+  -- pending, so drills only got the gaps between rounds: in 0.33.0, 16 of 33 key-poll hits aged out
+  -- of the queue undrilled. Now a batch, then a drill while a hit is queued, and a hit near its age
+  -- limit before any batch. The caps keep their place ahead of the Items batch, and every veto
+  -- stays in _TrySendKeysBatchFor. A turn given to the drills that none can take (stale hits, a
+  -- declined send) falls through to the batches below, so no slot is left idle.
   if view == "deals" and GC.Sniper._Board() == "items" and GC.Sniper._keyPoll:HasPending() then
-    if GC.Sniper._TrySendCapBatch(playerBusy) then return end
-    if GC.Sniper._TrySendKeysBatch(playerBusy) then return end
+    local queue = GC.Sniper._drillQueue
+    local turn = GC.DrillQueue.SlotTurn({ batch = true, drill = queue:Depth() > 0 and canDrillNow(),
+      urgent = queue:Urgent(), run = GC.Sniper._drillShare.sinceBatch })
+    if turn == "batch" then
+      if GC.Sniper._TrySendCapBatch(playerBusy) then return end
+      if GC.Sniper._TrySendKeysBatch(playerBusy) then return end
+    end
   end
+
+  -- 1d. WoW: Forever's gear loop on the Items board shares the slot with the Checks of its finds
+  -- and the drills below by the same rule: a page, then a Check or a drill. A no-op on retail.
+  if GC.Sniper._GearShare(playerBusy, canDrillNow) then return end
 
   -- 2. Queued drill-downs, bounded by DrillQueue's own per-minute budget. Runs the SAME search
   -- path startRequery/evaluateLive use (maybeStartPrewarm -> resolvePrewarm -> stampVerdict),
@@ -8882,7 +9202,8 @@ function GC.Sniper.OnThrottleReady()
       -- it never removed stayed at the head of the queue to do the same again on the next
       -- ready tick. No answer means no send.
       if not GC.Sniper._drillQueue:Pop() then break end
-      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then
+      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true, true) then
+        share.sinceBatch = share.sinceBatch + 1
         if passWants then
           share.run = share.run + 1
           share.drills = share.drills + 1
@@ -8894,7 +9215,8 @@ function GC.Sniper.OnThrottleReady()
       -- Declined (an uncached item key, the drain fence, a fresh cached warm). Back in the
       -- queue carrying its ORIGINAL age and confidence, so a hit that can never be sent still
       -- ages out instead of sitting at the head for the rest of the session -- see
-      -- Core/DrillQueue.lua.
+      -- Core/DrillQueue.lua. Marked declined, so it no longer goes first once it is urgent.
+      hit.declined = true
       GC.Sniper._drillQueue:Push(hit)
       break
     end
@@ -10277,15 +10599,12 @@ local function planDialogPrimaryClick()
     -- GC.Acquisitions.PositionKey returns nil for an item auction, the batch is stored with no
     -- position at all, and ReconcileSale -- which only ever considers batches that have one --
     -- can never match the sale to it: the stock stays "on hand" forever and every later "You
-    -- paid" line is averaged over items the player has already sold. Item level comes from the
-    -- candidate because that is what separates two lots wearing the same name; suffix and pet
-    -- species are 0, the same shape Core/PurchaseCapture.lua builds for an ordinary AH buy.
-    purchaseDeal.itemKey = {
-      itemID = deal.itemID,
-      itemLevel = candidate.itemLevel or 0,
-      itemSuffix = 0,
-      battlePetSpeciesID = 0,
-    }
+    -- paid" line is averaged over items the player has already sold. The whole ItemKey comes from
+    -- the candidate, the lot's own search result: level, random suffix and pet species, the key
+    -- Core/PurchaseCapture.lua files an ordinary AH buy under and SELL keys the same item by in
+    -- the bags and on the player's own lot. With the suffix left at 0, an axe "of the Bear"
+    -- bought here was filed under a key SELL never builds, and showed "no cost".
+    purchaseDeal.itemKey = GC.Acquisitions.LotItemKey(deal.itemID, candidate)
     row.purchaseDeal = purchaseDeal
     pendingAuction[purchaseDeal.auctionID] = row
     -- PlaceBid's bidAmount is the TOTAL price for the auction's whole lot, not a per-unit
@@ -11798,6 +12117,7 @@ drainCapPings = function(allowOpen)
       if GC.Caps.Announce(deal) then
         GC.Sniper._rangAt[deal.itemID] = now
         ring[#ring + 1] = deal
+        if GC.Sniper._hot then GC.Sniper._hot:Mark(deal.itemID) end
       end
     end
     -- Final review I5: never out of the player's hands. onBuyClick refuses to replace a dialog
@@ -12777,20 +13097,13 @@ local function createFrame()
     end
   end
   autoBtn:SetScript("OnClick", onAutoToggleClick)
-  -- One key for the whole sentence, never a line-break's worth of fragments concatenated:
-  -- word order is not a constant across languages, so a sentence assembled here can only ever
-  -- come out in English order however well each piece is translated.
-  -- Built when hovered, not once: under the description, a sentence for whatever holds Auto
-  -- right now and what to do about it (GC.Sniper._AutoHelp). HookScript, as setPlainTooltip
-  -- does, so Theme.Button's own hover stays.
-  autoBtn:HookScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(GC.Util.ClientText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."]),
-      1, 1, 1, 1, true)
-    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(line)), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3], true) end
-    GameTooltip:Show()
+  -- Built when hovered, not once (GC.Sniper._AutoTooltip), and again once a second while it is up.
+  -- HookScript, as setPlainTooltip does, so Theme.Button's own hover stays.
+  autoBtn:HookScript("OnEnter", function(self) GC.Sniper._AutoTipOn(self) end)
+  autoBtn:HookScript("OnLeave", function()
+    GC.Sniper._AutoTipOff()
+    GameTooltip:Hide()
   end)
-  autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
 
   -- The refused-rows toggle, in the slot the Live button vacated (see below). Background
   -- verification (tickAutoVerify) hides rows a live Check has refused, and a shorter list with
@@ -12973,7 +13286,8 @@ local function createFrame()
   local boardY = row2Y - (CH.BTN_H + Theme.pad.s)
   -- The boards are tabs (Theme.BoardTab, owner 2026-11-23): the game's icon for the board, its
   -- name, a line saying what is on it, and its count on the icon. The row is a tab tall.
-  f.boardY, f.boardRowH = boardY, Theme.BOARD_TAB.H -- for GC.Sniper._LayoutBoardRow
+  -- As tall as a tab or the AUTO readout's two lines, whichever is taller (WIN.READOUT_ROW_H).
+  f.boardY, f.boardRowH = boardY, math.max(Theme.BOARD_TAB.H, WIN.READOUT_ROW_H) -- for GC.Sniper._LayoutBoardRow
   f.boardChips = {}
   local tabWords = {
     commodities = { GC.L["COMMODITIES"], GC.L["herbs, ore, potions"] },
@@ -13025,6 +13339,18 @@ local function createFrame()
   setPlainTooltip(lack,
     GC.L["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."])
   f.lackToggle = lack
+  -- What AUTO is doing, at the row's right end under the square buttons: two lines, in the muted
+  -- colour of the status line, one Theme.Num each so each line is fitted whole
+  -- (GC.Sniper._PaintAutoReadout). Parented to the ITEMS chip like the gold line, so they leave
+  -- with the Deals chrome.
+  f.readoutTop = Theme.Num(f.boardChips.items, 10)
+  f.readoutBottom = Theme.Num(f.boardChips.items, 10)
+  for _, fs in ipairs({ f.readoutTop, f.readoutBottom }) do
+    fs:SetJustifyH("RIGHT")
+    fs:SetWordWrap(false)
+    fs:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3], Theme.color.fgMuted[4] or 1)
+    fs:Hide()
+  end
   GC.Sniper._PaintBoardChips(f)
 
   -- Deals-only toolbar chrome: setView shows/hides these alongside the scroll/header
@@ -13038,7 +13364,7 @@ local function createFrame()
     f.boardChips.commodities, f.boardChips.items }
 
   -- Row 4: column headers, sticky above the scroll area.
-  f.headerY = boardY - (Theme.BOARD_TAB.H + Theme.pad.xs)
+  f.headerY = boardY - (f.boardRowH + Theme.pad.xs)
   createHeaderRow(f)
 
   local scrollTop = f.headerY - (CH.HEADER + Theme.pad.xs)
@@ -13124,6 +13450,8 @@ local function createFrame()
     local contentWidth = math.max(w - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - inset, 1)
     content:SetWidth(contentWidth)
     applyColumnVisibility(contentWidth, inset > 0)
+    -- The AUTO readout follows the square buttons over (GC.Sniper._LayoutBoardRow).
+    GC.Sniper._LayoutBoardRow(f)
   end
   f.applyPanelInset = applyPanelInset
 
@@ -13550,6 +13878,7 @@ function GC.Sniper.OnAuctionHouseShow()
     refreshSessionText()
     GC.Sniper._AgeReadout()
     GC.Sniper._ScanLine()
+    GC.Sniper._TickAutoReadout()
   end)
   -- Everything a Buy click's own state is written by runs on clocks of its own, never in the tick
   -- above (WoW: Forever, 3c taint fix, round 1). Each C_Timer callback is its own execution and
@@ -13684,6 +14013,11 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- the 0.25s ticker (which isn't even running here, see autoScanTicker:Cancel() above). On
   -- Deals this hides the now-wiped block; off-Deals it's already hidden (dealsChrome).
   refreshSessionText()
+  -- The AUTO readout goes with the ticker that painted it, and its laps with the visit: the next
+  -- one starts with no "of N" and no "last lap" from this one. Its tooltip's clock stops too.
+  GC.Sniper._lastPassAt, GC.Sniper._lapPages = nil, nil
+  GC.Sniper._PaintAutoReadout()
+  GC.Sniper._AutoTipOff()
 
   local scanner = GC.Sniper.scanner
   if scanner and scanner.scanned > 0 then
@@ -13973,6 +14307,12 @@ function GC.Sniper.DebugBoard()
     lastPass and ("%s %ds/%d pages"):format(tostring(lastPass.kind), math.floor(lastPass.seconds or 0),
       lastPass.pages or 0) or "none",
     share.drills, share.drills + share.pages))
+  -- Every auction-house query the addon sent in the last minute, by sender (GC.Util.NoteSend), and
+  -- what the slot rules are working with: the hot items and the caps just found cheap.
+  if GC.Util and GC.Util.SendsLine then
+    GC.Print(("queries: %s hot=%d cheapCaps=%d"):format(GC.Util.SendsLine(),
+      GC.Sniper._hot and GC.Sniper._hot:Count() or 0, GC.Sniper._cheapCaps and GC.Sniper._cheapCaps:Count() or 0))
+  end
   local reasons = {}
   for r in pairs(autoScan:PauseReasons()) do reasons[#reasons + 1] = r end
   GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s ownSearchShown=%s"):format(

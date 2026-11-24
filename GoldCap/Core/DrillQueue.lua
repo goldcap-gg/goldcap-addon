@@ -34,11 +34,48 @@ local PRIORITY_RUN = 4
 -- queue is kept for ordinary hits, which can still fill all of it while no cap waits.
 local PRIORITY_SLOTS = 150
 GC.DrillQueue.PRIORITY_SLOTS = PRIORITY_SLOTS
+GC.DrillQueue.TTL_SECONDS = ENTRY_TTL_SECONDS
+-- A hit this close to its age limit is urgent: it is the next one drilled, ahead of every rank,
+-- and the slot rule below gives it a turn before a poll's batch. Measured on the Items board
+-- (0.33.0): 16 of 33 key-poll hits aged out undrilled while the polls took every slot.
+local URGENT_SECONDS = 30
+GC.DrillQueue.URGENT_SECONDS = URGENT_SECONDS
+
+-- Who gets the next send while a poll's round still has batches to ask and the queue holds a hit:
+-- "batch", "drill" or nil (neither wants one). `s.batch` and `s.drill` say who wants it, `s.urgent`
+-- whether a queued hit is near its age limit, `s.run` how many drills went since the last batch.
+-- A round's batches produce the hits, so they are not held back for long (commit b3564a15), but
+-- they no longer take every slot either: after a batch a drill, after a drill a batch, and an
+-- urgent hit may take one drill more. A batch gets at least one slot in MAX_RUN + 1.
+GC.DrillQueue.MAX_RUN = 2
+function GC.DrillQueue.SlotTurn(s)
+  if not s.batch then return s.drill and "drill" or nil end
+  if not s.drill then return "batch" end
+  local run = s.run or 0
+  if run == 0 or (s.urgent and run < GC.DrillQueue.MAX_RUN) then return "drill" end
+  return "batch"
+end
+
+-- How much an item's sales speed weighs in the queue's order: 1 for an item with no sales facts
+-- (a realm item), between 0.5 and 2 by its sold per day against FAST_SOLD_PER_DAY, and 2 for an
+-- item that just had a deal (`hot`, Core/HotSet.lua).
+GC.DrillQueue.FAST_SOLD_PER_DAY = 50
+function GC.DrillQueue.Fast(soldPerDay)
+  return type(soldPerDay) == "number" and soldPerDay >= GC.DrillQueue.FAST_SOLD_PER_DAY
+end
+function GC.DrillQueue.Speed(soldPerDay, hot)
+  if hot then return 2 end
+  if type(soldPerDay) ~= "number" or soldPerDay ~= soldPerDay then return 1 end
+  local w = math.sqrt(math.max(soldPerDay, 0) / GC.DrillQueue.FAST_SOLD_PER_DAY)
+  if w < 0.5 then return 0.5 end
+  if w > 2 then return 2 end
+  return w
+end
 
 -- Whole-market coverage: how sure the item's own facts are that a buy resells -- the lower of its
 -- liquidity confidence (0-100) and its sell-through (basis points, taken as a percent), as a
 -- fraction. 0.5 when the item has no facts: a realm item, bundled data, anything judged by a
--- reference alone. Ordinary hits rank by estProfit x this (the expected value of the drill).
+-- reference alone. Ordinary hits rank by estProfit x this x their speed (GC.DrillQueue.Speed).
 function GC.DrillQueue.Confidence(value)
   local liquidity = type(value) == "table" and value.liquidityConfidence or nil
   local sellThrough = type(value) == "table" and value.sellThroughBps or nil
@@ -53,7 +90,7 @@ function GC.DrillQueue.New(driver, opts)
   opts = opts or {}
   local perMinute = opts.perMinute or 60
   local obj = {}
-  -- array of { itemID, floor, estProfit, confidence, score, priority, cap, key, pushedAt }
+  -- array of { itemID, floor, estProfit, confidence, speed, score, priority, cap, key, pushedAt }
   local items = {}
   local queued = {}      -- "itemID:floor" -> true, cleared the moment an entry leaves
   local queuedItems = {} -- itemID -> how many entries carry it, so Has() costs nothing per row
@@ -118,6 +155,17 @@ function GC.DrillQueue.New(driver, opts)
   -- hit, the best of those instead.
   local function bestIndex()
     if #items == 0 then return nil end
+    -- An urgent hit first, the oldest of them: it is lost if it waits much longer. Not one whose
+    -- send was declined (handed back `declined`): it would take the head every turn and be
+    -- declined again, holding every other drill back until it aged out.
+    local now, urgent = driver.now(), nil
+    for i = 1, #items do
+      if not items[i].declined and now - items[i].pushedAt >= ENTRY_TTL_SECONDS - URGENT_SECONDS
+          and (not urgent or items[i].pushedAt < items[urgent].pushedAt) then
+        urgent = i
+      end
+    end
+    if urgent then return urgent end
     local best = 1
     for i = 2, #items do
       if ranksBelow(items[best], items[i]) then best = i end
@@ -155,7 +203,8 @@ function GC.DrillQueue.New(driver, opts)
     local cap = hit.cap == true
     local confidence = tonumber(hit.confidence) or 0.5
     if confidence < 0 then confidence = 0 elseif confidence > 1 then confidence = 1 end
-    local score = priority > 0 and estProfit or estProfit * confidence
+    local speed = tonumber(hit.speed) or 1
+    local score = priority > 0 and estProfit or estProfit * confidence * speed
     if queued[k] then
       -- The same item at the same floor, already queued -- but maybe reported by another source
       -- at a higher priority (the realm poll's ordinary hit, then the player's own cap). Still one
@@ -215,10 +264,12 @@ function GC.DrillQueue.New(driver, opts)
     -- re-queue bought the same undrillable item another ninety seconds at the front.
     local pushedAt = (type(hit.pushedAt) == "number" and hit.pushedAt < now) and hit.pushedAt or now
     items[#items + 1] = { itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
-      confidence = confidence, score = score, priority = priority, cap = cap, key = k,
-      pushedAt = pushedAt }
+      confidence = confidence, speed = speed, score = score, priority = priority, cap = cap, key = k,
+      pushedAt = pushedAt, declined = hit.declined == true }
     local expiresAt = pushedAt + ENTRY_TTL_SECONDS
     if expiresAt < nextExpiryAt then nextExpiryAt = expiresAt end
+    -- A new find, told once: a hit handed back (it carries its pushedAt) is the same find.
+    if driver.onQueued and pushedAt == now and type(hit.pushedAt) ~= "number" then driver.onQueued(hit) end
     return true
   end
 
@@ -242,8 +293,8 @@ function GC.DrillQueue.New(driver, opts)
     -- reason: a re-queued cap hit that lost its priority on the way back in would fall to the
     -- back of the line behind ordinary estProfit hits.
     return { itemID = entry.itemID, floor = entry.floor, estProfit = entry.estProfit,
-      confidence = entry.confidence, priority = entry.priority, cap = entry.cap,
-      pushedAt = entry.pushedAt }
+      confidence = entry.confidence, speed = entry.speed, priority = entry.priority, cap = entry.cap,
+      pushedAt = entry.pushedAt, declined = entry.declined }
   end
 
   -- Discards one entry without charging the budget: the hit describes a floor the book has
@@ -288,8 +339,8 @@ function GC.DrillQueue.New(driver, opts)
       priorityRun = 0
     end
     return { itemID = chosen.itemID, floor = chosen.floor, estProfit = chosen.estProfit,
-      confidence = chosen.confidence, priority = chosen.priority, cap = chosen.cap,
-      pushedAt = chosen.pushedAt }
+      confidence = chosen.confidence, speed = chosen.speed, priority = chosen.priority, cap = chosen.cap,
+      pushedAt = chosen.pushedAt, declined = chosen.declined }
   end
 
   -- Whether a live look at this item is already queued -- what a board row asks before it is
@@ -299,9 +350,30 @@ function GC.DrillQueue.New(driver, opts)
     return (queuedItems[itemID] or 0) > 0
   end
 
+  -- Whether a queued hit is near its age limit (URGENT_SECONDS): the slot rule's `urgent`.
+  function obj:Urgent()
+    local now = driver.now()
+    pruneExpired(now)
+    for i = 1, #items do
+      if not items[i].declined and now - items[i].pushedAt >= ENTRY_TTL_SECONDS - URGENT_SECONDS then return true end
+    end
+    return false
+  end
+
   function obj:Depth()
     pruneExpired(driver.now())
     return #items
+  end
+
+  -- How long the oldest queued hit has waited, nil when none does.
+  function obj:OldestAge()
+    local now = driver.now()
+    pruneExpired(now)
+    local oldest
+    for i = 1, #items do
+      if not oldest or items[i].pushedAt < oldest then oldest = items[i].pushedAt end
+    end
+    return oldest and (now - oldest) or nil
   end
 
   -- Every hit that left undrilled since /reload (lose above), for /gc board. Clear leaves it.

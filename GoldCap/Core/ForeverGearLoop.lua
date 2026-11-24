@@ -29,6 +29,9 @@ L.C = {
   -- A hit whose Check could not go out is let go after this long: the next round reports the lot
   -- again if it is still up.
   HIT_WAIT_SECONDS = 30,
+  -- A hit with this little of that wait left is urgent: its Check goes ahead of the next page
+  -- (GC.DrillQueue.SlotTurn, UI/SniperGearLoop_Camelot.lua's GC.Sniper._GearShare).
+  URGENT_SECONDS = 10,
   KEEP_ROUNDS = 10,
   KEEP_HITS = 30,
 }
@@ -50,6 +53,7 @@ end
 ---   marketFor(itemID, key, unit)  (optional, ClickUp 1an60dzy9nt) the key's version judged against
 ---                      what that version sells for (GC.ForeverItemMarket), an answer when `unit` is
 ---                      a deal at it, else nil
+---   onPush(itemID)     (optional) a lot the board took as a new row, for DEALS' AUTO readout
 function L.New(driver)
   local obj = {}
   local round = nil      -- { startedAt, rows, pages, under = { [itemID] = { variants } }, asked }
@@ -62,6 +66,9 @@ function L.New(driver)
   end
 
   function obj:InRound() return round ~= nil end
+
+  -- When the round under way began, nil between rounds.
+  function obj:StartedAt() return round and round.startedAt or nil end
 
   -- A page of browse rows. Answers:
   --   under    the rows cheaper than the vendor price, each { itemID, key, unit, qty, vendor };
@@ -162,6 +169,7 @@ function L.New(driver)
   --- A lot the board took as a new row waits for its Check.
   function obj:Push(itemID, unit, now)
     if round then round.hits = round.hits + 1 end
+    if driver.onPush then driver.onPush(itemID) end
     for i = #queue, 1, -1 do
       if queue[i].itemID == itemID then table.remove(queue, i) end
     end
@@ -174,6 +182,14 @@ function L.New(driver)
       if now - queue[i].at > L.C.HIT_WAIT_SECONDS then table.remove(queue, i) end
     end
     return queue
+  end
+
+  --- Whether a waiting hit is near HIT_WAIT_SECONDS (URGENT_SECONDS left).
+  function obj:Urgent(now)
+    for i = 1, #queue do
+      if now - queue[i].at >= L.C.HIT_WAIT_SECONDS - L.C.URGENT_SECONDS then return true end
+    end
+    return false
   end
 
   function obj:Take(itemID)

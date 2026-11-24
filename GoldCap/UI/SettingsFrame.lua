@@ -731,7 +731,7 @@ local function build(sniperFrame)
   -- could say what "HOT -- min sold/day = 3" meant. What is left is the three numbers that
   -- decide whether a buy happens at all, and the three that decide when the engine stops
   -- trusting the data it is looking at.
-  local whatCounts = card(content, GC.L["WHAT COUNTS AS A DEAL"], 4, true)
+  local whatCounts = card(content, GC.L["WHAT COUNTS AS A DEAL"], 5, true)
   whatCounts:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -7)
   whatCounts:SetPoint("RIGHT", content, "CENTER", -7, 0)
   columns.left[#columns.left + 1] = whatCounts
@@ -813,6 +813,71 @@ local function build(sniperFrame)
     end
 
     attachExplanation({ label, box }, labelText, sentence, defaultLine(key, opts))
+  end
+
+  -- A stepper row, laid out as fieldRow's (label at the left, the control at the card's right edge,
+  -- the card's DEFAULTS, the three-line tooltip): `opts.nameOf(value)` between a "<" and a ">" that
+  -- step the stored whole number through opts.min..opts.max, tinted `opts.colorOf(value)`. For a
+  -- setting whose numbers mean nothing to read (an item quality), where a typed box would.
+  local function stepperRow(cardFrame, i, labelText, key, opts, sentence)
+    local W, ARROW = 124, 18
+    local control = CreateFrame("Frame", nil, cardFrame)
+    control:SetSize(W, ROW_H)
+    control:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
+    local down = Theme.Button(control, "ghost", "badge")
+    down:SetSize(ARROW, ROW_H)
+    down:SetPoint("LEFT", control, "LEFT", 0, 0)
+    down:SetLabel("<")
+    local up = Theme.Button(control, "ghost", "badge")
+    up:SetSize(ARROW, ROW_H)
+    up:SetPoint("RIGHT", control, "RIGHT", 0, 0)
+    up:SetLabel(">")
+    local box = editBoxBg(control)
+    box:SetPoint("TOPLEFT", down, "TOPRIGHT", 2, 0)
+    box:SetPoint("BOTTOMRIGHT", up, "BOTTOMLEFT", -2, 0)
+    local name = Theme.Label(box, 12)
+    name:SetAllPoints()
+    name:SetJustifyH("CENTER")
+
+    local label = Theme.Label(cardFrame, 12)
+    label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
+    label:SetJustifyH("LEFT")
+    label:SetText(labelText)
+    addRow(cardFrame, label, control, W)
+
+    local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
+    local function current()
+      local c = cfg()
+      local v = c and c[key]
+      if type(v) ~= "number" or v ~= math.floor(v) or v < opts.min or v > opts.max then v = d and d[key] or opts.min end
+      return v
+    end
+    local function paint()
+      local v = current()
+      name:SetText(opts.nameOf(v))
+      local color = opts.colorOf(v)
+      if color then name:SetTextColor(color.r, color.g, color.b) end
+    end
+    local function step(by)
+      local c = cfg()
+      if not c then return end
+      local v = math.max(opts.min, math.min(opts.max, current() + by))
+      local before = c[key]
+      c[key] = v
+      paint()
+      if v ~= before then settingsChanged() end
+    end
+    down:SetScript("OnClick", function() step(-1) end)
+    up:SetScript("OnClick", function() step(1) end)
+
+    paint()
+    refreshers[#refreshers + 1] = paint
+    if cardFrame.resets then
+      cardFrame.resets[#cardFrame.resets + 1] = key
+      cardFrame.displays[#cardFrame.displays + 1] = paint
+    end
+    attachExplanation({ label, box, down, up }, labelText, sentence,
+      GC.L["Default: %s"]:format(opts.nameOf(d and d[key] or opts.min)))
   end
 
   -- Task S: Forever's own "Min profit per buy" -- its own key
@@ -903,6 +968,17 @@ local function build(sniperFrame)
   fieldRow(whatCounts, 4, GC.L["Max units per buy"], "maxQuantity",
     { min = 1, max = GC.SniperDecision and GC.SniperDecision.MAX_QUANTITY_CEILING or 200 },
     GC.L["The most units one purchase may take. How fast the item sells can still make it fewer."])
+  -- The lowest item quality DEALS finds under the market (GC.DealMath.QualityAdmits), both clients:
+  -- the quality's name in its own colour, not a number nobody reads as a quality. Not a dropdown:
+  -- MenuUtil is not verified on WoW: Forever.
+  do
+    local NAMES = { [0] = GC.L["Poor"], GC.L["Common"], GC.L["Uncommon"], GC.L["Rare"], GC.L["Epic"] }
+    stepperRow(whatCounts, 5, GC.L["Lowest item quality"], "lowestQuality", {
+      min = 0, max = GC.DealMath and GC.DealMath.QUALITY_MAX or 4,
+      nameOf = function(q) return NAMES[q] or tostring(q) end,
+      colorOf = function(q) return Theme.QualityColor and Theme.QualityColor(q, true) or nil end,
+    }, GC.L["DEALS leaves out items under this quality when they are only cheap. Under what a vendor pays, your price, a group you follow or a pin still show."])
+  end
 
   -- Task S: the whole RISK CHECKS card is retail-only (see its own `local brakes` comment above) --
   -- dumpTrendPct, spikeTrendPct and wallAbsorbHours are never built at all in Forever.

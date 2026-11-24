@@ -342,6 +342,70 @@ describe("Util", function()
   end)
 end)
 
+describe("GC.Util send count", function()
+  local GC
+  before_each(function() GC = helper.loadModule("Core/Util.lua") end)
+
+  it("counts the queries of the last minute by sender, by the table", function()
+    local sends = { { 0, "pass" }, { 10, "search" }, { 20, "keys" }, { 30, "pass" }, { 59.5, "caps" } }
+    for _, send in ipairs(sends) do GC.Util.NoteSend(send[2], send[1]) end
+    local cases = {
+      -- now -> total, pass, search
+      { 59.9, 5, 2, 1 },
+      { 60, 4, 1, 1 },
+      { 70.5, 3, 1, nil },
+      { 200, 0, nil, nil },
+    }
+    for _, c in ipairs(cases) do
+      local total, byWho = GC.Util.SendsPerMinute(c[1])
+      assert.equal(c[2], total, "at " .. c[1])
+      assert.equal(c[3], byWho.pass, "pass at " .. c[1])
+      assert.equal(c[4], byWho.search, "search at " .. c[1])
+    end
+  end)
+
+  it("says it in one line, senders in order", function()
+    GC.Util.NoteSend("search", 5)
+    GC.Util.NoteSend("pass", 6)
+    GC.Util.NoteSend("search", 7)
+    assert.equal("3/min (pass 1, search 2)", GC.Util.SendsLine(10))
+    assert.equal("0/min ()", GC.Util.SendsLine(100))
+  end)
+
+  -- Every place the addon sends a query notes it: a send added without one would go uncounted.
+  it("is noted wherever the addon sends a query", function()
+    local calls = { "SendSearchQuery", "SendSellSearchQuery", "SendBrowseQuery", "RequestMoreBrowseResults",
+      "SearchForItemKeys", "QueryOwnedAuctions", "ReplicateItems" }
+    local files = { "UI/SniperFrame.lua", "UI/BuyFrame.lua", "UI/BuySearch.lua", "UI/SniperGearLoop_Camelot.lua",
+      "Services/Sell/Owned.lua", "Services/Sell/Quotes.lua", "Core/ForeverCheck.lua", "Core/ForeverScan.lua" }
+    -- Noted elsewhere: BUY's gear read by its caller (a field WoW: Forever replaces), and the gear
+    -- loop's sends inside the one function that makes them (sendOurs).
+    local function notedElsewhere(lines, i)
+      return lines[i]:find("sendOurs(", 1, true) ~= nil
+        or (lines[i - 1] or ""):find("function GC.Buy._SendLotRead", 1, true) ~= nil
+    end
+    for _, file in ipairs(files) do
+      local f = assert(io.open("GoldCap/" .. file))
+      local lines = {}
+      for line in f:lines() do lines[#lines + 1] = line end
+      f:close()
+      for i, line in ipairs(lines) do
+        for _, call in ipairs(calls) do
+          local sends = not line:match("^%s*%-%-") and (line:find("C_AuctionHouse." .. call .. "(", 1, true)
+            or line:find("ah." .. call .. ")", 1, true) or line:find("C_AuctionHouse." .. call .. ",", 1, true))
+          if sends then
+            local noted = false
+            for j = i, math.min(#lines, i + 8) do
+              if lines[j]:find("NoteSend", 1, true) then noted = true break end
+            end
+            assert.is_true(noted or notedElsewhere(lines, i), file .. ":" .. i .. " sends " .. call .. " without noting it")
+          end
+        end
+      end
+    end
+  end)
+end)
+
 describe("GC.Util.SlashArgs", function()
   local GC
   before_each(function() GC = helper.loadModule("Core/Util.lua") end)

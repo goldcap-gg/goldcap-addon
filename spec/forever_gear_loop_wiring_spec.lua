@@ -18,8 +18,10 @@ describe("Forever gear loop wiring", function()
     return S._GearBrowse((not first) and rows or nil)
   end
 
-  -- One arbiter turn as GC.Sniper.OnThrottleReady gives the loop its two chances.
+  -- One arbiter turn as GC.Sniper.OnThrottleReady gives the loop its three chances: its share
+  -- with the Checks and drills, its place in the pass/tail alternation, and the turn the tail left.
   local function turn()
+    if S._GearShare(false, function() return state.canDrill ~= false end) then return true end
     if S._GearTurn(false) then return true end
     return S._GearTurn(false, true)
   end
@@ -65,7 +67,7 @@ describe("Forever gear loop wiring", function()
 
     GC = helper.loadModule("Core/Util.lua")
     for _, m in ipairs({ "Core/DealMath.lua", "Core/FullScan.lua", "Core/BookPass.lua", "Core/KeyPoll.lua",
-      "Core/ForeverFold.lua", "Core/ForeverDeals.lua", "Core/ForeverGearLoop.lua" }) do
+      "Core/ForeverFold.lua", "Core/ForeverDeals.lua", "Core/ForeverGearLoop.lua", "Core/DrillQueue.lua" }) do
       helper.loadModule(m, GC)
     end
     GC.db = { settings = { sniper = { sound = true } }, commodityByItem = {} }
@@ -82,6 +84,7 @@ describe("Forever gear loop wiring", function()
     GC.Sniper = {
       _named = {},
       _slotTurn = "pass",
+      _drillQueue = { Depth = function() return state.drills or 0 end, Urgent = function() return state.urgent == true end },
       _bookPass = { IsPaging = function() return state.passPaging end,
         PendingStart = function() return state.passPending end },
       _AutoOnItems = function() return state.auto end,
@@ -140,18 +143,45 @@ describe("Forever gear loop wiring", function()
     assert.equal(2, #sent)
   end)
 
+  -- GC.DrillQueue.SlotTurn: a page, then a drill; an urgent drill may take one turn more.
+  it("takes turns with the drills while one waits, and keeps at least one turn in three", function()
+    advance(2.25)
+    answer({ row(1, 5, 0, 10, 1) }, false, true)
+    state.drills = 1
+    assert.is_false(S._GearShare(false, function() return true end)) -- the drills' turn
+    assert.is_true(S._GearShare(false, function() return true end))  -- then a page, the tail's or not
+    assert.equal("more", sent[2])
+    answer({ row(2, 5, 0, 10, 1) }, false)
+    state.urgent = true
+    assert.is_false(S._GearShare(false, function() return true end))
+    assert.is_false(S._GearShare(false, function() return true end))
+    assert.is_true(S._GearShare(false, function() return true end))
+    assert.equal(3, #sent)
+  end)
+
+  it("leaves the arbiter's order alone with no drill to send or no page wanted", function()
+    advance(2.25)
+    state.drills = 1
+    assert.is_false(S._GearShare(false, function() return true end)) -- the first query is out
+    answer({ row(1, 5, 0, 10, 1) }, false, true)
+    assert.is_false(S._GearShare(false, function() return false end)) -- the drills cannot send
+    state.drills = 0
+    assert.is_false(S._GearShare(false, function() return true end))
+    assert.equal(1, #sent)
+  end)
+
   describe("a key under the vendor price", function()
     before_each(function()
       advance(2.25)
       answer({ row(3021, 20, 0, 2200, 1), row(2140, 11, 14315, 400, 121), row(2140, 11, 14300, 350, 13) }, false, true)
     end)
 
-    it("is an Items row at once, with a repaint and a bell", function()
+    it("is an Items row at once, with a repaint and no bell: the bell waits for its Check", function()
       local r = GC.ForeverDeals.LiveRow(3021)
       assert.equal(2200, r.unitPrice)
       assert.equal(350, GC.ForeverDeals.LiveRow(2140).unitPrice)
       assert.equal(1, state.repaints)
-      assert.equal(1, state.rang)
+      assert.is_nil(state.rang)
     end)
 
     it("leaves the keys the round saw where the Check looks for an item's variants", function()
@@ -162,18 +192,36 @@ describe("Forever gear loop wiring", function()
       assert.equal(11, key.itemLevel)
     end)
 
-    it("gets its live Check on the next turns, ahead of the next page, one a turn", function()
+    it("gets its live Check on the next turn, and the class's pages and the Checks take turns", function()
       assert.is_true(turn())
       assert.equal(1, #checked)
       assert.equal(3021, checked[1].itemID)
       assert.equal(1, #sent)
       assert.is_true(turn())
-      assert.equal(2140, checked[2].itemID)
-      assert.is_true(turn())
-      assert.equal(2, #checked)
+      assert.equal(1, #checked)
       assert.equal("more", sent[2])
+      assert.is_true(turn())
+      assert.equal(2140, checked[2].itemID)
+      assert.equal(2, #sent)
       assert.equal(2, #GC.db.foreverGearLoop.hits)
       assert.matches("^50000 3021/20/0 2200 v2426 ", GC.db.foreverGearLoop.hits[1])
+    end)
+
+    it("is checked ahead of a drill, and near its age limit takes one turn more", function()
+      state.drills = 1
+      local canDrill = function() return true end
+      assert.is_true(S._GearShare(false, canDrill))
+      assert.equal(3021, checked[1].itemID)
+      clock = clock + GC.ForeverGearLoop.C.HIT_WAIT_SECONDS - GC.ForeverGearLoop.C.URGENT_SECONDS
+      assert.is_true(S._GearShare(false, canDrill))
+      assert.equal(2140, checked[2].itemID)
+      assert.equal(1, #sent)
+    end)
+
+    it("claims no turn for a lot whose row has left the board", function()
+      GC.ForeverDeals.LiveKeep({})
+      assert.is_false(S._GearShare(false, function() return true end))
+      assert.equal(0, #checked)
     end)
 
     it("is checked again only when its price moves", function()
@@ -366,7 +414,9 @@ describe("Forever gear loop wiring", function()
     it("is an Under market row priced for its version, whose Check searches that key alone", function()
       local r = GC.ForeverDeals.LiveRow(15210)
       assert.same({ "market", "12729", 6000, 2000 }, { r.forever, r.version, r.refUnit, r.unitPrice })
-      assert.equal(1, state.rang)
+      assert.is_nil(state.rang)
+      -- Its sales a day go to its Check, which the board reads a buy by (GC.BoardRows.Bucket).
+      assert.equal(2, GC.ForeverDeals.CeilingFor(15210).perDay)
       -- 14301 at 5000 is over 40% of the dearest version's median: its version is never read.
       assert.equal(2, state.versionReads)
       local key = GC.KeyPoll.VariantKeyFor(S._named[15210].entry, 0)
@@ -406,11 +456,22 @@ describe("Forever gear loop wiring", function()
     assert.equal(0, #checked)
   end)
 
+  it("lets a lot its Check would buy ring once in ten seconds, and spends the gap only on a bell that plays", function()
+    local sniper = { sound = true }
+    assert.is_true(S._GearRingDue(sniper))
+    advance(9)
+    assert.is_false(S._GearRingDue(sniper))
+    assert.is_true(S._GearRingDue({ sound = false }))  -- no bell: nothing to hold back
+    advance(1)
+    assert.is_true(S._GearRingDue(sniper))
+  end)
+
   describe("retail", function()
     it("has the two hooks as no-ops in the shared file, and loads neither Forever file", function()
       local sniper = assert(io.open("GoldCap/UI/SniperFrame.lua")):read("*a")
       assert.is_not_nil(sniper:find("function GC.Sniper._GearTurn() return false end", 1, true))
       assert.is_not_nil(sniper:find("function GC.Sniper._GearBrowse() return false end", 1, true))
+      assert.is_not_nil(sniper:find("function GC.Sniper._GearRingDue() return true end", 1, true))
       local toc = assert(io.open("GoldCap/GoldCap.toc")):read("*a")
       assert.is_nil(toc:find("GearLoop", 1, true))
     end)

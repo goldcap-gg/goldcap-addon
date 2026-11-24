@@ -85,6 +85,8 @@ Core/ForeverFlips.lua
 Core/ForeverRoad.lua
 Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
+Core/HotSet.lua
+Core/AutoReadout.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
 Core/Collection.lua
@@ -109,6 +111,7 @@ Core/Caps.lua
 Core/GroupRules.lua
 Core/SellRounds.lua
 Core/ForeverPace.lua
+Core/Holdings.lua
 Core/BoardRows.lua
 Core/DealCard.lua
 Core/WatchSet.lua

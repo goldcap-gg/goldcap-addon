@@ -39,6 +39,8 @@ local C = {
   -- its own REPLICATE_ITEM_LIST_UPDATE), and both reads are saved. A partial replicate read holds
   -- its chat block this long for a fuller read to replace it, so one SCAN prints the block once.
   SAY_GRACE_SECONDS = 20,
+  -- The full list is still arriving while a stage of it came less than this long ago (ProgressLine).
+  STAGE_SETTLE_SECONDS = 2,
   -- How long after the request the rest of a list handed over in stages is still this scan's: the
   -- first 1024 or 2048 rows come at once, the rest 52 to 64 seconds after the request (owner's
   -- journal, 2026-11-23). Till then the full scan is on (FullListOn), and the rest does not stamp
@@ -716,6 +718,8 @@ function GC.ForeverScan.New(driver)
   end
 
   function obj:IsBusy() return state ~= "idle" end
+  -- Whether the auction house open is Blackwater: nothing read there is this house's.
+  function obj:Neutral() return neutral end
   -- Whether a full list may be asked for now: no scan running, the home auction house open, and
   -- the account's throttle spent (Auto asks then, GC.Sniper's startScan).
   function obj:Due()
@@ -755,6 +759,25 @@ local function count(n)
   if type(_G.BreakUpLargeNumbers) == "function" then return tostring(_G.BreakUpLargeNumbers(n)) end
   return tostring(n)
 end
+
+-- What the scan line says while the full list is read. The client hands the list over in stages
+-- (111,616 rows, then 146,432, then 327,655 on 2026-11-24), and each later stage starts the read
+-- over (OnReplicateUpdate): the line said "2,400 of 111,616", then "2,450 of 146,432", then ran to
+-- "124,600 of 327,655", and was read as broken numbers. While a stage came less than
+-- STAGE_SETTLE_SECONDS ago the list is still arriving: "receiving", with the lots so far. After
+-- that, "reading", N of M. `stages`: when each stage came, oldest first. `shown`: the N each
+-- wording last showed, which its N never goes back from (nor past M). Answers the wording and N.
+function GC.ForeverScan.ProgressLine(stages, readIndex, total, now, shown)
+  shown = shown or {}
+  local last = stages[#stages]
+  if last and now - last < C.STAGE_SETTLE_SECONDS then
+    return "receiving", math.max(total, shown.receiving or 0)
+  end
+  return "reading", math.min(math.max(readIndex, shown.reading or 0), total)
+end
+
+-- The read's stages and what the line showed, from the request (or another's dump) to its end.
+local progress = { stages = {}, shown = {} }
 
 -- What a finished scan tells the player. SavedVariables are written on /reload or logout only, so
 -- "saved" reads that way. "Shared" is said only while a Companion paired with goldcap.gg writes
@@ -825,6 +848,7 @@ local sayHeld = false
 
 local function notify(kind, a, b)
   if kind == "started" or kind == "done" then sayToken = sayToken + 1; sayHeld = false end
+  if kind == "started" or kind == "done" or kind == "noanswer" then progress = { stages = {}, shown = {} } end
   if kind == "started" then
     GC.Print(GC.L["Scanning the auction house…"])
     -- On the board from the press: the client takes about ten seconds to hand the list over, and
@@ -856,8 +880,21 @@ local function notify(kind, a, b)
       -- Each line holds the status line for a second, against the board's other writers; the
       -- read's last one holds nothing, so what the scan says next lands: a list saved at once
       -- (afterRead) ended inside that second, and its readout was dropped behind the hold.
-      GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b))),
-        (tonumber(a) or 0) < (tonumber(b) or 0) and 1 or 0)
+      local clock = _G.GetTime or _G.time
+      local now = clock and clock() or 0
+      local index, total = tonumber(a) or 0, tonumber(b) or 0
+      -- A read gone back on a list no longer than before is a new list, with nothing shown yet.
+      if progress.total and index < progress.index and total <= progress.total then
+        progress = { stages = {}, shown = {} }
+      end
+      -- A stage is a list longer than the one the read had: a list that shrank is no new stage.
+      if not progress.total or total > progress.total then progress.stages[#progress.stages + 1] = now end
+      progress.total, progress.index = total, index
+      local wording, n = GC.ForeverScan.ProgressLine(progress.stages, index, total, now, progress.shown)
+      progress.shown[wording] = n
+      local text = wording == "receiving" and GC.L["receiving the auction house list: %s lots so far"]:format(count(n))
+        or GC.L["reading the auction house: %s of %s lots"]:format(count(n), count(total))
+      GC.Sniper.SetScanStatus(GC.Sniper._ScanWords(text), index < total and 1 or 0)
     end
   elseif kind == "done" then
     local timer = _G.C_Timer
@@ -898,7 +935,11 @@ local function realDriver()
     -- Milliseconds, for the read's per-frame budget (C.READ_BUDGET_MS).
     clock = type(_G.debugprofilestop) == "function" and _G.debugprofilestop or nil,
     after = function(s, fn) C_Timer.After(s, fn) end,
-    replicate = function() return (pcall(ah.ReplicateItems)) end,
+    replicate = function()
+      local ok = pcall(ah.ReplicateItems)
+      if ok and GC.Util and GC.Util.NoteSend then GC.Util.NoteSend("replicate") end
+      return ok
+    end,
     numRows = function()
       local ok, n = pcall(ah.GetNumReplicateItems)
       return ok and tonumber(n) or 0
@@ -1255,8 +1296,21 @@ function GC.ForeverScan.Request(reason)
   local s = scanner(); local r = s and s:Request(reason) or nil; repaint(); return r
 end
 function GC.ForeverScan.OnReplicateUpdate() local s = scanner(); if s then s:OnReplicateUpdate(); repaint() end end
-function GC.ForeverScan.OnBrowsePassDone(book) local s = scanner(); if s then s:OnBrowsePassDone(book); repaint() end end
-function GC.ForeverScan.OnBrowsePassAbandoned(book) local s = scanner(); if s then s:OnBrowsePassAbandoned(book); repaint() end end
+-- Every pass between full scans also moves the Deals board's live view (GC.ForeverDeals.OnBrowsePass),
+-- before the scanner takes the pass: a full scan's pass then lands in a new fold, which starts
+-- the view anew. Not at Blackwater: what it lists is not the fold's house.
+local function toBoard(s, book, whole)
+  if s:Neutral() then return end
+  if GC.ForeverDeals and GC.ForeverDeals.OnBrowsePass then GC.ForeverDeals.OnBrowsePass(book, whole) end
+end
+function GC.ForeverScan.OnBrowsePassDone(book)
+  local s = scanner()
+  if s then toBoard(s, book, true); s:OnBrowsePassDone(book); repaint() end
+end
+function GC.ForeverScan.OnBrowsePassAbandoned(book)
+  local s = scanner()
+  if s then toBoard(s, book, false); s:OnBrowsePassAbandoned(book); repaint() end
+end
 function GC.ForeverScan.OnAuctionHouseShow() local s = scanner(); local r = s and s:OnAuctionHouseShow() or nil; repaint(); return r end
 function GC.ForeverScan.OnAuctionHouseClosed() local s = scanner(); if s then s:OnAuctionHouseClosed(); repaint() end end
 function GC.ForeverScan.OnLogout() local s = scanner(); if s then s:OnLogout() end end

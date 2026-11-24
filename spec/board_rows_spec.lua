@@ -16,6 +16,57 @@ describe("BoardRows", function()
 
   after_each(function() _G.GetCoinTextureString = nil end)
 
+  -- A lot the Check found worth buying (WATCH with a candidate: `unverified`) is a buy where its
+  -- resale is measured: a WoW: Forever vendor lot, or a market lot with a known sales pace.
+  describe("a lot the Check would buy", function()
+    local CASES = {
+      { what = "a Forever vendor lot",
+        verdict = { status = "WATCH", buyable = false, unverified = true, forever = "vendor", stressProfit = 31 },
+        bucket = "BUY", label = "SAFE +31c", rank = 1, buy = true },
+      { what = "a Forever market lot with a sales pace",
+        verdict = { status = "WATCH", buyable = false, unverified = true, forever = "market", perDay = 0.4,
+          stressProfit = 11500 },
+        bucket = "BUY", label = "SAFE +1g", rank = 1, buy = true },
+      { what = "a Forever market lot without a pace",
+        verdict = { status = "WATCH", buyable = false, unverified = true, forever = "market", stressProfit = 11500 },
+        bucket = "WATCH", label = "WATCH", rank = 3, buy = false },
+      { what = "a retail realm lot with a candidate, unchanged",
+        verdict = { status = "WATCH", buyable = false, unverified = true, stressProfit = 11500 },
+        bucket = "WATCH", label = "WATCH", rank = 3, buy = false },
+      { what = "a refusal",
+        verdict = { status = "AVOID", buyable = false, forever = "vendor", reason = "profit below minimum" },
+        bucket = "WATCH", label = "AVOID", rank = 3, buy = false },
+      { what = "a buyable commodity, unchanged",
+        verdict = { status = "SAFE", buyable = true, stressProfit = 61 },
+        bucket = "SAFE", label = "SAFE +61c", rank = 1, buy = true },
+    }
+    for _, case in ipairs(CASES) do
+      it(case.what, function()
+        assert.equal(case.bucket, GC.BoardRows.Bucket(case.verdict))
+        assert.equal(case.label, GC.BoardRows.Label(case.verdict))
+        assert.equal(case.rank, GC.BoardRows.Rank(case.verdict))
+        assert.equal(case.buy, GC.BoardRows.IsBuy(case.verdict))
+      end)
+    end
+
+    it("sorts with the buys, ahead of a refusal and a retail realm lot", function()
+      local lot = { status = "WATCH", buyable = false, unverified = true, forever = "vendor", stressProfit = 5 }
+      local retail = { status = "WATCH", buyable = false, unverified = true, stressProfit = 900 }
+      assert.is_true(GC.BoardRows.Compare({ estProfit = 5 }, lot, false, { estProfit = 900 }, retail, false))
+      assert.is_false(GC.BoardRows.Compare({ estProfit = 900 }, retail, false, { estProfit = 5 }, lot, false))
+    end)
+  end)
+
+  describe("IsBuy", function()
+    it("is the player's own price and a followed group's buy, never a group's realm lot or no verdict", function()
+      assert.is_true(GC.BoardRows.IsBuy({ cap = true, buyable = false, status = "WATCH" }))
+      assert.is_true(GC.BoardRows.IsBuy({ cap = true, followed = true, buyable = true }))
+      assert.is_false(GC.BoardRows.IsBuy({ cap = true, followed = true, buyable = false }))
+      assert.is_false(GC.BoardRows.IsBuy({ needsGold = 5000, buyable = false }))
+      assert.is_false(GC.BoardRows.IsBuy(nil))
+    end)
+  end)
+
   describe("Bucket", function()
     -- Live price caps, addon task 6: a cap decision outranks every other bucket, including a
     -- buyable commodity cap (DecideCommodity sets BOTH `cap` and `buyable` -- `cap` must win

@@ -113,6 +113,82 @@ describe("WoW: Forever scan wiring", function()
     assert.same({ 1, 0 }, holds)
   end)
 
+  -- The client hands the list over in stages, and each later one starts the read over: while
+  -- stages keep coming the line says the list is still arriving, then reads N of M.
+  it("says the list is still arriving while its stages come, by the table", function()
+    load(16001)
+    local S = GC.ForeverScan.C.STAGE_SETTLE_SECONDS
+    local cases = {
+      -- stages, readIndex, total, now, shown -> wording, N
+      { name = "the first stage, just come", { 10 }, 2400, 111616, 10.5, {}, "receiving", 111616 },
+      { name = "the first stage, settled", { 10 }, 2400, 111616, 10 + S, {}, "reading", 2400 },
+      { name = "a later stage restarts the read", { 10, 11 }, 50, 146432, 12, { receiving = 111616 },
+        "receiving", 146432 },
+      { name = "a later stage after reading was shown", { 10, 20 }, 300, 327655, 20 + S,
+        { receiving = 146432, reading = 60000 }, "reading", 60000 },
+      { name = "the restarted read catches up", { 10, 20 }, 124600, 327655, 30, { reading = 60000 },
+        "reading", 124600 },
+      { name = "a later stage with fewer rows", { 10, 11 }, 0, 100000, 11.5, { receiving = 146432 },
+        "receiving", 146432 },
+      { name = "never past the lots there are", { 10 }, 500, 1000, 20, { reading = 5000 }, "reading", 1000 },
+      { name = "no stage noted", {}, 5, 10, 0, {}, "reading", 5 },
+    }
+    for _, c in ipairs(cases) do
+      local wording, n = GC.ForeverScan.ProgressLine(c[1], c[2], c[3], c[4], c[5])
+      assert.equal(c[6], wording, c.name)
+      assert.equal(c[7], n, c.name)
+    end
+  end)
+
+  it("replays the stages of 2026-11-24 on the board line, its N never going back", function()
+    load(16001)
+    local now, lines = 0, {}
+    local getTime = _G.GetTime
+    _G.GetTime = function() return now end
+    GC.Sniper = { _ScanWords = function(text) return text end,
+      SetScanStatus = function(text) lines[#lines + 1] = text end }
+    GC.ForeverScan._Notify("started")
+    local steps = { { 0, 2400, 111616 }, { 0.5, 2450, 146432 }, { 1, 2300, 327655 }, { 1.5, 40000, 327655 },
+      { 3.5, 124600, 327655 }, { 4, 327655, 327655 } }
+    for _, s in ipairs(steps) do
+      now = s[1]
+      GC.ForeverScan._Notify("progress", s[2], s[3])
+    end
+    _G.GetTime = getTime
+    assert.same({
+      "Scanning the auction house…",
+      "receiving the auction house list: 111616 lots so far",
+      "receiving the auction house list: 146432 lots so far",
+      "receiving the auction house list: 327655 lots so far",
+      "receiving the auction house list: 327655 lots so far",
+      "reading the auction house: 124600 of 327655 lots",
+      "reading the auction house: 327655 of 327655 lots",
+    }, lines)
+  end)
+
+  it("starts the line over for a new list that came with no word of the last one's end", function()
+    load(16001)
+    local now, lines = 0, {}
+    local getTime = _G.GetTime
+    _G.GetTime = function() return now end
+    GC.Sniper = { _ScanWords = function(text) return text end,
+      SetScanStatus = function(text) lines[#lines + 1] = text end }
+    GC.ForeverScan._Notify("progress", 9000, 10000)
+    now = 10
+    GC.ForeverScan._Notify("progress", 10000, 10000)
+    now = 20
+    GC.ForeverScan._Notify("progress", 100, 5000)
+    now = 30
+    GC.ForeverScan._Notify("progress", 200, 5000)
+    _G.GetTime = getTime
+    assert.same({
+      "receiving the auction house list: 10000 lots so far",
+      "reading the auction house: 10000 of 10000 lots",
+      "receiving the auction house list: 5000 lots so far",
+      "reading the auction house: 200 of 5000 lots",
+    }, lines)
+  end)
+
   describe("post-scan chat block", function()
     local folds
     local function done(rows, partial)

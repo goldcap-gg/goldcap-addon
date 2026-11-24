@@ -500,8 +500,11 @@ function Row.PaintPosition(row, entry, ctx)
   row.notOnHand = notOnHand
   row.cells.item:SetText(named .. ROW.variantSuffix(p))
   -- What is off about this row, if anything -- see rowTag.
+  -- How often one listing of it sells follows, when goldcap.gg has a figure; the line wraps to hold it.
+  local chance = GC.Util.SellChanceText(GC.Data and GC.Data.SellChance and GC.Data.SellChance(p.itemID))
   row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
     or GC.SellViewModel.SourceText(p))
+    .. (chance and (" · " .. chance) or "")
     .. (notOnHand and (dimHex() .. " · not on hand|r") or "")
     .. rowTag(p, heldBackReason[p.positionKey], notOnHand)
     .. (ROW.foreverMark and ROW.foreverMark(p) or "") -- then a followed group's name, in gold:

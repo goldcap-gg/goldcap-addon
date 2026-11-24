@@ -62,6 +62,25 @@ function Compose.Positions(skipPaint)
       end
     end
   end
+  -- A DEALS buy of gear with a random suffix, filed before 0.34.0 under its level alone, finds its
+  -- own key from what is held and listed (GC.Acquisitions.RepairSuffixKeys). Only once a query of
+  -- the owned lots has been answered this session, a listed piece being half of what it is weighed
+  -- against, and never inside a click (`skipPaint`). A link's own name carries the suffix.
+  if not skipPaint and S.ownedAnswered and scope and GC.Acquisitions and GC.Acquisitions.RepairSuffixKeys then
+    local seen = {}
+    for _, stock in ipairs(S.bagStock) do
+      for _, stack in ipairs(stock.stacks or {}) do
+        seen[#seen + 1] = { itemID = stock.itemID, positionKey = stock.positionKey,
+          itemName = type(stack.link) == "string" and stack.link:match("|h%[(.-)%]|h") or nil }
+      end
+    end
+    for _, lot in ipairs(S.ownedLots) do
+      seen[#seen + 1] = { itemID = lot.itemID, positionKey = lot.positionKey,
+        itemName = type(lot.itemLink) == "string" and lot.itemLink:match("|h%[(.-)%]|h") or nil }
+    end
+    for _, waiting in ipairs(GC.Sell._waitingStock or {}) do seen[#seen + 1] = { itemID = waiting.itemID } end
+    GC.Acquisitions.RepairSuffixKeys(seen, scope)
+  end
   local stats = {}
   for _, lot in ipairs(S.ownedLots) do
     stats[lot.itemID] = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(lot.itemID) or nil

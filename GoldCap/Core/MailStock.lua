@@ -174,6 +174,33 @@ function MS.Count(char, itemID)
     + unitsIn(away.seen, itemID) + unitsIn(away.fresh, itemID)
 end
 
+--- What waits in the mailboxes of the account's characters other than `char`, as
+--- { [itemID] = units }, each counted as Count counts its own. One walk of the store for a whole
+--- board pass (GC.Holdings.Reader), not one per row. Empty for a newer store.
+function MS.OthersHold(char)
+  local out = {}
+  local s = store(false)
+  if not s then return out end
+  for name, c in pairs(s.chars) do
+    if name ~= char and type(c) == "table" then
+      for itemID, n in pairs(type(c.items) == "table" and c.items or {}) do
+        if type(itemID) == "number" then add(out, itemID, tonumber(n) or 0) end
+      end
+      for itemID, b in pairs(type(c.bought) == "table" and c.bought or {}) do
+        if type(itemID) == "number" and type(b) == "table" then add(out, itemID, tonumber(b.n) or 0) end
+      end
+      local away = type(c.away) == "table" and c.away or {}
+      for _, set in ipairs({ away.seen or {}, away.fresh or {} }) do
+        for key, n in pairs(type(set) == "table" and set or {}) do
+          local id, per = tostring(key):match("^(%d+):(%d+):")
+          if id and type(n) == "number" then add(out, tonumber(id), tonumber(per) * n) end
+        end
+      end
+    end
+  end
+  return out
+end
+
 --- An auction house purchase that succeeded: `qty` units of `itemID` are on their way to the
 --- mailbox. `now` is time() unless a spec gives it. Returns whether it was written.
 function MS.Bought(char, itemID, qty, now)

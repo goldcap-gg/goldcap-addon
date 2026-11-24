@@ -113,6 +113,28 @@ describe("Blackwater board", function()
     for _, k in ipairs(KEYS) do _G[k] = saved[k] end
   end)
 
+  -- How often one listing sells at home (GC.Data.SellChance), after how fast it sells; 0% too, and
+  -- nothing without a figure.
+  it("says under a flip's name how often one listing sells at home", function()
+    local chances = { [ELIXIR] = 42, [WRAPS] = 0 }
+    GC.Data.SellChance = function(id) return chances[id] end
+    press(host.boardChips.blackwater)
+    local rows = {}
+    for _, row in ipairs(ui().rows) do rows[row.itemID] = row end
+    assert.truthy(textOf(rows[ELIXIR].sub):find("42%% of listings sell$"))
+    assert.truthy(textOf(rows[WRAPS].sub):find("0%% of listings sell$"))
+    assert.is_nil(textOf(rows[FISHPOLE].sub):find("listings", 1, true))
+  end)
+
+  it("leaves the sell chance to the tooltip when the line would run into the prices", function()
+    GC.Data.SellChance = function() return 42 end
+    press(host.boardChips.blackwater)
+    local row = ui().rows[1]
+    row.name:SetWidth(20)
+    BW.Paint()
+    assert.equal("", textOf(row.sub))
+  end)
+
   it("adds a third tab after ITEMS, the goblin's, that counts the flips worth a line", function()
     local chip = host.boardChips.blackwater
     assert.is_truthy(chip)

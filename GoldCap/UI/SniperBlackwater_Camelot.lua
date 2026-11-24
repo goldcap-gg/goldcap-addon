@@ -250,8 +250,16 @@ local function paintRow(row, r)
   row.bwQty:SetText(GC.L["%d cheap"]:format(r.bwQty or 0))
   row.homeQty:SetText(GC.L["%d listed"]:format(r.homeQty or 0))
   local tag, colour = speed(r)
-  row.sub:SetText(tag or "")
   if colour then setColor(row.sub, colour) end
+  -- ...and how often one listing of it sells at home, dim after the speed's own colour, while the
+  -- line fits beside the prices (the item's tooltip says it either way).
+  local chance = GC.Util.SellChanceText(GC.Data and GC.Data.SellChance and GC.Data.SellChance(r.itemID), true)
+  chance = chance and GC.Util.Colored(Theme.color.fgDim, chance)
+  row.sub:SetText(chance and (tag and (GC.Util.Colored(colour, tag) .. " · " .. chance) or chance) or tag or "")
+  local room = row.name.GetWidth and row.name:GetWidth() or 0
+  if chance and room > 0 and row.sub.GetStringWidth and row.sub:GetStringWidth() > room then
+    row.sub:SetText(tag or "")
+  end
   row.bw:SetText(money(r.bw))
   row.home:SetText(money(r.home))
   row.make:SetText("+" .. money(r.profit))

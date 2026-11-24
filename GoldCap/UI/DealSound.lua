@@ -1,7 +1,8 @@
 local _, GC = ...
 
--- The sound a deal makes: a row turning SAFE (UI/SniperFrame.lua's ringSafe), a new HOT deal on
--- the board (pingNewHotDeals) and WoW: Forever's gear browse finding one (UI/SniperGearLoop_Camelot.lua).
+-- The sound a deal makes: a row turning SAFE, or a lot its Check would buy (UI/SniperFrame.lua's
+-- stampVerdict; WoW: Forever's gear loop spaces those out, UI/SniperGearLoop_Camelot.lua), and a
+-- new HOT deal on the board (pingNewHotDeals).
 -- Players asked for a quieter one than the raid's ready check (owner, 2026-11-23), so it is the
 -- player's pick in SETTINGS -> AUTOMATION & ALERTS, out of the game's own sounds, and so is whether
 -- it plays at the master volume even with the game's sound effects off. The price-rise alarm in the
@@ -57,7 +58,8 @@ function DS.Play(sniper, id)
   return PlaySound(kit, DS.Channel(sniper)) and true or false
 end
 
--- A deal was found: the chosen sound when the switch is on.
+-- A deal was found: the chosen sound when the switch is on. DEALS' AUTO readout counts its deals
+-- where a Check answers (Core/AutoReadout.lua), not here.
 function DS.Ring(sniper)
   if not (type(sniper) == "table" and sniper.sound) then return false end
   return DS.Play(sniper)
