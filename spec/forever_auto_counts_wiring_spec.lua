@@ -114,7 +114,7 @@ describe("Forever AUTO checks wiring", function()
     for _, name in ipairs({ "CreateFrame", "CreateColor", "GoldCapSniperFrame", "GoldCapAuctionHouseDock",
       "UISpecialFrames", "SlashCmdList", "C_AddOns", "SLASH_GOLDCAP1", "SLASH_GOLDCAP2",
       "hooksecurefunc", "GetTime", "GetMoney", "PlaySound", "SOUNDKIT", "C_Timer", "C_CurrencyInfo",
-      "ITEM_QUALITY_COLORS", "Item", "GoldCapDB", "GetBuildInfo", "C_AuctionHouse" }) do
+      "ITEM_QUALITY_COLORS", "Item", "GoldCapDB", "GetBuildInfo", "C_AuctionHouse", "Enum" }) do
       _G[name] = nil
     end
     _G.time = os.time
@@ -136,5 +136,57 @@ describe("Forever AUTO checks wiring", function()
     check({ itemID = 2589, unitPrice = 60, qty = 1, stale = true })
     assert.same({}, checked)
     assert.equal(1, GC.AutoReadout.Counts().checked)
+  end)
+
+  -- A Forever commodity row under its vendor price, five units at 60c: the Check's answer.
+  local function vendorRow(minimumProfit)
+    GC.ForeverDeals.CeilingFor = function()
+      return { ceilingUnit = 80, kind = "vendor", exitUnit = 90, minimumProfit = minimumProfit }
+    end
+    _G.C_AuctionHouse.GetNumCommoditySearchResults = function() return 1 end
+    _G.C_AuctionHouse.GetCommoditySearchResultInfo = function(_, i)
+      if i == 1 then return { unitPrice = 60, quantity = 5, auctionID = 1, numOwnerItems = 0 } end
+    end
+    GC.ForeverDeals.Checked = function(itemID) checked[#checked + 1] = itemID; return true end
+  end
+
+  it("a find's first answer that is a buy is a deal", function()
+    vendorRow(1)
+    check({ itemID = 2589, unitPrice = 60, qty = 5, forever = "vendor", stale = true })
+    assert.same({ 2589 }, checked)
+    assert.equal(1, GC.AutoReadout.Counts().deals)
+  end)
+
+  it("a find's first answer that refuses it is no deal", function()
+    vendorRow(100000)
+    check({ itemID = 2589, unitPrice = 60, qty = 5, forever = "vendor", stale = true })
+    assert.same({ 2589 }, checked)
+    assert.equal(0, GC.AutoReadout.Counts().deals)
+  end)
+
+  -- A piece of gear under its vendor price: one lot at 60c, which the vendor pays 90c for. Its
+  -- Check answers WATCH with a candidate, the lot shape, which the board reads as a buy.
+  it("a gear lot's first answer that the board reads BUY is a deal", function()
+    vendorRow(1)
+    _G.Enum = { AuctionHouseSortOrder = { Buyout = 4 } }
+    _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = false } end
+    _G.C_AuctionHouse.GetNumItemSearchResults = function() return 1 end
+    _G.C_AuctionHouse.GetItemSearchResultInfo = function(_, i)
+      if i == 1 then
+        return { itemKey = { itemID = 3021, itemLevel = 20, itemSuffix = 0, battlePetSpeciesID = 0 },
+          auctionID = 77, buyoutAmount = 60, quantity = 1, containsOwnerItem = false }
+      end
+    end
+    assert.is_true(GC.Sniper._CheckNow({ itemID = 3021, unitPrice = 60, qty = 1, forever = "vendor", stale = true }))
+    GC.Sniper.OnItemSearchResults(3021)
+    assert.same({ 3021 }, checked)
+    assert.equal(1, GC.AutoReadout.Counts().deals)
+  end)
+
+  it("a recheck that is a buy is no new deal", function()
+    vendorRow(1)
+    GC.ForeverDeals.Checked = function() return false end
+    check({ itemID = 2589, unitPrice = 60, qty = 5, forever = "vendor", stale = true })
+    assert.equal(0, GC.AutoReadout.Counts().deals)
   end)
 end)

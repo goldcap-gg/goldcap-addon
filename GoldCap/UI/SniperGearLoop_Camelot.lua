@@ -1,8 +1,9 @@
 local _, GC = ...
 
 -- WoW: Forever's browse of all gear between scans (Core/ForeverGearLoop.lua says why and what was
--- measured). Loaded by GoldCap_Camelot.toc alone, after UI/SniperFrame.lua, whose two no-op hooks
--- it replaces (GC.Sniper._GearShare, GC.Sniper._GearTurn, GC.Sniper._GearBrowse). Retail never loads it.
+-- measured). Loaded by GoldCap_Camelot.toc alone, after UI/SniperFrame.lua, whose no-op hooks it
+-- replaces (GC.Sniper._GearShare, GC.Sniper._GearTurn, GC.Sniper._GearBrowse, GC.Sniper._GearRingDue).
+-- Retail never loads it.
 --
 -- While Auto is on and the Items board is up, where Auto's own pass stands down, weapons and then
 -- armor are browsed whole, round after round. A key listed under what a vendor pays becomes a row
@@ -29,7 +30,7 @@ local LIM = {
   REST_SECONDS = 2,     -- after a round cut short
   GAP_SECONDS = 0.5,    -- between two classes: the turn a waiting keys batch goes in
   BETWEEN_SECONDS = 20, -- a round held between its classes this long starts over
-  RING_SECONDS = 10,    -- the bell for a new lot, at most this often
+  RING_SECONDS = 10,    -- the bell for a lot its Check would buy, at most this often
 }
 
 local G = { on = false, classAt = 1, active = nil, sent = false, outAt = nil, stopping = false,
@@ -107,7 +108,7 @@ local function nameFrom(itemID, variants)
 end
 
 -- A lot under the vendor price goes to the board. True when it is a new row there (or its price
--- moved): that one waits for its Check, and rings.
+-- moved): that one waits for its Check, which rings when it answers a buy (GC.Sniper._GearRingDue).
 local function take(itemID, variant, settled)
   if GC.ForeverDeals.Live(itemID, variant.floor, variant.qty, variant.vendor, time(), settled) ~= "new" then
     return false
@@ -118,15 +119,17 @@ local function take(itemID, variant, settled)
   return true
 end
 
-local function repaint(rang)
+local function repaint()
   if S.OnForeverFold then S.OnForeverFold(true) end
-  -- A new lot under its price is a deal, whether or not the bell may ring again yet.
-  if rang and GC.AutoReadout then GC.AutoReadout.Note("deals") end
-  local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
-  if rang and sniper and sniper.sound and GetTime() - G.ringAt >= LIM.RING_SECONDS then
-    G.ringAt = GetTime()
-    if GC.DealSound then GC.DealSound.Play(sniper) end
-  end
+end
+
+-- A lot its Check would buy rings (UI/SniperFrame.lua's stampVerdict), at most once in
+-- LIM.RING_SECONDS. The gap is spent only on a bell that plays.
+function S._GearRingDue(sniper)
+  if not (type(sniper) == "table" and sniper.sound) then return true end
+  if GetTime() - G.ringAt < LIM.RING_SECONDS then return false end
+  G.ringAt = GetTime()
+  return true
 end
 
 -- The client is asked about an item with no kept vendor price: asking loads it, and its answer
@@ -170,7 +173,7 @@ local function onRows(tail)
   -- row's own key), with no browse of its own.
   for itemID in pairs(touched) do nameFrom(itemID, rounds:Variants(itemID)) end
   askAbout(ask)
-  if fresh then repaint(true) end
+  if fresh then repaint() end
 end
 
 local function endRound()
@@ -210,7 +213,7 @@ local function endRound()
   Loop.NoteRound(GC.db, time(), figures)
   trace(("gear: round %.1f s, %d rows, %d under vendor, %d under market, %d unknown, %d gone"):format(figures.seconds,
     figures.rows, figures.underCount, figures.marketCount or 0, figures.unknown, gone))
-  if fresh or gone > 0 then repaint(fresh) end
+  if fresh or gone > 0 then repaint() end
 end
 
 local function classDone()

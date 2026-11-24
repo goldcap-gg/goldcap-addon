@@ -40,8 +40,13 @@ local function prune(now)
   end
 end
 
--- A find went into the drill queue ("finds"), a check of one was answered ("checked"), a deal
--- rang the bell ("deals").
+-- The three counts mean the same in both games and nest, each once per appearance:
+--   finds    a new hit in the drill queue, or a new row on WoW: Forever's DEALS
+--   checked  that find's first live answer (UI/SniperFrame.lua's resolvePrewarm)
+--   deals    that answer was a buy (GC.BoardRows.IsBuy: SAFE, BUY, a cap or a group's buy)
+-- so deals <= checked <= finds over the same five minutes, but for a find made before the window
+-- began: its check, and its deal, count in the window its answer came in, its find in the one
+-- before.
 function AR.Note(kind, now)
   now = clock(now)
   prune(now)

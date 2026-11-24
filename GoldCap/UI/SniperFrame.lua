@@ -7990,7 +7990,8 @@ stampVerdict = function(deal, data, manual)
   end
   local previous = verdicts[deal.itemID]
   local samePrice = previous and previous.unitPrice == deal.unitPrice
-  local wasBuyable = samePrice and previous.buyable
+  -- A buy, for the bell: SAFE, or a lot the Check would buy (GC.BoardRows.Bucket's BUY).
+  local wasBuyable = samePrice and (previous.buyable or (previous.unverified and GC.BoardRows.Bucket(previous) == "BUY"))
   local kept = manual or (samePrice and previous.manual) or nil
   local decision = data and data.decision
   local buyable = (decision and decision.buyable and decision.status == "SAFE"
@@ -8054,7 +8055,8 @@ stampVerdict = function(deal, data, manual)
     setStatus(GC.Sniper._hiddenShown, 4)
   end
 
-  if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  local buys = buyable or (unverified and GC.BoardRows.Bucket(verdicts[deal.itemID]) == "BUY")
+  if manual or not buys or wasBuyable then return end -- ping the transition only, never every re-check
   -- Final review I6: a cap decision rings through drainCapPings instead (the cap branch of
   -- evaluateLiveCommodityDeal/evaluateLiveItemDeal queues the deal into pendingCapPings, and it
   -- rings once its row is on screen). A commodity cap decision is SAFE and buyable, so without
@@ -8081,11 +8083,14 @@ stampVerdict = function(deal, data, manual)
     if row.deal and row.deal.itemID == deal.itemID
         and row.deal.unitPrice == deal.unitPrice and row:IsShown() then
       flashRow(row)
-      -- A deal: the item is looked at more often for a while (GC.Sniper._hot).
-      if GC.Sniper._hot then GC.Sniper._hot:Mark(deal.itemID) end
+      -- A deal: the item is looked at more often for a while (GC.Sniper._hot). A lot is not: its
+      -- Check is the gear loop's.
+      if buyable and GC.Sniper._hot then GC.Sniper._hot:Mark(deal.itemID) end
       -- The player's pick (UI/DealSound.lua); it was always the raid's ready check, at the
-      -- master volume, until players asked for a quieter one (owner, 2026-11-23).
-      if GC.DealSound and GC.db and GC.db.settings then GC.DealSound.Ring(GC.db.settings.sniper) end
+      -- master volume, until players asked for a quieter one (owner, 2026-11-23). A lot rings
+      -- no more often than WoW: Forever's gear loop lets it (GC.Sniper._GearRingDue).
+      local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
+      if GC.DealSound and sniper and (buyable or GC.Sniper._GearRingDue(sniper)) then GC.DealSound.Ring(sniper) end
       return
     end
   end
@@ -8122,10 +8127,13 @@ local function resolvePrewarm(itemID, data)
   prewarmAttempt = nil
   -- A WoW: Forever row's first background Check is counted by its board, once per appearance,
   -- whether the walk or the gear loop asked; any other is counted when it is the check of a find.
+  -- That answer, when it is a buy, is a deal (DEALS' AUTO readout, Core/AutoReadout.lua).
+  local counted = false
   if deal and deal.forever and GC.ForeverDeals and GC.ForeverDeals.Checked then
-    if attempt.auto then GC.ForeverDeals.Checked(itemID) end
+    counted = attempt.auto and GC.ForeverDeals.Checked(itemID) or false
   elseif attempt.find and GC.AutoReadout then
     GC.AutoReadout.Note("checked")
+    counted = true
   end
   if not deal then return end
   deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
@@ -8135,8 +8143,10 @@ local function resolvePrewarm(itemID, data)
   -- at the browse floor -- so stamping it again would overwrite the row's verdict with one
   -- filed under a price nothing on the board is asking. The pre-warm cache above is still set:
   -- that is keyed by the attempt, not by price.
-  if data and data.decision and data.decision.cap then return end
-  stampVerdict(deal, data)
+  if not (data and data.decision and data.decision.cap) then stampVerdict(deal, data) end
+  if counted and data and GC.AutoReadout and GC.BoardRows.IsBuy(verdicts[itemID]) then
+    GC.AutoReadout.Note("deals")
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -9040,6 +9050,9 @@ function GC.Sniper._GearTurn() return false end
 -- What a Check made of a gear loop find, for its journal (UI/SniperGearLoop_Camelot.lua).
 function GC.Sniper._GearOutcome() end
 function GC.Sniper._GearBrowse() return false end
+-- Whether a lot the Check would buy may ring now: WoW: Forever's gear loop keeps its own gap
+-- between bells (UI/SniperGearLoop_Camelot.lua). Always, without it.
+function GC.Sniper._GearRingDue() return true end
 
 -- Whether Auto is on with the Deals board on screen and nothing holding it but the Items board
 -- itself (GC.Sniper._SetBoard pauses Auto's own pass there). Asked by that gear loop.
