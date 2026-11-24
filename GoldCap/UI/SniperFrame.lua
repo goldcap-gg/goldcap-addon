@@ -9018,7 +9018,8 @@ function GC.Sniper._TickKeys()
 end
 
 -- WoW: Forever's browse of all gear between scans (UI/SniperGearLoop_Camelot.lua, which replaces
--- these two). Nothing on retail: no turn is ever taken, no browse answer is ever its own.
+-- these three). Nothing on retail: no turn is ever taken, no browse answer is ever its own.
+function GC.Sniper._GearShare() return false end
 function GC.Sniper._GearTurn() return false end
 -- What a Check made of a gear loop find, for its journal (UI/SniperGearLoop_Camelot.lua).
 function GC.Sniper._GearOutcome() end
@@ -9113,6 +9114,10 @@ function GC.Sniper.OnThrottleReady()
       if GC.Sniper._TrySendKeysBatch(playerBusy) then return end
     end
   end
+
+  -- 1d. WoW: Forever's gear loop on the Items board shares the slot with the Checks of its finds
+  -- and the drills below by the same rule: a page, then a Check or a drill. A no-op on retail.
+  if GC.Sniper._GearShare(playerBusy, canDrillNow) then return end
 
   -- 2. Queued drill-downs, bounded by DrillQueue's own per-minute budget. Runs the SAME search
   -- path startRequery/evaluateLive use (maybeStartPrewarm -> resolvePrewarm -> stampVerdict),

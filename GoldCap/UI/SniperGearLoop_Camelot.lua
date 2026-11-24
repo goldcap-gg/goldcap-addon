@@ -2,7 +2,7 @@ local _, GC = ...
 
 -- WoW: Forever's browse of all gear between scans (Core/ForeverGearLoop.lua says why and what was
 -- measured). Loaded by GoldCap_Camelot.toc alone, after UI/SniperFrame.lua, whose two no-op hooks
--- it replaces (GC.Sniper._GearTurn, GC.Sniper._GearBrowse). Retail never loads it.
+-- it replaces (GC.Sniper._GearShare, GC.Sniper._GearTurn, GC.Sniper._GearBrowse). Retail never loads it.
 --
 -- While Auto is on and the Items board is up, where Auto's own pass stands down, weapons and then
 -- armor are browsed whole, round after round. A key listed under what a vendor pays becomes a row
@@ -13,7 +13,8 @@ local _, GC = ...
 --
 -- One browse list serves everybody, so the loop keeps to the arbiter's rules:
 --   * it sends only in a turn GC.Sniper.OnThrottleReady hands it, one message a turn, in the
---     pass's place of the pass/tail alternation, and never while a pass is armed or paging;
+--     pass's place of the pass/tail alternation or in turn with the Checks and drills
+--     (GC.Sniper._GearShare), and never while a pass is armed or paging;
 --   * it stands down for the full scan, the player's own search or pane, a purchase under way,
 --     any board but Items, Auto off or paused, and a browse by an item's name;
 --   * anybody else's browse sent while a round is out ends the round (the list is theirs now);
@@ -32,7 +33,7 @@ local LIM = {
 }
 
 local G = { on = false, classAt = 1, active = nil, sent = false, outAt = nil, stopping = false,
-  sending = false, nextAt = 0, pokeAt = 0, ringAt = -LIM.RING_SECONDS, asked = {}, passes = {} }
+  sending = false, run = 1, nextAt = 0, pokeAt = 0, ringAt = -LIM.RING_SECONDS, asked = {}, passes = {} }
 S._gear = G
 
 local function trace(tag)
@@ -293,28 +294,70 @@ local function onWire()
   return G.outAt ~= nil and GetTime() - G.outAt <= LIM.HOLD_SECONDS
 end
 
--- The new lots' Checks, oldest first: one query at most. A lot whose row has left the board, or
--- moved to another price, has nothing to check.
-local function checkNext()
-  local waiting = rounds:Waiting(GetTime())
+-- The new lots still worth a Check, oldest first. A lot whose row has left the board, or moved to
+-- another price, has nothing to check and is let go.
+local function liveFinds()
   local list = {}
-  for i = 1, #waiting do list[i] = waiting[i] end
+  for _, hit in ipairs(rounds:Waiting(GetTime())) do list[#list + 1] = hit end
+  local live = {}
   for i = 1, #list do
-    local hit = list[i]
-    local row = GC.ForeverDeals.LiveRow(hit.itemID)
-    if not row or row.unitPrice ~= hit.unit then
-      rounds:Take(hit.itemID)
+    local row = GC.ForeverDeals.LiveRow(list[i].itemID)
+    if row and row.unitPrice == list[i].unit then
+      live[#live + 1] = { hit = list[i], row = row }
     else
-      local named = S._named[hit.itemID]
-      if named then named.at = GetTime() end
-      if S._CheckNow(row) then
-        rounds:Take(hit.itemID)
-        local key = named and named.entry and GC.KeyPoll.VariantKeyFor(named.entry, 0) or { itemID = hit.itemID }
-        Loop.NoteHit(GC.db, time(), Loop.KeyText(key), hit.unit, row.refUnit, GetTime() - hit.at, row.forever)
-        return true
-      end
+      rounds:Take(list[i].itemID)
     end
   end
+  return live
+end
+
+-- The new lots' Checks, oldest first: one query at most.
+local function checkNext()
+  local live = liveFinds()
+  for i = 1, #live do
+    local hit, row = live[i].hit, live[i].row
+    local named = S._named[hit.itemID]
+    if named then named.at = GetTime() end
+    if S._CheckNow(row) then
+      rounds:Take(hit.itemID)
+      G.run = G.run + 1
+      local key = named and named.entry and GC.KeyPoll.VariantKeyFor(named.entry, 0) or { itemID = hit.itemID }
+      Loop.NoteHit(GC.db, time(), Loop.KeyText(key), hit.unit, row.refUnit, GetTime() - hit.at, row.forever)
+      return true
+    end
+  end
+  return false
+end
+
+-- The class's next page, if it goes: the pass/tail alternation's turn is the tail's next.
+local function page()
+  if not G.active:OnThrottleReady() then return false end
+  G.run = 0
+  S._slotTurn = "tail"
+  return true
+end
+
+-- The arbiter's first word on the Items board (GC.Sniper.OnThrottleReady, ahead of its drills).
+-- While a page is wanted and a find's Check or a drill waits, the two take turns by the rule the
+-- Items polls share the slot with their drills by (GC.DrillQueue.SlotTurn): a page, then a Check
+-- or a drill, a find or drill near its age limit first, and a page at least one slot in three. The
+-- loop's own finds go before the drills: their lots are bought within seconds. The pages used to
+-- wait for every Check and drill, and while finds kept coming a round took 200 s instead of 19
+-- (2026-11-24). With no page wanted, or nothing waiting, the arbiter's own order stands. True when
+-- the turn is spent.
+function S._GearShare(playerBusy, canDrill)
+  if not G.on or not G.active or not G.MayRun(playerBusy) or not G.active:Wants() then return false end
+  local finds = #liveFinds() > 0
+  local queue = S._drillQueue
+  local drills = queue ~= nil and queue:Depth() > 0 and canDrill()
+  if not (finds or drills) then return false end
+  local urgent = rounds:Urgent(GetTime()) or (drills and queue:Urgent())
+  if GC.DrillQueue.SlotTurn({ batch = true, drill = true, urgent = urgent, run = G.run }) == "batch" then
+    return page()
+  end
+  if finds and checkNext() then return true end
+  -- The drills' turn: the arbiter's next step sends one.
+  if drills then G.run = G.run + 1 end
   return false
 end
 
@@ -339,11 +382,7 @@ function S._GearTurn(playerBusy, last)
   local pass = G.active
   if not pass or not pass:Wants() then return false end
   if not last and S._slotTurn == "tail" then return false end
-  if pass:OnThrottleReady() then
-    S._slotTurn = "tail"
-    return true
-  end
-  return false
+  return page()
 end
 
 -- A browse answer (GC.Sniper.OnBrowseResults, OnBrowseResultsAdded). True when it is the loop's.

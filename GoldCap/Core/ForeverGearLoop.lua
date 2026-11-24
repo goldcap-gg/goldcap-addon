@@ -29,6 +29,9 @@ L.C = {
   -- A hit whose Check could not go out is let go after this long: the next round reports the lot
   -- again if it is still up.
   HIT_WAIT_SECONDS = 30,
+  -- A hit with this little of that wait left is urgent: its Check goes ahead of the next page
+  -- (GC.DrillQueue.SlotTurn, UI/SniperGearLoop_Camelot.lua's GC.Sniper._GearShare).
+  URGENT_SECONDS = 10,
   KEEP_ROUNDS = 10,
   KEEP_HITS = 30,
 }
@@ -179,6 +182,14 @@ function L.New(driver)
       if now - queue[i].at > L.C.HIT_WAIT_SECONDS then table.remove(queue, i) end
     end
     return queue
+  end
+
+  --- Whether a waiting hit is near HIT_WAIT_SECONDS (URGENT_SECONDS left).
+  function obj:Urgent(now)
+    for i = 1, #queue do
+      if now - queue[i].at >= L.C.HIT_WAIT_SECONDS - L.C.URGENT_SECONDS then return true end
+    end
+    return false
   end
 
   function obj:Take(itemID)
