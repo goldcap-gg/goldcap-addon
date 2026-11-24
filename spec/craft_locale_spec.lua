@@ -44,6 +44,12 @@ local KEYS = {
   "%d listed here, none sold this week", "Not seen on your auction house", "At today's cheapest lot %s: %s",
   "Sold %d times: %s", "Sells for %s in %s", "If it does not sell: disenchant about %s, vendor %s",
   "If it does not sell: vendor %s", "Alliance", "Horde",
+  -- Retail's items sold per piece: what the version a character makes sold for (Core/CraftVersion.lua).
+  "Your version (%d) sold %d times this week, about %s", "Your version sold %d times this week, about %s",
+  "Your version (%d) did not sell this week", "Your version did not sell this week",
+  "The game did not say which version you make", "No sales this week",
+  "Sale prices by version come with the Companion", "Quality %d (%d) sells for %s", "Quality %d sells for %s",
+  "Sold %d times this week, item level %d", "Sold %d times this week",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

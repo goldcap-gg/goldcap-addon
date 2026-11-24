@@ -84,3 +84,41 @@ describe("craft version", function()
     assert.is_nil(V.ByLevel(nil, 225))
   end)
 end)
+
+-- What a row's tooltip and This recipe say of a price basis, in the player's language.
+describe("craft version lines", function()
+  local GC, V
+  local function coin(c) return c .. "c" end
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/CraftVersion.lua", GC)
+    V = GC.CraftVersion
+  end)
+
+  local others = { { rank = 5, ilvl = 232, median = 11100000, sales = 1208 }, { rank = 4, ilvl = 225, median = 5500000 },
+    { rank = 3, ilvl = 218, median = 3000000 }, { rank = 2, ilvl = 212, median = 5160000 } }
+
+  it("says what each kind of basis knows, then at most three other versions", function()
+    assert.same({ "Your version (180) sold 4 times this week, about 2110000c" },
+      V.Lines({ kind = "thin", ilvl = 180, sales = 4, median = 2110000, others = {} }, coin))
+    assert.same({ "Your version (206) did not sell this week", "Quality 5 (232) sells for 11100000c",
+      "Quality 4 (225) sells for 5500000c", "Quality 3 (218) sells for 3000000c" },
+      V.Lines({ kind = "unsold", rank = 1, ilvl = 206, others = others }, coin))
+    assert.same({ "The game did not say which version you make" }, V.Lines({ kind = "unknown", others = {} }, coin))
+    assert.same({ "No sales this week" }, V.Lines({ kind = "nosales", others = {} }, coin))
+    assert.same({ "Sale prices by version come with the Companion" }, V.Lines({ kind = "nodata", others = {} }, coin))
+    assert.same({ "Sold 1208 times this week, item level 232" },
+      V.Lines({ kind = "proven", ilvl = 232, sales = 1208, median = 11100000, others = others }, coin))
+    assert.same({}, V.Lines({ kind = "market" }, coin))
+    assert.same({}, V.Lines(nil, coin))
+  end)
+
+  it("leaves out an item level of 0 or one not known", function()
+    assert.same({ "Your version sold 2 times this week, about 500c" },
+      V.Lines({ kind = "thin", ilvl = 0, sales = 2, median = 500, others = {} }, coin))
+    assert.same({ "Your version did not sell this week", "Quality 0 sells for 880000c" },
+      V.Lines({ kind = "unsold", rank = 1, others = { { rank = 0, ilvl = 0, median = 880000 } } }, coin))
+    assert.same({ "Sold 91 times this week" }, V.Lines({ kind = "proven", ilvl = 0, sales = 91, median = 880000 }, coin))
+  end)
+end)

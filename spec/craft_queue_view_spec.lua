@@ -64,6 +64,7 @@ describe("craft queue view", function()
     GC.Print = function(msg) printed[#printed + 1] = msg end
     GC.Buy = { SelectRun = function(code) selected[#selected + 1] = code end, RefreshIfShown = function() refreshed = refreshed + 1 end }
     helper.loadModule("UI/CraftPanel.lua", GC)
+    helper.loadModule("UI/CraftPanel_Retail.lua", GC)
     helper.loadModule("UI/CraftQueueView.lua", GC)
     P, QV = GC.CraftPanel, GC.CraftQueueView
     -- The BUY tab itself (UI/BuyFrame.lua), over this GC's SavedVariables, lists and mailbox and

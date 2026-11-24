@@ -2128,4 +2128,26 @@ GC.Locales.zhTW = {
     "聯盟",
   ["Horde"] =
     "部落",
+  ["Your version (%d) sold %d times this week, about %s"] =
+    "你的版本（%d）本週成交 %d 次，約 %s",
+  ["Your version sold %d times this week, about %s"] =
+    "你的版本本週成交 %d 次，約 %s",
+  ["Your version (%d) did not sell this week"] =
+    "你的版本（%d）本週無成交",
+  ["Your version did not sell this week"] =
+    "你的版本本週無成交",
+  ["The game did not say which version you make"] =
+    "遊戲沒有告知你製作的版本",
+  ["No sales this week"] =
+    "本週無成交",
+  ["Sale prices by version come with the Companion"] =
+    "依版本的成交價隨 Companion 提供",
+  ["Quality %d (%d) sells for %s"] =
+    "品質 %d（%d）售價 %s",
+  ["Quality %d sells for %s"] =
+    "品質 %d 售價 %s",
+  ["Sold %d times this week, item level %d"] =
+    "本週成交 %d 次，物品等級 %d",
+  ["Sold %d times this week"] =
+    "本週成交 %d 次",
 }

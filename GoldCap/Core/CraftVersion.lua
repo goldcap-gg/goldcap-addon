@@ -71,3 +71,47 @@ function V.ByLevel(versions, ilvl)
   end
   return nil
 end
+
+-- What a basis says beside the item's level, `fmt` with it and `bare` without (an item level of 0 or
+-- one not known).
+local function withLevel(ilvl, fmt, bare, ...)
+  if type(ilvl) == "number" and ilvl > 0 then return fmt:format(ilvl, ...) end
+  return bare:format(...)
+end
+
+--- The lines a craft's price basis (Pick's, or Services/CraftClient.lua's SellOf) prints, in the
+--- player's language, `coin` formatting copper: a proven price's sales; for no price, what is known
+--- of the version made and up to three of the item's other proven versions. None for any other basis.
+function V.Lines(basis, coin)
+  local out = {}
+  local kind = type(basis) == "table" and basis.kind or nil
+  if kind == "proven" then
+    -- The sales come first in this key, the item level after them.
+    local known = type(basis.ilvl) == "number" and basis.ilvl > 0
+    out[1] = known and GC.L["Sold %d times this week, item level %d"]:format(basis.sales, basis.ilvl)
+      or GC.L["Sold %d times this week"]:format(basis.sales)
+    return out
+  elseif kind == "thin" then
+    out[1] = withLevel(basis.ilvl, GC.L["Your version (%d) sold %d times this week, about %s"],
+      GC.L["Your version sold %d times this week, about %s"], basis.sales, coin(basis.median))
+  elseif kind == "unsold" then
+    out[1] = withLevel(basis.ilvl, GC.L["Your version (%d) did not sell this week"], GC.L["Your version did not sell this week"])
+  elseif kind == "unknown" then
+    out[1] = GC.L["The game did not say which version you make"]
+  elseif kind == "nosales" then
+    out[1] = GC.L["No sales this week"]
+  elseif kind == "nodata" then
+    out[1] = GC.L["Sale prices by version come with the Companion"]
+  else
+    return out
+  end
+  for i, o in ipairs(basis.others or {}) do
+    if i > 3 then break end
+    if type(o.ilvl) == "number" and o.ilvl > 0 then
+      out[#out + 1] = GC.L["Quality %d (%d) sells for %s"]:format(o.rank, o.ilvl, coin(o.median))
+    else
+      out[#out + 1] = GC.L["Quality %d sells for %s"]:format(o.rank, coin(o.median))
+    end
+  end
+  return out
+end

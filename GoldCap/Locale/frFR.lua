@@ -2248,4 +2248,26 @@ GC.Locales.frFR = {
     "Alliance",
   ["Horde"] =
     "Horde",
+  ["Your version (%d) sold %d times this week, about %s"] =
+    "Votre version (%d) s'est vendue %d fois cette semaine, environ %s",
+  ["Your version sold %d times this week, about %s"] =
+    "Votre version s'est vendue %d fois cette semaine, environ %s",
+  ["Your version (%d) did not sell this week"] =
+    "Votre version (%d) ne s'est pas vendue cette semaine",
+  ["Your version did not sell this week"] =
+    "Votre version ne s'est pas vendue cette semaine",
+  ["The game did not say which version you make"] =
+    "Le jeu n'a pas dit quelle version vous fabriquez",
+  ["No sales this week"] =
+    "Aucune vente cette semaine",
+  ["Sale prices by version come with the Companion"] =
+    "Les prix de vente par version arrivent avec le Companion",
+  ["Quality %d (%d) sells for %s"] =
+    "Qualité %d (%d) se vend %s",
+  ["Quality %d sells for %s"] =
+    "Qualité %d se vend %s",
+  ["Sold %d times this week, item level %d"] =
+    "Vendu %d fois cette semaine, niveau d'objet %d",
+  ["Sold %d times this week"] =
+    "Vendu %d fois cette semaine",
 }

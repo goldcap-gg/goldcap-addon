@@ -2311,4 +2311,26 @@ GC.Locales.ukUA = {
     "Альянс",
   ["Horde"] =
     "Орда",
+  ["Your version (%d) sold %d times this week, about %s"] =
+    "Ваша версія (%d) продана %d разів за тиждень, близько %s",
+  ["Your version sold %d times this week, about %s"] =
+    "Ваша версія продана %d разів за тиждень, близько %s",
+  ["Your version (%d) did not sell this week"] =
+    "Ваша версія (%d) не продавалася цього тижня",
+  ["Your version did not sell this week"] =
+    "Ваша версія не продавалася цього тижня",
+  ["The game did not say which version you make"] =
+    "Гра не сказала, яку версію ви зробите",
+  ["No sales this week"] =
+    "Продажів цього тижня не було",
+  ["Sale prices by version come with the Companion"] =
+    "Ціни продажу за версіями приходять через Companion",
+  ["Quality %d (%d) sells for %s"] =
+    "Якість %d (%d) продається за %s",
+  ["Quality %d sells for %s"] =
+    "Якість %d продається за %s",
+  ["Sold %d times this week, item level %d"] =
+    "Продано %d разів за тиждень, рівень предмета %d",
+  ["Sold %d times this week"] =
+    "Продано %d разів за тиждень",
 }

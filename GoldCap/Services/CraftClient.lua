@@ -352,6 +352,8 @@ function CC.ProfitOf(recipe, open)
   if output ~= nil then
     result.output = output
     result.basis = select(3, CC.SellOf(output, rankOf(output)))
+    -- A version that did not sell has no item level of its own in X: the game's says which it is.
+    if type(result.basis) == "table" and result.basis.ilvl == nil and output == main then result.basis.ilvl = ilvl end
   end
   result.rank, result.ilvl = rank, ilvl
   return result

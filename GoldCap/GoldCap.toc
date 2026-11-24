@@ -190,6 +190,7 @@ UI/DisenchantMarks.lua
 UI/MinimapButton.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua
+UI/CraftPanel_Retail.lua
 UI/CraftQueueView.lua
 UI/SettingsFrame.lua
 Core/Init.lua
