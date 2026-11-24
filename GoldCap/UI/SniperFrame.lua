@@ -104,6 +104,12 @@ function WIN.InlineIcon(btn, word)
 end
 -- What DEALS' board tabs leave beside them for the gold line and the session total, at least.
 WIN.BOARD_LINE_MIN = 160
+-- The AUTO readout in the same row, under the toolbar's square buttons (GC.Sniper._PaintAutoReadout):
+-- the widest it is given at font scale 1 (its longest English line, 46 characters of 10pt mono, and
+-- a little over), and the height of its two lines at the largest font scale (1.3), which the row
+-- holds: a tab (Theme.BOARD_TAB.H, 36) is taller, so the headings stay put.
+WIN.READOUT_W = 280
+WIN.READOUT_ROW_H = 2 * math.ceil(10 * 1.3 * 1.15) + 2
 
 -- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) always shifts the deals list
 -- aside while it is open: it used to lie over the list on any window under 990px, the docked
@@ -2386,10 +2392,11 @@ function GC.Sniper._PaintBoardChips(target)
   GC.Sniper._LayoutBoardRow(owner)
 end
 
--- The chips' row, right to left: "Only what I lack" (Items board), the session readout (after a
--- buy this visit), then the gold line in whatever room is left beside the chips. Each ends where
--- the next shown one begins: anchored to a hidden one it would lose the room it needs to be
--- drawn at all. Laid out again only when what is shown changed.
+-- The chips' row, right to left: the AUTO readout under the toolbar's square buttons (DEALS while
+-- the auction house is open, GC.Sniper._PaintAutoReadout), "Only what I lack" (Items board), the
+-- session readout (after a buy this visit), then the gold line in whatever room is left beside the
+-- chips. Each ends where the next shown one begins: anchored to a hidden one it would lose the room
+-- it needs to be drawn at all. Laid out again only when what is shown changed.
 function GC.Sniper._LayoutBoardRow(target)
   local owner = target or frame
   local chips = owner and owner.boardChips
@@ -2397,14 +2404,23 @@ function GC.Sniper._LayoutBoardRow(target)
   local lack, session, line = owner.lackToggle, owner.sessionText, owner.goldLine
   local lackShown = lack ~= nil and lack:IsShown() and true or false
   local lineShown = line ~= nil and line:IsShown() and true or false
+  local sessionShown = session ~= nil and session:IsShown() and true or false
+  local readout = owner._readoutOn == true and owner.readoutTop ~= nil
+  local inset = owner.panelInset or 0
   local width = math.floor(owner.GetWidth and owner:GetWidth() or 0)
-  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-") .. width
+  local key = (lackShown and "l" or "-") .. (lineShown and "g" or "-") .. (sessionShown and "s" or "-")
+    .. (readout and "r" or "-") .. width .. ":" .. inset .. ":" .. (Theme.Scale and Theme.Scale() or 1)
   if owner._boardRowLayout == key then return end
   owner._boardRowLayout = key
+  local rowY = owner.boardY - owner.boardRowH / 2
+  local right = -(WIN.CONTENT_RIGHT_GUTTER + inset) -- the square buttons' right edge
   -- The tabs' lines (what is on each board) go, all of them and whole, when the row is short of
-  -- room: the gold line and the session total beside the tabs keep WIN.BOARD_LINE_MIN.
+  -- room: the gold line and the session total beside the tabs keep WIN.BOARD_LINE_MIN, the
+  -- readout WIN.READOUT_W. The readout then has what is left, up to WIN.READOUT_W, and its lines
+  -- drop their least important parts to fit it (Core/AutoReadout.lua); it never reaches a tab.
+  owner._readoutWidth = 0
   if width > 0 then
-    local room = width - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - WIN.BOARD_LINE_MIN
+    local row = width - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER
       - (lackShown and (lack:GetWidth() or 0) + Theme.pad.m or 0)
     local function tabsWidth(withLines)
       local sum = 0
@@ -2417,9 +2433,30 @@ function GC.Sniper._LayoutBoardRow(target)
       end
       return sum
     end
-    if tabsWidth(true) > room then tabsWidth(false) end
+    -- The readout's full width at the font scale in force; the gold line's room only while it,
+    -- or the session total, is up (without the readout the tabs keep it as before).
+    local need = readout and math.ceil(WIN.READOUT_W * (Theme.Scale and Theme.Scale() or 1)) or 0
+    local lines = (lineShown or sessionShown) and WIN.BOARD_LINE_MIN + Theme.pad.m or 0
+    local tabs = tabsWidth(true)
+    if tabs > row - math.max(WIN.BOARD_LINE_MIN, lines + (readout and need + Theme.pad.m or 0)) then tabs = tabsWidth(false) end
+    if readout then
+      owner._readoutWidth = math.max(0, math.floor(math.min(need, row - inset - tabs - Theme.pad.m - lines)))
+    end
   end
-  local rowY = owner.boardY - owner.boardRowH / 2
+  local readoutW = owner._readoutWidth
+  if owner.readoutTop then
+    owner.readoutTop:ClearAllPoints()
+    owner.readoutTop:SetPoint("BOTTOMRIGHT", owner, "TOPRIGHT", right, rowY + 1)
+    owner.readoutBottom:ClearAllPoints()
+    owner.readoutBottom:SetPoint("TOPRIGHT", owner, "TOPRIGHT", right, rowY - 1)
+    owner._readoutFit = nil -- a new width is a new fit
+  end
+  -- What ends where the readout begins: the toggle, or the texts while it is down.
+  local edge = readoutW > 0 and right - readoutW - Theme.pad.m or -WIN.CONTENT_RIGHT_GUTTER
+  if lack then
+    lack:ClearAllPoints()
+    lack:SetPoint("RIGHT", owner, "TOPRIGHT", edge, rowY)
+  end
   -- Both texts take the whole room between the ITEMS chip and the toggle (or the window's edge)
   -- and wrap in it. The session total right-aligned there used to grow left over the chips once
   -- the room ran short (a narrow window, a larger font, retail's toggle up), and the gold line
@@ -2432,7 +2469,7 @@ function GC.Sniper._LayoutBoardRow(target)
     if lackShown then
       widget:SetPoint("RIGHT", lack, "LEFT", -Theme.pad.m, 0)
     else
-      widget:SetPoint("RIGHT", owner, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, rowY)
+      widget:SetPoint("RIGHT", owner, "TOPRIGHT", edge, rowY)
     end
   end
   if session then
@@ -4037,6 +4074,11 @@ end
 GC.Sniper._drillQueue = GC.DrillQueue.New({
   now = time,
   onLost = function(hit) GC.Sniper._OnDrillLost(hit) end,
+  -- Every new find, for DEALS' AUTO readout (Core/AutoReadout.lua).
+  onQueued = function()
+    if GC.AutoReadout then GC.AutoReadout.Note("finds") end
+    GC.Sniper._lapFinds = (GC.Sniper._lapFinds or 0) + 1
+  end,
 }, { perMinute = LIM.DRILL_PER_MINUTE })
 
 -- The arbiter's fair share (GC.Sniper.OnThrottleReady): drills served in a row while a page
@@ -4171,6 +4213,11 @@ GC.Sniper._bookPass = GC.BookPass.New({
   end,
   onPassDone = function(info)
     GC.Sniper._lastPass = info -- /gc board's lastPass
+    -- When it ended, its finds and, by kind, how many pages it had (the "of N"): DEALS' AUTO readout.
+    GC.Sniper._lastPassAt = time()
+    GC.Sniper._lastPassFinds = GC.Sniper._lapFinds or 0
+    GC.Sniper._lapPages = GC.Sniper._lapPages or {}
+    GC.Sniper._lapPages[info.kind or "?"] = info.pages
     applyFullScanResults(streamRows, info.items, info.kind)
     -- WoW: Forever's scan folds what this pass saw into the player's own prices
     -- (Core/ForeverScan.lua); a no-op anywhere else.
@@ -4704,6 +4751,7 @@ local function startFullScan(kindOverride)
   GC.Sniper._keysFoldedThisCycle = 0
   GC.Sniper._keyPoll:BeginCycle()
   local kind = kindOverride or (GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes")
+  GC.Sniper._lapFinds = 0 -- the finds of this lap (the drill queue's onQueued)
   GC.Sniper._bookPass:Start(kind)
   trace("pass: armed (" .. kind .. "), apiReady=" .. tostring(driver.isReady()))
   -- Start only ARMS the pass now (Core/BookPass.lua): the arbiter is the single sender for
@@ -4918,6 +4966,158 @@ function GC.Sniper._AutoHelp()
     if held then lines[1] = GC.L[held[2]] end
   end
   return lines
+end
+
+-- Whether DEALS' AUTO readout reads as paused, as the chip says it (autoButtonText): Auto off, a
+-- hold the chip names, or a pause that is not the Items board's poll at work. The Items board
+-- pauses Auto's pass ("items") while its own poll runs, and the chip reads AUTO · SCANNING there.
+function GC.Sniper._AutoReadoutPaused(state, reasons)
+  local _, holds, atWork = autoButtonText(state, reasons or {})
+  return state == "OFF" or holds == true or (state == "PAUSED" and not atWork)
+end
+
+-- What AUTO is doing, as plain figures for Core/AutoReadout.lua: the readout under the toolbar's
+-- square buttons and the AUTO tooltip's block. Reads, never writes. The board on screen decides
+-- which loop is "now": the Items board's poll (or WoW: Forever's gear loop, where it is loaded),
+-- else the commodity browse pass. Stamps from time() and GetTime() are turned into seconds here.
+function GC.Sniper._AutoReadoutState()
+  local state = autoScan:State()
+  local t, now = time(), GetTime()
+  local s = { paused = GC.Sniper._AutoReadoutPaused(state, autoScan:PauseReasons()) }
+  local function whole(v) return v and math.floor(v + 0.5) or nil end
+  local items = GC.Sniper._Board() == "items"
+  local pass, last = GC.Sniper._bookPass, GC.Sniper._lastPass
+  local progress = pass.Progress and pass:Progress()
+  if not items then
+    local laps = GC.Sniper._lapPages or {}
+    -- The last lap of this visit only (OnAuctionHouseClosed forgets when it ended).
+    local ended = GC.Sniper._lastPassAt
+    last = ended and last or nil
+    s.pass = { page = progress and math.max(progress.pages, 1) or nil,
+      lapPages = progress and laps[progress.kind or "?"] or nil,
+      items = last and last.items, seconds = whole(last and last.seconds),
+      finds = last and GC.Sniper._lastPassFinds, lastAgo = ended and (t - ended) or nil }
+  end
+  local gear = GC.Sniper._gear
+  if items and gear and gear.rounds then
+    local at = gear.rounds:StartedAt()
+    local reading = gear.active and gear.active.Progress and gear.active:Progress()
+    s.gear = { armor = (gear.classAt or 1) > 1, page = reading and reading.pages or 0,
+      seconds = at and whole(now - at) or nil, last = whole(gear.lastRound) }
+  elseif items then
+    local poll = GC.Sniper._keyPoll
+    local p = poll:Progress()
+    local out = GC.Sniper._keysAwaiting and GC.Sniper._keysOwner == "sniper"
+    local done = GC.Sniper._keysCycleDoneAt
+    s.items = { targets = poll:Count(), round = p.cycle, batch = p.batch, batches = p.batches,
+      nextIn = not (poll:HasPending() or out) and done
+        and whole(math.max(0, LIM.KEYS_CYCLE_BREATHER_SECONDS - (t - done))) or nil }
+  end
+  local caps = GC.Sniper._capPoll
+  if caps:Count() > 0 then
+    local p, done = caps:Progress(), GC.Sniper._capsRoundDoneAt
+    s.caps = { count = caps:Count(), batch = p.batch, batches = p.batches,
+      nextIn = not caps:HasPending() and done and whole(math.max(0, LIM.CAPS_ROUND_BREATHER_SECONDS - (now - done))) or nil }
+  end
+  local fs = GC.ForeverScan
+  if fs and fs.Enabled and fs.Enabled() then
+    s.full = { running = fs.IsBusy() or (fs.FullListOn and fs.FullListOn()) or false, dueIn = whole(fs.DueIn and fs.DueIn()) }
+    s.moved = GC.ForeverDeals and GC.ForeverDeals.LastPassMoved and GC.ForeverDeals.LastPassMoved()
+  end
+  local queue = GC.Sniper._drillQueue
+  s.queue = { depth = queue:Depth(), oldest = whole(queue.OldestAge and queue:OldestAge()) }
+  s.hot = GC.Sniper._hot and GC.Sniper._hot:Count() or nil
+  s.counts = GC.AutoReadout.Counts()
+  s.perMinute = GC.Util.SendsPerMinute and GC.Util.SendsPerMinute() or 0
+  return s
+end
+
+-- The AUTO button's tooltip: its description, a sentence for whatever holds Auto now
+-- (GC.Sniper._AutoHelp) and what it is doing, with its figures (GC.Sniper._AutoReadoutState). Built on
+-- hover and again about once a second while it is up (GC.Sniper._TickAutoReadout).
+function GC.Sniper._AutoTooltip(btn)
+  GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+  -- One key for the whole sentence, never a line-break's worth of fragments concatenated: word
+  -- order is not a constant across languages.
+  GameTooltip:SetText(GC.Util.ClientText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."]),
+    1, 1, 1, 1, true)
+  local title, soft = GC.Kit.Tokens.blizzard.tipTitle, GC.Kit.Tokens.blizzard.tipSoft
+  for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(line)), title[1], title[2], title[3], true) end
+  if GC.AutoReadout then
+    GameTooltip:AddLine(" ")
+    for _, line in ipairs(GC.AutoReadout.Tooltip(GC.Sniper._AutoReadoutState())) do
+      GameTooltip:AddLine(GC.Util.ClientText(line), soft[1], soft[2], soft[3], true)
+    end
+  end
+  GameTooltip:Show()
+end
+
+-- The readout under the toolbar's square buttons, in the board tabs' row (GC.Sniper._LayoutBoardRow
+-- gives it its width): two lines at most, each the longest rung of Core/AutoReadout.lua's that fits
+-- whole, none where none does. Paused, it keeps the last figures, dimmed. Shown on DEALS while
+-- the auction house is open; painted once a second off the auction-house ticker, and only what
+-- changed is written.
+function GC.Sniper._PaintAutoReadout(target)
+  local owner = target or frame
+  local top, bottom = owner and owner.readoutTop, owner and owner.readoutBottom
+  if not (top and bottom and GC.AutoReadout) then return end
+  local on = view == "deals" and ahOpen and true or false
+  if on ~= (owner._readoutOn or false) then
+    owner._readoutOn = on
+    GC.Sniper._LayoutBoardRow(owner)
+  end
+  local width = owner._readoutWidth or 0
+  if not on or width <= 0 then
+    top:Hide()
+    bottom:Hide()
+    return
+  end
+  top:Show()
+  bottom:Show()
+  -- Nothing built when nothing changed: the same figures (whole seconds), width and font scale.
+  local state = GC.Sniper._AutoReadoutState()
+  local scale = Theme.Scale and Theme.Scale() or 1
+  if owner._readoutFit == width .. ":" .. scale and GC.AutoReadout.Same(state, owner._readoutState) then return end
+  owner._readoutState, owner._readoutFit = state, width .. ":" .. scale
+  local out = GC.AutoReadout.Lines(state)
+  top:SetAlpha(out.dim and 0.45 or 1)
+  bottom:SetAlpha(out.dim and 0.45 or 1)
+  if out.dim then return end
+  -- Each line is as wide as its text (no width of its own, so the client never cuts it): what
+  -- keeps it in its room is that only a rung no wider than the room is ever written.
+  local function put(fs, rungs)
+    local text = GC.AutoReadout.Fit(rungs, width, function(candidate)
+      fs:SetText(candidate)
+      return fs:GetUnboundedStringWidth() or 0
+    end)
+    fs:SetText(text or "")
+  end
+  put(top, out.now)
+  put(bottom, out.recent)
+end
+
+-- Once a second off the auction-house ticker.
+function GC.Sniper._TickAutoReadout()
+  local now = GetTime()
+  if now - (GC.Sniper._readoutAt or 0) < 1 then return end
+  GC.Sniper._readoutAt = now
+  GC.Sniper._PaintAutoReadout()
+end
+
+-- The AUTO tooltip while the pointer is on the button: built at once, then once a second on a
+-- clock of its own, never the auction-house ticker's (that execution is the one WoW: Forever's
+-- taint log caught, and the tooltip is the client's). It stops when the tooltip goes.
+function GC.Sniper._AutoTipOn(btn)
+  GC.Sniper._AutoTooltip(btn)
+  GC.Sniper._AutoTipOff()
+  GC.Sniper._autoTipTicker = C_Timer.NewTicker(1, function()
+    if btn:IsVisible() and GameTooltip:IsOwned(btn) then GC.Sniper._AutoTooltip(btn) else GC.Sniper._AutoTipOff() end
+  end)
+end
+
+function GC.Sniper._AutoTipOff()
+  if GC.Sniper._autoTipTicker then GC.Sniper._autoTipTicker:Cancel() end
+  GC.Sniper._autoTipTicker = nil
 end
 
 -- A click on AUTO while it reads AUTO · WAITING: YOUR AH SEARCH carries on instead of switching
@@ -7672,7 +7872,7 @@ end
 -- startRequery does) and one parked behind the untagged-result drain fence. A caller that
 -- cannot tell "sent" from "declined" treats a permanently unsendable row as work in progress
 -- -- which is exactly how one bad row at the top of the list starved every row beneath it.
-local function maybeStartPrewarm(deal, auto)
+local function maybeStartPrewarm(deal, auto, find)
   if not deal then return end
   if not auto and not deal.stale then return end -- hover pre-warm only helps the two-click full-scan flow
   if not ahOpen then return end -- fix round 1 M-3: no AH session live (window can stay open/re-shown via /goldcap with leftover deals after AH close) -- nothing to query against
@@ -7711,7 +7911,8 @@ local function maybeStartPrewarm(deal, auto)
   if GC.Sniper._VariantsOwed(itemID) then return GC.Sniper._SendNaming(itemID) == "sent" end
 
   prewarmToken = prewarmToken + 1
-  local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true }
+  -- `find`: the check of something AUTO found (a drill, the gear loop's), counted when it answers.
+  local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true, find = find }
   prewarmAttempt = attempt
   driver.sendSearch(itemID)
 
@@ -7728,7 +7929,7 @@ end
 
 -- A live Check of a row something has just found, the background walk's own way: no dialog, no
 -- purchase call. Whether a query went out. (WoW: Forever's gear loop, UI/SniperGearLoop_Camelot.lua.)
-function GC.Sniper._CheckNow(deal) return maybeStartPrewarm(deal, true) == true end
+function GC.Sniper._CheckNow(deal) return maybeStartPrewarm(deal, true, true) == true end
 
 -- A row's hover pre-warm (its OnEnter). Caps fixes 4a, round 2: one refused only because a keys
 -- batch was out is owed, and asked again on the first arbiter turn after the batch is gone
@@ -7909,6 +8110,7 @@ local function resolvePrewarm(itemID, data)
   if not attempt or attempt.itemID ~= itemID then return end
   local deal = attempt.deal
   prewarmAttempt = nil
+  if attempt.find and GC.AutoReadout then GC.AutoReadout.Note("checked") end
   if not deal then return end
   deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
   -- Final review I1: a cap decision has already filed its own verdict, against the deal the cap
@@ -8965,7 +9167,7 @@ function GC.Sniper.OnThrottleReady()
       -- it never removed stayed at the head of the queue to do the same again on the next
       -- ready tick. No answer means no send.
       if not GC.Sniper._drillQueue:Pop() then break end
-      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then
+      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true, true) then
         share.sinceBatch = share.sinceBatch + 1
         if passWants then
           share.run = share.run + 1
@@ -12863,20 +13065,13 @@ local function createFrame()
     end
   end
   autoBtn:SetScript("OnClick", onAutoToggleClick)
-  -- One key for the whole sentence, never a line-break's worth of fragments concatenated:
-  -- word order is not a constant across languages, so a sentence assembled here can only ever
-  -- come out in English order however well each piece is translated.
-  -- Built when hovered, not once: under the description, a sentence for whatever holds Auto
-  -- right now and what to do about it (GC.Sniper._AutoHelp). HookScript, as setPlainTooltip
-  -- does, so Theme.Button's own hover stays.
-  autoBtn:HookScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(GC.Util.ClientText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."]),
-      1, 1, 1, 1, true)
-    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.WrapText(GC.Util.ClientText(line)), GC.Kit.Tokens.blizzard.tipTitle[1], GC.Kit.Tokens.blizzard.tipTitle[2], GC.Kit.Tokens.blizzard.tipTitle[3], true) end
-    GameTooltip:Show()
+  -- Built when hovered, not once (GC.Sniper._AutoTooltip), and again once a second while it is up.
+  -- HookScript, as setPlainTooltip does, so Theme.Button's own hover stays.
+  autoBtn:HookScript("OnEnter", function(self) GC.Sniper._AutoTipOn(self) end)
+  autoBtn:HookScript("OnLeave", function()
+    GC.Sniper._AutoTipOff()
+    GameTooltip:Hide()
   end)
-  autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
 
   -- The refused-rows toggle, in the slot the Live button vacated (see below). Background
   -- verification (tickAutoVerify) hides rows a live Check has refused, and a shorter list with
@@ -13059,7 +13254,8 @@ local function createFrame()
   local boardY = row2Y - (CH.BTN_H + Theme.pad.s)
   -- The boards are tabs (Theme.BoardTab, owner 2026-11-23): the game's icon for the board, its
   -- name, a line saying what is on it, and its count on the icon. The row is a tab tall.
-  f.boardY, f.boardRowH = boardY, Theme.BOARD_TAB.H -- for GC.Sniper._LayoutBoardRow
+  -- As tall as a tab or the AUTO readout's two lines, whichever is taller (WIN.READOUT_ROW_H).
+  f.boardY, f.boardRowH = boardY, math.max(Theme.BOARD_TAB.H, WIN.READOUT_ROW_H) -- for GC.Sniper._LayoutBoardRow
   f.boardChips = {}
   local tabWords = {
     commodities = { GC.L["COMMODITIES"], GC.L["herbs, ore, potions"] },
@@ -13111,6 +13307,18 @@ local function createFrame()
   setPlainTooltip(lack,
     GC.L["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."])
   f.lackToggle = lack
+  -- What AUTO is doing, at the row's right end under the square buttons: two lines, in the muted
+  -- colour of the status line, one Theme.Num each so each line is fitted whole
+  -- (GC.Sniper._PaintAutoReadout). Parented to the ITEMS chip like the gold line, so they leave
+  -- with the Deals chrome.
+  f.readoutTop = Theme.Num(f.boardChips.items, 10)
+  f.readoutBottom = Theme.Num(f.boardChips.items, 10)
+  for _, fs in ipairs({ f.readoutTop, f.readoutBottom }) do
+    fs:SetJustifyH("RIGHT")
+    fs:SetWordWrap(false)
+    fs:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3], Theme.color.fgMuted[4] or 1)
+    fs:Hide()
+  end
   GC.Sniper._PaintBoardChips(f)
 
   -- Deals-only toolbar chrome: setView shows/hides these alongside the scroll/header
@@ -13124,7 +13332,7 @@ local function createFrame()
     f.boardChips.commodities, f.boardChips.items }
 
   -- Row 4: column headers, sticky above the scroll area.
-  f.headerY = boardY - (Theme.BOARD_TAB.H + Theme.pad.xs)
+  f.headerY = boardY - (f.boardRowH + Theme.pad.xs)
   createHeaderRow(f)
 
   local scrollTop = f.headerY - (CH.HEADER + Theme.pad.xs)
@@ -13210,6 +13418,8 @@ local function createFrame()
     local contentWidth = math.max(w - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - inset, 1)
     content:SetWidth(contentWidth)
     applyColumnVisibility(contentWidth, inset > 0)
+    -- The AUTO readout follows the square buttons over (GC.Sniper._LayoutBoardRow).
+    GC.Sniper._LayoutBoardRow(f)
   end
   f.applyPanelInset = applyPanelInset
 
@@ -13636,6 +13846,7 @@ function GC.Sniper.OnAuctionHouseShow()
     refreshSessionText()
     GC.Sniper._AgeReadout()
     GC.Sniper._ScanLine()
+    GC.Sniper._TickAutoReadout()
   end)
   -- Everything a Buy click's own state is written by runs on clocks of its own, never in the tick
   -- above (WoW: Forever, 3c taint fix, round 1). Each C_Timer callback is its own execution and
@@ -13770,6 +13981,11 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- the 0.25s ticker (which isn't even running here, see autoScanTicker:Cancel() above). On
   -- Deals this hides the now-wiped block; off-Deals it's already hidden (dealsChrome).
   refreshSessionText()
+  -- The AUTO readout goes with the ticker that painted it, and its laps with the visit: the next
+  -- one starts with no "of N" and no "last lap" from this one. Its tooltip's clock stops too.
+  GC.Sniper._lastPassAt, GC.Sniper._lapPages = nil, nil
+  GC.Sniper._PaintAutoReadout()
+  GC.Sniper._AutoTipOff()
 
   local scanner = GC.Sniper.scanner
   if scanner and scanner.scanned > 0 then

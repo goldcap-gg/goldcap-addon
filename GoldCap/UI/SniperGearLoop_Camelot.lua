@@ -84,6 +84,8 @@ local rounds = Loop.New({
   known = function(itemID) return GC.ForeverValue.Known(itemID) end,
   listed = function(itemID) return GC.ForeverDeals.Listed(itemID) end,
   marketFor = marketFor,
+  -- A new row waiting for its Check: a find, for DEALS' AUTO readout (Core/AutoReadout.lua).
+  onPush = function() if GC.AutoReadout then GC.AutoReadout.Note("finds") end end,
 })
 G.rounds = rounds
 
@@ -116,6 +118,8 @@ end
 
 local function repaint(rang)
   if S.OnForeverFold then S.OnForeverFold(true) end
+  -- A new lot under its price is a deal, whether or not the bell may ring again yet.
+  if rang and GC.AutoReadout then GC.AutoReadout.Note("deals") end
   local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
   if rang and sniper and sniper.sound and GetTime() - G.ringAt >= LIM.RING_SECONDS then
     G.ringAt = GetTime()
@@ -170,6 +174,7 @@ end
 local function endRound()
   local figures = rounds:EndRound(GetTime())
   if not figures then return end
+  G.lastRound = figures.seconds -- DEALS' AUTO readout
   refs = {}
   -- Every key of each item is read now: its row settles on the sighting that makes most -- the
   -- cheapest key under the vendor price, or a key far under its version's median -- and a row of
