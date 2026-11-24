@@ -701,6 +701,7 @@ GC.Locales.koKR = {
   ["auto-synced data for %s loaded (%s old)"] = "%s의 자동 동기화 자료를 불러왔습니다 (%s 경과)",
   ["auto-synced data stale: /goldcap import"] = "자동 동기화 자료가 오래됨. /goldcap import",
   ["auto: paused"] = "자동: 일시중지",
+  ["auto: browsing gear"] = "자동: 장비 순회 중",
   ["below the %s breakeven"] = "손익분기점 %s보다 낮음",
   ["below the %s you paid"] = "지불한 %s보다 낮음",
   ["big buy"] = "대량 구매",

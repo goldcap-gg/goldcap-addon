@@ -4721,7 +4721,7 @@ local function cancelFullScan()
   if next(reasons) == nil then
     setStatus(GC.L["auto off"])
   else
-    setStatus(GC.L["auto: paused"])
+    setStatus(GC.Sniper._PausedStatusText(reasons))
   end
 end
 
@@ -4921,6 +4921,16 @@ local function itemsBoardHold(reasons)
   local tab = GC.AuctionHouseTab
   if tab and tab.PlayerIsBusy and tab.PlayerIsBusy() then return "busy" end
   return "items"
+end
+
+-- The status line for a paused Auto. WoW: Forever's gear loop (UI/SniperGearLoop_Camelot.lua, the
+-- one place GC.Sniper._gear is set) browses all gear in Auto's place on the Items board, and the
+-- chip reads AUTO · SCANNING there: "paused" under it, while the loop sent its queries, said the
+-- opposite. So the items pause alone, which the chip reads as Auto at work, says that loop runs.
+-- Every other pause reads as it did.
+function GC.Sniper._PausedStatusText(reasons)
+  if GC.Sniper._gear and itemsBoardHold(reasons or {}) == "items" then return GC.L["auto: browsing gear"] end
+  return GC.L["auto: paused"]
 end
 
 -- The mode, not each pass: Auto running reads "AUTO · SCANNING" between its passes too. On a small

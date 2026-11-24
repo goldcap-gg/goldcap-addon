@@ -741,6 +741,7 @@ GC.Locales.esES = {
   ["auto-synced data stale: /goldcap import"] =
     "los datos sincronizados están caducados: /goldcap import",
   ["auto: paused"] = "auto: en pausa",
+  ["auto: browsing gear"] = "auto: ronda de equipo en curso",
   ["below the %s breakeven"] = "por debajo del punto de equilibrio de %s",
   ["below the %s you paid"] = "por debajo de los %s que pagaste",
   ["big buy"] = "compra grande",

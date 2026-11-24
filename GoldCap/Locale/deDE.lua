@@ -741,6 +741,7 @@ GC.Locales.deDE = {
   ["auto-synced data stale: /goldcap import"] =
     "automatisch synchronisierte Daten veraltet: /goldcap import",
   ["auto: paused"] = "auto: pausiert",
+  ["auto: browsing gear"] = "auto: Ausrüstungsrunde läuft",
   ["below the %s breakeven"] = "unter dem Break-even von %s",
   ["below the %s you paid"] = "unter den %s, die du bezahlt hast",
   ["big buy"] = "großer Kauf",

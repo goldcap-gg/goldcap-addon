@@ -739,6 +739,7 @@ GC.Locales.frFR = {
   ["auto-synced data stale: /goldcap import"] =
     "données synchronisées périmées : /goldcap import",
   ["auto: paused"] = "auto : en pause",
+  ["auto: browsing gear"] = "auto : tour d'équipement en cours",
   ["below the %s breakeven"] = "sous le seuil de rentabilité de %s",
   ["below the %s you paid"] = "sous les %s que tu as payés",
   ["big buy"] = "gros achat",
