@@ -526,6 +526,9 @@ local copies = setmetatable({}, { __mode = "k" })
 -- first look, never a find. An item leaves it when its row leaves the board, so it counts again
 -- when it comes back. `looked`: the board has been looked at since it last had no fold.
 local found, looked = {}, false
+-- passFinds: the finds since the last browse pass ended, the rows it put on the board (they land
+-- on the board clock, after the pass). nil before the first pass.
+local passFinds = nil
 
 -- The items that appear on the board between two looks: those with a row in `after` and none in
 -- `before` (itemID -> row maps), in item order. A row only repriced, or built again from the same
@@ -567,8 +570,14 @@ local function settle(byItem)
     for itemID in pairs(byItem) do found[itemID] = found[itemID] or "seen" end
     looked = true
   end
-  for _, itemID in ipairs(fresh) do GC.ForeverDeals.Found(itemID) end
+  for _, itemID in ipairs(fresh) do
+    if GC.ForeverDeals.Found(itemID) and passFinds then passFinds = passFinds + 1 end
+  end
 end
+
+-- The new rows the last browse pass put on the board (passFinds), for DEALS' AUTO tooltip's
+-- "Last lap". nil before the first pass.
+function GC.ForeverDeals.LastPassFinds() return passFinds end
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
@@ -1011,10 +1020,10 @@ end
 -- is one version, not the item's floor: the item is listed, its floor stays as it is.
 -- Only tables are written here; the rows are built on the board clock (Refresh). Answers how
 -- many items' entries moved.
-local lastPassMoved = nil
 function GC.ForeverDeals.OnBrowsePass(book, whole)
   local fold = currentFold()
   if not (fold and type(book) == "table") then return 0 end
+  passFinds = 0
   local v = viewOf(fold)
   local cands = cache.cands
   local function shown(itemID)
@@ -1074,13 +1083,8 @@ function GC.ForeverDeals.OnBrowsePass(book, whole)
       for itemID in pairs(inClasses) do gone(itemID) end
     end
   end
-  lastPassMoved = moved
   return moved
 end
-
--- How many items' entries the last browse pass moved (OnBrowsePass), nil before the first: what
--- DEALS' AUTO tooltip says the browse did between full scans.
-function GC.ForeverDeals.LastPassMoved() return lastPassMoved end
 
 -- The auction house opened (Core/Init.lua, beside GC.ForeverScan.OnAuctionHouseShow). Away from
 -- it GetItemKeyInfo sends the server nothing (Core/Init.lua's commodityByItem note), so a build

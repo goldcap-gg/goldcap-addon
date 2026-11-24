@@ -4999,10 +4999,12 @@ function GC.Sniper._AutoReadoutState()
     -- The last lap of this visit only (OnAuctionHouseClosed forgets when it ended).
     local ended = GC.Sniper._lastPassAt
     last = ended and last or nil
+    -- Its finds: the drill queue's, or the new rows it put on WoW: Forever's DEALS, which has none.
+    local passRows = GC.ForeverDeals and GC.ForeverDeals.LastPassFinds and GC.ForeverDeals.LastPassFinds()
     s.pass = { page = progress and math.max(progress.pages, 1) or nil,
       lapPages = progress and laps[progress.kind or "?"] or nil,
       items = last and last.items, seconds = whole(last and last.seconds),
-      finds = last and GC.Sniper._lastPassFinds, lastAgo = ended and (t - ended) or nil }
+      finds = last and (passRows or GC.Sniper._lastPassFinds), lastAgo = ended and (t - ended) or nil }
   end
   local gear = GC.Sniper._gear
   if items and gear and gear.rounds then
@@ -5028,7 +5030,6 @@ function GC.Sniper._AutoReadoutState()
   local fs = GC.ForeverScan
   if fs and fs.Enabled and fs.Enabled() then
     s.full = { running = fs.IsBusy() or (fs.FullListOn and fs.FullListOn()) or false, dueIn = whole(fs.DueIn and fs.DueIn()) }
-    s.moved = GC.ForeverDeals and GC.ForeverDeals.LastPassMoved and GC.ForeverDeals.LastPassMoved()
   end
   local queue = GC.Sniper._drillQueue
   s.queue = { depth = queue:Depth(), oldest = whole(queue.OldestAge and queue:OldestAge()) }

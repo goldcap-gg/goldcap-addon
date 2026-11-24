@@ -86,6 +86,21 @@ describe("Forever AUTO finds and checks", function()
       AR.Lines({ counts = counts(), perMinute = 0 }).recent[1])
   end)
 
+  it("the last pass's finds are the rows it put on the board, the gear loop's not among them", function()
+    assert.is_nil(D.LastPassFinds())
+    D.OnBrowsePass(pass({ [2589] = { 60, 51 }, [2592] = { 61, 51 } }), true)
+    assert.equal(0, D.LastPassFinds()) -- its rows land on the board clock
+    D.Refresh(clock)
+    assert.equal(2, D.LastPassFinds())
+    assert.equal("new", D.Live(3021, 50, 1, 90, clock))
+    assert.is_true(D.Found(3021)) -- the gear loop's own find
+    D.Refresh(clock)
+    assert.equal(2, D.LastPassFinds())
+    D.OnBrowsePass(pass({ [2589] = { 59, 51 }, [2592] = { 61, 51 } }), true) -- repriced, nothing new
+    D.Refresh(clock)
+    assert.equal(0, D.LastPassFinds())
+  end)
+
   it("a row only repriced, or rebuilt by a full scan with the same rows, is no new find", function()
     D.OnBrowsePass(pass({ [2589] = { 60, 51 } }), true)
     D.Refresh(clock)

@@ -10,14 +10,14 @@ local _, GC = ...
 --   pass    the commodity browse pass: { page, pages, items, seconds, lapPages, lastAgo }
 --           page: the page being read now (nil between passes); lapPages: the pages of the last
 --           complete lap of the same kind; items, seconds: the last complete lap's; lastAgo: how
---           long ago it ended; finds: its hits
+--           long ago it ended; finds: its finds (the drill queue's hits, or on WoW: Forever the new
+--           rows it put on DEALS)
 --   items   the Items board's realm poll: { round, batch, batches, targets, nextIn }
 --   caps    the caps' poll: { count, batch, batches, nextIn }
 --   full    the full scan (WoW: Forever): { running, dueIn }
 --   gear    the gear loop (WoW: Forever's Items board): { armor, page, seconds, last }
 --   queue   checks waiting: { depth, oldest }
 --   hot     items in the after-deal hot set
---   moved   the last browse pass's prices moved on DEALS (WoW: Forever)
 --   counts  { finds, checked, deals } over the last five minutes (Counts)
 --   perMinute  the addon's queries in the last minute (GC.Util.SendsPerMinute)
 local AR = {}
@@ -162,6 +162,24 @@ local function nowRungs(s)
   return nil
 end
 
+-- The tooltip's "Now:": what runs, in words. Its figures are on the lines under it, the full
+-- scan's countdown on its own.
+local function nowWords(s)
+  if s.full and s.full.running then return GC.L["Full scan running"] end
+  local g = s.gear
+  if g then return (g.seconds or g.last) and GC.L["gear loop"] or nil end
+  if s.items and (s.items.targets or 0) > 0 then return GC.L["items poll"] end
+  local p = s.pass
+  if p and p.page then
+    if p.lapPages and p.page <= p.lapPages then
+      return GC.L["browse pass, page %s of %s"]:format(n(p.page), n(p.lapPages))
+    end
+    return GC.L["browse pass, page %s"]:format(n(p.page))
+  end
+  if p and p.lastAgo then return GC.L["browse pass, last lap %s s ago"]:format(secs(p.lastAgo)) end
+  return nil
+end
+
 local function recentParts(s)
   local c = s.counts or {}
   return GC.L["%s finds"]:format(n(c.finds)), GC.L["%s checked"]:format(n(c.checked)),
@@ -187,8 +205,8 @@ function AR.Tooltip(s)
   s = s or {}
   local out = {}
   local function add(text, value) out[#out + 1] = text:format(value) end
-  local now = not s.paused and nowRungs(s)
-  add(GC.L["Now: %s"], now and now[1] or (s.paused and GC.L["paused"] or GC.L["waiting"]))
+  local now = not s.paused and nowWords(s)
+  add(GC.L["Now: %s"], now or (s.paused and GC.L["paused"] or GC.L["waiting"]))
   local p = s.pass
   if p and p.seconds then
     add(GC.L["Last lap: %s"], join({ GC.L["%s s"]:format(secs(p.seconds)), GC.L["%s items"]:format(n(p.items)),
@@ -215,13 +233,12 @@ function AR.Tooltip(s)
   if s.hot then add(GC.L["Hot items: %s"], n(s.hot)) end
   add(GC.L["5 min: %s"], join({ recentParts(s) }))
   add(GC.L["Requests: %s per minute"], n(s.perMinute))
+  -- The full scan's countdown, said once. While it runs, "Now:" says so.
   local f = s.full
-  if f then
-    add(GC.L["Full scan: %s"], f.running and GC.L["running"]
-      or (f.dueIn and f.dueIn > 0 and GC.L["in %s min"]:format(n(math.ceil(f.dueIn / 60))))
+  if f and not f.running then
+    add(GC.L["Full scan: %s"], f.dueIn and f.dueIn > 0 and GC.L["in %s min"]:format(n(math.ceil(f.dueIn / 60)))
       or GC.L["ready"])
   end
-  if s.moved then add(GC.L["Last pass: %s new prices on DEALS"], n(s.moved)) end
   local g = s.gear
   if g then
     add(GC.L["Gear loop: %s"], g.seconds and join({ gearHead(g), GC.L["round %s s"]:format(secs(g.seconds)) })

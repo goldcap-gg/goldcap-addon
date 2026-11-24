@@ -23,18 +23,18 @@ describe("AUTO readout", function()
       now = { "Pass: page 14 of 27 · 12,300 items · lap 21 s", "Pass: page 14 · 12,300 items · lap 21 s",
         "Pass: page 14 · 12,300 items", "Pass: page 14" },
       recent = "5 min: 31 finds · 29 checked · 4 deals · 58 req/min",
-      tip = { "Now: Pass: page 14 of 27 · 12,300 items · lap 21 s", "Last lap: 21 s · 12,300 items · 6 finds",
+      tip = { "Now: browse pass, page 14 of 27\n", "Last lap: 21 s · 12,300 items · 6 finds",
         "Checks waiting: 3 · oldest 40 s", "Your prices: 407 · batch 2 of 5", "Hot items: 2",
         "5 min: 31 finds · 29 checked · 4 deals", "Requests: 58 per minute" } },
     { what = "retail Commodities between passes",
       state = { pass = { items = 12300, seconds = 21, finds = 6, lastAgo = 4 },
         caps = { count = 407, nextIn = 3 }, queue = { depth = 0 }, counts = busy, perMinute = 58 },
       now = { "Last lap 4 s ago · 12,300 items · lap 21 s", "Last lap 4 s ago · 12,300 items", "Last lap 4 s ago" },
-      tip = { "Now: Last lap 4 s ago · 12,300 items · lap 21 s", "Checks waiting: 0", "Your prices: 407 · next round in 3 s" } },
+      tip = { "Now: browse pass, last lap 4 s ago\n", "Checks waiting: 0", "Your prices: 407 · next round in 3 s" } },
     { what = "the first pass, with no lap before it: no \"of N\", no lap figures",
       state = { pass = { page = 3, lapPages = nil }, counts = {}, perMinute = 12 },
       now = { "Pass: page 3" },
-      tip = { "Now: Pass: page 3", "Last lap: none yet", "5 min: 0 finds · 0 checked · 0 deals" } },
+      tip = { "Now: browse pass, page 3\n", "Last lap: none yet", "5 min: 0 finds · 0 checked · 0 deals" } },
     { what = "a page past the last lap's count never reads \"page 30 of 27\"",
       state = { pass = { page = 30, lapPages = 27, items = 12300, seconds = 21 } },
       now = { "Pass: page 30 · 12,300 items · lap 21 s", "Pass: page 30 · 12,300 items", "Pass: page 30" } },
@@ -42,21 +42,21 @@ describe("AUTO readout", function()
       state = { items = { targets = 512, round = 4, batch = 2, batches = 6 }, caps = { count = 40, batch = 1, batches = 1 },
         counts = busy, perMinute = 70 },
       now = { "Items: round 4 · batch 2 of 6 · 512 targets", "Items: round 4 · batch 2 of 6", "Items: round 4" },
-      tip = { "Items poll: 512 targets · round 4 · batch 2 of 6", "Your prices: 40 · batch 1 of 1" } },
+      tip = { "Now: items poll\n", "Items poll: 512 targets · round 4 · batch 2 of 6", "Your prices: 40 · batch 1 of 1" } },
     { what = "retail Items board between rounds",
       state = { items = { targets = 512, round = 4, batch = 6, batches = 6, nextIn = 3.4 } },
       now = { "Items: next round in 3 s · 512 targets", "Items: next round in 3 s" },
       tip = { "Items poll: 512 targets · next round in 3 s" } },
     { what = "WoW: Forever, the full scan running",
-      state = { full = { running = true, dueIn = 0 }, pass = { page = 2 }, moved = 18, counts = busy },
+      state = { full = { running = true, dueIn = 0 }, pass = { page = 2 }, counts = busy },
       now = { "Full scan running" },
-      tip = { "Now: Full scan running", "Full scan: running", "Last pass: 18 new prices on DEALS" } },
+      tip = { "Now: Full scan running\n" } },
     { what = "WoW: Forever, a pass while the next full scan counts down",
-      state = { full = { running = false, dueIn = 9 * 60 - 20 }, pass = { page = 5, lapPages = 8, items = 900, seconds = 11 },
-        moved = 3 },
+      state = { full = { running = false, dueIn = 9 * 60 - 20 },
+        pass = { page = 5, lapPages = 8, items = 900, seconds = 11, finds = 3 } },
       now = { "Pass: page 5 of 8 · 900 items · lap 11 s · full scan in 9 min", "Pass: page 5 of 8 · 900 items · lap 11 s",
         "Pass: page 5 · 900 items · lap 11 s", "Pass: page 5 · 900 items", "Pass: page 5" },
-      tip = { "Full scan: in 9 min", "Last pass: 3 new prices on DEALS" } },
+      tip = { "Now: browse pass, page 5 of 8\n", "Last lap: 11 s · 900 items · 3 finds", "Full scan: in 9 min" } },
     { what = "WoW: Forever, the full scan ready",
       state = { full = { running = false, dueIn = 0 }, pass = { lastAgo = 2, items = 900, seconds = 11 } },
       now = { "Last lap 2 s ago · 900 items · lap 11 s · full scan ready", "Last lap 2 s ago · 900 items · lap 11 s",
@@ -65,11 +65,11 @@ describe("AUTO readout", function()
     { what = "WoW: Forever's gear loop on the Items board",
       state = { gear = { armor = true, page = 3, seconds = 41, last = 63 }, full = { running = false, dueIn = 300 } },
       now = { "Armor: page 3 · round 41 s", "Armor: page 3" },
-      tip = { "Gear loop: Armor: page 3 · round 41 s", "Full scan: in 5 min" } },
+      tip = { "Now: gear loop\n", "Gear loop: Armor: page 3 · round 41 s", "Full scan: in 5 min" } },
     { what = "the gear loop between rounds",
       state = { gear = { armor = false, page = 0, last = 63 } },
       now = { "Gear loop: last round 63 s" },
-      tip = { "Gear loop: last round 63 s" } },
+      tip = { "Now: gear loop\n", "Gear loop: last round 63 s" } },
     { what = "AUTO paused: no new line, the last one dims",
       state = { paused = true, pass = { page = 3 } }, dim = true,
       tip = { "Now: paused" } },
@@ -94,10 +94,13 @@ describe("AUTO readout", function()
         assert.equal(4, #lines.recent)
         assert.truthy(lines.recent[#lines.recent]:find("deals", 1, true))
       end
-      local tip = table.concat(GC.AutoReadout.Tooltip(case.state), "\n")
+      local tip = table.concat(GC.AutoReadout.Tooltip(case.state), "\n") .. "\n"
       for _, want in ipairs(case.tip or {}) do
         assert.truthy(tip:find(want, 1, true), ("%q not in:\n%s"):format(want, tip))
       end
+      -- The full scan's countdown is said once, on its own line.
+      local _, said = tip:lower():gsub("full scan", "")
+      assert.is_true(said <= 1, tip)
     end)
   end
 
@@ -109,6 +112,23 @@ describe("AUTO readout", function()
     assert.equal("aa", GC.AutoReadout.Fit(rungs, 2, measure))
     assert.is_nil(GC.AutoReadout.Fit(rungs, 1, measure))
     assert.is_nil(GC.AutoReadout.Fit(nil, 100, measure))
+  end)
+
+  -- WoW: Forever, the two boards, line for line.
+  it("reads on WoW: Forever's Commodities board", function()
+    local tip = GC.AutoReadout.Tooltip({ full = { running = false, dueIn = 14 * 60 - 30 },
+      pass = { page = 1, lapPages = 4, items = 1575, seconds = 2, finds = 3, lastAgo = 1 },
+      queue = { depth = 0 }, counts = { finds = 12, checked = 9, deals = 4 }, perMinute = 40 })
+    assert.same({ "Now: browse pass, page 1 of 4", "Last lap: 2 s · 1,575 items · 3 finds", "Checks waiting: 0",
+      "5 min: 12 finds · 9 checked · 4 deals", "Requests: 40 per minute", "Full scan: in 14 min" }, tip)
+  end)
+
+  it("reads on WoW: Forever's Items board", function()
+    local tip = GC.AutoReadout.Tooltip({ full = { running = false, dueIn = 14 * 60 - 30 },
+      gear = { armor = true, page = 4, seconds = 10, last = 63 }, queue = { depth = 2, oldest = 3 },
+      counts = { finds = 26, checked = 17, deals = 6 }, perMinute = 55 })
+    assert.same({ "Now: gear loop", "Checks waiting: 2 · oldest 3 s", "5 min: 26 finds · 17 checked · 6 deals",
+      "Requests: 55 per minute", "Full scan: in 14 min", "Gear loop: Armor: page 4 · round 10 s" }, tip)
   end)
 
   it("counts finds, checks and deals over the last five minutes", function()
