@@ -9457,6 +9457,40 @@ function GC.Sniper._ReleaseQuietZone()
   refreshRows()
 end
 
+-- Whether the client bids only on a lot its current item results still hold. WoW: Forever does: a
+-- PlaceBid on a lot another search has pushed out of them goes nowhere, with no event and no error
+-- (diag/forever-item-bid, 2026-11-25: the Check's search, then three of the board's own searches,
+-- then the bid -- nothing sent, "no purchase confirmation received"; the same lot searched again
+-- and bid -- bought at once). UI/SniperFrame_Camelot.lua sets it. Retail was never measured, and
+-- keeps what it did.
+GC.Sniper._bidNeedsItsSearch = false
+
+-- The window armed on a realm lot, on a client that bids only on a lot its search still holds: the
+-- auction house's search stays the lot's from the arm to the click, or to the arm's own expiry
+-- (LIM.ARM_TIMEOUT_SECONDS moves the stage on), as the BUY tab holds its own (GC.Buy.HoldsSearch).
+-- _StageIsQuiet leaves "ready" out on purpose, for a commodity, whose buy reads no search.
+function GC.Sniper._HoldsLotSearch()
+  if not GC.Sniper._bidNeedsItsSearch then return false end
+  local row = dialog and dialog.IsShown and dialog:IsShown() and dialog.row
+  return row and row.purchaseStage == "ready" and row.deal ~= nil and not row.deal.isCommodity or false
+end
+
+-- Whether the lot a Buy click would bid on has left the client's item results all the same: a
+-- search the hold above cannot stop (another addon's, the player's own) pushed it out. Asked once
+-- per lot (row.lotSearchedAgain): a lot its own search again still does not show is bid on as
+-- before, so a key read wrong can never keep the window turning Buy into Check.
+function GC.Sniper._LotLeftSearch(row, deal, candidate)
+  if not GC.Sniper._bidNeedsItsSearch or deal.isCommodity or type(candidate) ~= "table" then return false end
+  if row.lotSearchedAgain == candidate.auctionID then return false end
+  local key = GC.Acquisitions.LotItemKey(deal.itemID, candidate)
+  local okN, n = pcall(C_AuctionHouse.GetNumItemSearchResults, key)
+  for i = 1, (okN and type(n) == "number") and n or 0 do
+    local ok, info = pcall(C_AuctionHouse.GetItemSearchResultInfo, key, i)
+    if ok and type(info) == "table" and info.auctionID == candidate.auctionID then return false end
+  end
+  return true
+end
+
 function GC.Sniper.IsPurchaseQuiet()
   -- The BUY tab owns the shared commodity purchase slot right now -- the same veto a sniper
   -- attempt would hold. GC.PurchaseSlot.MAX_SECONDS expires nothing by itself; IsBusy() is what
@@ -9467,6 +9501,8 @@ function GC.Sniper.IsPurchaseQuiet()
   -- its bid -- PlaceBid buys only while the lot's own buy search is the current one, so a drill, a
   -- keys batch, a pass page or the Sell walk sent in between would make the bid buy nothing.
   if GC.Buy and GC.Buy.HoldsSearch and GC.Buy.HoldsSearch() then return true end
+  -- The same hold for this window's lot, where the client needs it (GC.Sniper._HoldsLotSearch).
+  if GC.Sniper._HoldsLotSearch() then return true end
   if not GC.Sniper._QuietZoneOpen() then
     GC.Sniper._quietSince = nil
     return false
@@ -10561,6 +10597,16 @@ local function planDialogPrimaryClick()
       or (GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" and GC.PurchaseSlot.IsBusy())) then
     setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
     setStatus(GC.L["finish the pending buy first"])
+    return
+  end
+  -- WoW: Forever: a lot that has left the client's item results is not bid on -- the bid would go
+  -- nowhere (GC.Sniper._LotLeftSearch). This click becomes its Check, as a settling commodity's
+  -- does above: no purchase call, the lot searched again, Buy armed on what comes back.
+  if GC.Sniper._LotLeftSearch(row, deal, candidate) then
+    row.lotSearchedAgain = candidate.auctionID
+    dialog.primaryBtn:Disable()
+    setDialogStatus(GC.L["checking live price..."])
+    startRequery(row, deal)
     return
   end
 

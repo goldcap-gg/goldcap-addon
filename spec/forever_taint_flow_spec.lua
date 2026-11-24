@@ -46,6 +46,11 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
   -- The model. `exec` is the running execution's taint (nil = clean); `blocked` collects every
   -- protected call made while it was not.
   local model
+  -- The client's item results, by "itemID:level:suffix:species": what a lot's own search left.
+  local itemResults = {}
+  local function keyOf(key)
+    return ("%s:%s:%s:%s"):format(key.itemID or 0, key.itemLevel or 0, key.itemSuffix or 0, key.battlePetSpeciesID or 0)
+  end
 
   local function newModel()
     local m = { exec = nil, calls = {} }
@@ -240,6 +245,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
 
   local function loadClient(retail)
     model = newModel()
+    itemResults = {}
     local frames = {}
     _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
@@ -291,6 +297,10 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       GetCommoditySearchResultInfo = function() return nil end,
       SendBrowseQuery = function() end,
       IsThrottledMessageSystemReady = function() return true end,
+      GetNumItemSearchResults = function(key) return #(itemResults[keyOf(key)] or {}) end,
+      GetItemSearchResultInfo = function(key, i) return (itemResults[keyOf(key)] or {})[i] end,
+      GetItemKeyInfo = function(key) return { itemID = key.itemID, itemName = "Item " .. tostring(key.itemID) } end,
+      SendSearchQuery = function() end,
     }
 
     GC = {}
@@ -462,6 +472,8 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       exitUnit = 100, lots = { { auctionID = 9, buyout = 60, quantity = 1, itemLevel = 18 } },
       minimumProfit = 20 })
     local deal = belowVendorDeal(42, false)
+    -- The lot in the client's item results, as the Check's own search left it.
+    itemResults["42:18:0:0"] = { { auctionID = 9, buyoutAmount = 60, quantity = 1 } }
     local row = model.track({ deal = deal, purchaseStage = "requerying" })
     local d = buyWindow(row, deal)
     model.entry(function()
@@ -851,6 +863,53 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       quarterSecond("the ticker")
       model.entry(click)
       assertCalledClean("PlaceBid")
+    end)
+  end)
+
+  -- In game 2026-11-25 (diag/forever-item-bid): WoW: Forever bids only on a lot its current item
+  -- results hold. The Check searched the lot, the board searched three other items, the bid went
+  -- nowhere -- no event, no error -- and the same lot searched again was bought at once.
+  describe("a lot that has left the client's item results", function()
+    local function bids()
+      local n = 0
+      for _, call in ipairs(model.calls) do
+        if call.name == "PlaceBid" then n = n + 1 end
+      end
+      return n
+    end
+
+    it("is not bid on: the click searches it again", function()
+      local row, _, click = armedLot()
+      itemResults["42:18:0:0"] = nil
+      model.entry(click)
+      assert.equal(0, bids())
+      assert.equal(9, row.lotSearchedAgain)
+      assert.are_not.equal("buying", row.purchaseStage)
+    end)
+
+    it("is bid on when its own search again still does not show it", function()
+      local row, _, click = armedLot()
+      itemResults["42:18:0:0"] = nil
+      row.lotSearchedAgain = 9
+      model.entry(click)
+      assert.equal(1, bids())
+    end)
+
+    it("is bid on while the results hold it", function()
+      local _, _, click = armedLot()
+      model.entry(click)
+      assert.equal(1, bids())
+    end)
+
+    it("keeps the auction house's search while the window is armed on it", function()
+      armedLot()
+      assert.is_true(GC.Sniper.IsPurchaseQuiet())
+    end)
+
+    it("is not a rule on retail, which was never measured", function()
+      loadClient(true)
+      assert.is_false(GC.Sniper._bidNeedsItsSearch)
+      assert.is_false(GC.Sniper._HoldsLotSearch())
     end)
   end)
 end)

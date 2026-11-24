@@ -15,6 +15,12 @@
 - The tooltip of a crafted item says what its version sold for this week, or that it did not sell,
   and names the listed price for what it is: every version's, across the region.
 - Without the Companion, these recipes say that sale prices by version come with it.
+- WoW: Forever: Buy on an item in DEALS could do nothing ("placing bid...", then "no purchase
+  confirmation received") until you cancelled and opened it again. The game only takes a bid on a
+  lot that its last search still shows, and the Items board kept searching other items while the
+  buy window waited for your click. The board now waits while the window is open on an item, and if
+  something else has searched in the meantime, Buy first looks the lot up again and then buys on
+  your next click.
 
 ## 0.36.1 (2026-11-24)
 
