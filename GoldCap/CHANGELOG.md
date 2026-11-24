@@ -32,6 +32,8 @@
   instead of numbers that jumped back and forth.
 - SELL knows what you paid for gear with a random suffix ("of the Bear") bought on DEALS,
   including pieces bought before this update.
+- WoW: Forever: a piece of gear the Check finds worth buying now says BUY on DEALS, and the deal
+  sound plays once the Check confirms it.
 
 ## 0.33.0 (2026-11-23)
 
