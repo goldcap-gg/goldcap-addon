@@ -832,6 +832,8 @@ GC.Locales.zhCN = {
     "已删除邮件扫描错误留下的 %d 条重复购买记录",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "已删除邮件扫描错误留下的 %d 条重复销售记录",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "已移除邮件扫描错误记到错误物品下的购买记录",
   ["sale name ambiguous"] = "销售名称有歧义",
   ["sale proceeds pending"] = "销售款项待入账",
   ["scanned %d listings over %d passes"] = "扫描了 %d 条挂单，共 %d 轮",

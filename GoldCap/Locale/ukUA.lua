@@ -878,6 +878,8 @@ GC.Locales.ukUA = {
     "видалено %d дубльованих записів купівлі, залишених помилкою сканування пошти",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "видалено %d дубльованих записів продажу, залишених помилкою сканування пошти",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "прибрано покупки, які помилка сканування пошти записала не на той предмет",
   ["sale name ambiguous"] = "назва в продажу неоднозначна",
   ["sale proceeds pending"] = "виторг очікується",
   ["scanned %d listings over %d passes"] = "проскановано %d лотів за %d проходів",

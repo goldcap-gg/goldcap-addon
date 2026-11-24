@@ -853,6 +853,8 @@ GC.Locales.koKR = {
     "우편 검사 오류로 남은 중복 구매 기록 %d건을 삭제했습니다",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "우편 검사 오류로 남은 중복 판매 기록 %d건을 삭제했습니다",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "우편 검사 오류로 다른 아이템에 기록된 구매 내역을 제외했습니다",
   ["sale name ambiguous"] = "판매 항목 이름이 모호함",
   ["sale proceeds pending"] = "판매 대금 대기 중",
   ["scanned %d listings over %d passes"] = "등록 %d건을 %d번 순회로 검색했습니다",

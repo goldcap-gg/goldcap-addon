@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.36.1 (unreleased)
+
+- A purchase collected from the mailbox could be filed under another item, so SELL showed that item
+  at a cost you never paid. Purchases are now read only from what the mail holds, and a purchase
+  filed this way is taken out the next time you log in, with a line in chat saying so.
+
 ## 0.36.0 (2026-11-24)
 
 - DEALS, in retail WoW: a commodity buy is sized from how much it sells on a typical day of the last

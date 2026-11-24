@@ -897,6 +897,8 @@ GC.Locales.itIT = {
     "eliminati %d registri di acquisto duplicati lasciati da un errore nella lettura della posta",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "eliminati %d registri di vendita duplicati lasciati da un errore nella lettura della posta",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "rimossi gli acquisti che un errore nella lettura della posta aveva assegnato all'oggetto sbagliato",
   ["sale name ambiguous"] = "nome della vendita ambiguo",
   ["sale proceeds pending"] = "ricavo della vendita in attesa",
   ["scanned %d listings over %d passes"] = "scansionate %d vendite in %d passaggi",

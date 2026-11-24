@@ -901,4 +901,143 @@ describe("Ledger inbox scan", function()
       assert.equal(0, GC.Acquisitions.RepairRescannedMailSales())
     end)
   end)
+
+  -- The 2026-11-16 Forever read: a buyer invoice for 30 fish was filed under a crate's id, so
+  -- the fish became 30 crates at a sixteenth of their price in the Sell tab. `slots` models
+  -- each attachment slot as the client answers it: HasInboxItem, and GetInboxItem's name and id.
+  describe("the item id of a buy mail", function()
+    local function slotApi(slots, invoiceName)
+      local api = apiFor({ mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0,
+        itemName = invoiceName or "Raw Fish" } }) })
+      api.HasInboxItem = function(_, slot) return slots[slot] ~= nil and slots[slot].has == true end
+      api.GetInboxItem = function(i, slot)
+        assert(type(i) == "number" and type(slot) == "number")
+        local one = slots[slot]
+        if not one then return nil end
+        return one.name, one.itemID, nil, 30
+      end
+      return api
+    end
+
+    it("is not read from a slot the client says is empty", function()
+      GC.Ledger.ScanInbox(slotApi({ [1] = { has = false, name = "Crate", itemID = 900001 } }),
+        context, 1000)
+      local e = GC.Ledger.GetEntries()[1]
+      assert.equal("Raw Fish", e.itemName)
+      assert.is_nil(e.itemID)
+      assert.equal(0, #GC.Acquisitions.GetAll())
+    end)
+
+    it("comes from the first slot the client says holds an item", function()
+      GC.Ledger.ScanInbox(slotApi({
+        [1] = { has = false, name = "Crate", itemID = 900001 },
+        [2] = { has = true, name = "Raw Fish", itemID = 900002 },
+      }), context, 1000)
+      assert.equal(900002, GC.Ledger.GetEntries()[1].itemID)
+      assert.equal(900002, GC.Acquisitions.GetAll()[1].itemID)
+    end)
+
+    it("is dropped when the attachment names another item than the invoice", function()
+      GC.Ledger.ScanInbox(slotApi({ [1] = { has = true, name = "Crate", itemID = 900001 } }),
+        context, 1000)
+      assert.is_nil(GC.Ledger.GetEntries()[1].itemID)
+      assert.equal(0, #GC.Acquisitions.GetAll())
+    end)
+
+    it("is kept while the attachment's name has not loaded yet", function()
+      GC.Ledger.ScanInbox(slotApi({ [1] = { has = true, name = nil, itemID = 900002 } }),
+        context, 1000)
+      assert.equal(900002, GC.Ledger.GetEntries()[1].itemID)
+    end)
+  end)
+
+  describe("RepairForeignMailAttachments (2026-11-16 foreign-attachment cleanup)", function()
+    local CRATE, DAGGER = 900001, 900003
+
+    local function row(key, itemID, itemName, qty, total)
+      return { key = key, kind = "buy", source = "mail", itemID = itemID, itemName = itemName,
+        qty = qty, total = total, char = context.char, region = context.region, at = 1000 }
+    end
+
+    local function seed()
+      db.acquisitionActivity = {
+        crate = { positionKey = "commodity:" .. CRATE, itemID = CRATE, itemName = "Crate",
+          character = context.char, region = context.region },
+        dagger = { positionKey = "item:" .. DAGGER .. ":0:1:0", itemID = DAGGER,
+          itemName = "Dagger of the Falcon", character = context.char, region = context.region },
+      }
+      local fish = GC.Acquisitions.Record({ source = "auction_house", itemID = CRATE,
+        itemName = "Raw Fish", quantity = 30, total = 480, acquiredAt = 1000,
+        positionKey = "commodity:" .. CRATE, evidenceKey = "FISH" })
+      fish.mailEvidenceKey = "FISH"
+      local crate = GC.Acquisitions.Record({ source = "auction_house", itemID = CRATE,
+        itemName = "Crate", quantity = 12, total = 1560, acquiredAt = 1100,
+        positionKey = "commodity:" .. CRATE, evidenceKey = "CRATE" })
+      crate.mailEvidenceKey = "CRATE"
+      -- Gear shares one id across its suffixes, so a second name for it is no evidence.
+      local dagger = GC.Acquisitions.Record({ source = "auction_house", itemID = DAGGER,
+        itemName = "Dagger of the Monkey", quantity = 1, total = 1395, acquiredAt = 1200,
+        evidenceKey = "DAGGER" })
+      dagger.mailEvidenceKey = "DAGGER"
+      db.ledger = { row("FISH", CRATE, "Raw Fish", 30, 480), row("CRATE", CRATE, "Crate", 12, 1560),
+        row("DAGGER", DAGGER, "Dagger of the Monkey", 1, 1395) }
+      return fish
+    end
+
+    local function batchKeys()
+      local keys = {}
+      for _, batch in ipairs(GC.Acquisitions.GetAll()) do keys[batch.mailEvidenceKey] = batch end
+      return keys
+    end
+
+    it("takes out an untouched batch and keeps its row without the id", function()
+      seed()
+      assert.equal(1, GC.Acquisitions.RepairForeignMailAttachments())
+      local keys = batchKeys()
+      assert.is_nil(keys.FISH)
+      assert.truthy(keys.CRATE)
+      assert.truthy(keys.DAGGER)
+      assert.equal(3, #db.ledger)
+      assert.is_nil(db.ledger[1].itemID)
+      assert.equal("Raw Fish", db.ledger[1].itemName)
+      assert.equal(CRATE, db.ledger[2].itemID)
+      assert.equal(DAGGER, db.ledger[3].itemID)
+    end)
+
+    it("does not let the next load file the row again", function()
+      seed()
+      GC.Acquisitions.RepairForeignMailAttachments()
+      GC.Acquisitions.MigrateLegacy({}, db.ledger)
+      assert.is_nil(batchKeys().FISH)
+      assert.equal(2, #GC.Acquisitions.GetAll())
+    end)
+
+    it("keeps the booked part of a batch something was sold from and drops what is left", function()
+      local fish = seed()
+      fish.remainingQty, fish.remainingTotal = 20, 320
+      fish.consumedEvidenceKeys = { SALE = true }
+      assert.equal(1, GC.Acquisitions.RepairForeignMailAttachments())
+      local kept = batchKeys().FISH
+      assert.equal(fish, kept)
+      assert.equal(0, kept.remainingQty)
+      assert.equal(0, kept.remainingTotal)
+      assert.equal(30, kept.originalQty)
+      assert.same({ SALE = true }, kept.consumedEvidenceKeys)
+    end)
+
+    it("runs exactly once per save", function()
+      seed()
+      assert.equal(1, GC.Acquisitions.RepairForeignMailAttachments())
+      db.ledger[1].itemID = CRATE
+      assert.equal(0, GC.Acquisitions.RepairForeignMailAttachments())
+    end)
+
+    it("touches nothing when no record names the id", function()
+      seed()
+      db.acquisitionActivity = {}
+      assert.equal(0, GC.Acquisitions.RepairForeignMailAttachments())
+      assert.equal(3, #GC.Acquisitions.GetAll())
+      assert.equal(CRATE, db.ledger[1].itemID)
+    end)
+  end)
 end)

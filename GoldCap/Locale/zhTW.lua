@@ -833,6 +833,8 @@ GC.Locales.zhTW = {
     "已刪除信件掃描錯誤留下的 %d 筆重複購買紀錄",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "已刪除信件掃描錯誤留下的 %d 筆重複販售紀錄",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "已移除信件掃描錯誤記到錯誤物品下的購買紀錄",
   ["sale name ambiguous"] = "銷售名稱有歧義",
   ["sale proceeds pending"] = "販售款項待入帳",
   ["scanned %d listings over %d passes"] = "掃描了 %d 筆上架，共 %d 輪",
