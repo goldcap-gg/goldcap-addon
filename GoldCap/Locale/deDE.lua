@@ -901,6 +901,8 @@ GC.Locales.deDE = {
     "%d doppelte Kaufeinträge entfernt, die ein Fehler beim Postscan hinterlassen hat",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "%d doppelte Verkaufseinträge entfernt, die ein Fehler beim Postscan hinterlassen hat",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "Käufe entfernt, die ein Fehler beim Postscan dem falschen Gegenstand zugeordnet hatte",
   ["sale name ambiguous"] = "Verkaufsname mehrdeutig",
   ["sale proceeds pending"] = "Verkaufserlös ausstehend",
   ["scanned %d listings over %d passes"] = "%d Angebote in %d Durchläufen gescannt",

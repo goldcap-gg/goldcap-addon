@@ -65,7 +65,7 @@ read_globals = {
   "C_DateAndTime", "GetServerTime", "date",
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
   "UnitName", "UnitCastingInfo", "GetMoney",
-  "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
+  "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem", "HasInboxItem",
   "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT", "AUCTION_OUTBID_MAIL_SUBJECT",
   -- The Collect button (UI/MailCollect.lua): the take calls, the inbox refresh, the mailbox
   -- frame it sits beside, C_Mail, and the client's own two refusal messages.

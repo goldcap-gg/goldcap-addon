@@ -895,6 +895,8 @@ GC.Locales.ptBR = {
     "apagados %d registros de compra duplicados deixados por uma falha na leitura do correio",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "apagados %d registros de venda duplicados deixados por uma falha na leitura do correio",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "removidas as compras que uma falha na leitura do correio registrou no item errado",
   ["sale name ambiguous"] = "nome da venda ambíguo",
   ["sale proceeds pending"] = "receita da venda pendente",
   ["scanned %d listings over %d passes"] = "varridos %d anúncios em %d passagens",

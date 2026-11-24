@@ -903,6 +903,8 @@ GC.Locales.esMX = {
     "borrados %d registros de compra duplicados que dejó un fallo al leer el correo",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "borrados %d registros de venta duplicados que dejó un fallo al leer el correo",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "quitadas las compras que un fallo al leer el correo había anotado al objeto equivocado",
   ["sale name ambiguous"] = "nombre de la venta ambiguo",
   ["sale proceeds pending"] = "ingresos de la venta pendientes",
   ["scanned %d listings over %d passes"] = "escaneadas %d publicaciones en %d pasadas",

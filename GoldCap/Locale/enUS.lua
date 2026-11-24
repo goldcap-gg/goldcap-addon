@@ -931,6 +931,8 @@ GC.Locales.enUS = {
   ["removed %d duplicate purchase records left by a mail-scan bug"] = "removed %d duplicate purchase records left by a mail-scan bug",
   ["removed %d duplicate sale record left by a mail-scan bug"] = "removed %d duplicate sale record left by a mail-scan bug",
   ["removed %d duplicate sale records left by a mail-scan bug"] = "removed %d duplicate sale records left by a mail-scan bug",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "took out purchases a mail-scan bug had filed under the wrong item",
   ["run imported: %s (%d lines)"] = "run imported: %s (%d lines)",
   ["sale name ambiguous"] = "sale name ambiguous",
   ["sale proceeds pending"] = "sale proceeds pending",

@@ -898,6 +898,8 @@ GC.Locales.frFR = {
     "%d enregistrements d'achat en double supprimés, laissés par un bug d'analyse du courrier",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "%d enregistrements de vente en double supprimés, laissés par un bug d'analyse du courrier",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "achats retirés qu'un bug d'analyse du courrier avait attribués au mauvais objet",
   ["sale name ambiguous"] = "nom de la vente ambigu",
   ["sale proceeds pending"] = "recettes de vente en attente",
   ["scanned %d listings over %d passes"] = "%d ventes scannées en %d passages",

@@ -866,6 +866,8 @@ GC.Locales.ruRU = {
     "удалено %d дублирующих записей покупки, оставленных ошибкой сканирования почты",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
     "удалено %d дублирующих записей продажи, оставленных ошибкой сканирования почты",
+  ["took out purchases a mail-scan bug had filed under the wrong item"] =
+    "убраны покупки, которые ошибка сканирования почты записала не на тот предмет",
   ["sale name ambiguous"] = "имя в продаже неоднозначно",
   ["sale proceeds pending"] = "выручка ожидается",
   ["scanned %d listings over %d passes"] = "просканировано %d лотов за %d проходов",
