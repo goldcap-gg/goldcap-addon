@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.34.0 (unreleased)
+## 0.34.0 (2026-11-24)
 
 - How often one listing of an item sells, for example "Sells from 42% of listings", now shows in
   the item's tooltip, on its card in SELL and under its name on DEALS, in retail WoW and WoW: Forever,
@@ -26,7 +26,7 @@
 - DEALS now shows under the square buttons at the top right what AUTO is scanning and how many
   finds, checks and deals it made in the last five minutes, with more on the AUTO button's tooltip.
 - WoW: Forever: on the Items board the gear browse keeps going while it checks what it finds, so a
-  round takes seconds again.
+  round no longer stalls for minutes.
 - WoW: Forever: while the auction house is still handing over its list, the full scan now says
   "receiving the auction house list" with the count so far, then counts up the lots it reads,
   instead of numbers that jumped back and forth.
