@@ -1,5 +1,22 @@
 # GoldCap
 
+## 0.35.0 (unreleased)
+
+- WoW: Forever: Worth crafting no longer hides a recipe because few of the item it makes are listed.
+  An item is priced from what it sold for on your auction house when it sold 5 times or more this
+  week. When it sold fewer times, the price comes from what it sold for on the nearest markets,
+  the other faction's auction house first, and the row says "about", how many sales it rests on and
+  where they were. An item sold out on your auction house is priced from its sales too, and a lot
+  listed under that price still sets it.
+- WoW: Forever: recipes with no estimate show what is known: what the reagents cost, the price to
+  break even, each sale the region saw, what it sells for in another region, and what a disenchant
+  or a vendor gives if it does not sell.
+- WoW: Forever: the estimates and the recipes with no estimate, and This recipe, also say what a
+  craft makes at today's cheapest lot from your scan, for example "At today's cheapest lot 2g 92s:
+  +1g 01s".
+- WoW: Forever: a new switch beside "Unlearned recipes too", "Without a proven price too", shows
+  these recipes under their own headings, for recipes you know. It is on until you turn it off.
+
 ## 0.34.0 (2026-11-24)
 
 - How often one listing of an item sells, for example "Sells from 42% of listings", now shows in
