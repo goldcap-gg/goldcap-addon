@@ -546,6 +546,7 @@ GC.Locales.frFR = {
     "Ignorer un achat si le profit ne représente pas au moins cette part de ce que vous payez.",
   ["Snapshot value"] = "Valeur de l'instantané",
   ["Sold per day"] = "Ventes par jour",
+  ["Sold in the last 24h"] = "Ventes sur 24 h",
   ["Sold/day"] = "Ventes/jour",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Triez dessus pour décider quoi vérifier en premier, pas quoi acheter.",
@@ -739,6 +740,7 @@ GC.Locales.frFR = {
   ["auto-synced data stale: /goldcap import"] =
     "données synchronisées périmées : /goldcap import",
   ["auto: paused"] = "auto : en pause",
+  ["auto: browsing gear"] = "auto : tour d'équipement en cours",
   ["below the %s breakeven"] = "sous le seuil de rentabilité de %s",
   ["below the %s you paid"] = "sous les %s que tu as payés",
   ["big buy"] = "gros achat",

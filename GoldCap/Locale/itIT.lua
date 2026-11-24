@@ -546,6 +546,7 @@ GC.Locales.itIT = {
     "Salta un acquisto se il profitto non è almeno questa quota di quanto paghi.",
   ["Snapshot value"] = "Valore dello snapshot",
   ["Sold per day"] = "Vendite al giorno",
+  ["Sold in the last 24h"] = "Vendite in 24h",
   ["Sold/day"] = "Vendite/giorno",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordina in base a esso per decidere cosa controllare per primo, non cosa comprare.",
@@ -738,6 +739,7 @@ GC.Locales.itIT = {
   ["auto-synced data stale: /goldcap import"] =
     "i dati sincronizzati sono scaduti: /goldcap import",
   ["auto: paused"] = "auto: in pausa",
+  ["auto: browsing gear"] = "auto: giro dell'equipaggiamento in corso",
   ["below the %s breakeven"] = "sotto il pareggio di %s",
   ["below the %s you paid"] = "sotto i %s che hai pagato",
   ["big buy"] = "acquisto grosso",

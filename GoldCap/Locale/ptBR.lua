@@ -544,6 +544,7 @@ GC.Locales.ptBR = {
     "Ignorar uma compra se o lucro não for pelo menos essa fração do que você paga.",
   ["Snapshot value"] = "Valor do snapshot",
   ["Sold per day"] = "Vendas por dia",
+  ["Sold in the last 24h"] = "Vendas em 24h",
   ["Sold/day"] = "Vendas/dia",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordene por ele para decidir o que verificar primeiro, não o que comprar.",
@@ -737,6 +738,7 @@ GC.Locales.ptBR = {
   ["auto-synced data stale: /goldcap import"] =
     "os dados sincronizados estão velhos: /goldcap import",
   ["auto: paused"] = "auto: pausado",
+  ["auto: browsing gear"] = "auto: rodada de equipamento em andamento",
   ["below the %s breakeven"] = "abaixo do ponto de equilíbrio de %s",
   ["below the %s you paid"] = "abaixo dos %s que você pagou",
   ["big buy"] = "compra grande",

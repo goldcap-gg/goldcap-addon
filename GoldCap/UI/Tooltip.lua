@@ -191,8 +191,15 @@ function GC.Tooltip.BuildLines(v, now, opts)
     if type(v.trend) == "number" and v.trend ~= 0 then
       lines[#lines + 1] = { kind = "text", left = GC.L["24h trend"], right = string.format("%+d%%", v.trend) }
     end
-    if v.sold then
-      lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = GC.Util.PerDay(v.sold) }
+    -- Sold per day as DEALS sizes a buy from it (GC.SniperDecision.CapPerDay): the typical day of the
+    -- last week where the site sends one (GCM1/GCS1's D), with the last 24 hours under it, which jump
+    -- tenfold on one busy day; else the last 24 hours alone, as before.
+    local typicalDay = type(v.typical) == "number" and v.typical >= 0 and v.typical or nil
+    if typicalDay or v.sold then
+      lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = GC.Util.PerDay(typicalDay or v.sold) }
+      if typicalDay and v.sold then
+        lines[#lines + 1] = { kind = "text", left = GC.L["Sold in the last 24h"], right = GC.Util.PerDay(v.sold) }
+      end
     end
     lines[#lines + 1] = chanceLine
     -- Depth. `currentQty` (units on the region's shelf) and `listings` (auctions holding them)

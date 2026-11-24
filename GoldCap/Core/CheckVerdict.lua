@@ -222,12 +222,15 @@ local function sellersFact(market)
   }
 end
 
+-- Sold a day as the demand cap reads it (GC.SniperDecision.CapPerDay): the typical day of the
+-- last week where the site sends one, so the panel shows the figure the quantity came from.
 local function velocityFact(market)
-  if not number(market.soldPerDay) then return nil end
+  local perDay = GC.SniperDecision.CapPerDay(market)
+  if not number(perDay) then return nil end
   return {
-    id = "soldPerDay", count = market.soldPerDay,
-    tone = market.soldPerDay < MIN_SOLD_PER_DAY and "bad" or "plain",
-    meter = meter(market.soldPerDay / VELOCITY_CEILING, MIN_SOLD_PER_DAY / VELOCITY_CEILING),
+    id = "soldPerDay", count = perDay,
+    tone = perDay < MIN_SOLD_PER_DAY and "bad" or "plain",
+    meter = meter(perDay / VELOCITY_CEILING, MIN_SOLD_PER_DAY / VELOCITY_CEILING),
   }
 end
 
@@ -385,13 +388,13 @@ function GC.CheckVerdict.Build(decision, market, context)
       or { kind = "unpriceable" }
   elseif reason and UNPRICEABLE_REASONS[reason] then
     hero = { kind = "unpriceable" }
-  elseif reason and TIME_REASONS[reason] and positive(market.soldPerDay)
+  elseif reason and TIME_REASONS[reason] and positive(GC.SniperDecision.CapPerDay(market))
       and positive(decision.quantity)
-      and decision.quantity / market.soldPerDay >= 1 then
+      and decision.quantity / GC.SniperDecision.CapPerDay(market) >= 1 then
     -- Whole days, floored, and only when there IS at least one: 200 units at 412 a day
     -- floors to "0 days", which reads as instant rather than as fast. Under a day the
     -- time framing says nothing, so the gold branch below answers instead.
-    hero = { kind = "days", days = math.floor(decision.quantity / market.soldPerDay) }
+    hero = { kind = "days", days = math.floor(decision.quantity / GC.SniperDecision.CapPerDay(market)) }
   elseif number(decision.stressProfit) then
     hero = { kind = "gold", copper = decision.stressProfit }
   else

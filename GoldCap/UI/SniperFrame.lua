@@ -4721,7 +4721,7 @@ local function cancelFullScan()
   if next(reasons) == nil then
     setStatus(GC.L["auto off"])
   else
-    setStatus(GC.L["auto: paused"])
+    setStatus(GC.Sniper._PausedStatusText(reasons))
   end
 end
 
@@ -4921,6 +4921,16 @@ local function itemsBoardHold(reasons)
   local tab = GC.AuctionHouseTab
   if tab and tab.PlayerIsBusy and tab.PlayerIsBusy() then return "busy" end
   return "items"
+end
+
+-- The status line for a paused Auto. WoW: Forever's gear loop (UI/SniperGearLoop_Camelot.lua, the
+-- one place GC.Sniper._gear is set) browses all gear in Auto's place on the Items board, and the
+-- chip reads AUTO · SCANNING there: "paused" under it, while the loop sent its queries, said the
+-- opposite. So the items pause alone, which the chip reads as Auto at work, says that loop runs.
+-- Every other pause reads as it did.
+function GC.Sniper._PausedStatusText(reasons)
+  if GC.Sniper._gear and itemsBoardHold(reasons or {}) == "items" then return GC.L["auto: browsing gear"] end
+  return GC.L["auto: paused"]
 end
 
 -- The mode, not each pass: Auto running reads "AUTO · SCANNING" between its passes too. On a small
@@ -5879,7 +5889,7 @@ local function drawVerdict(deal, decision, market)
     figure = (GC.L["%d days"]):format(hero.days)
     figureColor = Theme.color.gold
     caption = (GC.L[CV.HERO_CAPTION.days]):format(quantity,
-      GC.Util.FormatCount(market.soldPerDay) or "-", displayDecisionAmount(decision.entryTotal))
+      GC.Util.FormatCount(GC.SniperDecision.CapPerDay(market)) or "-", displayDecisionAmount(decision.entryTotal))
   elseif hero.kind == "units" then
     figure = hero.quantity == 1 and GC.L["1 unit"] or (GC.L["%d units"]):format(hero.quantity)
     figureColor = Theme.color.gold
@@ -6126,7 +6136,8 @@ local function stampDialogFromDecision(deal, decision)
   -- "3384s" in a 64px column: a trailing .0 on a figure whose last five digits carry no
   -- decision, a tenth of a percent nobody acts on, and an age in seconds. See
   -- GC.Util.FormatCount / FormatElapsed for why each rounds the way it does.
-  dialog.soldText:SetText(market.soldPerDay and GC.Util.FormatCount(market.soldPerDay) or "-")
+  -- Sold a day as the demand cap read it (GC.SniperDecision.CapPerDay).
+  dialog.soldText:SetText(GC.Util.FormatCount(GC.SniperDecision.CapPerDay(market)) or "-")
   dialog.sellThroughText:SetText(market.sellThroughBps
     and ("%d%%"):format(math.floor(market.sellThroughBps / 100 + 0.5)) or "-")
   dialog.sourceAgeText:SetText(sourceAge and GC.Util.FormatElapsed(sourceAge) or "-")

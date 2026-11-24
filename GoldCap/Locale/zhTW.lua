@@ -516,6 +516,7 @@ GC.Locales.zhTW = {
   ["Skip a buy unless the profit is at least this share of what you pay."] = "若利潤達不到你支付金額的這個比例，就跳過這筆購買。",
   ["Snapshot value"] = "快照價值",
   ["Sold per day"] = "日銷量",
+  ["Sold in the last 24h"] = "24小時銷量",
   ["Sold/day"] = "每日成交",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "用它排序決定先檢查什麼，而不是決定買什麼。",
@@ -689,6 +690,7 @@ GC.Locales.zhTW = {
   ["auto-synced data for %s loaded (%s old)"] = "已載入 %s 的自動同步資料（已過 %s）",
   ["auto-synced data stale: /goldcap import"] = "自動同步的資料已過期：/goldcap import",
   ["auto: paused"] = "自動：已暫停",
+  ["auto: browsing gear"] = "自動：裝備輪巡中",
   ["below the %s breakeven"] = "低於保本價 %s",
   ["below the %s you paid"] = "低於你付出的 %s",
   ["big buy"] = "大額購買",
