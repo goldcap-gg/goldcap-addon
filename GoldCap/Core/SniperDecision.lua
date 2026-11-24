@@ -1277,6 +1277,11 @@ function GC.SniperDecision.PreScreen(market, config)
   elseif market.soldPerDay < GC.SniperDecision.MIN_SOLD_PER_DAY then
     add("velocity_too_low")
   end
+  local perDay = GC.SniperDecision.CapPerDay(market)
+  if isFinite(perDay) and perDay < GC.SniperDecision.MIN_SOLD_PER_DAY and isFinite(market.soldPerDay)
+      and market.soldPerDay >= GC.SniperDecision.MIN_SOLD_PER_DAY then
+    add("demand_limit")
+  end
   if market.sellThroughBps == nil or market.sellThroughBps < 7000 then add("sell_through_too_low") end
   if market.liquidityConfidence == nil or market.liquidityConfidence < 70 then add("liquidity_confidence_low") end
   -- Clamped here rather than trusted, for the same reason DemandCap above clamps its own two
@@ -1288,11 +1293,10 @@ function GC.SniperDecision.PreScreen(market, config)
   if market.trend24hPct ~= nil and market.trend24hPct <= -dumpPct then add("market_falling") end
   if market.stressUnit == nil or market.stressUnit <= 0 then add("stress_exit_missing") end
 
-  -- No demand-cap screen here, deliberately. Evaluate's cap is floored at 1
-  -- (`math.max(1, ...)`), so it can only reach zero when CapPerDay is missing or under MIN_SOLD_PER_DAY.
-  -- Without a typical day that is soldPerDay, which the velocity gates above already catch; an item
-  -- whose typical day is under it while the last 24 hours are not is listed at one unit and its
-  -- Check refuses it as demand_limit. The other way `demand_limit` appears is a
+  -- Evaluate's cap is floored at 1 (`math.max(1, ...)`), so it can only reach zero when CapPerDay
+  -- is missing or under MIN_SOLD_PER_DAY. Without a typical day that is soldPerDay, which the
+  -- velocity gates above already catch; a typical day under it, while the last 24 hours are not,
+  -- is screened here as the demand_limit its Check would refuse. The other way `demand_limit` appears is a
   -- player typing a quantity larger than the cap, which needs a live book to know.
   orderReasons(reasons)
   return reasons

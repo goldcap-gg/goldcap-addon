@@ -149,6 +149,19 @@ describe("a commodity's typical day of sales", function()
       assert.is_nil(GC.SniperDecision.CapPerDay({}))
     end)
 
+    -- Discovery lists only rows a Check can pass: a typical day under the minimum caps at 0.
+    it("screens out at discovery an item whose typical day is under the minimum", function()
+      helper.loadModule("Core/SniperDecision.lua", GC)
+      local market = { soldPerDay = 400, sellThroughBps = 8000, liquidityConfidence = 80, listings = 5, stressUnit = 100 }
+      assert.same({}, GC.SniperDecision.PreScreen(market, config))
+      market.typicalPerDay = 4
+      assert.same({ "demand_limit" }, GC.SniperDecision.PreScreen(market, config))
+      market.typicalPerDay = 40
+      assert.same({}, GC.SniperDecision.PreScreen(market, config))
+      market.soldPerDay, market.typicalPerDay = 4, 2
+      assert.same({ "velocity_too_low" }, GC.SniperDecision.PreScreen(market, config))
+    end)
+
     it("is the figure the Check prints as sold a day and counts its days by", function()
       helper.loadModule("Core/SniperDecision.lua", GC)
       helper.loadModule("Core/CheckVerdict.lua", GC)
