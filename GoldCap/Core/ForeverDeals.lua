@@ -1023,7 +1023,8 @@ end
 function GC.ForeverDeals.OnBrowsePass(book, whole)
   local fold = currentFold()
   if not (fold and type(book) == "table") then return 0 end
-  passFinds = 0
+  -- A pass given up is no lap: what its rows bring counts with the last whole one.
+  if whole then passFinds = 0 end
   local v = viewOf(fold)
   local cands = cache.cands
   local function shown(itemID)

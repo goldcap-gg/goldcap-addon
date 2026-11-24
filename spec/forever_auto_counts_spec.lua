@@ -99,6 +99,9 @@ describe("Forever AUTO finds and checks", function()
     D.OnBrowsePass(pass({ [2589] = { 59, 51 }, [2592] = { 61, 51 } }), true) -- repriced, nothing new
     D.Refresh(clock)
     assert.equal(0, D.LastPassFinds())
+    D.OnBrowsePass(pass({ [2996] = { 62, 51 } }), false) -- a pass given up: no lap of its own
+    D.Refresh(clock)
+    assert.equal(1, D.LastPassFinds())
   end)
 
   it("a row only repriced, or rebuilt by a full scan with the same rows, is no new find", function()
