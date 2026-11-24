@@ -197,6 +197,14 @@ function GC.KeyPoll.New(driver, opts)
 
   function obj:Count() return #targets end
 
+  -- Where this cycle is, for DEALS' AUTO readout (Core/AutoReadout.lua): the cycle's number, the
+  -- batches handed out of it and how many it has.
+  function obj:Progress()
+    if tiered and not round then buildRound() end
+    local size = tiered and #round or #targets
+    return { cycle = cycle, batch = math.ceil(handed / maxBatch), batches = math.ceil(size / maxBatch) }
+  end
+
   -- Whether this poll asks about the item at all.
   function obj:Polls(itemID) return targetSet[itemID] == true end
 

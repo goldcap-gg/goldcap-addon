@@ -960,6 +960,7 @@ end
 -- is one version, not the item's floor: the item is listed, its floor stays as it is.
 -- Only tables are written here; the rows are built on the board clock (Refresh). Answers how
 -- many items' entries moved.
+local lastPassMoved = nil
 function GC.ForeverDeals.OnBrowsePass(book, whole)
   local fold = currentFold()
   if not (fold and type(book) == "table") then return 0 end
@@ -1022,8 +1023,13 @@ function GC.ForeverDeals.OnBrowsePass(book, whole)
       for itemID in pairs(inClasses) do gone(itemID) end
     end
   end
+  lastPassMoved = moved
   return moved
 end
+
+-- How many items' entries the last browse pass moved (OnBrowsePass), nil before the first: what
+-- DEALS' AUTO tooltip says the browse did between full scans.
+function GC.ForeverDeals.LastPassMoved() return lastPassMoved end
 
 -- The auction house opened (Core/Init.lua, beside GC.ForeverScan.OnAuctionHouseShow). Away from
 -- it GetItemKeyInfo sends the server nothing (Core/Init.lua's commodityByItem note), so a build

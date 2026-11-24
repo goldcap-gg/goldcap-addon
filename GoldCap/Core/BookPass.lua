@@ -252,6 +252,14 @@ function GC.BookPass.New(driver, opts)
 
   function obj:IsPaging() return paging end
 
+  -- The pass under way, for DEALS' AUTO readout (Core/AutoReadout.lua): its kind, the pages and
+  -- rows read so far and its seconds. nil between passes.
+  function obj:Progress()
+    if not paging then return nil end
+    return { kind = kind, pages = pagesThisPass, items = rawWatermark,
+      seconds = passStartedAt and (driver.now() - passStartedAt) or 0 }
+  end
+
   function obj:IsWidePassDue()
     return (driver.now() - lastWideAt) >= widePassSeconds
   end

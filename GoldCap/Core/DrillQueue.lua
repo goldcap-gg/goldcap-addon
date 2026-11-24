@@ -268,6 +268,8 @@ function GC.DrillQueue.New(driver, opts)
       pushedAt = pushedAt, declined = hit.declined == true }
     local expiresAt = pushedAt + ENTRY_TTL_SECONDS
     if expiresAt < nextExpiryAt then nextExpiryAt = expiresAt end
+    -- A new find, told once: a hit handed back (it carries its pushedAt) is the same find.
+    if driver.onQueued and pushedAt == now and type(hit.pushedAt) ~= "number" then driver.onQueued(hit) end
     return true
   end
 
@@ -361,6 +363,17 @@ function GC.DrillQueue.New(driver, opts)
   function obj:Depth()
     pruneExpired(driver.now())
     return #items
+  end
+
+  -- How long the oldest queued hit has waited, nil when none does.
+  function obj:OldestAge()
+    local now = driver.now()
+    pruneExpired(now)
+    local oldest
+    for i = 1, #items do
+      if not oldest or items[i].pushedAt < oldest then oldest = items[i].pushedAt end
+    end
+    return oldest and (now - oldest) or nil
   end
 
   -- Every hit that left undrilled since /reload (lose above), for /gc board. Clear leaves it.

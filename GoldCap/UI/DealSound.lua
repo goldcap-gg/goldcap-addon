@@ -57,8 +57,10 @@ function DS.Play(sniper, id)
   return PlaySound(kit, DS.Channel(sniper)) and true or false
 end
 
--- A deal was found: the chosen sound when the switch is on.
+-- A deal was found: the chosen sound when the switch is on. Counted whether or not it plays (DEALS'
+-- AUTO readout, Core/AutoReadout.lua).
 function DS.Ring(sniper)
+  if GC.AutoReadout then GC.AutoReadout.Note("deals") end
   if not (type(sniper) == "table" and sniper.sound) then return false end
   return DS.Play(sniper)
 end
