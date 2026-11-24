@@ -852,6 +852,32 @@ describe("Data", function()
     end)
   end)
 
+  -- What each version of an item sold per piece sold for this week (the payload's X section).
+  describe("crafted versions", function()
+    local TS = 1783598400
+
+    before_each(function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = TS, items = {}, watchlist = {} })
+    end)
+
+    it("answers an item's versions, nil for an item X does not name", function()
+      assert.is_truthy(GC.Data.AdoptRegionPayload("GCM1;eu;" .. TS .. ";I:42=500"
+        .. ";X:999=,244176=3.218.17.9.3000000/5.232.1208.89.11100000"))
+      assert.is_true(GC.Data.HasCraftedVersions())
+      assert.same({}, GC.Data.CraftedVersions(999))
+      assert.equal(11100000, GC.Data.CraftedVersions(244176)[5].median)
+      assert.is_nil(GC.Data.CraftedVersions(42))
+    end)
+
+    it("has none for a payload without X, or with no payload", function()
+      assert.is_false(GC.Data.HasCraftedVersions())
+      assert.is_nil(GC.Data.CraftedVersions(244176))
+      assert.is_truthy(GC.Data.AdoptRegionPayload("GCM1;eu;" .. TS .. ";I:42=500"))
+      assert.is_false(GC.Data.HasCraftedVersions())
+      assert.is_nil(GC.Data.CraftedVersions(244176))
+    end)
+  end)
+
   -- Realm items split by what sells (the payload's F and U sections, once the site's realm sales
   -- tape covers a week of the region). A flip is priced at what it sold for; a rare find gets no
   -- price at all, only what was seen of it.

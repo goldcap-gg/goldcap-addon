@@ -899,6 +899,22 @@ local function payloadField(field, key)
   return t and t[key] or nil
 end
 
+-- What each version of an item sold per piece sold for this week (the payload's X section; absent
+-- from an older Companion's payload, and then both answers below say so).
+
+--- { [version] = { ilvl, sales, realms, median } } for an item the payload's X names (empty when it
+--- sold nothing this week), or nil: no payload, no X, or the item not named. The payload's own
+--- table, shared: read it, never edit it.
+function GC.Data.CraftedVersions(itemID)
+  return payloadField("crafted", itemID)
+end
+
+--- Whether the payload answering carried X at all.
+function GC.Data.HasCraftedVersions()
+  local p = activePayload()
+  return p ~= nil and p.crafted ~= nil
+end
+
 --- The item level a flip was priced at, or nil when it names none (anything but armor and weapons).
 function GC.Data.FlipLevel(itemID)
   return payloadField("flipLevels", itemID)

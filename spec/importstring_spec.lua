@@ -304,8 +304,44 @@ describe("ImportString.ParseRegion", function()
   end)
 
   it("skips a section it does not know", function()
-    local r = GC.ImportString.ParseRegion("GCM1;eu;1;X:1,2,3;I:1=2")
+    local r = GC.ImportString.ParseRegion("GCM1;eu;1;Z:1,2,3;I:1=2")
     assert.equal(2, r.items[1].m)
+  end)
+
+  -- X: what each version of an item sold per piece (crafted gear, tools, bags) sold for this week,
+  -- version by version; an item named with nothing after its `=` sold nothing this week.
+  describe("X section", function()
+    local BASE = "GCM1;eu;1;I:1=2"
+
+    it("reads X: versions per item, and an item with no sale", function()
+      local r = GC.ImportString.ParseRegion(BASE .. ";X:999=,244176=3.218.17.9.3000000/5.232.1208.89.11100000;C:1=a")
+      assert.same({}, r.crafted[999])
+      assert.same({ ilvl = 232, sales = 1208, realms = 89, median = 11100000 }, r.crafted[244176][5])
+      assert.equal(3000000, r.crafted[244176][3].median)
+      assert.equal(2, r.counts.crafted)
+    end)
+
+    it("reads an item with no ranks as version 0, its item level 0", function()
+      local r = GC.ImportString.ParseRegion(BASE .. ";X:244174=0.0.91.35.880000")
+      assert.same({ [0] = { ilvl = 0, sales = 91, realms = 35, median = 880000 } }, r.crafted[244174])
+    end)
+
+    it("drops a malformed X token alone", function()
+      local r = GC.ImportString.ParseRegion(BASE
+        .. ";X:244176=5.232.x.89.1/3.218.17.9.300,12=6.1.1.1.1,13=1.2.3.4,abc=,14=1.2.3.4.5.6,15=2.1.1.1.1")
+      assert.same({ [3] = { ilvl = 218, sales = 17, realms = 9, median = 300 } }, r.crafted[244176])
+      assert.is_nil(r.crafted[12]) -- version 6 does not exist
+      assert.is_nil(r.crafted[13])
+      assert.is_nil(r.crafted[14])
+      assert.same({ [2] = { ilvl = 1, sales = 1, realms = 1, median = 1 } }, r.crafted[15])
+      assert.equal(2, r.counts.crafted)
+    end)
+
+    it("a payload without X has no crafted table", function()
+      local r = GC.ImportString.ParseRegion(BASE)
+      assert.is_nil(r.crafted)
+      assert.same({ items = 1, facts = 0, refs = 0 }, r.counts)
+    end)
   end)
 
   -- Realm items split by what sells, once the site's realm sales tape covers a week of the region:

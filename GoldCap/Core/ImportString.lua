@@ -136,6 +136,37 @@ local function readRefs(body, medians, listingsInto)
   return n
 end
 
+-- X (GCM1 only): what each version of an item sold per piece (crafted gear, tools, bags) sold for
+-- over the last 7 days across the region, `itemId=<version>.<ilvl>.<sales>.<realms>.<median>/...`:
+-- the version is its crafting quality, 0 for an item without ranks (and then 1..5); the item level
+-- 0 when unknown; the median in copper. An item with nothing after `=` sold nothing this week but
+-- is still sold per piece. Anchored per token like M; a version whose five fields are not all whole
+-- numbers is dropped alone, and an item token with none left is not counted.
+local function readCrafted(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, rest = token:match("^(%d+)=(.*)$")
+    if id then
+      local versions, kept, given = {}, 0, 0
+      for part in rest:gmatch("[^/]+") do
+        given = given + 1
+        local v, ilvl, sales, realms, median = part:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+        v = tonumber(v)
+        if v and v <= 5 then
+          versions[v] = { ilvl = tonumber(ilvl), sales = tonumber(sales), realms = tonumber(realms),
+            median = tonumber(median) }
+          kept = kept + 1
+        end
+      end
+      if kept > 0 or (given == 0 and rest == "") then
+        into[tonumber(id)] = versions
+        n = n + 1
+      end
+    end
+  end
+  return n
+end
+
 -- F (GCM1 only): a realm item that trades, `itemId=refCopper=sales7d=saleRealms7d`. refCopper is
 -- the price a deal on it is measured against: the low quarter of what a unit SOLD for over the
 -- last 7 days across the region's realms (the site's realm sales tape; the median until site
@@ -389,6 +420,11 @@ function GC.ImportString.ParseRegion(str)
     elseif kind == "P" then
       result.sellChance = result.sellChance or {}
       readSellChance(body, result.sellChance)
+    -- X the same way: a payload without it (an older Companion, or X dropped at the size cap) has
+    -- no crafted table, and an item it does not name has no versions to read.
+    elseif kind == "X" then
+      result.crafted = result.crafted or {}
+      result.counts.crafted = (result.counts.crafted or 0) + readCrafted(body, result.crafted)
     end
   end
 
