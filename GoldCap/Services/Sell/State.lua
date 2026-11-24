@@ -42,6 +42,9 @@ GC.SellState = {
   -- Whether this session has read the player's own auctions yet (GC.Sell.OnOwnedAuctions). Until
   -- it has, ownedLots is empty and a listed lot looks like one in no bag and on no auction.
   ownedRead = false,
+  -- ...and whether one of those reads answered a query (not a re-read of the client's cache, which
+  -- can miss a lot): what a listed piece is weighed against in GC.Acquisitions.RepairSuffixKeys.
+  ownedAnswered = false,
   -- The sold rows the owned list still holds until their gold is collected (NormalizeOwnedLots'
   -- second list), for MY LOTS' SOLD OUT, its banner and the deck's badge (Core/SoldLots.lua).
   soldLots = {},

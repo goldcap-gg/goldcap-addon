@@ -947,6 +947,8 @@ function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
     auctionID = best.auctionID,
     buyout = best.buyout,
     itemLevel = isFinite(best.itemLevel) and best.itemLevel or 0,
+    itemSuffix = best.itemSuffix,
+    battlePetSpeciesID = best.battlePetSpeciesID,
     quantity = quantity,
   }
   -- A 0..1 fraction, the same shape Core/DealMath.lua's `discount` carries, so the row and

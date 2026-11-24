@@ -220,6 +220,7 @@ function GC.Sell.OnOwnedAuctions(answered)
   if GC.SoldLots then GC.SoldLots.Stamp(S.soldSeen, S.soldLots, time(), S.soldReadAt) end
   S.soldReadAt = time()
   S.ownedRead = true
+  if answered then S.ownedAnswered = true end
   local scope = context()
   -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): the roster this
   -- read just produced is the roster the companion uploads, unchanged. No second query.

@@ -127,7 +127,7 @@ describe("Variant drill", function()
 
   local function lot(auctionID, itemLevel, buyout)
     return { auctionID = auctionID, buyoutAmount = buyout, quantity = 1,
-      itemKey = { itemID = 159840, itemLevel = itemLevel } }
+      itemKey = { itemID = 159840, itemLevel = itemLevel, itemSuffix = 0, battlePetSpeciesID = 0 } }
   end
 
   it("searches the cheapest variant's own key, not a bare one", function()
@@ -156,6 +156,9 @@ describe("Variant drill", function()
     assert.equal(1, #lots)
     assert.equal(211111, lots[1].buyout)
     assert.equal(66, lots[1].itemLevel)
+    -- The rest of the lot's own ItemKey rides along: a purchase files its cost under all of it.
+    assert.equal(0, lots[1].itemSuffix)
+    assert.equal(0, lots[1].battlePetSpeciesID)
     -- The same key for the probe evaluateLiveItemDeal gates on -- read with the bare key it
     -- would answer for the other variant's lot, or for nothing at all.
     assert.equal(211111, driver.itemResult(159840).unitPrice)

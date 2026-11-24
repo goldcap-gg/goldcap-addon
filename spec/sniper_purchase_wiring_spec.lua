@@ -2625,6 +2625,7 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("Core/Acquisitions.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -2659,7 +2660,8 @@ describe("Sniper purchase wiring", function()
     local decision = {
       version = 1, status = "WATCH", buyable = false, reasons = { "realm_item_unverified" },
       quantity = 1, entryTotal = 750000, reference = 1000000, estProfit = 200000,
-      candidate = { auctionID = 8801, buyout = 750000, itemLevel = 623, quantity = 1 },
+      candidate = { auctionID = 8801, buyout = 750000, itemLevel = 623, itemSuffix = 14302,
+        battlePetSpeciesID = 0, quantity = 1 },
     }
     local row = { deal = deal, purchaseStage = "ready", purchaseToken = 1, decisionSnapshot = decision }
     setUpvalue(plan, "dialog", {
@@ -2683,8 +2685,9 @@ describe("Sniper purchase wiring", function()
     assert.equal(1, deal.qty)
     assert.equal(1, deal.unitPrice)
     -- And it carries the item identity the acquisition store keys a position by: without it
-    -- the batch is stored with no position, and no sale can ever be matched back to it.
-    assert.same({ itemID = 42, itemLevel = 623, itemSuffix = 0, battlePetSpeciesID = 0 },
+    -- the batch is stored with no position, and no sale can ever be matched back to it. The
+    -- lot's random suffix too: without it SELL never found the cost of an axe "of the Bear".
+    assert.same({ itemID = 42, itemLevel = 623, itemSuffix = 14302, battlePetSpeciesID = 0 },
       row.purchaseDeal.itemKey)
 
     -- A realm decision with NO candidate is still Check-only: the same click must route to the

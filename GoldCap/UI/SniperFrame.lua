@@ -3433,6 +3433,10 @@ driver = {
           -- The variant's own item level, which is the whole reason a realm item needs its
           -- own decision path: two lots of "the same" item can be twenty levels apart.
           itemLevel = info.itemKey and info.itemKey.itemLevel or 0,
+          -- And the rest of its ItemKey, which the purchase files the cost under: a random suffix
+          -- ("of the Bear") and a caged pet's species are as much the item as its level.
+          itemSuffix = info.itemKey and info.itemKey.itemSuffix or 0,
+          battlePetSpeciesID = info.itemKey and info.itemKey.battlePetSpeciesID or 0,
           quantity = 1,
           -- The lot's version (its link's bonus IDs, GC.ForeverGear.BonusKey), which a WoW: Forever
           -- "Under market" row of a piece of gear is priced for (ClickUp 1an60dzy9nt). nil while the
@@ -10576,15 +10580,12 @@ local function planDialogPrimaryClick()
     -- GC.Acquisitions.PositionKey returns nil for an item auction, the batch is stored with no
     -- position at all, and ReconcileSale -- which only ever considers batches that have one --
     -- can never match the sale to it: the stock stays "on hand" forever and every later "You
-    -- paid" line is averaged over items the player has already sold. Item level comes from the
-    -- candidate because that is what separates two lots wearing the same name; suffix and pet
-    -- species are 0, the same shape Core/PurchaseCapture.lua builds for an ordinary AH buy.
-    purchaseDeal.itemKey = {
-      itemID = deal.itemID,
-      itemLevel = candidate.itemLevel or 0,
-      itemSuffix = 0,
-      battlePetSpeciesID = 0,
-    }
+    -- paid" line is averaged over items the player has already sold. The whole ItemKey comes from
+    -- the candidate, the lot's own search result: level, random suffix and pet species, the key
+    -- Core/PurchaseCapture.lua files an ordinary AH buy under and SELL keys the same item by in
+    -- the bags and on the player's own lot. With the suffix left at 0, an axe "of the Bear"
+    -- bought here was filed under a key SELL never builds, and showed "no cost".
+    purchaseDeal.itemKey = GC.Acquisitions.LotItemKey(deal.itemID, candidate)
     row.purchaseDeal = purchaseDeal
     pendingAuction[purchaseDeal.auctionID] = row
     -- PlaceBid's bidAmount is the TOTAL price for the auction's whole lot, not a per-unit

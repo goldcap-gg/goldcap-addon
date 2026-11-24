@@ -262,6 +262,15 @@ function GC.Acquisitions.PositionKey(itemID, itemKey, isCommodity)
     itemKey.itemSuffix or 0, itemKey.battlePetSpeciesID or 0 }, ":")
 end
 
+-- The ItemKey a realm lot is filed under, from the lot's own search result (or a lot or candidate
+-- that carries its fields): item level, random suffix and pet species, exactly what SELL reads off
+-- the same item in the bags (GC.Sell._SlotKey) and on the player's own lot (its auction's itemKey).
+function GC.Acquisitions.LotItemKey(itemID, lot)
+  lot = type(lot) == "table" and lot or {}
+  return { itemID = itemID, itemLevel = lot.itemLevel or 0, itemSuffix = lot.itemSuffix or 0,
+    battlePetSpeciesID = lot.battlePetSpeciesID or 0 }
+end
+
 function GC.Acquisitions.ScopeKey(positionKey, context)
   if not positionKey or not context or not context.char or not context.region then return nil end
   return table.concat({ context.region, context.char, positionKey }, "\1")
@@ -1101,6 +1110,56 @@ function GC.Acquisitions.BindItemOnly(batchID, candidates, context)
     character = context.char, region = context.region,
     scopeKey = GC.Acquisitions.ScopeKey(positionKey, context) }
   return batch, true
+end
+
+-- Before 0.34.0 a DEALS buy of a realm item was filed under its level alone, "item:<id>:<level>:0:0",
+-- with no random suffix or pet species, so SELL never found what an axe "of the Bear" cost. This
+-- moves such a batch, still held, to the one key `seen` proves it is. `seen` is every stack in the
+-- bags and every lot of the player's own on the auction house, as { itemID, positionKey, itemName }
+-- with the item's full name (its link's, "Severing Axe of the Bear"); stock SELL could not key yet
+-- comes with no positionKey. Moved only when exactly one key of the batch's item and level, with a
+-- suffix or a species, carries the batch's own name, and nothing of the item is unkeyed or unnamed.
+-- Marked decided once moved, or when two keys carry its name, which it is left under for good;
+-- with none it is only not found yet (the piece may be in the bank) and is weighed again.
+function GC.Acquisitions.RepairSuffixKeys(seen, context)
+  if not db or type(seen) ~= "table" or not validContext(context) then return 0 end
+  local moved = 0
+  for _, batch in ipairs(db.acquisitions) do
+    local itemID, level
+    if type(batch) == "table" and type(batch.positionKey) == "string" then
+      itemID, level = batch.positionKey:match("^item:(%d+):(-?%d+):0:0$")
+    end
+    if itemID and tonumber(itemID) == batch.itemID and not batch.suffixKeyChecked
+        and isNonEmptyString(batch.sniperEvidenceKey) and isNonEmptyString(batch.itemName)
+        and isPositiveInteger(batch.remainingQty)
+        and batch.character == context.char and batch.region == context.region then
+      local named, count, held = {}, 0, false
+      for _, entry in ipairs(seen) do
+        if type(entry) == "table" and entry.itemID == batch.itemID then
+          local id, at, suffix, pet
+          if type(entry.positionKey) == "string" then
+            id, at, suffix, pet = entry.positionKey:match("^item:(%d+):(-?%d+):(-?%d+):(-?%d+)$")
+          elseif entry.positionKey == nil then
+            held = true -- stock SELL cannot key yet: it may be this very piece
+          end
+          if id == itemID and at == level and (tonumber(suffix) ~= 0 or tonumber(pet) ~= 0) then
+            if not isNonEmptyString(entry.itemName) then
+              held = true
+            elseif entry.itemName == batch.itemName and not named[entry.positionKey] then
+              named[entry.positionKey], count = true, count + 1
+            end
+          end
+        end
+      end
+      if count > 1 then
+        batch.suffixKeyChecked = true
+      elseif count == 1 and not held then
+        batch.positionKey, batch.suffixKeyChecked = next(named), true
+        moved = moved + 1
+      end
+    end
+  end
+  return moved
 end
 
 function GC.Acquisitions.HasEvidence(key)
