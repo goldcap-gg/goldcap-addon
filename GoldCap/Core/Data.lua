@@ -649,6 +649,27 @@ function GC.Data.ForeverSales(itemID)
     recent = p.recent and p.recent[itemID] or nil, perDay = s.units * 24 / hours, hours = hours, at = p.ts }
 end
 
+-- What a crafted item sold for on the nearest markets when its own house sold it too few times
+-- (GCF1's E), under the same day-of-tape rule as ForeverSales. ForeverPoolMin is the threshold the
+-- site used, nil when there is no E or no tape to read; ForeverPool the item's entry, nil when E
+-- leaves it out (its own house sold it N times or more, or nothing anywhere did).
+local function pool()
+  local p = adoptedPayload()
+  local hours = p and p.salesHours
+  if type(hours) ~= "number" or hours < GC.Data.FOREVER_SALES_MIN_HOURS then return nil end
+  return p.pool
+end
+
+function GC.Data.ForeverPoolMin()
+  local e = pool()
+  return e and e.n or nil
+end
+
+function GC.Data.ForeverPool(itemID)
+  local e = pool()
+  return e and e.items[itemID] or nil
+end
+
 -- The versions GCF1's V section lists for the item (each version of a piece with random suffixes),
 -- under the same day-of-tape rule as ForeverSales; nil when there are none to read.
 local function versionsOf(itemID)

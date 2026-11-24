@@ -176,6 +176,24 @@ describe("adopting the crowd payload", function()
     assert.is_nil(GC.Data.ForeverSales(2589))
   end)
 
+  it("hands out the pooled crafting sales per item, with a day of tape or more", function()
+    load(16001)
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71;E:5,7=f=1=6=0=28000==" }
+    GC.Data.AdoptAppData()
+    assert.equal(5, GC.Data.ForeverPoolMin())
+    assert.equal("f", GC.Data.ForeverPool(7).from)
+    assert.equal(28000, GC.Data.ForeverPool(7).median)
+    assert.is_nil(GC.Data.ForeverPool(2589))
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:23;E:5,7=f=1=6=0=28000==" }
+    GC.Data.AdoptAppData()
+    assert.is_nil(GC.Data.ForeverPoolMin())
+    assert.is_nil(GC.Data.ForeverPool(7))
+    _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71" }
+    GC.Data.AdoptAppData()
+    assert.is_nil(GC.Data.ForeverPoolMin())
+    assert.is_nil(GC.Data.ForeverPool(7))
+  end)
+
   it("says what one version of a piece sold for, with a day of tape or more", function()
     load(16001)
     _G.GoldCap_AppData = { foreverString = body() .. ";H:48;S:2589=300=41=75=71;V:15210=12729=4=4=6000=5500,15210=0=6=5=4000=3900" }
