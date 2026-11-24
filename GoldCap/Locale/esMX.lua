@@ -2212,4 +2212,40 @@ GC.Locales.esMX = {
   ["round %s"] = "ronda %s",
   ["round %s s"] = "ronda %s s",
   ["waiting"] = "en espera",
+  ["Without a proven price too"] =
+    "También sin precio probado",
+  ["Estimated from other markets"] =
+    "Estimado con otros mercados",
+  ["No estimate"] =
+    "Sin estimación",
+  ["About %s from %d sales: %d here, %d %s, %d on other servers"] =
+    "Unos %s de %d ventas: %d aquí, %d %s, %d en otros servidores",
+  ["About %s from %d sales: %d here, %d %s"] =
+    "Unos %s de %d ventas: %d aquí, %d %s",
+  ["About %s from %d sales on other servers"] =
+    "Unos %s de %d ventas en otros servidores",
+  ["About %s from %s's sales"] =
+    "Unos %s según las ventas de la %s",
+  ["about +%s"] =
+    "unos +%s",
+  ["%d here at %s"] =
+    "%d aquí a %s",
+  ["%d listed here, none sold this week"] =
+    "%d en venta aquí, ninguno vendido esta semana",
+  ["Not seen on your auction house"] =
+    "No visto en tu casa de subastas",
+  ["At today's cheapest lot %s: %s"] =
+    "Al lote más barato de hoy, %s: %s",
+  ["Sold %d times: %s"] =
+    "Vendido %d veces: %s",
+  ["Sells for %s in %s"] =
+    "Se vende por %s en %s",
+  ["If it does not sell: disenchant about %s, vendor %s"] =
+    "Si no se vende: desencantar unos %s, vendedor %s",
+  ["If it does not sell: vendor %s"] =
+    "Si no se vende: vendedor %s",
+  ["Alliance"] =
+    "Alianza",
+  ["Horde"] =
+    "Horda",
 }

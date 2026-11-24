@@ -2091,4 +2091,40 @@ GC.Locales.zhCN = {
   ["round %s"] = "第 %s 轮",
   ["round %s s"] = "本轮 %s 秒",
   ["waiting"] = "等待中",
+  ["Without a proven price too"] =
+    "也显示无可靠价格的",
+  ["Estimated from other markets"] =
+    "据其他市场估算",
+  ["No estimate"] =
+    "无估价",
+  ["About %s from %d sales: %d here, %d %s, %d on other servers"] =
+    "约 %s，来自 %d 笔成交：本服 %d，%d %s，其他服务器 %d",
+  ["About %s from %d sales: %d here, %d %s"] =
+    "约 %s，来自 %d 笔成交：本服 %d，%d %s",
+  ["About %s from %d sales on other servers"] =
+    "约 %s，来自其他服务器 %d 笔成交",
+  ["About %s from %s's sales"] =
+    "约 %s，依据%s的成交",
+  ["about +%s"] =
+    "约 +%s",
+  ["%d here at %s"] =
+    "本服 %d 笔，%s",
+  ["%d listed here, none sold this week"] =
+    "本服在售 %d，本周无成交",
+  ["Not seen on your auction house"] =
+    "你的拍卖行未见此物",
+  ["At today's cheapest lot %s: %s"] =
+    "按今日最低价 %s：%s",
+  ["Sold %d times: %s"] =
+    "成交 %d 次：%s",
+  ["Sells for %s in %s"] =
+    "售价 %s（%s）",
+  ["If it does not sell: disenchant about %s, vendor %s"] =
+    "卖不掉时：分解约 %s，卖店 %s",
+  ["If it does not sell: vendor %s"] =
+    "卖不掉时：卖店 %s",
+  ["Alliance"] =
+    "联盟",
+  ["Horde"] =
+    "部落",
 }

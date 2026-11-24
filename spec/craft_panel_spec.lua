@@ -450,6 +450,18 @@ describe("craft panel", function()
     end)
   end)
 
+  -- WoW: Forever groups its rows and has a second switch (UI/CraftPanel_Camelot.lua); retail has
+  -- neither.
+  it("puts no row in a group, draws no group heading and no second switch", function()
+    load()
+    prices()
+    local f = show()
+    for _, row in ipairs(P._rows) do assert.is_nil(row.group) end
+    assert.is_nil(P.GroupTitle)
+    assert.same({}, f.worth.groupHeads)
+    assert.is_nil(f.worth.unproven)
+  end)
+
   describe("recipes not learned yet", function()
     local function unlearnedWorld(extra)
       local opts = { recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B", { learned = false }), [3] = recipe(3, "C") },

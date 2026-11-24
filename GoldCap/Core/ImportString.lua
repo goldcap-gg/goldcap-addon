@@ -413,10 +413,37 @@ end
 --   V:<id>=<version>=<units>=<sales>=<median>=<p25>,...  the same window per version of an item
 --                       with random suffixes: the version is its bonus IDs sorted and joined by
 --                       "." ("0" the plain one), the median the window's own
+--   E:<N>,<id>=<from>=<own>=<sib>=<rest>=<median>=<sales>=<xregion>,...  a crafted item its own
+--                       house sold fewer than N times in those hours: `from` f when this house and
+--                       the other faction's made up N sales, r when the whole region did, - when it
+--                       did not; the sales taken from each; their median (empty for -); for - the
+--                       region's sales one by one, <o|f|r><copper> joined by "."; and for - another
+--                       region that sold it N times or more, <region>:<sales>:<median>
 GC.ImportString.FOREVER_MAX_LEN = 2000000
 
 local function unescapeField(s)
   return (s:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end))
+end
+
+-- One E token, or nil when it is malformed.
+local function poolToken(token)
+  local id, from, own, sib, rest, median, list, x =
+    token:match("^(%d+)=([fr%-])=(%d+)=(%d+)=(%d+)=(%d*)=([^=]*)=([^=]*)$")
+  if not id or (from ~= "-" and median == "") then return nil end
+  local sales = {}
+  for part in list:gmatch("[^%.]+") do
+    local where, copper = part:match("^([ofr])(%d+)$")
+    if not where then return nil end
+    sales[#sales + 1] = { where = where, copper = tonumber(copper) }
+  end
+  local xregion
+  if x ~= "" then
+    local region, count, price = x:match("^(%l+):(%d+):(%d+)$")
+    if not region then return nil end
+    xregion = { region = region, sales = tonumber(count), median = tonumber(price) }
+  end
+  return tonumber(id), { from = from, own = tonumber(own), sib = tonumber(sib), rest = tonumber(rest),
+    median = tonumber(median), sales = sales, xregion = xregion }
 end
 
 function GC.ImportString.ParseForever(str)
@@ -488,6 +515,21 @@ function GC.ImportString.ParseForever(str)
       -- How often one listing sells in this house (readSellChance). The site may leave it out.
       result.sellChance = result.sellChance or {}
       readSellChance(body, result.sellChance)
+    elseif kind == "E" then
+      -- What a crafted item sold for on the nearest markets, when its own house sold it fewer than
+      -- N times (the threshold first). A bad N drops the section, a bad token itself alone.
+      local first = true
+      for token in body:gmatch("[^,]+") do
+        if first then
+          first = false
+          local n = tonumber(token:match("^(%d+)$"))
+          if not (n and n > 0) then break end
+          result.pool = { n = n, items = {} }
+        else
+          local id, entry = poolToken(token)
+          if id then result.pool.items[id] = entry end
+        end
+      end
     elseif kind == "B" then
       -- WoW: Forever's neutral Blackwater auction house (Booty Bay, Gadgetzan, Everlook): the items
       -- it sells for less than this market's own house, from Blizzard's hourly snapshot of both

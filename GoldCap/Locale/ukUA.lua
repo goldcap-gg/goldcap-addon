@@ -2275,4 +2275,40 @@ GC.Locales.ukUA = {
   ["round %s"] = "коло %s",
   ["round %s s"] = "коло %s с",
   ["waiting"] = "очікування",
+  ["Without a proven price too"] =
+    "І без перевіреної ціни",
+  ["Estimated from other markets"] =
+    "Оцінка за іншими ринками",
+  ["No estimate"] =
+    "Без оцінки",
+  ["About %s from %d sales: %d here, %d %s, %d on other servers"] =
+    "Близько %s за %d продажами: %d тут, %d %s, %d на інших серверах",
+  ["About %s from %d sales: %d here, %d %s"] =
+    "Близько %s за %d продажами: %d тут, %d %s",
+  ["About %s from %d sales on other servers"] =
+    "Близько %s за %d продажами на інших серверах",
+  ["About %s from %s's sales"] =
+    "Близько %s за продажами фракції %s",
+  ["about +%s"] =
+    "близько +%s",
+  ["%d here at %s"] =
+    "%d тут по %s",
+  ["%d listed here, none sold this week"] =
+    "%d виставлено тут, за тиждень жодного не продано",
+  ["Not seen on your auction house"] =
+    "Не помічено на вашому аукціоні",
+  ["At today's cheapest lot %s: %s"] =
+    "За найдешевшим лотом сьогодні %s: %s",
+  ["Sold %d times: %s"] =
+    "Продано %d разів: %s",
+  ["Sells for %s in %s"] =
+    "Продається за %s у %s",
+  ["If it does not sell: disenchant about %s, vendor %s"] =
+    "Якщо не продасться: розпилення близько %s, торговцю %s",
+  ["If it does not sell: vendor %s"] =
+    "Якщо не продасться: торговцю %s",
+  ["Alliance"] =
+    "Альянс",
+  ["Horde"] =
+    "Орда",
 }

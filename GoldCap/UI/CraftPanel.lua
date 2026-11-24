@@ -396,10 +396,14 @@ local function paintRow(row, data, ctx)
   frame.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
   U.PaintIcon(row.slot, recipe.output, GC.CraftClient.IconOf(recipe.output), nil, nil, { pip = true })
   setText(row.name, data.name)
-  local math_ = mathLine(recipe, data.result)
+  -- WoW: Forever words a row whose price is an estimate, or that has none, its own way
+  -- (UI/CraftPanel_Camelot.lua's P.RowFace); retail never defines it.
+  local math_, profit, profitTone
+  if P.RowFace then math_, profit, profitTone = P.RowFace(data) end
+  math_ = math_ or mathLine(recipe, data.result)
   setText(row.math, data.unlearned and (GC.L["Not learned"] .. " · " .. math_) or math_)
-  setText(row.profit, "+" .. GC.Util.Money(data.result.profit))
-  colour(row.profit, K.profit)
+  setText(row.profit, profit or ("+" .. GC.Util.Money(data.result.profit)))
+  colour(row.profit, profitTone or K.profit)
   local pace, tone = paceOf(data.sold)
   if pace then fitChip(row.pace, pace, tone) end
   row.pace:SetShown(pace ~= nil)
@@ -481,10 +485,18 @@ local function paintUnlearned(v, headH)
   b:ClearAllPoints()
   b:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -(headH + LAYOUT.GAP))
   local height = LAYOUT.GAP + LAYOUT.SEG_H
+  -- A second switch beside it (WoW: Forever's, UI/CraftPanel_Camelot.lua), or under it when the two
+  -- do not fit: answers what the next line goes under and the height it adds. Retail has none.
+  local low = b
+  if P.PaintSideSwitch then
+    local extra
+    low, extra = P.PaintSideSwitch(v, b, LAYOUT)
+    height = height + extra
+  end
   if on and GC.CraftClient.UnlearnedFiltered() then
     setText(v.filtered, GC.L["The profession window's own filter hides recipes you have not learned."])
     v.filtered:ClearAllPoints()
-    v.filtered:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
+    v.filtered:SetPoint("TOPLEFT", low, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
     v.filtered:Show()
     height = height + LAYOUT.LINE_GAP + heightOf(v.filtered, 12)
   else
@@ -528,7 +540,10 @@ function P.PaintWorth()
   P._rows = ranked
   local open = CC.OpenRecipe()
   local ctx = { open = open and open.recipeID, canAdd = CC.Char() ~= nil and GC.CraftQueue.Writable() }
-  local total = 0
+  -- A heading over each group of rows that P.GroupTitle names (WoW: Forever's estimate and
+  -- no-estimate groups, UI/CraftPanel_Camelot.lua); retail's rows carry no group and it has none.
+  v.groupHeads = v.groupHeads or {}
+  local total, prev, gap, heads, group = 0, nil, LAYOUT.ROW_GAP, 0, nil
   for i, data in ipairs(ranked) do
     local row = v.rows[i] or newRow(v)
     v.rows[i] = row
@@ -536,13 +551,37 @@ function P.PaintWorth()
     local height = paintRow(row, data, ctx)
     -- A pooled row a shorter list hid, shown again: drawn again whole.
     if not wasUp and v:IsShown() then restamp(row) end
-    row.frame:ClearAllPoints()
-    if i == 1 then
-      row.frame:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, 0)
-    else
-      row.frame:SetPoint("TOPLEFT", v.rows[i - 1].frame, "BOTTOMLEFT", 0, -LAYOUT.ROW_GAP)
-      total = total + LAYOUT.ROW_GAP
+    local title = data.group ~= group and P.GroupTitle and P.GroupTitle(data.group) or nil
+    group = data.group
+    if title then
+      heads = heads + 1
+      local head = v.groupHeads[heads]
+      if not head then
+        head = track(v, wrapping(GC.Theme.Heading(v.content, LAYOUT.KICKER)))
+        colour(head, K.text3)
+        head:SetWidth(LAYOUT.ROW_W)
+        v.groupHeads[heads] = head
+      end
+      setText(head, GC.Util.Upper(title))
+      head:ClearAllPoints()
+      if prev then
+        head:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -LAYOUT.GAP)
+        total = total + LAYOUT.GAP
+      else
+        head:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, 0)
+      end
+      head:Show()
+      total = total + heightOf(head, 11)
+      prev, gap = head, LAYOUT.LINE_GAP
     end
+    row.frame:ClearAllPoints()
+    if prev then
+      row.frame:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -gap)
+      total = total + gap
+    else
+      row.frame:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, 0)
+    end
+    prev, gap = row.frame, LAYOUT.ROW_GAP
     data.widget = row
     total = total + height
   end
@@ -550,6 +589,7 @@ function P.PaintWorth()
     v.rows[i].frame:Hide()
     v.rows[i].data = nil
   end
+  for i = heads + 1, #v.groupHeads do v.groupHeads[i]:Hide() end
   v.content:SetHeight(math.max(1, total))
 
   if #ranked == 0 then
@@ -695,8 +735,9 @@ local function fitGlyph(b, width)
 end
 
 -- What the Queue view (UI/CraftQueueView.lua) draws as this panel does: how wide a line of text is,
--- and Make a BUY list, a glyph button as Add to queue is.
-P.ui = { textWidth = textWidth, glyphButton = glyphButton, fitGlyph = fitGlyph }
+-- and Make a BUY list, a glyph button as Add to queue is. And a row's math line, which WoW:
+-- Forever's estimate rows start from (UI/CraftPanel_Camelot.lua).
+P.ui = { textWidth = textWidth, glyphButton = glyphButton, fitGlyph = fitGlyph, mathLine = mathLine }
 
 -- Add to queue and Restock to from `y` down the card, `inner` wide, as wide as each other: side by
 -- side when the wider fits half the card in the player's language, else one under the other across

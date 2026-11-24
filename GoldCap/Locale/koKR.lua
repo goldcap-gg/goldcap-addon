@@ -2130,4 +2130,40 @@ GC.Locales.koKR = {
   ["round %s"] = "%s회차",
   ["round %s s"] = "회차 %s초",
   ["waiting"] = "대기 중",
+  ["Without a proven price too"] =
+    "검증된 가격이 없는 것도",
+  ["Estimated from other markets"] =
+    "다른 시장에서 추정",
+  ["No estimate"] =
+    "추정 없음",
+  ["About %s from %d sales: %d here, %d %s, %d on other servers"] =
+    "약 %s, 판매 %d건: 여기 %d, %d %s, 다른 서버 %d",
+  ["About %s from %d sales: %d here, %d %s"] =
+    "약 %s, 판매 %d건: 여기 %d, %d %s",
+  ["About %s from %d sales on other servers"] =
+    "약 %s, 다른 서버 판매 %d건",
+  ["About %s from %s's sales"] =
+    "약 %s, %s 판매 기준",
+  ["about +%s"] =
+    "약 +%s",
+  ["%d here at %s"] =
+    "여기 %d건, %s",
+  ["%d listed here, none sold this week"] =
+    "여기 %d개 등록, 이번 주 판매 없음",
+  ["Not seen on your auction house"] =
+    "내 경매장에서 본 적 없음",
+  ["At today's cheapest lot %s: %s"] =
+    "오늘 최저가 매물 %s: %s",
+  ["Sold %d times: %s"] =
+    "%d회 판매: %s",
+  ["Sells for %s in %s"] =
+    "%s에 판매, %s 지역",
+  ["If it does not sell: disenchant about %s, vendor %s"] =
+    "팔리지 않으면: 마력 추출 약 %s, 상인 %s",
+  ["If it does not sell: vendor %s"] =
+    "팔리지 않으면: 상인 %s",
+  ["Alliance"] =
+    "얼라이언스",
+  ["Horde"] =
+    "호드",
 }

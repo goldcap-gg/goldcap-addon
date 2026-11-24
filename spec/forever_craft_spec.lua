@@ -124,7 +124,7 @@ describe("Forever craft panel", function()
       ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
       show()
       local row = P._rows[1]
-      assert.same({ cost = 160, sells = 1900, profit = 1740 }, row.result)
+      assert.same({ 160, 1900, 1740 }, { row.result.cost, row.result.sells, row.result.profit })
       assert.equal(GC.L["Costs %s, sells for %s"]:format(GC.Util.Money(160), GC.Util.Money(1900)), row.widget.math:GetText())
     end)
 
@@ -176,29 +176,124 @@ describe("Forever craft panel", function()
       VALUES[901] = nil
       ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
       local card = show().card
+      -- The scan never saw the bag: the card says so (owner, 2026-11-24).
       assert.equal(GC.L["No GoldCap price for %s"]:format("Linen Bag") .. " "
-        .. GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1))), card.missing:GetText())
+        .. GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1))) .. " "
+        .. GC.L["Not seen on your auction house"], card.missing:GetText())
     end)
   end)
 
   -- Under 20 units listed (Core/ForeverDeals.lua's MARKET_MIN_UNITS), the cheapest units are often
-  -- asks nobody pays: a crowd value of 79s98 came from two units (owner, 2026-11-07).
-  describe("a thin book", function()
+  -- asks nobody pays: a crowd value of 79s98 came from two units (owner, 2026-11-07). A reagent
+  -- keeps that rule.
+  describe("a thin book of a reagent", function()
     local LISTED = {
-      { name = "prices from 20 units listed", qty = 20, cost = 50, sells = 2000 },
+      { name = "prices from 20 units listed", qty = 20, cost = 50 },
       { name = "prices nothing from 19", qty = 19 },
       { name = "prices nothing from a scan that counted no units", qty = "none" },
     }
     for _, case in ipairs(LISTED) do
-      it(case.name .. ", for a reagent and for what a recipe makes", function()
+      it(case.name, function()
         load()
-        VALUES[2589], VALUES[901] = scan(50), scan(2000)
-        local qty = case.qty ~= "none" and case.qty or nil
-        VALUES[2589].currentQty, VALUES[901].currentQty = qty, qty
+        VALUES[2589] = scan(50)
+        VALUES[2589].currentQty = case.qty ~= "none" and case.qty or nil
         assert.equal(case.cost, CC.UnitOf(2589))
-        assert.equal(case.sells, CC.SellOf(901))
       end)
     end
+  end)
+
+  -- What a crafted item sells for: what it sold for on its own house with 5 sales or more, else the
+  -- site's median of the nearest markets (GCF1's E), never above a lot listed here now. Without E
+  -- (an older site, or E dropped for size) or without a day of tape, the listings as before.
+  describe("what a crafted item sells for", function()
+    local function sold(n, extra)
+      local s = { units = n, sales = n, perDay = n / 7, hours = 168 }
+      for k, x in pairs(extra or {}) do s[k] = x end
+      return s
+    end
+    local CASES = {
+      { name = "no E, 20 listed or more: the listing, held to what it sold for", listed = { 2000, 25 },
+        sales = sold(2, { median = 1800 }), unit = 1800, kind = "listings" },
+      { name = "no E, 19 listed: nothing, from a thin book", listed = { 2000, 19 }, sales = sold(2, { median = 1800 }),
+        kind = "listings", thin = true, noPace = true },
+      { name = "no tape: the listing", listed = { 2000, 25 }, pool = { n = 5, items = {} }, unit = 2000, kind = "listings" },
+      { name = "5 sales or more here: what it sells for now", listed = { 2600, 3 },
+        sales = sold(6, { median = 2000, recent = 2400 }), pool = { n = 5, items = {} }, unit = 2400, kind = "own" },
+      { name = "5 sales or more here and nothing listed: the median", sales = sold(6, { median = 2400 }),
+        pool = { n = 5, items = {} }, unit = 2400, kind = "own" },
+      { name = "5 sales or more here and a cheaper lot: the lot", listed = { 2000, 1 },
+        sales = sold(6, { median = 2600, recent = 2400 }), pool = { n = 5, items = {} }, unit = 2000, kind = "own",
+        capped = true },
+      { name = "1 sale here: the other faction's too", listed = { 2900, 2 }, sales = sold(1, { median = 3000 }),
+        pool = { n = 5, items = { [901] = { from = "f", own = 1, sib = 6, rest = 0, median = 2800, sales = {} } } },
+        unit = 2800, kind = "pooled", from = "f", own = 1, sib = 6 },
+      { name = "none here and 25 listed: the region's", listed = { 3000, 25 }, sales = sold(0),
+        pool = { n = 5, items = { [901] = { from = "r", own = 0, sib = 2, rest = 4, median = 1500, sales = {} } } },
+        unit = 1500, kind = "pooled", from = "r", listed25 = true },
+      { name = "a pooled price over a lot here: the lot", listed = { 2500, 1 }, sales = sold(1, { median = 3000 }),
+        pool = { n = 5, items = { [901] = { from = "f", own = 1, sib = 6, rest = 0, median = 2800, sales = {} } } },
+        unit = 2500, kind = "pooled", capped = true },
+      { name = "too few in the whole region: nothing, each sale kept", sales = sold(2, { median = 700 }),
+        pool = { n = 5, items = { [901] = { from = "-", own = 2, sib = 1, rest = 0,
+          sales = { { where = "o", copper = 500 }, { where = "f", copper = 900 } } } } },
+        kind = "none", saleCount = 2 },
+      { name = "sold nowhere: nothing", sales = sold(0), pool = { n = 5, items = {} }, kind = "none" },
+    }
+    for _, case in ipairs(CASES) do
+      it(case.name, function()
+        load()
+        if case.listed then VALUES[901] = scan(case.listed[1], { currentQty = case.listed[2] }) end
+        GC.Data.ForeverSales = function(id) return id == 901 and case.sales or nil end
+        local pool = case.sales and case.pool or nil
+        GC.Data.ForeverPoolMin = function() return pool and pool.n end
+        GC.Data.ForeverPool = function(id) return pool and pool.items[id] end
+        local unit, perDay, basis = CC.SellOf(901)
+        assert.equal(case.unit, unit)
+        assert.equal(not case.noPace and case.sales and case.sales.perDay or nil, perDay)
+        assert.equal(case.kind, basis.kind)
+        assert.equal(case.thin, basis.thin)
+        assert.equal(case.capped, basis.capped)
+        if case.from then assert.equal(case.from, basis.from) end
+        if case.own then assert.same({ case.own, case.sib }, { basis.own, basis.sib }) end
+        if case.listed25 then assert.equal(25, basis.listed) end
+        if case.saleCount then assert.equal(case.saleCount, #basis.sales) end
+      end)
+    end
+
+    it("carries the output's basis on the recipe's result, priced or not", function()
+      load()
+      prices()
+      ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+      GC.Data.ForeverSales = function() return sold(1, { median = 3000 }) end
+      GC.Data.ForeverPoolMin = function() return 5 end
+      local entry = { from = "f", own = 1, sib = 6, rest = 0, median = 2800, sales = {} }
+      GC.Data.ForeverPool = function(id) return id == 901 and entry or nil end
+      local result = CC.ProfitOf(CC.Snapshot(1))
+      assert.equal("pooled", result.basis.kind)
+      assert.equal(math.floor(2000 * 0.95) - 160, result.profit) -- held to the 2,000c lot here
+      entry = nil
+      result = CC.ProfitOf(CC.Snapshot(1))
+      assert.equal("none", result.basis.kind)
+      assert.is_table(result.missing)
+      assert.is_nil(result.thin)
+    end)
+
+    -- Owner, 2026-11-24: what a craft makes at the cheapest lot of the freshest scan, any depth, as
+    -- Auctionator says it. It never prices the craft.
+    it("says what a craft makes at today's cheapest lot, whatever is listed", function()
+      load()
+      prices()
+      VALUES[901] = scan(2600, { min = 29230, currentQty = 3 })
+      ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+      local result = CC.ProfitOf(CC.Snapshot(1))
+      assert.same({ unit = 29230, profit = math.floor(29230 * 0.95) - 160 }, result.scan)
+      assert.is_table(result.missing) -- 3 listed price nothing without sales
+      VALUES[901] = scan(2600, { currentQty = 3 })
+      assert.is_nil(CC.ProfitOf(CC.Snapshot(1)).scan)
+      ROOT.foreverVendor = nil -- a reagent without a price: no cost to measure against
+      VALUES[901] = scan(2600, { min = 29230 })
+      assert.is_nil(CC.ProfitOf(CC.Snapshot(1)).scan)
+    end)
   end)
 
   describe("a missing price in This recipe", function()
@@ -267,6 +362,7 @@ describe("Forever craft panel", function()
     VALUES[901] = nil
     ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
     local sentence = GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(160, 1)))
+      .. " " .. GC.L["Not seen on your auction house"]
     local text = GC.CraftStrip.Lines(CC.ProfitOf(CC.Snapshot(1)))[1].text
     assert.equal(sentence, text:sub(-#sentence))
     assert.equal(text, show().card.missing:GetText())
@@ -289,7 +385,7 @@ describe("Forever craft panel", function()
     local perDay = 37.4
     GC.Data.ForeverSales = function(id) return id == 901 and { units = 187, sales = 60, perDay = perDay, hours = 120 } or nil end
     P.Refresh()
-    assert.same({ 2000, 37.4 }, { CC.SellOf(901) })
+    assert.same({ 2000, 37.4 }, { (CC.SellOf(901)), (select(2, CC.SellOf(901))) })
     assert.is_true(P._rows[1].widget.pace:IsShown())
     assert.equal(GC.L["about %s a day"]:format("37"), P._rows[1].widget.pace.text:GetText())
     -- The tape covered the item and nothing sold: a slow seller, said so.
@@ -311,7 +407,7 @@ describe("Forever craft panel", function()
     assert.equal(2000, (CC.SellOf(901)))
     -- Nothing sold over the tape: no median to hold it to, the listing stands and the row says slow.
     GC.Data.ForeverSales = function() return { units = 0, sales = 0, perDay = 0, hours = 120 } end
-    assert.same({ 2000, 0 }, { CC.SellOf(901) })
+    assert.same({ 2000, 0 }, { (CC.SellOf(901)), (select(2, CC.SellOf(901))) })
   end)
 
   -- ClickUp 1an60dzww4h: on a market that rose, the tape's median (the lowest of the week, the day
@@ -328,6 +424,174 @@ describe("Forever craft panel", function()
     -- No word from the site (a site from before it, or an item it leaves out): the median, as before.
     recent = nil
     assert.equal(300, (CC.SellOf(901)))
+  end)
+
+  -- The Companion's payload read as the game reads it (Core/ImportString.lua, Core/Data.lua), not
+  -- stubbed: the bag sold once here and 6 times on the other faction's house for 30s; the cheapest
+  -- of the 3 listed here asks 20s, the house's AH value 21s.
+  it("prices from a real payload's E, capped by the house's AH value, with today's cheapest lot", function()
+    load()
+    GC.Game = { Passport = function() return { interface = 16001, build = "x", regionId = 90 } end,
+      IsForever = function() return true end }
+    helper.loadModule("Core/ImportString.lua", GC)
+    helper.loadModule("Core/Data.lua", GC)
+    GC.Data.Init({ settings = {} })
+    ROOT.foreverVendor = { v = 1, items = { [2320] = { u = 10, at = 1 } } }
+    assert.is_table(GC.Data.AdoptForeverPayload("GCF1;s;90;R;Horde;1790000000;"
+      .. "I:901=2000=2100=2100=2200=3=1=0,2589=50=50=50=50=40=1=0;H:168;S:901=1=1=3500=3500;E:5,901=f=1=6=0=3000==",
+      { region = 90, realm = "R", faction = "Horde" }))
+    local unit, _, basis = CC.SellOf(901)
+    assert.same({ 2100, "pooled", "f", 1, 6, true }, { unit, basis.kind, basis.from, basis.own, basis.sib, basis.capped })
+    local result = CC.ProfitOf(CC.Snapshot(1))
+    assert.equal(math.floor(2100 * 0.95) - 160, result.profit)
+    assert.same({ unit = 2000, profit = math.floor(2000 * 0.95) - 160 }, result.scan)
+  end)
+
+  -- Worth crafting in three groups: a proven price, an estimate from the nearest markets, none.
+  describe("recipes without a proven price", function()
+    local SALES, POOL
+    local NAMES = { "Own Belt", "Pooled Cloak", "Lossy Robe", "Unsold Hat", "Earthen Silk Belt" }
+
+    -- Recipe id makes 900 + id from one of 100 + id. The belt sold 6 times here; the cloak once
+    -- here, with the other faction's an estimate; the robe's region estimate is under its cost;
+    -- the hat sold nowhere; the silk belt has 3 listed, none sold, its reagent at 1g 76s 52c.
+    local function world(learned)
+      local recipes, filtered = {}, {}
+      for id, name in ipairs(NAMES) do
+        recipes[id] = { info = TS.info(id, name, { learned = not (learned and learned[id] == false) }),
+          schematic = TS.schematic(id, 900 + id, { TS.slot(1, 1, TS.items(100 + id)) }) }
+        filtered[id] = id
+      end
+      load({ recipes = recipes, filtered = filtered, open = { recipeID = 5, allocations = {} } })
+      for id = 101, 104 do VALUES[id] = scan(100) end
+      VALUES[105] = scan(17652)
+      VALUES[905] = scan(29230, { min = 29230, currentQty = 3 })
+      SALES = { [901] = { units = 6, sales = 6, median = 2000, perDay = 6 / 7, hours = 168 },
+        [902] = { units = 1, sales = 1, median = 3500, perDay = 1 / 7, hours = 168 } }
+      POOL = { [902] = { from = "f", own = 1, sib = 6, rest = 0, median = 3000, sales = {} },
+        [903] = { from = "r", own = 0, sib = 2, rest = 3, median = 50, sales = {} } }
+      GC.Data.ForeverSales = function(id) return SALES[id] or { units = 0, sales = 0, perDay = 0, hours = 168 } end
+      GC.Data.ForeverPoolMin = function() return 5 end
+      GC.Data.ForeverPool = function(id) return POOL[id] end
+      GC.ForeverScan._faction = "Horde"
+    end
+
+    local function groups()
+      local out = {}
+      for _, row in ipairs((P.Rows())) do out[#out + 1] = { row.name, row.group } end
+      return out
+    end
+
+    it("lists each in its group, a loss last among the estimates, the listed ones first among none", function()
+      world()
+      assert.is_true(P.ShowsUnproven())
+      assert.same({ { "Own Belt", "main" }, { "Pooled Cloak", "estimate" }, { "Lossy Robe", "estimate" },
+        { "Earthen Silk Belt", "none" }, { "Unsold Hat", "none" } }, groups())
+      local _, unpriced, unprofitable = P.Rows()
+      assert.same({ 0, 0 }, { unpriced, unprofitable })
+    end)
+
+    -- No E (an older site, or E dropped for size): a proven price from 20 listed or more, as before,
+    -- and a thin book, or an item the scan never saw, among those with no estimate while the switch
+    -- is on (owner, 2026-11-24: the craft costs this much, and the market has no price).
+    it("without E prices from the listings as before, a thin book and an unseen item among none", function()
+      world()
+      GC.Data.ForeverPoolMin = function() return nil end
+      VALUES[901] = scan(2000, { currentQty = 25 })
+      VALUES[902] = scan(2000, { currentQty = 19, min = 1500 })
+      -- The robe and the hat have nothing listed: no price, last among none, by name.
+      assert.same({ { "Own Belt", "main" }, { "Earthen Silk Belt", "none" }, { "Pooled Cloak", "none" },
+        { "Lossy Robe", "none" }, { "Unsold Hat", "none" } }, groups())
+      assert.same({ 0, 0 }, { select(2, P.Rows()) })
+      show()
+      assert.truthy(P._rows[5].widget.math:GetText():find(GC.L["Not seen on your auction house"], 1, true))
+      assert.equal("+" .. GC.Util.Money(1800), (function() show() return P._rows[1].widget.profit:GetText() end)())
+      assert.same({ "listings", "listings" }, { P._rows[1].result.basis.kind, P._rows[2].result.basis.kind })
+      GC.db.craftUnproven = false
+      assert.same({ { "Own Belt", "main" } }, groups())
+      assert.same({ 4, 0 }, { select(2, P.Rows()) })
+    end)
+
+    it("quotes the markets' median for an estimate a cheaper lot here caps", function()
+      world()
+      VALUES[902] = scan(2500, { currentQty = 1 })
+      show()
+      local cloak = P._rows[2]
+      assert.equal(math.floor(2500 * 0.95) - 100, cloak.result.profit)
+      assert.truthy(cloak.widget.math:GetText():find(GC.L["About %s from %d sales: %d here, %d %s"]:format(
+        GC.Util.Money(3000), 7, 1, 6, GC.L["Alliance"]), 1, true))
+    end)
+
+    it("shows only the first group with the switch off, the rest counted as having no price", function()
+      world()
+      local f = show()
+      local toggle = f.worth.unproven
+      assert.equal(GC.L["Without a proven price too"], toggle.text:GetText())
+      toggle:GetScript("OnClick")(toggle)
+      assert.is_false(GC.db.craftUnproven)
+      assert.same({ { "Own Belt", "main" } }, groups())
+      assert.same({ 4, 0 }, { select(2, P.Rows()) })
+      assert.equal(GC.L["%d have no GoldCap price for a reagent or what they make."]:format(4), f.worth.unpriced:GetText())
+      for _, head in ipairs(f.worth.groupHeads) do assert.is_false(head:IsShown()) end
+      toggle:GetScript("OnClick")(toggle)
+      assert.is_true(P.ShowsUnproven())
+    end)
+
+    it("never lists a recipe not learned in either group, whatever the switch", function()
+      world({ [2] = false, [4] = false })
+      GC.db.craftUnlearned = true
+      assert.same({ { "Own Belt", "main" }, { "Lossy Robe", "estimate" }, { "Earthen Silk Belt", "none" } }, groups())
+      assert.same({ 0, 0 }, { select(2, P.Rows()) })
+    end)
+
+    it("heads each group, and says on its rows what the price rests on and what today's cheapest lot makes", function()
+      world()
+      local f = show()
+      local heads = f.worth.groupHeads
+      assert.equal(GC.Util.Upper(GC.L["Estimated from other markets"]), heads[1]:GetText())
+      assert.equal(GC.Util.Upper(GC.L["No estimate"]), heads[2]:GetText())
+      assert.is_true(heads[2]:IsShown())
+      local cloak, robe, silk = P._rows[2].widget, P._rows[3].widget, P._rows[4].widget
+      local profit = math.floor(3000 * 0.95) - 100
+      assert.equal(GC.L["about +%s"]:format(GC.Util.Money(profit)), cloak.profit:GetText())
+      assert.equal(GC.Util.Money(math.floor(50 * 0.95) - 100), robe.profit:GetText())
+      local pooled = GC.L["About %s from %d sales: %d here, %d %s"]:format(GC.Util.Money(3000), 7, 1, 6, GC.L["Alliance"])
+      assert.truthy(cloak.math:GetText():find(pooled, 1, true))
+      assert.truthy(cloak.math:GetText():find(GC.L["%d here at %s"]:format(1, GC.Util.Money(3500)), 1, true))
+      assert.equal("+" .. GC.Util.Money(1800), P._rows[1].widget.profit:GetText()) -- a proven price as before
+      -- Earthen Silk Belt: floor(29230 x 0.95) - 17652 = 10116 at its cheapest lot.
+      local lot = GC.L["At today's cheapest lot %s: %s"]:format(GC.Util.Money(29230), "+" .. GC.Util.Money(10116))
+      assert.truthy(silk.math:GetText():find(lot, 1, true))
+      assert.truthy(silk.math:GetText():find(GC.L["%d listed here, none sold this week"]:format(3), 1, true))
+      assert.equal("", silk.profit:GetText())
+      assert.is_false(P._rows[1].widget.math:GetText():find(GC.L["At today's cheapest lot %s: %s"]:sub(1, 8), 1, true) ~= nil)
+      -- This recipe (the silk belt) says it too.
+      assert.truthy(f.card.missing:GetText():find(lot, 1, true))
+      assert.is_table(P.RowTip(P._rows[4]))
+    end)
+
+    it("words what the region sold, another region's price and what the item is worth unsold", function()
+      world()
+      POOL[904] = { from = "-", own = 0, sib = 1, rest = 1,
+        sales = { { where = "f", copper = 900 }, { where = "r", copper = 1200 } },
+        xregion = { region = "us", sales = 7, median = 150000 } }
+      GC.ForeverValue = { VendorUnit = function(id) return id == 904 and 120 or nil end }
+      local text = GC.CraftStrip.Lines(CC.ProfitOf(CC.Snapshot(4)))[1].text
+      for _, line in ipairs({
+        GC.L["Sold %d times: %s"]:format(2, GC.Util.Money(900) .. ", " .. GC.Util.Money(1200)),
+        GC.L["Sells for %s in %s"]:format(GC.Util.Money(150000), "US"),
+        GC.L["If it does not sell: vendor %s"]:format(GC.Util.Money(120)),
+        GC.L["Not seen on your auction house"],
+      }) do
+        assert.truthy(text:find(line, 1, true), line)
+      end
+      -- A sale found puts it first among none.
+      assert.same({ "Unsold Hat", "none" }, groups()[4])
+      -- A priced estimate's lines carry what it rests on.
+      local lines = GC.CraftStrip.Lines(CC.ProfitOf(CC.Snapshot(2)))
+      assert.truthy(lines[4].text:find(GC.L["About %s from %d sales: %d here, %d %s"]:format(GC.Util.Money(3000), 7, 1, 6,
+        GC.L["Alliance"]), 1, true))
+    end)
   end)
 
   it("names the deposit a post of one takes in a row's tooltip, and that a sale returns it", function()

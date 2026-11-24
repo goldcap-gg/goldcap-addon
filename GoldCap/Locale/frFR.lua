@@ -2212,4 +2212,40 @@ GC.Locales.frFR = {
   ["round %s"] = "tour %s",
   ["round %s s"] = "tour %s s",
   ["waiting"] = "en attente",
+  ["Without a proven price too"] =
+    "Sans prix avéré aussi",
+  ["Estimated from other markets"] =
+    "Estimé d'après d'autres marchés",
+  ["No estimate"] =
+    "Pas d'estimation",
+  ["About %s from %d sales: %d here, %d %s, %d on other servers"] =
+    "Environ %s sur %d ventes : %d ici, %d %s, %d sur d'autres serveurs",
+  ["About %s from %d sales: %d here, %d %s"] =
+    "Environ %s sur %d ventes : %d ici, %d %s",
+  ["About %s from %d sales on other servers"] =
+    "Environ %s sur %d ventes sur d'autres serveurs",
+  ["About %s from %s's sales"] =
+    "Environ %s d'après les ventes côté %s",
+  ["about +%s"] =
+    "environ +%s",
+  ["%d here at %s"] =
+    "%d ici à %s",
+  ["%d listed here, none sold this week"] =
+    "%d en vente ici, aucun vendu cette semaine",
+  ["Not seen on your auction house"] =
+    "Jamais vu à ton hôtel des ventes",
+  ["At today's cheapest lot %s: %s"] =
+    "Au lot le moins cher du jour, %s : %s",
+  ["Sold %d times: %s"] =
+    "Vendu %d fois : %s",
+  ["Sells for %s in %s"] =
+    "Se vend %s en %s",
+  ["If it does not sell: disenchant about %s, vendor %s"] =
+    "S'il ne se vend pas : désenchanter environ %s, marchand %s",
+  ["If it does not sell: vendor %s"] =
+    "S'il ne se vend pas : marchand %s",
+  ["Alliance"] =
+    "Alliance",
+  ["Horde"] =
+    "Horde",
 }
