@@ -14,3 +14,7 @@ function GC.Sniper._VariantsOwed(itemID)
   if GC.Sniper._PolledEntry(itemID) or GC.Sniper._NamedFresh(itemID) then return false end
   return GC.Sniper._NameOf(itemID) ~= nil
 end
+
+-- Forever bids only on a lot its current item results hold (GC.Sniper._bidNeedsItsSearch): the
+-- window armed on a lot keeps the search, and a lot pushed out all the same is searched again.
+GC.Sniper._bidNeedsItsSearch = true
