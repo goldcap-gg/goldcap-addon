@@ -2149,4 +2149,14 @@ GC.Locales.zhCN = {
     "本周成交 %d 次，物品等级 %d",
   ["Sold %d times this week"] =
     "本周成交 %d 次",
+  ["Sold for"] =
+    "成交价",
+  ["%d sales this week, item level %d"] =
+    "本周成交 %d 次，物品等级 %d",
+  ["Sold %d times this week, about %s"] =
+    "本周成交 %d 次，约 %s",
+  ["This version (%d) did not sell this week"] =
+    "此版本（%d）本周无成交",
+  ["Listed across the region, every version"] =
+    "全区域在售，所有版本",
 }

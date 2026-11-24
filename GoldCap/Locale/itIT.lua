@@ -2262,4 +2262,14 @@ GC.Locales.itIT = {
     "Venduto %d volte questa settimana, livello oggetto %d",
   ["Sold %d times this week"] =
     "Venduto %d volte questa settimana",
+  ["Sold for"] =
+    "Venduto a",
+  ["%d sales this week, item level %d"] =
+    "%d vendite questa settimana, livello oggetto %d",
+  ["Sold %d times this week, about %s"] =
+    "Venduto %d volte questa settimana, a circa %s",
+  ["This version (%d) did not sell this week"] =
+    "Questa versione (%d) non è stata venduta questa settimana",
+  ["Listed across the region, every version"] =
+    "In vendita nella regione, tutte le versioni",
 }

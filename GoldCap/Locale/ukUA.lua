@@ -2333,4 +2333,14 @@ GC.Locales.ukUA = {
     "Продано %d разів за тиждень, рівень предмета %d",
   ["Sold %d times this week"] =
     "Продано %d разів за тиждень",
+  ["Sold for"] =
+    "Продано за",
+  ["%d sales this week, item level %d"] =
+    "%d продажів за тиждень, рівень предмета %d",
+  ["Sold %d times this week, about %s"] =
+    "Продано %d разів за тиждень, близько %s",
+  ["This version (%d) did not sell this week"] =
+    "Ця версія (%d) не продавалася цього тижня",
+  ["Listed across the region, every version"] =
+    "Виставлено по регіону, усі версії",
 }

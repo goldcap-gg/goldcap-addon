@@ -2330,4 +2330,14 @@ GC.Locales.ruRU = {
     "Продано %d раз за неделю, уровень предмета %d",
   ["Sold %d times this week"] =
     "Продано %d раз за неделю",
+  ["Sold for"] =
+    "Продано за",
+  ["%d sales this week, item level %d"] =
+    "%d продаж за неделю, уровень предмета %d",
+  ["Sold %d times this week, about %s"] =
+    "Продано %d раз за неделю, около %s",
+  ["This version (%d) did not sell this week"] =
+    "Эта версия (%d) не продавалась на этой неделе",
+  ["Listed across the region, every version"] =
+    "Выставлено по региону, все версии",
 }

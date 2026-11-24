@@ -2250,4 +2250,14 @@ GC.Locales.enUS = {
     "Sold %d times this week, item level %d",
   ["Sold %d times this week"] =
     "Sold %d times this week",
+  ["Sold for"] =
+    "Sold for",
+  ["%d sales this week, item level %d"] =
+    "%d sales this week, item level %d",
+  ["Sold %d times this week, about %s"] =
+    "Sold %d times this week, about %s",
+  ["This version (%d) did not sell this week"] =
+    "This version (%d) did not sell this week",
+  ["Listed across the region, every version"] =
+    "Listed across the region, every version",
 }

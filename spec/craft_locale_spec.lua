@@ -50,6 +50,9 @@ local KEYS = {
   "The game did not say which version you make", "No sales this week",
   "Sale prices by version come with the Companion", "Quality %d (%d) sells for %s", "Quality %d sells for %s",
   "Sold %d times this week, item level %d", "Sold %d times this week",
+  -- ...and the tooltip of such an item (UI/Tooltip.lua).
+  "Sold for", "%d sales this week, item level %d", "Sold %d times this week, about %s",
+  "This version (%d) did not sell this week", "Listed across the region, every version",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

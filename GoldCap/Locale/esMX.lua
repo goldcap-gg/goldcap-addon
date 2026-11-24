@@ -2270,4 +2270,14 @@ GC.Locales.esMX = {
     "Vendido %d veces esta semana, nivel de objeto %d",
   ["Sold %d times this week"] =
     "Vendido %d veces esta semana",
+  ["Sold for"] =
+    "Vendido por",
+  ["%d sales this week, item level %d"] =
+    "%d ventas esta semana, nivel de objeto %d",
+  ["Sold %d times this week, about %s"] =
+    "Vendido %d veces esta semana, a unos %s",
+  ["This version (%d) did not sell this week"] =
+    "Esta versión (%d) no se vendió esta semana",
+  ["Listed across the region, every version"] =
+    "En venta en la región, todas las versiones",
 }

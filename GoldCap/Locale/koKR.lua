@@ -2188,4 +2188,14 @@ GC.Locales.koKR = {
     "이번 주 %d회 판매, 아이템 레벨 %d",
   ["Sold %d times this week"] =
     "이번 주 %d회 판매",
+  ["Sold for"] =
+    "판매가",
+  ["%d sales this week, item level %d"] =
+    "이번 주 %d회 판매, 아이템 레벨 %d",
+  ["Sold %d times this week, about %s"] =
+    "이번 주 %d회 판매, 약 %s",
+  ["This version (%d) did not sell this week"] =
+    "이 버전(%d)은 이번 주 판매되지 않음",
+  ["Listed across the region, every version"] =
+    "지역 전체 등록가, 모든 버전",
 }

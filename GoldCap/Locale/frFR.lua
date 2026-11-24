@@ -2270,4 +2270,14 @@ GC.Locales.frFR = {
     "Vendu %d fois cette semaine, niveau d'objet %d",
   ["Sold %d times this week"] =
     "Vendu %d fois cette semaine",
+  ["Sold for"] =
+    "Vendu pour",
+  ["%d sales this week, item level %d"] =
+    "%d ventes cette semaine, niveau d'objet %d",
+  ["Sold %d times this week, about %s"] =
+    "Vendu %d fois cette semaine, environ %s",
+  ["This version (%d) did not sell this week"] =
+    "Cette version (%d) ne s'est pas vendue cette semaine",
+  ["Listed across the region, every version"] =
+    "En vente dans la région, toutes versions",
 }

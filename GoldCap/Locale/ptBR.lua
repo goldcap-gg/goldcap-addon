@@ -2259,4 +2259,14 @@ GC.Locales.ptBR = {
     "Vendido %d vezes esta semana, nível de item %d",
   ["Sold %d times this week"] =
     "Vendido %d vezes esta semana",
+  ["Sold for"] =
+    "Vendido por",
+  ["%d sales this week, item level %d"] =
+    "%d vendas esta semana, nível de item %d",
+  ["Sold %d times this week, about %s"] =
+    "Vendido %d vezes esta semana, por cerca de %s",
+  ["This version (%d) did not sell this week"] =
+    "Esta versão (%d) não vendeu esta semana",
+  ["Listed across the region, every version"] =
+    "À venda na região, todas as versões",
 }

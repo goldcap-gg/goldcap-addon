@@ -2269,4 +2269,14 @@ GC.Locales.deDE = {
     "Diese Woche %d Mal verkauft, Gegenstandsstufe %d",
   ["Sold %d times this week"] =
     "Diese Woche %d Mal verkauft",
+  ["Sold for"] =
+    "Verkauft für",
+  ["%d sales this week, item level %d"] =
+    "%d Verkäufe diese Woche, Gegenstandsstufe %d",
+  ["Sold %d times this week, about %s"] =
+    "Diese Woche %d Mal verkauft, für etwa %s",
+  ["This version (%d) did not sell this week"] =
+    "Diese Version (%d) wurde diese Woche nicht verkauft",
+  ["Listed across the region, every version"] =
+    "In der Region angeboten, alle Versionen",
 }

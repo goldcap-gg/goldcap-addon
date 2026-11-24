@@ -84,3 +84,50 @@ describe("Tooltip under a Sell variant row", function()
     assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)
   end)
 end)
+
+-- The tooltip of a crafted item the region payload's X names, hovered in the bags: the version under
+-- the cursor, read off the tooltip's own link.
+describe("Tooltip of a crafted item in the bags", function()
+  local GC, postCall, lines
+  local LINK = "|cffa335ee|Hitem:244176::::::::80:::::|h[Silver Rod]|h|r"
+
+  before_each(function()
+    postCall, lines = nil, {}
+    _G.TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) postCall = fn end }
+    _G.Enum = { TooltipDataType = { Item = 0 } }
+    _G.GameTooltip = {
+      GetOwner = function() return nil end,
+      AddLine = function(_, text) lines[#lines + 1] = text end,
+      AddDoubleLine = function(_, left) lines[#lines + 1] = left end,
+    }
+    _G.C_Item = {
+      GetItemInfoInstant = function() return 244176, "", "", "", 0, 2, 0 end,
+      GetDetailedItemLevelInfo = function(link) if link == LINK then return 232, 232, 232 end end,
+    }
+    _G.GetCoinTextureString = function(n) return tostring(n) end
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Trigger.lua", GC)
+    helper.loadModule("Core/CraftVersion.lua", GC)
+    GC.db = { settings = { tooltip = true } }
+    GC.Data = {
+      GetItemValue = function() return { mv = 20003600, ts = time(), source = "region", kind = "realm_item" } end,
+      CraftedVersions = function() return { [5] = { ilvl = 232, sales = 1208, realms = 89, median = 11100000 } } end,
+    }
+    GC.Sell = {}
+    helper.loadModule("UI/Tooltip.lua", GC)
+  end)
+
+  after_each(function()
+    _G.TooltipDataProcessor, _G.Enum, _G.GameTooltip, _G.C_Item, _G.GetCoinTextureString = nil, nil, nil, nil, nil
+  end)
+
+  it("says what the version under the cursor sold for, and what the listed median is", function()
+    postCall(_G.GameTooltip, { hyperlink = LINK })
+    assert.same({ "Sold for", "1208 sales this week, item level 232", "Listed across the region, every version" }, lines)
+  end)
+
+  it("says nothing of a version for an auction house row, which stands for every version", function()
+    postCall(_G.GameTooltip, { id = 244176 })
+    assert.same({ "Listed across the region, every version" }, lines)
+  end)
+end)
