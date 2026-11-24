@@ -73,12 +73,14 @@ function GC.Tooltip.Headline(v)
   return nil
 end
 
--- Headline, for a number that becomes a cost (a craft's reagent nobody bought): only the two
--- kinds Core/DealMath.lua and Core/Trigger.lua trust. An imported realm item's unverified median
--- ("median") is a figure the tooltip may print under its own label, never a basis for a cost.
+-- Headline, for a number that becomes a cost or a craft's price: only the two kinds
+-- Core/DealMath.lua and Core/Trigger.lua trust. A realm item's listed median, whichever table
+-- answered (the import's "median", the bundled table's or the region payload's M), is a figure the
+-- tooltip may print under its own label, never a cost or a price: gear lists at every version under
+-- one id, and its median is none of them. Its region reference ("region") is.
 function GC.Tooltip.TrustedHeadline(v)
   local copper, kind = GC.Tooltip.Headline(v)
-  if kind == "value" or kind == "region" then return copper, kind end
+  if kind == "region" or (kind == "value" and v.kind ~= "realm_item") then return copper, kind end
   return nil
 end
 

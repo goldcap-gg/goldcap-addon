@@ -730,12 +730,19 @@ describe("Tooltip.Headline", function()
   end)
 
   -- The craft cost fallback takes only what the deal maths trusts.
-  it("TrustedHeadline refuses an imported realm median and keeps value and region", function()
+  -- A realm item's listed median, wherever it comes from (the import, the bundled table, the
+  -- payload's M), is never a cost or a price: only its region reference is.
+  it("TrustedHeadline refuses a realm item's listed median and keeps value and region", function()
     assert.is_nil(GC.Tooltip.TrustedHeadline({ mv = 30000, ts = 0, source = "import", kind = "realm_item" }))
     assert.is_nil(GC.Tooltip.TrustedHeadline(nil))
     assert.is_nil(GC.Tooltip.TrustedHeadline({ ts = 0, source = "import", kind = "region_commodity" }))
-    assert.equal(700, (GC.Tooltip.TrustedHeadline({ mv = 700, ts = 0, source = "bundled", kind = "realm_item" })))
+    assert.is_nil(GC.Tooltip.TrustedHeadline({ mv = 700, ts = 0, source = "bundled", kind = "realm_item" }))
+    assert.is_nil(GC.Tooltip.TrustedHeadline({ mv = 20003600, ts = 0, source = "region", kind = "realm_item" }))
     assert.equal(20000, (GC.Tooltip.TrustedHeadline(
       { mv = 9000000, ref = 20000, ts = 0, source = "import", kind = "realm_item" })))
+    assert.equal(700, (GC.Tooltip.TrustedHeadline({ mv = 700, ts = 0, source = "bundled", kind = "region_commodity" })))
+    assert.equal(800, (GC.Tooltip.TrustedHeadline({ mv = 800, ts = 0, source = "region", kind = "region_commodity" })))
+    assert.equal(900, (GC.Tooltip.TrustedHeadline({ mv = 900, ts = 0, source = "scan", kind = "crowd" })))
+    assert.equal(950, (GC.Tooltip.TrustedHeadline({ mv = 950, ts = 0, source = "scan", kind = "own_scan" })))
   end)
 end)

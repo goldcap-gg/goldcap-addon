@@ -256,3 +256,53 @@ describe("CraftCapture session", function()
     assert.is_nil(crafted())
   end)
 end)
+
+-- The price a craft's reagent nobody bought is costed at, when no purchase and no vendor covers it
+-- (Core/Init.lua's marketUnit): what GoldCap trusts for a cost, GC.Data.CraftUnit.
+describe("craft capture market price", function()
+  local GC
+  local TS = 1783598400
+
+  before_each(function()
+    _G.GetCVar = function(k) if k == "portal" then return "EU" end end
+    GC = helper.loadModule("Core/Util.lua")
+    for _, path in ipairs({ "Core/ImportString.lua", "Core/Data.lua", "Core/Trigger.lua", "Core/CraftVersion.lua",
+      "UI/Tooltip.lua" }) do
+      helper.loadModule(path, GC)
+    end
+    GC.db = { settings = {} }
+    GC.Data.Init(GC.db)
+    GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = TS, items = {}, watchlist = {} })
+    -- 244174 sold per piece at 88g (its listings' median 223g); 244176 sold at four ranks; 7935 a
+    -- realm item with only its listings' median; 999 named with no sale; 42 a commodity.
+    assert.is_truthy(GC.Data.AdoptRegionPayload("GCM1;eu;" .. TS .. ";I:42=500"
+      .. ";M:244174=2239850=40,7935=480000=6,999=70000=3"
+      .. ";X:244174=0.0.91.35.880000,244176=2.212.8.5.5160000/3.218.17.9.3000000/5.232.1208.89.11100000"
+      .. ",999=,244177=1.180.4.4.2110000"))
+  end)
+
+  after_each(function() _G.GetCVar = nil end)
+
+  it("costs an item X names at its cheapest proven version, and nothing else", function()
+    assert.equal(880000, GC.Data.CraftUnit(244174))
+    assert.equal(3000000, GC.Data.CraftUnit(244176))
+    assert.is_nil(GC.Data.CraftUnit(999)) -- no sale this week: never its listings' median
+    assert.is_nil(GC.Data.CraftUnit(244177)) -- only a thin version
+  end)
+
+  it("costs a realm item with only a listings' median at nothing, and a commodity as before", function()
+    assert.is_nil(GC.Data.CraftUnit(7935))
+    assert.equal(500, GC.Data.CraftUnit(42))
+    assert.is_nil(GC.Data.CraftUnit(1))
+  end)
+
+  it("is the figure Core/Init.lua's marketUnit costs with", function()
+    local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+    local init = f:read("*a")
+    f:close()
+    local body = init:match("marketUnit = function%(itemID%)(.-)\n        end,")
+    assert.is_truthy(body)
+    assert.is_truthy(body:find("GC.Data.CraftUnit(itemID)", 1, true))
+    assert.is_nil(body:find("TrustedHeadline", 1, true))
+  end)
+end)

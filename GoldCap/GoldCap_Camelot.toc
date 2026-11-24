@@ -117,6 +117,7 @@ Core/DealCard.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
 Core/CraftMath.lua
+Core/CraftVersion.lua
 Core/CraftQueue.lua
 Core/ForeverVendorPrices.lua
 Core/ForeverSources.lua

@@ -716,11 +716,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
         -- What the item sells for now, at the figure its tooltip prints, for a reagent no
         -- purchase and no vendor price covers (gathered, a quest reward, bought before install).
         marketUnit = function(itemID)
-          if not (GC.Tooltip and GC.Tooltip.TrustedHeadline and GC.Data and GC.Data.GetItemValue) then
-            return nil
-          end
-          -- Only a figure the deal maths trusts: an imported realm median is not a cost basis.
-          local ok, unit = pcall(function() return (GC.Tooltip.TrustedHeadline(GC.Data.GetItemValue(itemID))) end)
+          if not (GC.Data and GC.Data.CraftUnit) then return nil end
+          -- Only a figure the deal maths trusts: a realm item's listed median is not a cost basis,
+          -- and an item sold per piece costs what its cheapest proven version sold for.
+          local ok, unit = pcall(function() return GC.Data.CraftUnit(itemID) end)
           return ok and type(unit) == "number" and math.floor(unit) or nil
         end,
         isConverted = function(itemID)
