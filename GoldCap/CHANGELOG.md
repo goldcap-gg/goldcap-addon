@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.36.0 (unreleased)
+## 0.36.0 (2026-11-24)
 
 - DEALS, in retail WoW: a commodity buy is sized from how much it sells on a typical day of the last
   week, not the last 24 hours alone, so one busy day no longer makes it buy too many and a quiet day
