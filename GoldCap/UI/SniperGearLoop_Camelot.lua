@@ -85,8 +85,9 @@ local rounds = Loop.New({
   known = function(itemID) return GC.ForeverValue.Known(itemID) end,
   listed = function(itemID) return GC.ForeverDeals.Listed(itemID) end,
   marketFor = marketFor,
-  -- A new row waiting for its Check: a find, for DEALS' AUTO readout (Core/AutoReadout.lua).
-  onPush = function() if GC.AutoReadout then GC.AutoReadout.Note("finds") end end,
+  -- A new row waiting for its Check: a find for DEALS' AUTO readout, unless its item already had
+  -- a row there (GC.ForeverDeals.Found counts each item once per appearance).
+  onPush = function(itemID) GC.ForeverDeals.Found(itemID) end,
 })
 G.rounds = rounds
 
