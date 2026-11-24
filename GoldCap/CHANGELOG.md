@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.37.0 (unreleased)
+## 0.37.0 (2026-11-24)
 
 - Worth crafting prices gear, tools and bags at what the version you make sold for this week across
   the region, no longer at the price they are listed for, which is every version's at once. A
