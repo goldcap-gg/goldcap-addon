@@ -300,11 +300,10 @@ function Q.SetBuyList(char, code)
   return true
 end
 
---- The character's own auctions (C_AuctionHouse.GetOwnedAuctions) as listed counts, replacing the
---- last ones. A sold auction is not counted: the item is gone.
-function Q.FoldListed(char, owned, now)
-  local c = charOf(char, true)
-  if not c then return end
+--- The character's own auctions (C_AuctionHouse.GetOwnedAuctions) as { [itemID] = units listed }.
+--- A sold auction is not counted: the item is gone. Also the holdings record's auctions place
+--- (Services/Sell/Owned.lua).
+function Q.SumListed(owned)
   local listed = {}
   for _, a in ipairs(type(owned) == "table" and owned or {}) do
     local id = type(a) == "table" and type(a.itemKey) == "table" and a.itemKey.itemID or nil
@@ -312,7 +311,14 @@ function Q.FoldListed(char, owned, now)
       listed[id] = (listed[id] or 0) + a.quantity
     end
   end
-  c.listed = listed
+  return listed
+end
+
+--- The character's own auctions as listed counts (SumListed), replacing the last ones.
+function Q.FoldListed(char, owned, now)
+  local c = charOf(char, true)
+  if not c then return end
+  c.listed = Q.SumListed(owned)
   c.listedAt = now
 end
 

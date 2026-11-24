@@ -182,6 +182,9 @@ end
 -- re-read the client's cache, which a query alone refreshes, so a lot posted since may be missing.
 function GC.Sell.OnOwnedAuctions(answered)
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
+  -- The rows as the client gave them, for the holdings record below: `auctions` loses the lots
+  -- whose cancel is on its way, which are still the player's until they come back.
+  local roster = auctions
   -- A cancel nobody here sent is settled by the first answered read after it (claimedCancels).
   if answered and next(GC.Sell.claimedCancels) then
     local listed = {}
@@ -226,6 +229,15 @@ function GC.Sell.OnOwnedAuctions(answered)
   -- read just produced is the roster the companion uploads, unchanged. No second query.
   if GC.Data and GC.Data.RecordOwnedLots and scope then
     GC.Data.RecordOwnedLots(GC.db, S.ownedLots, scope, time())
+  end
+  -- What this character has up, for goldcap.gg's holdings (Core/HoldingsRecord.lua): from an
+  -- answered, whole read only, so a cached read never replaces a good reading with an empty one.
+  if answered and GC.HoldingsRecord and GC.CraftQueue and scope then
+    pcall(function()
+      local whole = C_AuctionHouse.HasFullOwnedAuctionResults
+      if type(whole) == "function" and whole() == false then return end
+      GC.HoldingsRecord.Record(scope.char, scope.region, "auctions", GC.CraftQueue.SumListed(roster), true, time())
+    end)
   end
   if GC.Acquisitions and GC.Acquisitions.ObserveOwnedPosition and scope then
     for _, lot in ipairs(S.ownedLots) do

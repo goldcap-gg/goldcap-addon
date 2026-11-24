@@ -50,14 +50,14 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- Minus retail's price snapshot, and the carry list at the Warband Bank (UI/BankRoute.lua):
   -- goldcap.gg works out where flips sell for retail realms alone. The followed groups' selling
   -- rules (Core/GroupRules.lua), their unsold rounds (Core/SellRounds.lua) and the returns log
-  -- (Core/MailReturns.lua) load in both games: both are pure, and every caller asks first. The
-  -- cancel runs, the bank and Hoard files, the other mail files (Core/MailClassify.lua,
-  -- Core/MailStock.lua, ...) and the vendor sell files stay retail only. Crafting in the
-  -- profession window loads in both games, with Forever's differences in files of its own
-  -- (FOREVER_ONLY below).
+  -- (Core/MailReturns.lua) load in both games: both are pure, and every caller asks first. So does
+  -- the reader of one inbox row (Core/MailClassify.lua), which the holdings record
+  -- (Core/HoldingsRecord.lua, both games) reads the mailbox with. The cancel runs, the bank and
+  -- Hoard files, the other mail files (Core/MailStock.lua, ...) and the vendor sell files stay
+  -- retail only. Crafting in the profession window loads in both games, with Forever's
+  -- differences in files of its own (FOREVER_ONLY below).
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
     ["Core/CancelRun.lua"] = true,
-    ["Core/MailClassify.lua"] = true,
     ["Core/MailStock.lua"] = true,
     ["Core/VendorSelect.lua"] = true, ["Data/NoDisenchant.lua"] = true, ["Core/Disenchant.lua"] = true,
     ["Core/VendorPress.lua"] = true,

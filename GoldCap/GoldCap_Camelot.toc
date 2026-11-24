@@ -53,6 +53,7 @@ Core/PurchaseCapture.lua
 Core/Ledger.lua
 Core/MailReturns.lua
 Core/ForeverDeposits.lua
+Core/MailClassify.lua
 Core/SoldView.lua
 Core/SoldReceipt.lua
 Core/QuoteCache.lua
@@ -121,6 +122,7 @@ Core/CraftVersion.lua
 Core/CraftQueue.lua
 Core/ForeverVendorPrices.lua
 Core/ForeverSources.lua
+Core/HoldingsRecord.lua
 Services/Sell/State.lua
 Services/Sell/Quotes.lua
 Services/Sell/Bags.lua

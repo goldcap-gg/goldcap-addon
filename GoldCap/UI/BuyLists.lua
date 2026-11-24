@@ -152,21 +152,6 @@ function GC.BuyLists.Import(into)
   if GC.UI and GC.UI.ShowImportDialog then GC.UI.ShowImportDialog({ lists = true, into = into }) end
 end
 
--- The bank's containers, by the client's own names for them (Enum.BagIndex: CharacterBankTab_1..6
--- and AccountBankTab_1..5 in retail, ..9 each in WoW: Forever). A bank the client has not loaded
--- this session answers no slots, and is simply not there.
-local function bankBags()
-  local out = {}
-  for name, index in pairs(type(Enum) == "table" and type(Enum.BagIndex) == "table" and Enum.BagIndex or {}) do
-    if type(name) == "string" and type(index) == "number"
-        and (name:match("^CharacterBankTab_%d+$") or name:match("^AccountBankTab_%d+$")) then
-      out[#out + 1] = index
-    end
-  end
-  table.sort(out)
-  return out
-end
-
 local function walkBags(bags, add)
   if not (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo) then return end
   for _, bag in ipairs(bags) do
@@ -193,7 +178,13 @@ function GC.BuyLists.KnownNames(add)
     end
   end
   walkBags(BAGS, add)
-  walkBags(bankBags(), add)
+  -- The bank's containers that report slots, the character's and the account's
+  -- (Core/HoldingsRecord.lua): a bank the client has not loaded this session is simply not there.
+  if GC.HoldingsRecord then
+    local character, account = GC.HoldingsRecord.BankBags()
+    walkBags(character, add)
+    walkBags(account, add)
+  end
   -- A stored name is in the language of the client that recorded it (a retail purchase made in
   -- English reads "Linen Cloth" in a Russian Forever client), so each id also gets the client's own
   -- name, once, when the client has it.
