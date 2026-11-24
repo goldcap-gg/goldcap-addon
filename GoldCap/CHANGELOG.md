@@ -23,7 +23,8 @@
   minutes, so a second cheap listing is found sooner.
 - DEALS shows fewer commodity rows it would refuse when you Check them: a row now shows only when
   it is far enough under the market to clear both your minimum profit and your minimum return.
-- /gc board says how many requests GoldCap sent to the auction house in the last minute.
+- DEALS now shows under the tabs what AUTO is scanning and how many finds, checks and deals it
+  made in the last five minutes, with more on the AUTO button's tooltip.
 
 ## 0.33.0 (2026-11-23)
 
