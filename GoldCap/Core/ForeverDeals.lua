@@ -521,6 +521,54 @@ local passView
 local dirty, unitsDue, patchWait = {}, {}, {}
 -- copies: a build's row -> the copy of it the board shows, and the units bought from it then.
 local copies = setmetatable({}, { __mode = "k" })
+-- found: what DEALS' AUTO readout knows of each item on the board (Core/AutoReadout.lua):
+-- "owed" a find whose first Check has not answered, "checked" one whose has, "seen" a row of the
+-- first look, never a find. An item leaves it when its row leaves the board, so it counts again
+-- when it comes back. `looked`: the board has been looked at since it last had no fold.
+local found, looked = {}, false
+
+-- The items that appear on the board between two looks: those with a row in `after` and none in
+-- `before` (itemID -> row maps), in item order. A row only repriced, or built again from the same
+-- entries, is the same item; with no earlier look (`before` nil) nothing appeared.
+function GC.ForeverDeals.Appeared(before, after)
+  local out = {}
+  if type(before) ~= "table" then return out end
+  for itemID in pairs(after or {}) do
+    if before[itemID] == nil then out[#out + 1] = itemID end
+  end
+  table.sort(out)
+  return out
+end
+
+-- An item's row is new on the board: a find, once per appearance. True when it counted.
+function GC.ForeverDeals.Found(itemID)
+  if found[itemID] then return false end
+  found[itemID] = "owed"
+  if GC.AutoReadout then GC.AutoReadout.Note("finds") end
+  return true
+end
+
+-- A live Check of the item's row answered (the verify walk's, or the gear loop's own): the first
+-- one of a find counts as checked. True when it counted.
+function GC.ForeverDeals.Checked(itemID)
+  if found[itemID] ~= "owed" then return false end
+  found[itemID] = "checked"
+  if GC.AutoReadout then GC.AutoReadout.Note("checked") end
+  return true
+end
+
+-- A look at the board a build or a patch just made: what left it is forgotten, what came is a find.
+local function settle(byItem)
+  local fresh = GC.ForeverDeals.Appeared(looked and found or nil, byItem)
+  for itemID in pairs(found) do
+    if not byItem[itemID] then found[itemID] = nil end
+  end
+  if not looked then
+    for itemID in pairs(byItem) do found[itemID] = found[itemID] or "seen" end
+    looked = true
+  end
+  for _, itemID in ipairs(fresh) do GC.ForeverDeals.Found(itemID) end
+end
 
 -- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
 -- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
@@ -837,6 +885,7 @@ local function rebuild(fold, now)
     for _ in pairs(fold.items) do entries = entries + 1 end
   end
   cache.floorOnly, cache.entries = floorOnly or 0, entries
+  settle(byItem)
 end
 
 -- The board clock's answer to a browse pass: the rows of the items whose entry moved (`dirty`)
@@ -861,6 +910,7 @@ local function patch(fold, now)
     end
   end
   cache.rows, cache.byItem = board(fold, capped(cands), settings)
+  settle(cache.byItem)
   await(missing, noDeposit, unsure, known, now, function(itemID, untilAt)
     patchWait[itemID] = untilAt
   end)
@@ -921,6 +971,7 @@ function GC.ForeverDeals.Rows(now)
     cache.at, cache.itemCount, cache.rev, cache.from = nil, nil, nil, nil
     cache.rows, cache.byItem, cache.waitUntil = {}, {}, 0
     cache.unsure, cache.reask = 0, false
+    found, looked = {}, false
     return cache.rows
   end
   if foldChanged(fold) then rebuild(fold, now) end
@@ -1110,6 +1161,7 @@ function GC.ForeverDeals.Bought(itemID, qty)
   if live[itemID] then
     live[itemID] = nil
     unlist(itemID)
+    found[itemID] = nil
     return
   end
   if from == nil or row == nil or type(qty) ~= "number" or qty <= 0 then
@@ -1137,6 +1189,7 @@ function GC.ForeverDeals.Drop(itemID)
   if from == nil then return end
   dropped[itemID] = { at = from.at, entry = entryOf(from, itemID) }
   unlist(itemID)
+  found[itemID] = nil
 end
 
 -- Gear the browse between scans saw listed at `unit`, under the `vendor` price
@@ -1201,6 +1254,7 @@ function GC.ForeverDeals.LiveKeep(seen)
       live[itemID] = nil
       if cache.byItem[itemID] and cache.byItem[itemID].live then
         unlist(itemID)
+        found[itemID] = nil
         gone = gone + 1
       end
     end

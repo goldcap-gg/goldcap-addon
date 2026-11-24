@@ -7912,7 +7912,8 @@ local function maybeStartPrewarm(deal, auto, find)
 
   prewarmToken = prewarmToken + 1
   -- `find`: the check of something AUTO found (a drill, the gear loop's), counted when it answers.
-  local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true, find = find }
+  -- `auto`: a background Check (the verify walk's, the gear loop's), never a hover.
+  local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true, find = find, auto = auto }
   prewarmAttempt = attempt
   driver.sendSearch(itemID)
 
@@ -8110,7 +8111,13 @@ local function resolvePrewarm(itemID, data)
   if not attempt or attempt.itemID ~= itemID then return end
   local deal = attempt.deal
   prewarmAttempt = nil
-  if attempt.find and GC.AutoReadout then GC.AutoReadout.Note("checked") end
+  -- A WoW: Forever row's first background Check is counted by its board, once per appearance,
+  -- whether the walk or the gear loop asked; any other is counted when it is the check of a find.
+  if deal and deal.forever and GC.ForeverDeals and GC.ForeverDeals.Checked then
+    if attempt.auto then GC.ForeverDeals.Checked(itemID) end
+  elseif attempt.find and GC.AutoReadout then
+    GC.AutoReadout.Note("checked")
+  end
   if not deal then return end
   deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
   -- Final review I1: a cap decision has already filed its own verdict, against the deal the cap
