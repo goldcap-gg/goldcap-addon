@@ -1,5 +1,13 @@
 # GoldCap
 
+## 0.36.0 (unreleased)
+
+- DEALS, in retail WoW: a commodity buy is sized from how much it sells on a typical day of the last
+  week, not the last 24 hours alone, so one busy day no longer makes it buy too many and a quiet day
+  no longer stops it buying.
+- WoW: Forever: with AUTO on, the Items board on DEALS says the gear browse is running instead of
+  "paused".
+
 ## 0.35.0 (2026-11-24)
 
 - WoW: Forever: Worth crafting no longer hides a recipe because few of the item it makes are listed.
