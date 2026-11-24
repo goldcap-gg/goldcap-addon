@@ -89,6 +89,27 @@ describe("GCF1, the WoW: Forever crowd payload", function()
     assert.is_nil(GC.ImportString.ParseForever(BODY .. ";H:72;S:15210=9=9=5000=4000").versions)
   end)
 
+  -- What a crafted item sold for on the nearest markets when its own house sold it fewer than N
+  -- times, a section of its own after R: N first, then a token per item.
+  it("reads the pooled crafting sales, and skips a malformed one alone", function()
+    local p = GC.ImportString.ParseForever(BODY .. ";H:72;E:5,7=f=1=6=0=28000==,9=-=1=1=1==o500.f900.r1200=us:7:150000")
+    assert.same({ n = 5, items = {
+      [7] = { from = "f", own = 1, sib = 6, rest = 0, median = 28000, sales = {} },
+      [9] = { from = "-", own = 1, sib = 1, rest = 1, sales = {
+        { where = "o", copper = 500 }, { where = "f", copper = 900 }, { where = "r", copper = 1200 } },
+        xregion = { region = "us", sales = 7, median = 150000 } },
+    } }, p.pool)
+    assert.equal(2, p.count)
+    local bad = GC.ImportString.ParseForever(BODY .. ";E:5,7=x=1=6=0=28000==,8=r=0=0=9=1500==,9=f=1=6=0===,10=-=1=0=0==z5=")
+    assert.same({ 8 }, (function()
+      local ids = {}
+      for id in pairs(bad.pool.items) do ids[#ids + 1] = id end
+      return ids
+    end)())
+    assert.is_nil(GC.ImportString.ParseForever(BODY .. ";E:x,7=f=1=6=0=28000==").pool)
+    assert.is_nil(GC.ImportString.ParseForever(BODY .. ";H:72").pool)
+  end)
+
   it("refuses what is not a Forever payload", function()
     assert.same({ nil, "empty" }, { GC.ImportString.ParseForever(nil) })
     assert.same({ nil, "bad_header" }, { GC.ImportString.ParseForever("GCM1;eu;1;I:1=2") })
