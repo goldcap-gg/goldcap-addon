@@ -740,12 +740,109 @@ describe("Tooltip.Headline", function()
   end)
 
   -- The craft cost fallback takes only what the deal maths trusts.
-  it("TrustedHeadline refuses an imported realm median and keeps value and region", function()
+  -- A realm item's listed median, wherever it comes from (the import, the bundled table, the
+  -- payload's M), is never a cost or a price: only its region reference is.
+  it("TrustedHeadline refuses a realm item's listed median and keeps value and region", function()
     assert.is_nil(GC.Tooltip.TrustedHeadline({ mv = 30000, ts = 0, source = "import", kind = "realm_item" }))
     assert.is_nil(GC.Tooltip.TrustedHeadline(nil))
     assert.is_nil(GC.Tooltip.TrustedHeadline({ ts = 0, source = "import", kind = "region_commodity" }))
-    assert.equal(700, (GC.Tooltip.TrustedHeadline({ mv = 700, ts = 0, source = "bundled", kind = "realm_item" })))
+    assert.is_nil(GC.Tooltip.TrustedHeadline({ mv = 700, ts = 0, source = "bundled", kind = "realm_item" }))
+    assert.is_nil(GC.Tooltip.TrustedHeadline({ mv = 20003600, ts = 0, source = "region", kind = "realm_item" }))
     assert.equal(20000, (GC.Tooltip.TrustedHeadline(
       { mv = 9000000, ref = 20000, ts = 0, source = "import", kind = "realm_item" })))
+    assert.equal(700, (GC.Tooltip.TrustedHeadline({ mv = 700, ts = 0, source = "bundled", kind = "region_commodity" })))
+    assert.equal(800, (GC.Tooltip.TrustedHeadline({ mv = 800, ts = 0, source = "region", kind = "region_commodity" })))
+    assert.equal(900, (GC.Tooltip.TrustedHeadline({ mv = 900, ts = 0, source = "scan", kind = "crowd" })))
+    assert.equal(950, (GC.Tooltip.TrustedHeadline({ mv = 950, ts = 0, source = "scan", kind = "own_scan" })))
+  end)
+end)
+
+-- A crafted item sold per piece (the region payload's X names it): the tooltip speaks of the
+-- version under the cursor, found by its link's item level, and names the region's listed median
+-- for what it is, every version's. The silver rod's week, 2026-11-24, EU.
+describe("Tooltip of a crafted item", function()
+  local GC
+  local SILVER = { [2] = { ilvl = 212, sales = 8, realms = 5, median = 5160000 },
+    [3] = { ilvl = 218, sales = 17, realms = 9, median = 3000000 },
+    [4] = { ilvl = 225, sales = 4, realms = 4, median = 5500000 },
+    [5] = { ilvl = 232, sales = 1208, realms = 89, median = 11100000 } }
+  local M = { mv = 20003600, ts = 1000, source = "region", kind = "realm_item" }
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Trigger.lua", GC)
+    helper.loadModule("Core/CraftVersion.lua", GC)
+    helper.loadModule("UI/Tooltip.lua", GC)
+  end)
+
+  local function build(versions, ilvl, v)
+    local version, entry = GC.CraftVersion.ByLevel(versions, ilvl)
+    return GC.Tooltip.BuildLines(v == nil and M or v or nil, 2000,
+      { crafted = { versions = versions, version = version, entry = entry, ilvl = ilvl } })
+  end
+
+  local function shape(lines)
+    local out = {}
+    for i, ln in ipairs(lines or {}) do
+      out[i] = ln.kind == "money" and (ln.label .. " = " .. ln.copper) or ln.left
+    end
+    return out
+  end
+
+  local LISTED = "Listed across the region, every version = 20003600"
+
+  it("says what a proven version sold for", function()
+    assert.same({ "Sold for = 11100000", "1208 sales this week, item level 232", LISTED }, shape(build(SILVER, 232)))
+  end)
+
+  it("gives a version that sold a few times no price, only how few and about what", function()
+    assert.same({ ("Sold %d times this week, about %s"):format(4, GC.Util.Money(5500000)), LISTED },
+      shape(build(SILVER, 225)))
+  end)
+
+  it("says a version no week's sale has the level of did not sell, never another's price", function()
+    assert.same({ "This version (206) did not sell this week", LISTED }, shape(build(SILVER, 206)))
+    -- Named with no sale at all, and an item without ranks has no level to look for.
+    assert.same({ LISTED }, shape(build({}, 206)))
+    assert.same({ LISTED }, shape(build({ [0] = { ilvl = 0, sales = 91, realms = 35, median = 880000 } }, 206)))
+  end)
+
+  it("has no version line without a link, only the relabelled median", function()
+    assert.same({ LISTED }, shape(build(SILVER, nil)))
+  end)
+
+  it("says what the version sold for even with no median to print", function()
+    assert.same({ "Sold for = 11100000", "1208 sales this week, item level 232" }, shape(build(SILVER, 232, false)))
+  end)
+
+  it("leaves a realm item X does not name, and a commodity, as they were", function()
+    assert.same({ "GoldCap value = 20003600" }, shape(GC.Tooltip.BuildLines(M, 2000, {})))
+    local commodity = { mv = 123400, sold = 52.34, ts = 1000, source = "region", kind = "region_commodity" }
+    local version, entry = GC.CraftVersion.ByLevel(SILVER, 232)
+    assert.same(shape(GC.Tooltip.BuildLines(commodity, 2000, {})), shape(GC.Tooltip.BuildLines(commodity, 2000,
+      { crafted = { versions = SILVER, version = version, entry = entry, ilvl = 232 } })))
+  end)
+
+  it("reads the version from the link's item level, and none without a link", function()
+    local LINK232, LINK206 = "|Hitem:244176::232|h[Silver Rod]|h", "|Hitem:244176::206|h[Silver Rod]|h"
+    local savedItem = _G.C_Item
+    _G.C_Item = { GetDetailedItemLevelInfo = function(link)
+      local level = ({ [LINK232] = 232, [LINK206] = 206 })[link]
+      return level, level, level
+    end }
+    GC.Data = { GetItemValue = function() return M end,
+      CraftedVersions = function(id) return id == 244176 and SILVER or nil end }
+    local ok, err = pcall(function()
+      assert.same({ "Sold for = 11100000", "1208 sales this week, item level 232", LISTED },
+        shape(GC.Tooltip.ItemLines(244176, 2000, LINK232)))
+      assert.same({ "This version (206) did not sell this week", LISTED }, shape(GC.Tooltip.ItemLines(244176, 2000, LINK206)))
+      assert.same({ LISTED }, shape(GC.Tooltip.ItemLines(244176, 2000, nil)))
+      assert.same({ "GoldCap value = 20003600" }, shape(GC.Tooltip.ItemLines(7935, 2000, LINK232)))
+      -- A client that cannot say the level: no version line.
+      _G.C_Item = { GetDetailedItemLevelInfo = function() error("no item") end }
+      assert.same({ LISTED }, shape(GC.Tooltip.ItemLines(244176, 2000, LINK232)))
+    end)
+    _G.C_Item = savedItem
+    assert(ok, err)
   end)
 end)

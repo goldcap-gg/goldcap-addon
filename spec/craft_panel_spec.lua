@@ -51,6 +51,7 @@ describe("craft panel", function()
     GC.Ledger = { Context = function() return { char = "Name-Realm" } end }
     GC.db = {}
     helper.loadModule("UI/CraftPanel.lua", GC)
+    helper.loadModule("UI/CraftPanel_Retail.lua", GC)
     P = GC.CraftPanel
   end
 
@@ -450,16 +451,160 @@ describe("craft panel", function()
     end)
   end)
 
-  -- WoW: Forever groups its rows and has a second switch (UI/CraftPanel_Camelot.lua); retail has
-  -- neither.
-  it("puts no row in a group, draws no group heading and no second switch", function()
+  -- Rows priced at the market are the first group, which has no heading; the switch for recipes
+  -- without a proven price stands beside "Unlearned recipes too", on until the player turns it off.
+  it("puts market rows in the first group, under no heading, beside the second switch", function()
     load()
     prices()
     local f = show()
-    for _, row in ipairs(P._rows) do assert.is_nil(row.group) end
-    assert.is_nil(P.GroupTitle)
+    for _, row in ipairs(P._rows) do assert.equal("main", row.group) end
+    assert.is_nil(P.GroupTitle("main"))
     assert.same({}, f.worth.groupHeads)
-    assert.is_nil(f.worth.unproven)
+    local switch = f.worth.unproven
+    assert.is_true(switch:IsShown())
+    assert.equal(GC.L["Without a proven price too"], switch.text:GetText())
+    assert.is_true(P.ShowsUnproven())
+  end)
+
+  -- Items sold per piece (gear, tools, bags), priced at what the version the character makes sold
+  -- for this week: real Core/Data.lua with a GCM1 payload adopted. The silver rod's rank 1 did not
+  -- sell (the game says its rank 1 is item level 206); the copper rod's sold 20 times.
+  describe("items sold per piece", function()
+    local TS_ = 1783598400
+    local SILVER_LINK, COPPER_LINK = "|Hitem:244176::r1|h[Silver Rod]|h", "|Hitem:244175::r1|h[Copper Rod]|h"
+    local X = ";X:244175=1.180.20.14.2110000/5.206.21.14.8600000"
+      .. ",244176=2.212.8.5.5160000/3.218.17.9.3000000/4.225.17.10.5500000/5.232.1208.89.11100000"
+
+    local function rod(id, name, output, link, extra)
+      return { info = TS.info(id, name, extra), operation = { recipeID = id, craftingQuality = 1, craftingQualityID = 11 },
+        outputLinks = { [11] = link }, schematic = TS.schematic(id, output, { TS.slot(1, 1, TS.items(101)) }) }
+    end
+
+    local function rods(opts)
+      opts = opts or {}
+      local silverExtra = { supportsQualities = true, learned = opts.silverLearned ~= false }
+      restore = TS.install(world({
+        recipes = { [1] = rod(1, "Silver Rod", 244176, SILVER_LINK, silverExtra),
+          [2] = rod(2, "Copper Rod", 244175, COPPER_LINK, { supportsQualities = true }), [3] = recipe(3, "C") },
+        filtered = { 1, 2, 3 }, open = opts.open, names = { [244176] = "Silver Rod", [101] = "Herb" },
+        itemLevels = { [SILVER_LINK] = 206, [COPPER_LINK] = 180 } }))
+      _G.GetCVar = function(k) if k == "portal" then return "EU" end end
+      GC = TS.craftGC()
+      helper.loadModule("Core/ImportString.lua", GC)
+      helper.loadModule("Core/Data.lua", GC)
+      GC.db = { settings = {}, craftUnproven = opts.unproven, craftUnlearned = opts.unlearned }
+      GC.Data.Init(GC.db)
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = TS_, items = {}, watchlist = {} })
+      assert.is_truthy(GC.Data.AdoptRegionPayload("GCM1;eu;" .. TS_ .. ";I:101=1000,103=1700,903=2000"
+        .. ";M:244176=20003600=31,244175=9000000=12" .. (opts.x or X)))
+      GC.AppRuns = { VendorUnitFor = function() return nil end }
+      GC.Ledger = { Context = function() return { char = "Name-Realm" } end }
+      helper.loadModule("UI/CraftPanel.lua", GC)
+      helper.loadModule("UI/CraftPanel_Retail.lua", GC)
+      P = GC.CraftPanel
+    end
+
+    after_each(function() _G.GetCVar = nil end)
+
+    local function row(id)
+      for _, r in ipairs(P._rows) do if r.recipeID == id then return r end end
+    end
+
+    local function tipText(data)
+      local out = {}
+      for _, line in ipairs(P.RowTip(data)) do out[#out + 1] = line[1] end
+      return table.concat(out, "\n")
+    end
+
+    it("keeps a learned rod whose version did not sell under No estimate, with what is known", function()
+      rods()
+      local f = show()
+      assert.same({ 2, 3, 1 }, ids())
+      local silver = row(1)
+      assert.equal("none", silver.group)
+      assert.equal(GC.L["No estimate"], P.GroupTitle("none"))
+      assert.equal(GC.Util.Upper(GC.L["No estimate"]), f.worth.groupHeads[1]:GetText())
+      local tip = tipText(silver)
+      assert.truthy(tip:find(GC.L["Your version (%d) did not sell this week"]:format(206), 1, true))
+      assert.truthy(tip:find(GC.L["Quality %d (%d) sells for %s"]:format(5, 232, GC.Util.Money(11100000)), 1, true))
+      assert.truthy(tip:find(GC.L["Quality %d (%d) sells for %s"]:format(4, 225, GC.Util.Money(5500000)), 1, true))
+      assert.truthy(tip:find(GC.L["Quality %d (%d) sells for %s"]:format(3, 218, GC.Util.Money(3000000)), 1, true))
+      assert.falsy(tip:find(GC.L["Quality %d (%d) sells for %s"]:format(2, 212, GC.Util.Money(5160000)), 1, true))
+      -- Its row: what the reagents cost and what to ask, no profit.
+      assert.equal(GC.L["Reagents cost %s"]:format(GC.Util.Money(1000)) .. "\n"
+        .. GC.L["Sell for at least %s each to break even."]:format(GC.Util.Money(GC.CraftMath.Breakeven(1000, 1))),
+        silver.widget.math:GetText())
+      assert.equal("", silver.widget.profit:GetText())
+    end)
+
+    it("ranks a rod whose version sold enough with the rest, and says what sold", function()
+      rods()
+      show()
+      local copper = row(2)
+      assert.equal("main", copper.group)
+      assert.equal(math.floor(2110000 * 0.95) - 1000, copper.result.profit)
+      assert.truthy(tipText(copper):find(GC.L["Sold %d times this week, item level %d"]:format(20, 180), 1, true))
+      assert.equal("main", row(3).group)
+    end)
+
+    it("lists an unlearned rod without a proven price nowhere, and counts it nowhere", function()
+      rods({ silverLearned = false, unlearned = true })
+      show()
+      assert.is_nil(row(1))
+      local _, unpriced = P.Rows()
+      assert.equal(0, unpriced)
+    end)
+
+    it("counts the rod without a proven price as having none when the switch is off", function()
+      rods({ unproven = false })
+      local f = show()
+      assert.same({ 2, 3 }, ids())
+      local _, unpriced = P.Rows()
+      assert.equal(1, unpriced)
+      assert.is_true(f.worth.unpriced:IsShown())
+    end)
+
+    it("says the prices come with the Companion only when the payload has no X", function()
+      rods({ x = "" })
+      show()
+      local silver = row(1)
+      assert.equal("none", silver.group)
+      assert.truthy(tipText(silver):find(GC.L["Sale prices by version come with the Companion"], 1, true))
+      assert.falsy(tipText(silver):find(GC.L["No sales this week"], 1, true))
+      assert.equal("none", row(2).group)
+    end)
+
+    it("says no sales this week only when X names the item with none", function()
+      rods({ x = ";X:244176=,244175=1.180.20.14.2110000" })
+      show()
+      local tip = tipText(row(1))
+      assert.truthy(tip:find(GC.L["No sales this week"], 1, true))
+      assert.falsy(tip:find(GC.L["Sale prices by version come with the Companion"], 1, true))
+    end)
+
+    it("still lists a rod when the game will not say which version it makes", function()
+      rods()
+      GC.CraftClient.Snapshot(1)
+      TS.opts.recipes[1].operation = "error"
+      show()
+      local silver = row(1)
+      assert.equal("none", silver.group)
+      assert.truthy(tipText(silver):find(GC.L["The game did not say which version you make"], 1, true))
+      assert.truthy(tipText(silver):find(GC.L["Quality %d (%d) sells for %s"]:format(5, 232, GC.Util.Money(11100000)), 1, true))
+    end)
+
+    it("says on This recipe what the version made sold for, or that it did not sell", function()
+      rods({ open = { recipeID = 1, allocations = {} } })
+      local card = show().card
+      local text = card.missing:GetText()
+      assert.equal(GC.L["No GoldCap price for %s"]:format("Silver Rod") .. "\n"
+        .. GC.L["Your version (%d) did not sell this week"]:format(206) .. "\n"
+        .. GC.L["Quality %d (%d) sells for %s"]:format(5, 232, GC.Util.Money(11100000)), text:match("^[^\n]*\n[^\n]*\n[^\n]*"))
+      restore()
+      rods({ open = { recipeID = 2, allocations = {} } })
+      card = show().card
+      assert.equal(GC.L["Sold %d times this week, item level %d"]:format(20, 180), card.missing:GetText())
+    end)
   end)
 
   describe("recipes not learned yet", function()
@@ -533,8 +678,14 @@ describe("craft panel", function()
       local _, noteAbove = v.filtered:GetPoint(1)
       local _, _, _, _, listY = v.scroll:GetPoint(1)
       assert.is_true(switchY < 0)
-      assert.equal(v.unlearned, noteAbove)
-      assert.is_true(listY < switchY - v.unlearned:GetHeight())
+      -- The note goes under the lower of the two switches: the second one when it stands under the
+      -- first, else the first.
+      local _, sideAnchor, sidePoint = v.unproven:GetPoint(1)
+      assert.equal(v.unlearned, sideAnchor)
+      local under = sidePoint == "BOTTOMLEFT"
+      assert.equal(under and v.unproven or v.unlearned, noteAbove)
+      local low = switchY - v.unlearned:GetHeight() - (under and (2 + v.unproven:GetHeight()) or 0)
+      assert.is_true(listY < low)
     end)
   end)
 
@@ -589,8 +740,8 @@ describe("craft panel", function()
       assert.same(same(K.profit), rgb(card.cells[3].value))
       assert.same({ K.profit[1], K.profit[2], K.profit[3], 0.3 }, W.state(card.cells[3].ring).vertex)
       assert.is_false(card.missing:IsShown())
-      -- retail's card has no break-even line
-      assert.is_nil(GC.CraftPanel.CardNote)
+      -- retail's card has no break-even line, and a market price no note
+      assert.is_nil(GC.CraftPanel.CardNote(GC.CraftClient.ProfitOf(GC.CraftClient.Snapshot(1))))
       assert.is_false(card.queued:IsShown())
       assert.equal(GC.L["Add to queue"], card.add.label)
       assert.equal(GC.L["Restock to"], card.restock.label)

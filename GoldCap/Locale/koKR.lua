@@ -2170,4 +2170,36 @@ GC.Locales.koKR = {
     "얼라이언스",
   ["Horde"] =
     "호드",
+  ["Your version (%d) sold %d times this week, about %s"] =
+    "내 버전(%d)은 이번 주 %d회 판매, 약 %s",
+  ["Your version sold %d times this week, about %s"] =
+    "내 버전은 이번 주 %d회 판매, 약 %s",
+  ["Your version (%d) did not sell this week"] =
+    "내 버전(%d)은 이번 주 판매되지 않음",
+  ["Your version did not sell this week"] =
+    "내 버전은 이번 주 판매되지 않음",
+  ["The game did not say which version you make"] =
+    "게임이 제작할 버전을 알려 주지 않았습니다",
+  ["No sales this week"] =
+    "이번 주 판매 없음",
+  ["Sale prices by version come with the Companion"] =
+    "버전별 판매가는 Companion으로 받을 수 있습니다",
+  ["Quality %d (%d) sells for %s"] =
+    "품질 %d (%d): %s에 판매",
+  ["Quality %d sells for %s"] =
+    "품질 %d: %s에 판매",
+  ["Sold %d times this week, item level %d"] =
+    "이번 주 %d회 판매, 아이템 레벨 %d",
+  ["Sold %d times this week"] =
+    "이번 주 %d회 판매",
+  ["Sold for"] =
+    "판매가",
+  ["%d sales this week, item level %d"] =
+    "이번 주 %d회 판매, 아이템 레벨 %d",
+  ["Sold %d times this week, about %s"] =
+    "이번 주 %d회 판매, 약 %s",
+  ["This version (%d) did not sell this week"] =
+    "이 버전(%d)은 이번 주 판매되지 않음",
+  ["Listed across the region, every version"] =
+    "지역 전체 등록가, 모든 버전",
 }

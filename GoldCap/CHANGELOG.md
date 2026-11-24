@@ -1,5 +1,21 @@
 # GoldCap
 
+## 0.37.0 (2026-11-24)
+
+- Worth crafting prices gear, tools and bags at what the version you make sold for this week across
+  the region, no longer at the price they are listed for, which is every version's at once. A
+  version needs 5 sales on 3 realms or more for a price.
+- A recipe whose version sold too few times, or not at all, now shows under No estimate with what
+  is known: how often your version sold and for about how much, what the other qualities sell for,
+  what the reagents cost and the price to break even. Only recipes you know are listed there. The
+  switch "Without a proven price too", beside "Unlearned recipes too", hides them; they are then
+  counted with the recipes that have no price.
+- A reagent sold one at a time, not as a stack, costs what it sold for this week, no longer what it
+  is listed for.
+- The tooltip of a crafted item says what its version sold for this week, or that it did not sell,
+  and names the listed price for what it is: every version's, across the region.
+- Without the Companion, these recipes say that sale prices by version come with it.
+
 ## 0.36.1 (2026-11-24)
 
 - A purchase collected from the mailbox could be filed under another item, so SELL showed that item

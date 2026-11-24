@@ -209,11 +209,42 @@ function CC.Form()
   return type(form) == "table" and form or nil
 end
 
---- What the window shows for the selected recipe: { recipeID, level, output, alloc, learned },
---- alloc the reagents allocated per slot ({ { itemID, q }, ... }, a slot with nothing allocated
---- absent), output the item the window says this allocation makes, learned true only when the
---- character knows the recipe (Blizzard's list shows unlearned recipes too). nil when the recipes
---- page is not on screen, or a recraft is open.
+-- Whether the item is sold per piece, by version (the region payload's X names it).
+local function versioned(itemID)
+  local D = GC.Data
+  return type(itemID) == "number" and D and D.CraftedVersions and D.CraftedVersions(itemID) ~= nil or false
+end
+
+-- An item's level from its link, nil when the client does not say.
+local function levelOf(link)
+  if type(link) ~= "string" then return nil end
+  local ok, level = pcall(function() return _G.C_Item.GetDetailedItemLevelInfo(link) end)
+  return ok and type(level) == "number" and level > 0 and level or nil
+end
+
+--- The version a craft of a recipe makes with these reagents (Blizzard's crafting form hands its
+--- own, an empty table at low skill makes the same rank), and that version's item level: 0 for a
+--- recipe without qualities, else the rank the game says (CraftingOperationInfo.craftingQuality).
+--- nil when the game does not answer (no profession open, a recraft).
+function CC.RankOf(recipeID, reagents, allocationGUID)
+  if type(recipeID) ~= "number" then return nil end
+  local okI, info = call("GetRecipeInfo", recipeID)
+  if not okI or type(info) ~= "table" then return nil end
+  if info.supportsQualities ~= true then return 0 end
+  reagents = type(reagents) == "table" and reagents or {}
+  local okO, op = call("GetCraftingOperationInfo", recipeID, reagents, allocationGUID, false)
+  local rank = okO and type(op) == "table" and op.craftingQuality or nil
+  if type(rank) ~= "number" then return nil end
+  local okD, data = call("GetRecipeOutputItemData", recipeID, reagents, allocationGUID, op.craftingQualityID)
+  return rank, levelOf(okD and type(data) == "table" and data.hyperlink or nil)
+end
+
+--- What the window shows for the selected recipe: { recipeID, level, output, alloc, learned, rank,
+--- ilvl }, alloc the reagents allocated per slot ({ { itemID, q }, ... }, a slot with nothing
+--- allocated absent), output the item the window says this allocation makes, learned true only when
+--- the character knows the recipe (Blizzard's list shows unlearned recipes too), and for an item
+--- sold per piece the version the window's reagents make and its item level (CC.RankOf). nil when
+--- the recipes page is not on screen, or a recraft is open.
 function CC.OpenRecipe()
   local form = CC.Form()
   if not form then return nil end
@@ -241,11 +272,14 @@ function CC.OpenRecipe()
       end
       if type(slot) == "table" and type(slot.slotIndex) == "number" and #list > 0 then alloc[slot.slotIndex] = list end
     end
-    local data = ts().GetRecipeOutputItemData(info.recipeID, tx:CreateCraftingReagentInfoTbl(), tx:GetAllocationItemGUID())
+    local reagents, guid = tx:CreateCraftingReagentInfoTbl(), tx:GetAllocationItemGUID()
+    local data = ts().GetRecipeOutputItemData(info.recipeID, reagents, guid)
     local output = type(data) == "table" and data.itemID or nil
     local link = output and type(data.hyperlink) == "string" and data.hyperlink or nil
+    local rank, ilvl
+    if versioned(output) then rank, ilvl = CC.RankOf(info.recipeID, reagents, guid) end
     return { recipeID = info.recipeID, level = form:GetCurrentRecipeLevel(), output = output, link = link,
-      alloc = alloc, learned = info.learned == true }
+      alloc = alloc, learned = info.learned == true, rank = rank, ilvl = ilvl }
   end)
   return ok and open or nil
 end
@@ -257,32 +291,72 @@ function CC.VendorOf(itemID)
   return type(vendor) == "number" and vendor or nil
 end
 
---- What one of a reagent costs: the vendor price a BUY list carries for it, else the market price
---- GoldCap trusts for a cost (the order Core/Init.lua's craft capture prices a reagent in).
+--- What one of a reagent costs: the vendor price a BUY list carries for it, else what GoldCap
+--- trusts for a cost (GC.Data.CraftUnit: an item sold per piece at its cheapest proven version), the
+--- order Core/Init.lua's craft capture prices a reagent in.
 function CC.UnitOf(itemID)
   if type(itemID) ~= "number" then return nil end
   local vendor = CC.VendorOf(itemID)
   if vendor then return vendor end
-  local v = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID) or nil
-  local unit = GC.Tooltip.TrustedHeadline(v)
+  local D = GC.Data
+  if D and D.CraftUnit then return D.CraftUnit(itemID) end
+  local unit = GC.Tooltip.TrustedHeadline(D and D.GetItemValue and D.GetItemValue(itemID) or nil)
   return type(unit) == "number" and math.floor(unit) or nil
 end
 
---- What one of a crafted item sells for on the market, and how many sell a day (nil: unknown).
-function CC.SellOf(itemID)
+--- What one of a crafted item sells for, how many sell a day (nil: unknown), and what the price
+--- rests on (`basis`). An item sold per piece (the payload's X names it) sells at what the version
+--- of `rank` sold for this week, and only when its sales prove it (Core/CraftVersion.lua's Pick, the
+--- basis). Any other realm item has no price: its listed median is every version's ("nosales" when
+--- the payload's X does not name it, "nodata" without X). Anything else at the market price GoldCap
+--- trusts, basis "market".
+function CC.SellOf(itemID, rank)
   if type(itemID) ~= "number" then return nil end
-  local v = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID) or nil
+  local D = GC.Data
+  if versioned(itemID) then
+    local basis = GC.CraftVersion.Pick(D.CraftedVersions(itemID), rank)
+    return basis.kind == "proven" and math.floor(basis.median) or nil, nil, basis
+  end
+  local v = D and D.GetItemValue and D.GetItemValue(itemID) or nil
+  if type(v) == "table" and v.kind == "realm_item" then
+    local withX = D.HasCraftedVersions and D.HasCraftedVersions() or false
+    return nil, nil, { kind = withX and "nosales" or "nodata", others = {} }
+  end
   local unit = GC.Tooltip.TrustedHeadline(v)
-  if type(unit) ~= "number" then return nil end
-  return math.floor(unit), type(v) == "table" and type(v.sold) == "number" and v.sold or nil
+  local basis = { kind = "market" }
+  if type(unit) ~= "number" then return nil, nil, basis end
+  return math.floor(unit), type(v) == "table" and type(v.sold) == "number" and v.sold or nil, basis
 end
 
---- Core/CraftMath.lua's Profit at these prices. `open` counts only when it is this recipe's.
+--- Core/CraftMath.lua's Profit at these prices, with the item it sells (`output`) and what its price
+--- rests on (`basis`, CC.SellOf's). `open` counts only when it is this recipe's. The recipe's own
+--- item, sold per piece, sells at the version the character makes (`rank`, and its `ilvl`): the
+--- window's when `open` is given, else what the game says a craft makes with no reagents picked. Any
+--- other item it can make has no rank known.
 function CC.ProfitOf(recipe, open)
   if type(open) == "table" and type(recipe) == "table" and open.recipeID ~= nil and open.recipeID ~= recipe.recipeID then
     open = nil
   end
-  return GC.CraftMath.Profit(recipe, CC.UnitOf, function(id) return (CC.SellOf(id)) end, open)
+  local main = type(recipe) == "table" and recipe.output or nil
+  local rank, ilvl
+  if versioned(main) then
+    if type(open) == "table" then
+      rank, ilvl = open.rank, open.ilvl
+    else
+      rank, ilvl = CC.RankOf(recipe.recipeID, {}, nil)
+    end
+  end
+  local function rankOf(id) return id == main and rank or nil end
+  local result = GC.CraftMath.Profit(recipe, CC.UnitOf, function(id) return (CC.SellOf(id, rankOf(id))) end, open)
+  local output = (type(open) == "table" and open.output) or main
+  if output ~= nil then
+    result.output = output
+    result.basis = select(3, CC.SellOf(output, rankOf(output)))
+    -- A version that did not sell has no item level of its own in X: the game's says which it is.
+    if type(result.basis) == "table" and result.basis.ilvl == nil and output == main then result.basis.ilvl = ilvl end
+  end
+  result.rank, result.ilvl = rank, ilvl
+  return result
 end
 
 --- How many of an item the character holds in bags, bank, reagent bank and warband bank together,

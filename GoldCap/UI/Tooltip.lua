@@ -73,12 +73,14 @@ function GC.Tooltip.Headline(v)
   return nil
 end
 
--- Headline, for a number that becomes a cost (a craft's reagent nobody bought): only the two
--- kinds Core/DealMath.lua and Core/Trigger.lua trust. An imported realm item's unverified median
--- ("median") is a figure the tooltip may print under its own label, never a basis for a cost.
+-- Headline, for a number that becomes a cost or a craft's price: only the two kinds
+-- Core/DealMath.lua and Core/Trigger.lua trust. A realm item's listed median, whichever table
+-- answered (the import's "median", the bundled table's or the region payload's M), is a figure the
+-- tooltip may print under its own label, never a cost or a price: gear lists at every version under
+-- one id, and its median is none of them. Its region reference ("region") is.
 function GC.Tooltip.TrustedHeadline(v)
   local copper, kind = GC.Tooltip.Headline(v)
-  if kind == "value" or kind == "region" then return copper, kind end
+  if kind == "region" or (kind == "value" and v.kind ~= "realm_item") then return copper, kind end
   return nil
 end
 
@@ -98,21 +100,55 @@ local function withUpgrade(lines, opts)
   return lines
 end
 
+-- Whether any version X names has an item level, so a level the link gives can be looked for.
+local function hasLevels(versions)
+  for _, e in pairs(versions) do
+    if type(e) == "table" and type(e.ilvl) == "number" and e.ilvl > 0 then return true end
+  end
+  return false
+end
+
+-- What the version under the cursor sold for this week (opts.crafted, for an item the region
+-- payload's X names): its sales and median when they prove a price, how few sold when they do not,
+-- that it did not sell when no version X names has its item level. Nothing without a level to look
+-- for: an auction house row stands for every version, and an item without ranks has no level in X.
+local function craftedLines(c)
+  if type(c) ~= "table" or type(c.versions) ~= "table" then return nil end
+  local out, e = {}, c.entry
+  local V = GC.CraftVersion
+  if type(e) == "table" and V and V.Proven(e) then
+    out[1] = { kind = "money", label = GC.L["Sold for"], copper = e.median }
+    out[2] = { kind = "text", left = GC.L["%d sales this week, item level %d"]:format(e.sales, e.ilvl), right = "" }
+  elseif type(e) == "table" and (tonumber(e.sales) or 0) > 0 then
+    out[1] = { kind = "text", left = GC.L["Sold %d times this week, about %s"]:format(e.sales, GC.Util.Money(e.median)),
+      right = "" }
+  elseif type(c.ilvl) == "number" and c.ilvl > 0 and hasLevels(c.versions) then
+    out[1] = { kind = "text", left = GC.L["This version (%d) did not sell this week"]:format(c.ilvl), right = "" }
+  end
+  return out
+end
+
 -- opts (optional): { unitCost = <copper per unit still held>, region = <"eu"|"kr"|...>,
--- origin = <GC.Data.OriginState()>, live = <see liveLine> }. They come from the caller rather
--- than from `v` because none belongs to the market value: the player's own ledger, which bundled
--- table answered, where the save's prices came from, and what the auction house showed this session.
+-- origin = <GC.Data.OriginState()>, live = <see liveLine>, crafted = <see craftedLines> }. They come
+-- from the caller rather than from `v` because none belongs to the market value: the player's own
+-- ledger, which bundled table answered, where the save's prices came from, what the auction house
+-- showed this session, and what the version under the cursor sold for.
 function GC.Tooltip.BuildLines(v, now, opts)
   opts = opts or {}
+  -- A realm item sold per piece (the payload's X names it): its version's sales come first, and the
+  -- region's listed median, every version's, is named as that. Commodities are never in X.
+  local crafted = (v == nil or v.kind == "realm_item") and craftedLines(opts.crafted) or nil
   local scan = v ~= nil and v.source == "scan"
   local live = liveLine(opts.live, scan or type(opts.forever) == "table")
   -- How often one listing sells (opts.sellChance), beside the sale speed: its own measurement, so
   -- it is shown on every path, a realm item's and an unpriced item's too. Nothing without a figure.
   local chance = GC.Util.SellChanceText(opts.sellChance)
   local chanceLine = chance and { kind = "text", left = chance, right = "" } or nil
-  -- What an item GoldCap has no price for still gets: the live floor and the sell chance, or nil.
+  -- What an item GoldCap has no price for still gets: what its version sold for, the live floor and
+  -- the sell chance, or nil.
   local function unpriced()
     local out = {}
+    for _, ln in ipairs(crafted or {}) do out[#out + 1] = ln end
     out[#out + 1] = live
     out[#out + 1] = chanceLine
     return withUpgrade(#out > 0 and out or nil, opts)
@@ -136,9 +172,10 @@ function GC.Tooltip.BuildLines(v, now, opts)
   -- region-wide median already (see apps/api/src/lib/addonMarketData.ts).
   local realmImport = v.kind == "realm_item" and v.source == "import"
   if not headline then return unpriced() end
+  for _, ln in ipairs(crafted or {}) do lines[#lines + 1] = ln end
   if headlineKind == "region" then
     local ilvl = type(v.refIlvl) == "number" and v.refIlvl > 0 and v.refIlvl or nil
-    lines[1] = {
+    lines[#lines + 1] = {
       kind = "money",
       label = ilvl and (GC.L["GoldCap region price (ilvl %d)"]):format(ilvl)
         or GC.L["GoldCap region price"],
@@ -150,7 +187,9 @@ function GC.Tooltip.BuildLines(v, now, opts)
     -- the price the rest of the addon would trade on. Nothing else about the item is
     -- printed below: a median of two listings has no sale speed or depth to report, and a
     -- second number beside it would lend the first one authority it has not got.
-    lines[1] = { kind = "money", label = GC.L["GoldCap realm median (unverified)"], copper = headline }
+    lines[#lines + 1] = { kind = "money", label = GC.L["GoldCap realm median (unverified)"], copper = headline }
+  elseif crafted then
+    lines[#lines + 1] = { kind = "money", label = GC.L["Listed across the region, every version"], copper = headline }
   else
     local label = GC.L["GoldCap value"]
     -- WoW: Forever's own scan (Core/ForeverScan.lua): the auction house's price for it, and for
@@ -331,6 +370,17 @@ function GC.Tooltip.ItemLines(itemID, now, link)
     forever.upgrade = link and upgrades and upgrades.TooltipVerdict and upgrades.TooltipVerdict(link) or nil
     forever.disenchant = GC.Tooltip._ForeverDisenchant(link or itemID, itemID)
   end
+  -- Retail: what each version of an item sold per piece sold for (the region payload's X), and the
+  -- one the link names by its item level. Never in BuildLines, which stays pure.
+  local versions = GC.Data.CraftedVersions and GC.Data.CraftedVersions(itemID) or nil
+  local crafted
+  if versions then
+    local ok, level = false, nil
+    if link then ok, level = pcall(function() return C_Item.GetDetailedItemLevelInfo(link) end) end
+    local ilvl = ok and type(level) == "number" and level > 0 and level or nil
+    local version, entry = GC.CraftVersion.ByLevel(versions, ilvl)
+    crafted = { versions = versions, version = version, entry = entry, ilvl = ilvl }
+  end
   return GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,
@@ -339,6 +389,7 @@ function GC.Tooltip.ItemLines(itemID, now, link)
     live = GC.Sniper and GC.Sniper.LiveFloor and GC.Sniper.LiveFloor(itemID, now) or nil,
     forever = forever,
     sellChance = GC.Data.SellChance and GC.Data.SellChance(itemID) or nil,
+    crafted = crafted,
   })
 end
 

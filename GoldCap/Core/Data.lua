@@ -917,6 +917,36 @@ local function payloadField(field, key)
   return t and t[key] or nil
 end
 
+-- What each version of an item sold per piece sold for this week (the payload's X section; absent
+-- from an older Companion's payload, and then both answers below say so).
+
+--- { [version] = { ilvl, sales, realms, median } } for an item the payload's X names (empty when it
+--- sold nothing this week), or nil: no payload, no X, or the item not named. The payload's own
+--- table, shared: read it, never edit it.
+function GC.Data.CraftedVersions(itemID)
+  return payloadField("crafted", itemID)
+end
+
+--- Whether the payload answering carried X at all.
+function GC.Data.HasCraftedVersions()
+  local p = activePayload()
+  return p ~= nil and p.crafted ~= nil
+end
+
+--- What one of an item costs a craft that uses it, in copper, or nil: for an item X names, its
+--- cheapest proven version (nil when none is proven, never its listed median); for any other, the
+--- figure GoldCap trusts for a cost (GC.Tooltip.TrustedHeadline).
+function GC.Data.CraftUnit(itemID)
+  local versions = GC.Data.CraftedVersions(itemID)
+  local unit
+  if versions then
+    unit = GC.CraftVersion and GC.CraftVersion.Cheapest(versions) or nil
+  elseif GC.Tooltip and GC.Tooltip.TrustedHeadline then
+    unit = GC.Tooltip.TrustedHeadline(GC.Data.GetItemValue(itemID))
+  end
+  return type(unit) == "number" and math.floor(unit) or nil
+end
+
 --- The item level a flip was priced at, or nil when it names none (anything but armor and weapons).
 function GC.Data.FlipLevel(itemID)
   return payloadField("flipLevels", itemID)

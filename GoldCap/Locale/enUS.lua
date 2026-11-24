@@ -2232,4 +2232,36 @@ GC.Locales.enUS = {
     "Alliance",
   ["Horde"] =
     "Horde",
+  ["Your version (%d) sold %d times this week, about %s"] =
+    "Your version (%d) sold %d times this week, about %s",
+  ["Your version sold %d times this week, about %s"] =
+    "Your version sold %d times this week, about %s",
+  ["Your version (%d) did not sell this week"] =
+    "Your version (%d) did not sell this week",
+  ["Your version did not sell this week"] =
+    "Your version did not sell this week",
+  ["The game did not say which version you make"] =
+    "The game did not say which version you make",
+  ["No sales this week"] =
+    "No sales this week",
+  ["Sale prices by version come with the Companion"] =
+    "Sale prices by version come with the Companion",
+  ["Quality %d (%d) sells for %s"] =
+    "Quality %d (%d) sells for %s",
+  ["Quality %d sells for %s"] =
+    "Quality %d sells for %s",
+  ["Sold %d times this week, item level %d"] =
+    "Sold %d times this week, item level %d",
+  ["Sold %d times this week"] =
+    "Sold %d times this week",
+  ["Sold for"] =
+    "Sold for",
+  ["%d sales this week, item level %d"] =
+    "%d sales this week, item level %d",
+  ["Sold %d times this week, about %s"] =
+    "Sold %d times this week, about %s",
+  ["This version (%d) did not sell this week"] =
+    "This version (%d) did not sell this week",
+  ["Listed across the region, every version"] =
+    "Listed across the region, every version",
 }

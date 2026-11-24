@@ -2241,4 +2241,36 @@ GC.Locales.ptBR = {
     "Aliança",
   ["Horde"] =
     "Horda",
+  ["Your version (%d) sold %d times this week, about %s"] =
+    "Sua versão (%d) vendeu %d vezes esta semana, por cerca de %s",
+  ["Your version sold %d times this week, about %s"] =
+    "Sua versão vendeu %d vezes esta semana, por cerca de %s",
+  ["Your version (%d) did not sell this week"] =
+    "Sua versão (%d) não vendeu esta semana",
+  ["Your version did not sell this week"] =
+    "Sua versão não vendeu esta semana",
+  ["The game did not say which version you make"] =
+    "O jogo não disse qual versão você fabrica",
+  ["No sales this week"] =
+    "Nenhuma venda esta semana",
+  ["Sale prices by version come with the Companion"] =
+    "Os preços de venda por versão vêm com o Companion",
+  ["Quality %d (%d) sells for %s"] =
+    "Qualidade %d (%d) vende por %s",
+  ["Quality %d sells for %s"] =
+    "Qualidade %d vende por %s",
+  ["Sold %d times this week, item level %d"] =
+    "Vendido %d vezes esta semana, nível de item %d",
+  ["Sold %d times this week"] =
+    "Vendido %d vezes esta semana",
+  ["Sold for"] =
+    "Vendido por",
+  ["%d sales this week, item level %d"] =
+    "%d vendas esta semana, nível de item %d",
+  ["Sold %d times this week, about %s"] =
+    "Vendido %d vezes esta semana, por cerca de %s",
+  ["This version (%d) did not sell this week"] =
+    "Esta versão (%d) não vendeu esta semana",
+  ["Listed across the region, every version"] =
+    "À venda na região, todas as versões",
 }

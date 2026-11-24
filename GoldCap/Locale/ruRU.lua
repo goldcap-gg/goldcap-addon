@@ -2312,4 +2312,36 @@ GC.Locales.ruRU = {
     "Альянс",
   ["Horde"] =
     "Орда",
+  ["Your version (%d) sold %d times this week, about %s"] =
+    "Ваша версия (%d) продана %d раз за неделю, около %s",
+  ["Your version sold %d times this week, about %s"] =
+    "Ваша версия продана %d раз за неделю, около %s",
+  ["Your version (%d) did not sell this week"] =
+    "Ваша версия (%d) не продавалась на этой неделе",
+  ["Your version did not sell this week"] =
+    "Ваша версия не продавалась на этой неделе",
+  ["The game did not say which version you make"] =
+    "Игра не сказала, какую версию вы сделаете",
+  ["No sales this week"] =
+    "Продаж на этой неделе не было",
+  ["Sale prices by version come with the Companion"] =
+    "Цены продаж по версиям приходят через Companion",
+  ["Quality %d (%d) sells for %s"] =
+    "Качество %d (%d) продаётся за %s",
+  ["Quality %d sells for %s"] =
+    "Качество %d продаётся за %s",
+  ["Sold %d times this week, item level %d"] =
+    "Продано %d раз за неделю, уровень предмета %d",
+  ["Sold %d times this week"] =
+    "Продано %d раз за неделю",
+  ["Sold for"] =
+    "Продано за",
+  ["%d sales this week, item level %d"] =
+    "%d продаж за неделю, уровень предмета %d",
+  ["Sold %d times this week, about %s"] =
+    "Продано %d раз за неделю, около %s",
+  ["This version (%d) did not sell this week"] =
+    "Эта версия (%d) не продавалась на этой неделе",
+  ["Listed across the region, every version"] =
+    "Выставлено по региону, все версии",
 }

@@ -473,6 +473,40 @@ function P.ShowsUnlearned()
   return type(GC.db) == "table" and GC.db.craftUnlearned == true
 end
 
+--- Whether Worth crafting lists learned recipes without a proven price too: the player's choice,
+--- kept in the save, on until the player turns it off.
+function P.ShowsUnproven()
+  return type(GC.db) ~= "table" or GC.db.craftUnproven ~= false
+end
+
+--- The switch for P.ShowsUnproven, beside "Unlearned recipes too" in its style, or under it when
+--- the two do not fit. Answers what the next line goes under and the height it adds.
+function P.PaintSideSwitch(v, beside)
+  local b = v.unproven
+  if not b then
+    b = GC.Theme.Button(v, "ghost", "badge")
+    b:SetGlow(false)
+    b:SetHeight(LAYOUT.SEG_H)
+    b:SetScript("OnClick", function()
+      GC.db.craftUnproven = not P.ShowsUnproven()
+      P.Refresh()
+    end)
+    GC.Theme.Parts.track(v, b.text)
+    v.unproven = b
+  end
+  b:SetLabel(GC.L["Without a proven price too"])
+  b:SetVariant(P.ShowsUnproven() and "active" or "ghost")
+  local width = math.min(LAYOUT.INNER, math.ceil(P.ui.textWidth(b.text)) + 2 * LAYOUT.BUTTON_PAD)
+  b:SetWidth(width)
+  b:ClearAllPoints()
+  if beside:GetWidth() + LAYOUT.GAP + width <= LAYOUT.INNER then
+    b:SetPoint("LEFT", beside, "RIGHT", LAYOUT.GAP, 0)
+    return beside, 0
+  end
+  b:SetPoint("TOPLEFT", beside, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
+  return b, LAYOUT.LINE_GAP + LAYOUT.SEG_H
+end
+
 -- The switch under the heading, as wide as its words, filled while it is on; under it, while it is
 -- on and the window's own filter keeps unlearned recipes off its list, the line that says so.
 -- Answers the height the two take, the gap over them included.
@@ -485,14 +519,10 @@ local function paintUnlearned(v, headH)
   b:ClearAllPoints()
   b:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -(headH + LAYOUT.GAP))
   local height = LAYOUT.GAP + LAYOUT.SEG_H
-  -- A second switch beside it (WoW: Forever's, UI/CraftPanel_Camelot.lua), or under it when the two
-  -- do not fit: answers what the next line goes under and the height it adds. Retail has none.
-  local low = b
-  if P.PaintSideSwitch then
-    local extra
-    low, extra = P.PaintSideSwitch(v, b, LAYOUT)
-    height = height + extra
-  end
+  -- The switch for recipes without a proven price beside it, or under it when the two do not fit:
+  -- answers what the next line goes under and the height it adds.
+  local low, extra = P.PaintSideSwitch(v, b)
+  height = height + extra
   if on and GC.CraftClient.UnlearnedFiltered() then
     setText(v.filtered, GC.L["The profession window's own filter hides recipes you have not learned."])
     v.filtered:ClearAllPoints()
