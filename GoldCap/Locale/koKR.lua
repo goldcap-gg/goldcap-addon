@@ -522,6 +522,7 @@ GC.Locales.koKR = {
     "수익이 지불액의 이 비율 이상이 아니면 구매를 건너뜁니다.",
   ["Snapshot value"] = "스냅숏 가치",
   ["Sold per day"] = "일일 판매량",
+  ["Sold in the last 24h"] = "24시간 판매량",
   ["Sold/day"] = "일일 판매량",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "무엇을 살지가 아니라, 무엇을 먼저 확인할지 정할 때 이 기준으로 정렬하세요.",

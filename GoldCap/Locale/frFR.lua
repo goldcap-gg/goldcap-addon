@@ -546,6 +546,7 @@ GC.Locales.frFR = {
     "Ignorer un achat si le profit ne représente pas au moins cette part de ce que vous payez.",
   ["Snapshot value"] = "Valeur de l'instantané",
   ["Sold per day"] = "Ventes par jour",
+  ["Sold in the last 24h"] = "Ventes sur 24 h",
   ["Sold/day"] = "Ventes/jour",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Triez dessus pour décider quoi vérifier en premier, pas quoi acheter.",

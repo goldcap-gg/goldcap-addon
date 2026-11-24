@@ -640,6 +640,7 @@ GC.Locales.enUS = {
     "Skip a buy unless the profit is at least this share of what you pay.",
   ["Snapshot value"] = "Snapshot value",
   ["Sold per day"] = "Sold per day",
+  ["Sold in the last 24h"] = "Sold in the last 24h",
   ["Sold/day"] = "Sold/day",
   ["Sort by it to decide what to Check first, not to decide what to buy."] = "Sort by it to decide what to Check first, not to decide what to buy.",
   ["Sound on SAFE deal"] = "Sound on SAFE deal",

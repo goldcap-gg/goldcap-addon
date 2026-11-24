@@ -547,6 +547,7 @@ GC.Locales.deDE = {
     "Kauf überspringen, wenn der Gewinn nicht mindestens diesen Anteil des Kaufpreises beträgt.",
   ["Snapshot value"] = "Snapshot-Wert",
   ["Sold per day"] = "Verkäufe pro Tag",
+  ["Sold in the last 24h"] = "Verkäufe in 24h",
   ["Sold/day"] = "Verkäufe/Tag",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Danach sortieren, um zu entscheiden, was zuerst geprüft wird, nicht, was gekauft wird.",

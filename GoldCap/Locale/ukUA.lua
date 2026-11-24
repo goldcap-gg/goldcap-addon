@@ -541,6 +541,7 @@ GC.Locales.ukUA = {
     "Пропустити купівлю, якщо прибуток менший за цю частку від сплаченого.",
   ["Snapshot value"] = "Значення зі знімка",
   ["Sold per day"] = "Продажів на день",
+  ["Sold in the last 24h"] = "Продажів за 24г",
   ["Sold/day"] = "Продажів на день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортуйте за ним, щоб вирішити, що перевірити першим, а не що купувати.",

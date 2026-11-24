@@ -532,6 +532,7 @@ GC.Locales.ruRU = {
     "Пропустить покупку, если прибыль меньше этой доли от уплаченной суммы.",
   ["Snapshot value"] = "Значение из снимка",
   ["Sold per day"] = "Продаж в день",
+  ["Sold in the last 24h"] = "Продаж за 24ч",
   ["Sold/day"] = "Продаж в день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортируйте по нему, чтобы решить, что проверить первым, а не что покупать.",

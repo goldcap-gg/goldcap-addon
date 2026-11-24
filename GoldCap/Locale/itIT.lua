@@ -546,6 +546,7 @@ GC.Locales.itIT = {
     "Salta un acquisto se il profitto non è almeno questa quota di quanto paghi.",
   ["Snapshot value"] = "Valore dello snapshot",
   ["Sold per day"] = "Vendite al giorno",
+  ["Sold in the last 24h"] = "Vendite in 24h",
   ["Sold/day"] = "Vendite/giorno",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordina in base a esso per decidere cosa controllare per primo, non cosa comprare.",

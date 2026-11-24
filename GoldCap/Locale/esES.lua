@@ -549,6 +549,7 @@ GC.Locales.esES = {
     "Omitir una compra si el beneficio no es al menos esta parte de lo que pagas.",
   ["Snapshot value"] = "Valor del snapshot",
   ["Sold per day"] = "Ventas por día",
+  ["Sold in the last 24h"] = "Ventas en 24 h",
   ["Sold/day"] = "Ventas/día",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordena por él para decidir qué comprobar primero, no qué comprar.",

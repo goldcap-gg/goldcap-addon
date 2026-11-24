@@ -366,6 +366,16 @@ describe("Tooltip.BuildLines", function()
       end
     end
 
+    it("prints the typical day as sold per day, with the last 24 hours under it", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 6744, sold = 429417, typical = 380260, ts = 1000 }, 2000)
+      assert.equal("380,260", right(lines, "Sold per day"))
+      assert.equal("429,417", right(lines, "Sold in the last 24h"))
+      local only = GC.Tooltip.BuildLines({ mv = 6744, sold = 429417, ts = 1000 }, 2000)
+      assert.equal("429,417", right(only, "Sold per day"))
+      assert.is_nil(right(only, "Sold in the last 24h"))
+      assert.equal("0.0", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 5, typical = 0, ts = 1000 }, 2000), "Sold per day"))
+    end)
+
     it("keeps one decimal on a seller under ten a day", function()
       assert.equal("3.5", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 3.5, ts = 1000 }, 2000), "Sold per day"))
       assert.equal("9.9", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 9.94, ts = 1000 }, 2000), "Sold per day"))

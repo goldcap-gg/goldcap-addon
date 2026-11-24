@@ -516,6 +516,7 @@ GC.Locales.zhTW = {
   ["Skip a buy unless the profit is at least this share of what you pay."] = "若利潤達不到你支付金額的這個比例，就跳過這筆購買。",
   ["Snapshot value"] = "快照價值",
   ["Sold per day"] = "日銷量",
+  ["Sold in the last 24h"] = "24小時銷量",
   ["Sold/day"] = "每日成交",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "用它排序決定先檢查什麼，而不是決定買什麼。",

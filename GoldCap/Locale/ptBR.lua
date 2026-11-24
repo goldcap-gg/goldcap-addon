@@ -544,6 +544,7 @@ GC.Locales.ptBR = {
     "Ignorar uma compra se o lucro não for pelo menos essa fração do que você paga.",
   ["Snapshot value"] = "Valor do snapshot",
   ["Sold per day"] = "Vendas por dia",
+  ["Sold in the last 24h"] = "Vendas em 24h",
   ["Sold/day"] = "Vendas/dia",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordene por ele para decidir o que verificar primeiro, não o que comprar.",
