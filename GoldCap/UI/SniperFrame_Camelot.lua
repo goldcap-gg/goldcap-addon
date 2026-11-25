@@ -18,3 +18,18 @@ end
 -- Forever bids only on a lot its current item results hold (GC.Sniper._bidNeedsItsSearch): the
 -- window armed on a lot keeps the search, and a lot pushed out all the same is searched again.
 GC.Sniper._bidNeedsItsSearch = true
+
+-- A gear row priced for one version of the piece (GC.ForeverDeals._LiveRow's "Under market" row:
+-- `version` is the bonus key of the lots it was measured against) is named, shown and linked as
+-- that version. Named for the bare item, an Aboriginal Sash row at 3s50 against a 49s median did
+-- not say which of the nine versions on the browse, 3s50 to 99s99, it meant (owner, 2026-11-25).
+-- The item string is the HERO tab's (GC.ForeverGear.ItemString), whose name and stats are the full
+-- link's (HERO probe P2, 13.11). "0", a version with no bonus, is the bare item.
+function GC.Sniper._DealItemString(deal)
+  local version = type(deal) == "table" and deal.version or nil
+  if type(version) ~= "string" or version == "0" or not version:find("^%d[%d%.]*$")
+      or type(deal.itemID) ~= "number" or not (GC.ForeverGear and GC.ForeverGear.ItemString) then
+    return nil
+  end
+  return GC.ForeverGear.ItemString(deal.itemID, { bonus = version })
+end

@@ -1401,6 +1401,9 @@ local function setRowDeal(row, deal)
     tostring(verdict and verdict.needsGold),
     -- WoW: Forever: the kind and ceiling drive the chip and the name suffix.
     tostring(deal.forever), tostring(deal.ceiling),
+    -- The version a row is priced for names it (GC.Sniper._DealVersion): another version of the
+    -- item at the same price, or its name arriving after the row was first drawn, renames the row.
+    tostring((GC.Sniper._DealVersion(deal))),
     -- A collection change (GC.Collection.OnChange) moves the mark with nothing else moving.
     notes,
   }, "|")
@@ -1624,7 +1627,12 @@ end
 -- The item cell's name and icon, for a board row: from the cache once the item has loaded, else a
 -- placeholder now and the real ones when the client has the item. `stamp(named)` writes the name.
 function GC.Sniper._StampItem(row, deal, stamp)
-  local cached = nameIconCache[deal.itemID]
+  -- A row priced for one version of the item is named for that version (GC.Sniper._DealVersion),
+  -- and kept apart from the item's other versions. A version whose name the client has not given
+  -- yet shows the item's own name, not kept: the row's signature draws it again once it has.
+  local version = GC.Sniper._DealItemString(deal)
+  local slot = version or deal.itemID
+  local cached = nameIconCache[slot]
   if cached then
     row.icon:SetTexture(cached.icon)
     stamp(cached.named)
@@ -1639,7 +1647,8 @@ function GC.Sniper._StampItem(row, deal, stamp)
     local icon = item:GetItemIcon()
     local quality = item:GetItemQuality()
     local qc = quality and (Theme.QualityColor(quality, true) or {}).color
-    local label = item:GetItemName() or ("item " .. deal.itemID)
+    local versionName = version and GC.Sniper._DealVersion(deal)
+    local label = versionName or item:GetItemName() or ("item " .. deal.itemID)
     -- Reagent quality beside the name. Two tiers of the same reagent are
     -- separate itemIDs and so already price separately -- this is identification,
     -- not arithmetic, but on a list of ores and herbs it is the difference
@@ -1649,7 +1658,7 @@ function GC.Sniper._StampItem(row, deal, stamp)
       local pip = Theme.QualityMarkup(deal.itemID, 12)
       if pip ~= "" then named = named .. " " .. pip end -- after the name, as Theme.WithQuality
     end
-    nameIconCache[deal.itemID] = { icon = icon, named = named }
+    if versionName or not version then nameIconCache[slot] = { icon = icon, named = named } end
     row.icon:SetTexture(icon)
     stamp(named)
   end)
@@ -1896,12 +1905,14 @@ end
 -- before its Set*Item call the same way (ItemUtil.DisplayEquipSlotTooltip) and clears with the
 -- tooltip (GameTooltip_OnTooltipCleared). `draw(owner)` is what draws the whole tooltip, called
 -- again when the compare key changes under the cursor, or the item loads (redrawOnCompareKey).
-function GC.Sniper._ShowItemTooltip(owner, itemID, draw)
+-- `link`: the one version of the item a row is priced for (GC.Sniper._DealVersion), whose stats
+-- the tooltip shows; nil for a row of the whole item.
+function GC.Sniper._ShowItemTooltip(owner, itemID, draw, link)
   Theme.ItemTooltipOutside(owner, frame)
   if GameTooltip_SuppressAutomaticCompareItem then GameTooltip_SuppressAutomaticCompareItem(GameTooltip) end
   -- Asked before SetItemByID: whether the item this draw shows was in when it was drawn.
   owner.goldcapItemLoading = not itemLoaded(itemID) and itemID or nil
-  GameTooltip:SetItemByID(itemID)
+  if link then GameTooltip:SetHyperlink(link) else GameTooltip:SetItemByID(itemID) end
   owner.goldcapCompareHeld = compareKeyHeld()
   owner.goldcapDrawTooltip = draw
   owner.UpdateTooltip = redrawOnCompareKey
@@ -1932,8 +1943,26 @@ end
 -- way Blizzard's browse rows build theirs (Blizzard_AuctionHouseBrowseResultsFrame.lua).
 -- ---------------------------------------------------------------------------
 
--- A caged pet's battle pet link, else the item's own; nil until the client has loaded the item.
-function GC.Sniper._RowItemLink(itemID)
+-- The one version of the item a row is priced for, as an item string, or nil for a row of the
+-- whole item. Retail has none. WoW: Forever's UI/SniperFrame_Camelot.lua answers for a gear row
+-- measured against its own version's sales.
+function GC.Sniper._DealItemString() return nil end
+
+-- That version's name and link, from the client: nil for a row with no version, and while the
+-- client has not loaded the item.
+function GC.Sniper._DealVersion(deal)
+  local str = deal and GC.Sniper._DealItemString(deal)
+  if not (str and C_Item and C_Item.GetItemInfo) then return nil end
+  local ok, name, link = pcall(C_Item.GetItemInfo, str)
+  if not (ok and type(name) == "string" and name ~= "") then return nil end
+  return name, type(link) == "string" and link or nil
+end
+
+-- A caged pet's battle pet link, the version's link for a row priced for one (`deal`), else the
+-- item's own; nil until the client has loaded the item.
+function GC.Sniper._RowItemLink(itemID, deal)
+  local _, versionLink = GC.Sniper._DealVersion(deal)
+  if versionLink then return versionLink end
   local species = GC.Sniper._SpeciesFor(itemID)
   if species and C_AuctionHouse and C_AuctionHouse.MakeItemKey and C_AuctionHouse.GetItemKeyInfo then
     local info = C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID, 0, 0, species))
@@ -1955,7 +1984,7 @@ end
 function GC.Sniper._RowItemClick(row)
   if not (IsModifiedClick and (IsModifiedClick("DRESSUP") or IsModifiedClick("CHATLINK"))) then return false end
   local itemID = row.deal and row.deal.itemID
-  local link = itemID and GC.Sniper._RowItemLink(itemID)
+  local link = itemID and GC.Sniper._RowItemLink(itemID, row.deal)
   if link and type(HandleModifiedItemClick) == "function" then HandleModifiedItemClick(link) end
   return true
 end
@@ -5614,7 +5643,8 @@ local function setDialogHeader(deal, decision)
     dialog.icon:SetTexture(item:GetItemIcon())
     local quality = item:GetItemQuality()
     local qc = quality and (Theme.QualityColor(quality, true) or {}).color
-    local label = item:GetItemName() or ("item " .. deal.itemID)
+    -- The version the row is priced for, as the row names it (GC.Sniper._StampItem).
+    local label = GC.Sniper._DealVersion(deal) or item:GetItemName() or ("item " .. deal.itemID)
     dialog.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. suffix)
     if dialog.fitHeader then dialog.fitHeader() end
   end)
@@ -7165,7 +7195,7 @@ function GC.Sniper._CardModel(deal, verdict, pinned)
   -- Only while the player keeps GoldCap's lines in item tooltips (Settings > TOOLTIP).
   local shown = GC.db and GC.db.settings and GC.db.settings.tooltip
   local lines = shown and GC.Tooltip and GC.Tooltip.ItemLines
-    and GC.Tooltip.ItemLines(deal.itemID, time(), GC.Sniper._RowItemLink(deal.itemID)) or nil
+    and GC.Tooltip.ItemLines(deal.itemID, time(), GC.Sniper._RowItemLink(deal.itemID, deal)) or nil
   return { deal = deal, verdict = verdict, now = GetTime, big = big, scale = scale,
     chips = DC.Chips(deal), notes = notes, facts = DC.Facts(lines, scale ~= nil),
     hints = DC.Hints(deal, pinned, GC.Sniper._Dressable(deal.itemID)) }
@@ -11184,7 +11214,7 @@ local function createDialog()
     if not dialog.deal then return end
     -- Outside the window, never over it -- the dialog sits on top of the board this tooltip
     -- would otherwise cover (Theme.ItemTooltipOutside; see its own comment for the geometry).
-    GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID, showDealTooltip)
+    GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID, showDealTooltip, select(2, GC.Sniper._DealVersion(dialog.deal)))
     GameTooltip:Show()
   end
   itemHit:SetScript("OnEnter", showDealTooltip)
@@ -12504,7 +12534,7 @@ createRow = function(parent, index)
     if self.deal.kind == "rare" then return GC.Sniper._RareTooltip(self, drawRowTooltip) end
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
     -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
-    GC.Sniper._ShowItemTooltip(self, self.deal.itemID, drawRowTooltip)
+    GC.Sniper._ShowItemTooltip(self, self.deal.itemID, drawRowTooltip, select(2, GC.Sniper._DealVersion(self.deal)))
     -- The item's own lines and nothing else: what GoldCap says about the deal -- the live check,
     -- the profit, the buy limit, a cap's or a group's note, an Items board flip's facts -- is the
     -- card docked under it (UI/DealCard.lua, built by GC.Sniper._CardModel). Mixed into the item's

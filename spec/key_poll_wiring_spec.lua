@@ -899,12 +899,16 @@ describe("Key poll wiring", function()
         local text = f:read("*a")
         f:close()
         assert.equal(1, select(2, text:gsub("GameTooltip:SetItemByID%(", "")))
+        assert.equal(1, select(2, text:gsub("GameTooltip:SetHyperlink%(", "")))
         assert.equal(3, select(2, text:gsub("\n%s*GC%.Sniper%._ShowItemTooltip%(", "")))
-        -- Each names what redraws it: a board row, a Rare finds row, the Check's item icon.
-        assert.truthy(text:find("GC.Sniper._ShowItemTooltip(self, self.deal.itemID, drawRowTooltip)", 1, true))
+        -- Each names what redraws it: a board row, a Rare finds row, the Check's item icon. A board
+        -- row and the Check show the version a row is priced for (GC.Sniper._DealVersion, Forever).
+        assert.truthy(text:find("GC.Sniper._ShowItemTooltip(self, self.deal.itemID, drawRowTooltip, "
+          .. "select(2, GC.Sniper._DealVersion(self.deal)))", 1, true))
         assert.truthy(text:find("GC.Sniper._ShowItemTooltip(row, entry.itemID, draw or GC.Sniper._RareTooltip)", 1, true))
         assert.truthy(text:find("return GC.Sniper._RareTooltip(self, drawRowTooltip)", 1, true))
-        assert.truthy(text:find("GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID, showDealTooltip)", 1, true))
+        assert.truthy(text:find("GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID, showDealTooltip, "
+          .. "select(2, GC.Sniper._DealVersion(dialog.deal)))", 1, true))
       end)
 
       -- A row hovered before the client has loaded its item (owner, WoW: Forever 2026-11-07: a
