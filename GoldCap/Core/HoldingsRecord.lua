@@ -495,6 +495,32 @@ function HR.OnGuildBankSlots(now)
   HR.GuildVisitDone(guild, tabs, now)
 end
 
+--- GUILDBANK_UPDATE_TABS: the guild's tab data has arrived. Both games' guild bank frame
+--- (Blizzard_GuildBankUI, GuildBankFrameMixin:UpdateTabs) reads GetNumGuildBankTabs() on it and hides
+--- every tab past that count: such a tab is not the guild's, and a recorded one leaves the record.
+--- Only at the bank of the guild the visit is at, and only on a count of one or more. Nothing else
+--- takes a tab out: one the character cannot view, or that has not answered, keeps its last items,
+--- and no tab is ever read as emptied (GUILDBANKBAGSLOTS_CHANGED names no tab, and a slot with no
+--- item cannot be told from one the server has not sent: ReadGuildTab).
+function HR.OnGuildBankTabs(now)
+  if not guildOpen or not guildVisit or type(GetNumGuildBankTabs) ~= "function" then return end
+  local guild = guildKey()
+  if not guild or guildVisit.guild ~= guild then return end
+  local ok, count = pcall(GetNumGuildBankTabs)
+  if not ok or not isCount(count) then return end
+  local s = store(false)
+  local g = s and s.guilds[guild] or nil
+  if type(g) ~= "table" or type(g.tabs) ~= "table" then return end
+  local gone = false
+  for tab in pairs(g.tabs) do
+    if type(tab) == "number" and tab > count then
+      g.tabs[tab] = nil
+      gone = true
+    end
+  end
+  if gone then HR.GuildVisitDone(guild, viewableTabs(), now) end
+end
+
 --- GUILDBANKFRAME_OPENED, or the interaction manager's GuildBanker (whichever the client sends;
 --- once until the bank closes): a new visit, each viewable tab asked for.
 function HR.OnGuildBankOpened(now)

@@ -458,6 +458,55 @@ describe("the holdings record", function()
         assert.same({ 1, 2, 1, 2 }, queried)
       end)
 
+      -- Both games' guild bank frame reads GetNumGuildBankTabs() when the tab data arrives
+      -- (GUILDBANK_UPDATE_TABS) and hides every tab past it (Blizzard_GuildBankUI's UpdateTabs):
+      -- such a tab is not the guild's. That answer, and only that one, takes a recorded tab out.
+      describe("a tab leaving the record", function()
+        local function three()
+          VIEWABLE = { true, true, true }
+          SLOTS[1], SLOTS[2], SLOTS[3] = { [1] = 20 }, { [1] = 3 }, { [1] = 7 }
+          HR.OnGuildBankOpened(NOW)
+          local g = GC.db.holdings.guilds["Gold Hands-Argent Dawn"]
+          assert.is_not_nil(g.tabs[3])
+          return g
+        end
+
+        it("takes out a recorded tab past the guild's tab count once the tab data says so", function()
+          local g = three()
+          VIEWABLE = { true, true }
+          HR.OnGuildBankTabs(NOW + 1)
+          assert.is_nil(g.tabs[3])
+          assert.same({ [1001] = 20 }, g.tabs[1].items)
+          assert.same({ [1002] = 3 }, g.tabs[2].items)
+          assert.is_true(g.full)
+        end)
+
+        it("never takes out a tab the character cannot view, or one that has not answered", function()
+          local g = three()
+          VIEWABLE = { true, false, true }
+          SLOTS[3] = nil
+          HR.OnGuildBankTabs(NOW + 1)
+          HR.OnGuildBankSlots(NOW + 2)
+          assert.same({ [1002] = 3 }, g.tabs[2].items)
+          assert.same({ [1003] = 7 }, g.tabs[3].items)
+        end)
+
+        it("takes nothing out with the bank shut, at another guild's bank, or from a count of none", function()
+          local g = three()
+          VIEWABLE = {}
+          HR.OnGuildBankTabs(NOW + 1)
+          assert.is_not_nil(g.tabs[1])
+          VIEWABLE = { true }
+          HR.OnGuildBankClosed()
+          HR.OnGuildBankTabs(NOW + 2)
+          assert.is_not_nil(g.tabs[3])
+          _G.GetGuildInfo = function() return "Other Hands", "Banker", 3, nil end
+          HR.OnGuildBankOpened(NOW + 3)
+          HR.OnGuildBankTabs(NOW + 4)
+          assert.is_not_nil(g.tabs[3])
+        end)
+      end)
+
       it("keys the guild by its own realm when it is not the character's", function()
         _G.GetGuildInfo = function() return "Gold Hands", "Banker", 3, "Silvermoon" end
         SLOTS[1] = { [1] = 20 }
@@ -548,11 +597,12 @@ end)
 for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) do
   describe("the holdings record, wired in " .. toc, function()
     local GC, onEvent, OWNED, fullOwned, sendHook
+    local registered = {}
 
     local function stubFrame()
       local f
       f = {
-        RegisterEvent = function() end, UnregisterEvent = function() end,
+        RegisterEvent = function(_, event) registered[event] = true end, UnregisterEvent = function() end,
         SetScript = function(_, which, fn) if which == "OnEvent" then onEvent = fn end end,
         SetSize = function() end, SetPoint = function() end, SetMovable = function() end,
         EnableMouse = function() end, RegisterForDrag = function() end,
@@ -715,6 +765,24 @@ for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) d
       onEvent(nil, "GUILDBANKFRAME_CLOSED")
       onEvent(nil, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 10)
       assert.same({ 1, 2, 1, 2 }, queried)
+    end)
+
+    it("takes a tab past the guild's count out of the record when the tab data arrives", function()
+      assert.is_true(registered.GUILDBANK_UPDATE_TABS)
+      local count = 3
+      _G.GetGuildInfo = function() return "Gold Hands" end
+      _G.GetNumGuildBankTabs = function() return count end
+      _G.GetGuildBankTabInfo = function() return "Tab", "icon", true end
+      _G.QueryGuildBankTab = function() end
+      _G.GetGuildBankItemInfo = function(_, slot) if slot == 1 then return "texture", 1 end end
+      _G.GetGuildBankItemLink = function(tab, slot) if slot == 1 then return "|Hitem:" .. (500 + tab) .. "::|h[x]|h" end end
+      onEvent(nil, "GUILDBANKFRAME_OPENED")
+      local g = _G.GoldCapDB.holdings.guilds["Gold Hands-Dentarg"]
+      assert.is_not_nil(g.tabs[3])
+      count = 2
+      onEvent(nil, "GUILDBANK_UPDATE_TABS")
+      assert.is_nil(g.tabs[3])
+      assert.is_not_nil(g.tabs[2])
     end)
   end)
 end
