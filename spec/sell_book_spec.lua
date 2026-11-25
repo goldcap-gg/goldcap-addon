@@ -94,6 +94,24 @@ describe("Sell order book", function()
     assert.is_nil(b.yourRow)
   end)
 
+  -- Owner's WoW: Forever screen (2026-11-25): a lot listed at the cheapest level, drawn as theirs,
+  -- none in the bags. With no bag stock there is no price to post (SellPositions clears
+  -- postRecommendation), so the book marks no price of the player's: THE BOOK's drawer says where
+  -- the listed lot stands instead (UI/Sell/Book.lua), in the words of its own row.
+  it("marks no price of the player's for a listed item with nothing left in the bags", function()
+    local p = position({ positionKey = "item:9972:42:14333:0", itemID = 9972, postRecommendation = "\0NONE",
+      bagQty = 0, listedQty = 1, listedValue = 22400,
+      levels = { { unitPrice = 22400, quantity = 1, ownerItem = true }, { unitPrice = 23000, quantity = 1 } } })
+    local b = GC.SellViewModel.Expansion(p).book
+    assert.is_false(b.commodity)
+    assert.is_nil(b.yourUnit)
+    assert.is_nil(b.yourRow)
+    assert.is_true(b.rows[1].mine)
+    local unit = GC.SellViewModel.ListedUnit(p)
+    assert.equal(22400, unit)
+    assert.equal("first in line", (GC.SellViewModel.PlaceWords(p, GC.SellViewModel.Standing(p, unit), true)))
+  end)
+
   -- Nobody undercuts the fortieth cheapest seller, and the book runs to a hundred levels. The
   -- rows are capped -- but the header's own totals are not, so a truncated book can never read
   -- as a thinner market than it is.

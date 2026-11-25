@@ -6,6 +6,9 @@
   says "tied with" and how many of theirs are at that price. An item you are about to post at
   someone else's price says the same; a commodity you are about to post is still first at its
   price, since the newest listing at a price sells first.
+- THE BOOK under a lot you have listed, with none of it left in your bags, says where that lot
+  stands. It used to say "your price is above every level shown" and "0 ahead of you" of a lot
+  listed at the cheapest price.
 
 ## 0.38.0 (2026-11-25)
 

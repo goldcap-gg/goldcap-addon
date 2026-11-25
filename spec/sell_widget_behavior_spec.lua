@@ -1642,6 +1642,59 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_nil(facts:find("ahead of you", 1, true), facts)
     end)
 
+    -- Owner's WoW: Forever screen (2026-11-25): Embossed Plate Bracers of the Defender listed at
+    -- 2g24s, the cheapest level of THE BOOK and drawn as theirs, none in the bags. The line under
+    -- the book said "your price is above every level shown", and the facts "0 ahead of you".
+    describe("a listed lot with no price to post", function()
+      local KEY = "item:9972:42:14333:0"
+      local function drawerFor(GC, levels, over)
+        local rows = {}
+        for i, level in ipairs(levels) do
+          local own = level.ownerItem and level.quantity or 0
+          rows[i] = { kind = "level", unit = level.unitPrice, units = level.quantity, ownerUnits = own, mine = own > 0 }
+        end
+        local book = { levels = #levels, totalUnits = #levels, truncated = false, widest = 1, ownUnits = 1,
+          commodity = false, rows = rows }
+        for k, v in pairs(over or {}) do book[k] = v end
+        GC.SellUI.expanded = { [KEY] = true }
+        GC.SellViewModel.Expansion = function()
+          return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = book, ahead = 0, sold = 2 }
+        end
+        local lot = { itemID = 9972, itemName = "Embossed Plate Bracers of the Defender", positionKey = KEY,
+          coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 4070, bagQty = 0, listedQty = 1,
+          listedValue = 22400, sources = {}, levels = levels }
+        return nth(topRows(GC, { lot }, "listed"), "drawer")
+      end
+
+      it("says the lot is first in line, once, when nobody else is at its price", function()
+        local GC = load(620, { calls = {} })
+        local drawer = drawerFor(GC, { { unitPrice = 22400, quantity = 1, ownerItem = true },
+          { unitPrice = 23000, quantity = 1 } })
+        assert.equal("first in line", drawer.drawerStand.text)
+        assert.same({ 0, 1, 0, 1 }, drawer.drawerStand.color)
+        assert.is_nil(drawer.drawerFacts.text:find("ahead of you", 1, true), drawer.drawerFacts.text)
+      end)
+
+      it("says the lot is tied with a rival's at its price, and how far back it stands past cheaper ones", function()
+        local GC = load(620, { calls = {} })
+        local drawer = drawerFor(GC, { { unitPrice = 22400, quantity = 1 },
+          { unitPrice = 22400, quantity = 1, ownerItem = true } })
+        assert.equal("tied with 1", drawer.drawerStand.text)
+        local WATCH = GC.Theme.color.watch
+        assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, drawer.drawerStand.color)
+        drawer = drawerFor(GC, { { unitPrice = 21000, quantity = 3 }, { unitPrice = 22400, quantity = 1, ownerItem = true } })
+        assert.equal("3 ahead", drawer.drawerStand.text)
+      end)
+
+      it("keeps the words for a price above the book to a price that really is", function()
+        local GC = load(620, { calls = {} })
+        local drawer = drawerFor(GC, { { unitPrice = 22400, quantity = 1, ownerItem = true } }, { yourUnit = 30000 })
+        assert.equal("your price is above every level shown", drawer.drawerStand.text)
+        -- The listed lot's place goes to the facts then, in the row's own words.
+        assert.matches("first in line", drawer.drawerFacts.text, 1, true)
+      end)
+    end)
+
     -- "clears in" and a lot's "N ahead of you" go through the string layer like the rest of the
     -- line: a German panel read "~6 Std. bis du dran bist" beside English (review N8).
     it("says clears in in the panel's language", function()
