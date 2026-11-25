@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.39.0 (unreleased)
+## 0.39.0 (2026-11-25)
 
 - SELL no longer says "first in line" for a lot listed at the same price as someone else's: it
   says "tied with" and how many of theirs are at that price. An item you are about to post at
