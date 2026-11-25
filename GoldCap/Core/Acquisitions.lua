@@ -1224,10 +1224,100 @@ local function unresolved(reason)
   return { status = "unresolved", reason = reason }
 end
 
+-- The ids the character's own rows give one item name in one region: `ledger` rows that read an
+-- id off the client (a bought item's attachment, a sniper buy, a lot's deposit; never a sale,
+-- whose id is what is being looked for), purchase batches, spent ones too, listings, and the
+-- lots on the saved owned roster under their own names (GC.Data.RecordOwnedLots), which is what
+-- names a farmed piece of suffixed gear. `listings` holds, by item, the prices each was seen
+-- listed at: the listings' and the roster lots' own.
+local function idsByName(ledger, character, region)
+  local byName = {}
+  local function add(name, itemID)
+    if isNonEmptyString(name) and isPositiveInteger(itemID) then
+      byName[name] = byName[name] or {}
+      byName[name][itemID] = true
+    end
+  end
+  for _, row in ipairs(type(ledger) == "table" and ledger or {}) do
+    if type(row) == "table" and row.kind ~= "sale" and row.char == character and row.region == region then
+      add(row.itemName, row.itemID)
+    end
+  end
+  for _, batch in ipairs(type(db.acquisitions) == "table" and db.acquisitions or {}) do
+    if type(batch) == "table" and batch.character == character and batch.region == region then
+      add(batch.itemName, batch.itemID)
+    end
+  end
+  local listings = {}
+  local function listed(itemID, unit)
+    if isPositiveInteger(itemID) and isPositiveInteger(unit) then
+      listings[itemID] = listings[itemID] or {}
+      listings[itemID][unit] = true
+    end
+  end
+  for _, activity in ipairs(GC.Acquisitions.GetActivities({ char = character, region = region })) do
+    add(activity.itemName, activity.itemID)
+    for unit in pairs(type(activity.listedUnits) == "table" and activity.listedUnits or {}) do
+      listed(activity.itemID, unit)
+    end
+  end
+  for _, lot in ipairs(type(db.ownedLots) == "table" and db.ownedLots or {}) do
+    if type(lot) == "table" and lot.char == character and lot.region == region then
+      add(lot.itemName, lot.itemID)
+      listed(lot.itemID, lot.unitPrice)
+    end
+  end
+  return { byName = byName, listings = listings }
+end
+
+--- The item a seller invoice sold, which the invoice never says: it carries the item's name and
+--- the money (Core/Ledger.lua's readInboxMail). The one id the character's own rows of the
+--- invoice's exact name carry (idsByName) that the character was seen listing at the invoice's
+--- unit price: the lot it came from, since an auction sells at the price it was listed at. The
+--- listing is matched by id, not by name: WoW: Forever names gear with its random suffix in the
+--- mailbox ("Jade Bracers of the Defender") and by the bare item in a listing
+--- (C_Item.GetItemNameByID, "Jade Bracers"). Seen at that price at any time: `listedUnits` keeps the
+--- last time a price was seen, so a lot still read at its price after the mail came (the owner's
+--- save: 32 seconds after) is no later listing. nil when no row names it, when no listing of it
+--- stood at that price, or when two items of the name did (two quality ranks of a reagent at one
+--- price). `ledger` is the ledger's rows (GoldCapDB.ledger); `cache`, kept by a caller naming many
+--- sales, holds what the rows say per character and region.
+function GC.Acquisitions.SaleItemID(entry, ledger, cache)
+  if not db or type(entry) ~= "table" or not isNonEmptyString(entry.itemName)
+      or not isNonEmptyString(entry.char) or not isNonEmptyString(entry.region)
+      or not isPositiveInteger(entry.qty) or not isPositiveInteger(entry.total)
+      or not isExactInteger(entry.at) then
+    return nil
+  end
+  local scope = entry.char .. "\1" .. entry.region
+  local index = type(cache) == "table" and cache[scope] or nil
+  if not index then
+    index = idsByName(ledger, entry.char, entry.region)
+    if type(cache) == "table" then cache[scope] = index end
+  end
+  local unit = math.floor(entry.total / entry.qty)
+  local found
+  for itemID in pairs(index.byName[entry.itemName] or {}) do
+    if index.listings[itemID] and index.listings[itemID][unit] then
+      if found then return nil end
+      found = itemID
+    end
+  end
+  return found
+end
+
 -- A seller invoice carries a name, never a trustworthy item id. Resolve it only through a
 -- single scoped position with prior owned/post evidence, then consume that position's batches
 -- atomically in FIFO order. No candidate or quantity failure mutates SavedVariables.
-function GC.Acquisitions.ReconcileSale(entry)
+--
+-- The name is the listing's, or a purchase's still held on the position: WoW: Forever lists gear
+-- under its bare name and mails it under its suffixed one, which is also the name its purchase
+-- mail gave the batch. A position of another item than the one the sale's row names (SaleItemID)
+-- is no candidate; one of another suffix of it has no purchase under the sale's name.
+-- `opts.boughtBy`, for a sale replayed long after it was read (RepairSaleItemIDs): only stock
+-- acquired by then can be drawn on, so the replay never takes what the player bought since and
+-- still holds.
+function GC.Acquisitions.ReconcileSale(entry, opts)
   if not db or type(entry) ~= "table" then return unresolved("invalid_sale") end
   if type(entry.key) == "string" and db.acquisitionConsumptionEvidence[entry.key] then
     return { status = "duplicate" }
@@ -1238,8 +1328,9 @@ function GC.Acquisitions.ReconcileSale(entry)
 
   local context = { char = entry.char, region = entry.region }
   local activeByScope = {}
+  local boughtBy = type(opts) == "table" and isExactInteger(opts.boughtBy) and opts.boughtBy or nil
   for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
-    if batch.positionKey then
+    if batch.positionKey and not (boughtBy and isExactInteger(batch.acquiredAt) and batch.acquiredAt > boughtBy) then
       local scopeKey = GC.Acquisitions.ScopeKey(batch.positionKey, context)
       local candidate = activeByScope[scopeKey]
       if not candidate then
@@ -1261,8 +1352,14 @@ function GC.Acquisitions.ReconcileSale(entry)
   for scopeKey, activity in pairs(db.acquisitionActivity) do
     if not validStoredActivity(scopeKey, activity) then return unresolved("invalid_activity") end
     local candidate = activeByScope[scopeKey]
-    if candidate and activity.positionKey == candidate.positionKey and activity.itemID == candidate.itemID
-        and activity.itemName == entry.itemName
+    local named = candidate and activity.itemName == entry.itemName
+    if candidate and not named then
+      for _, batch in ipairs(candidate.batches) do
+        if batch.itemName == entry.itemName then named = true break end
+      end
+    end
+    if named and activity.positionKey == candidate.positionKey and activity.itemID == candidate.itemID
+        and (entry.itemID == nil or entry.itemID == candidate.itemID)
         and activity.character == entry.char and activity.region == entry.region
         and isExactInteger(activity.firstSeenAt) and activity.firstSeenAt <= entry.at then
       candidates[scopeKey] = candidate
@@ -1576,6 +1673,35 @@ function GC.Acquisitions.RepairRescannedMailSales()
     end
   end
   return removed
+end
+
+-- One-shot repair for the sales the mailbox recorded without their item (root fix: Core/Ledger.lua's
+-- ScanInbox, which now names it through SaleItemID). Every sale row before it had none, and WoW:
+-- Forever's suffixed gear, whose mail names it otherwise than its listing does, went without an
+-- icon in SOLD and without its purchase: three pieces on the owner's save, 2026-11-25. Each paid
+-- sale row without an id that SaleItemID can name takes it, and one whose stock was never drawn
+-- down is offered to ReconcileSale again, as a sale the mailbox has just read would be. Stamped
+-- once via db.saleItemRepairVersion; returns how many rows it named and how many of those it
+-- matched to their stock.
+function GC.Acquisitions.RepairSaleItemIDs()
+  if not db or db.saleItemRepairVersion ~= nil then return 0, 0 end
+  db.saleItemRepairVersion = 1
+  local ledger = type(db.ledger) == "table" and db.ledger or {}
+  local rows, cache = {}, {}
+  for _, entry in ipairs(ledger) do
+    if type(entry) == "table" and entry.kind == "sale" and entry.source == "mail" and entry.itemID == nil
+        and entry.pending == false then
+      local itemID = GC.Acquisitions.SaleItemID(entry, ledger, cache)
+      if itemID then rows[#rows + 1] = { entry = entry, itemID = itemID } end
+    end
+  end
+  local matched = 0
+  for _, row in ipairs(rows) do
+    row.entry.itemID = row.itemID
+    local result = GC.Acquisitions.ReconcileSale(row.entry, { boughtBy = row.entry.at })
+    if type(result) == "table" and result.status == "applied" then matched = matched + 1 end
+  end
+  return #rows, matched
 end
 
 -- One-shot repair for the 2026-11-16 foreign-attachment read (root fix: Core/Ledger.lua's

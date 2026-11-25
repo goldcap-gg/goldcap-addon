@@ -873,6 +873,7 @@ GC.Locales.ukUA = {
     "регіон %s · вбудовано: %d предметів (%s), імпортовано: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "регіон виправлено в %d записах; %d продажів зіставлено зі своїм запасом",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "предмет вказано в %d продажах, записаних без нього; %d зіставлено зі своїм запасом",
   ["relisting now would lock in a loss or a stall. Hold"] =
     "перевиставлення зараз зафіксує збиток або застій. Притримайте",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =

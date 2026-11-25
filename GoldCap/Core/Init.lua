@@ -816,6 +816,16 @@ frame:SetScript("OnEvent", function(_, event, ...)
           :format(#repairedRows, reconciled))
       end
     end
+    -- One-shot naming of the item on the sales the mailbox recorded without one (Core/Acquisitions.lua's
+    -- RepairSaleItemIDs), each offered back to reconciliation. After the region repair: a sale is
+    -- named from rows of its own region.
+    if GC.Acquisitions and acquisitionsInitialized and GC.Acquisitions.RepairSaleItemIDs then
+      local named, matched = GC.Acquisitions.RepairSaleItemIDs()
+      if named > 0 and GC.Print then
+        GC.Print((GC.L["named the item of %d sales recorded without it; %d matched back to their stock"])
+          :format(named, matched))
+      end
+    end
     if GC.PurchaseCapture and GC.PurchaseCapture.Init and hooksecurefunc and C_AuctionHouse then
       GC.PurchaseCapture.Init({
         hooksecurefunc = hooksecurefunc,

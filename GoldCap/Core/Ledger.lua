@@ -662,14 +662,16 @@ end
 local inboxRowsSeen = false
 
 -- The item a new sale mail sold, for SELL's unsold rounds (Core/SellRounds.lua): the position the
--- sale was applied to when ReconcileSale placed it, else the one item this character listed under
--- the mail's name (farmed goods have no purchase to place the sale on). `listed` is the scan's
+-- sale was applied to when ReconcileSale placed it, else the item its row names (SaleItemID), else
+-- the one item this character listed under the mail's name (farmed goods have no purchase to
+-- place the sale on). `listed` is the scan's
 -- own cache, so the listing index is built at most once per scan. nil when neither names it.
 local function soldItemID(stored, reconciled, context, listed)
   if type(reconciled) == "table" and reconciled.status == "applied" and reconciled.positionKey then
     local id = GC.SoldView.PositionItemID(reconciled.positionKey)
     if id then return id end
   end
+  if type(stored.itemID) == "number" then return stored.itemID end
   if listed.index == nil then
     listed.index = GC.SoldView.ListedIndex(GC.Acquisitions and GC.Acquisitions.GetActivities
       and GC.Acquisitions.GetActivities(context) or {})
@@ -738,8 +740,15 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   if not plan then return 0 end
   commitOccurrencePlan(plan, context, complete)
 
-  local created, listed = 0, {}
+  local created, listed, named = 0, {}, {}
   for _, mail in ipairs(plan.mails) do
+    -- The invoice names a sale's item by name alone: the item id comes from the player's own rows
+    -- of that exact name, the lot it came from (GC.Acquisitions.SaleItemID), before the row is
+    -- written, so SOLD, the upload and ReconcileSale below all read it off the row.
+    if mail.entry.kind == "sale" and mail.entry.itemID == nil and GC.Acquisitions
+        and GC.Acquisitions.SaleItemID then
+      mail.entry.itemID = GC.Acquisitions.SaleItemID(mail.entry, db.ledger, named)
+    end
     local stored, isNew, appendError = GC.Ledger.Append(mail.entry)
     if not appendError and stored then
       if stored.kind == "buy" and GC.Acquisitions and GC.Acquisitions.ReconcileBuy then

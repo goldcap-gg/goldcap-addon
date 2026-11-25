@@ -1417,6 +1417,10 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
         and isPositiveInteger(incoming.itemID) and isPositiveInteger(incoming.quantity)
         and isPositiveInteger(incoming.unitPrice) and type(incoming.isCommodity) == "boolean" then
       local expiresAt = isPositiveInteger(incoming.expiresAt) and incoming.expiresAt or nil
+      -- The lot's own name, from its link: a variant's own (WoW: Forever's "Edged Bastard Sword of
+      -- the Wolf"), the name its sale mail will carry (GC.Acquisitions.SaleItemID).
+      local linked = type(incoming.itemLink) == "string" and incoming.itemLink:match("|h%[(.-)%]|h") or nil
+      if linked == "" then linked = nil end
       local existing = existingByAuction[incoming.auctionID]
       if existing then
         -- Same price and quantity: not a new fact, cancelledAt (if any) survives. A changed
@@ -1431,6 +1435,7 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
         existing.expiresAt = expiresAt
         existing.region = scope.region
         existing.seenAt = now
+        existing.itemName = linked or existing.itemName
         if not samePriceQty then existing.cancelledAt = nil end
         -- What stood under and at the lot's price (RecordRivalFacts) was read against that price.
         if existing.unitPrice ~= priorUnit then
@@ -1440,7 +1445,7 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
         local row = { auctionID = incoming.auctionID, itemID = incoming.itemID,
           isCommodity = incoming.isCommodity, quantity = incoming.quantity,
           unitPrice = incoming.unitPrice, expiresAt = expiresAt, char = scope.char,
-          region = scope.region, seenAt = now, cancelledAt = nil }
+          region = scope.region, seenAt = now, cancelledAt = nil, itemName = linked }
         existingByAuction[incoming.auctionID] = row
         store[#store + 1] = row
       end

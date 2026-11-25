@@ -829,6 +829,7 @@ GC.Locales.zhTW = {
     "地區 %s · 內建：%d 個道具（%s），匯入：%s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "已修正 %d 筆帳目的地區；%d 筆銷售重新對上了庫存",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "已為 %d 筆未記錄物品的銷售補上物品；%d 筆重新對上了庫存",
   ["relisting now would lock in a loss or a stall. Hold"] = "現在重新上架會鎖住虧損或滯銷。先保留",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =
     "已刪除信件掃描錯誤留下的 %d 筆重複購買紀錄",

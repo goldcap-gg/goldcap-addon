@@ -896,6 +896,7 @@ GC.Locales.deDE = {
     "Region %s · mitgeliefert: %d Gegenstände (%s), importiert: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "Region bei %d Buchungen korrigiert; %d Verkäufe wieder ihrem Bestand zugeordnet",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "Artikel bei %d Verkäufen ohne Artikel ergänzt; %d wieder ihrem Bestand zugeordnet",
   ["relisting now would lock in a loss or a stall. Hold"] =
     "jetzt neu einzustellen würde einen Verlust oder Stillstand festschreiben. Halten",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =

@@ -828,6 +828,7 @@ GC.Locales.zhCN = {
     "地区 %s · 内置：%d 个物品（%s），导入：%s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "已修正 %d 条账目的区域；%d 笔销售重新对上了库存",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "已为 %d 笔未记录物品的销售补上物品；%d 笔重新对上了库存",
   ["relisting now would lock in a loss or a stall. Hold"] = "现在重新上架会锁定亏损或滞销。先保留",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =
     "已删除邮件扫描错误留下的 %d 条重复购买记录",

@@ -34,6 +34,17 @@ describe("Owned lots store", function()
     assert.is_nil(row.cancelledAt)
   end)
 
+  -- The lot's own name, the variant's (a random suffix), off its link: what its sale mail says.
+  it("keeps the lot's own name from its link, and the last one read", function()
+    local link = "|cff1eff00|Hitem:15213::::::1027:::::::::|h[Edged Bastard Sword of the Wolf]|h|r"
+    GC.Data.RecordOwnedLots(db, { lot({ itemLink = link }) }, scope, 1000)
+    assert.equal("Edged Bastard Sword of the Wolf", db.ownedLots[1].itemName)
+    GC.Data.RecordOwnedLots(db, { lot() }, scope, 1100)
+    assert.equal("Edged Bastard Sword of the Wolf", db.ownedLots[1].itemName)
+    GC.Data.RecordOwnedLots(db, { lot({ auctionID = 5, itemLink = "|Hitem:1::|h[]|h" }) }, scope, 1100)
+    assert.is_nil(db.ownedLots[2].itemName)
+  end)
+
   it("keeps cancelledAt when a re-seen lot's price and quantity are unchanged", function()
     GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
     GC.Data.MarkOwnedLotCancelled(db, 1932076389, scope, 1050)

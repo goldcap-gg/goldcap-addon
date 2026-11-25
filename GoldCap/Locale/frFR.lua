@@ -893,6 +893,7 @@ GC.Locales.frFR = {
     "région %s · inclus : %d objets (%s), importés : %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "région corrigée sur %d lignes du journal ; %d ventes rattachées à leur stock",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "objet retrouvé pour %d ventes enregistrées sans lui ; %d rattachées à leur stock",
   ["relisting now would lock in a loss or a stall. Hold"] =
     "remettre en vente maintenant figerait une perte ou un blocage. Garde-le",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =

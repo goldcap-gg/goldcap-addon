@@ -11,6 +11,11 @@
   listed at the cheapest price.
 - GoldCap now remembers, for each lot you have listed, the cheapest price someone else asks and how
   many of theirs are listed under and at your price, so goldcap.gg can show where your lots stand.
+- WoW: Forever: SOLD shows the icon and the profit of gear you sold, such as Hook Dagger of Power.
+  A piece named for its bonus ("of the Defender") was not matched to its purchase, so its icon
+  stayed empty and its profit read "-". A sale now knows the item it sold, on both games, and on
+  the first login with this version GoldCap matches the sales it already recorded and says how
+  many.
 
 ## 0.38.0 (2026-11-25)
 
