@@ -90,4 +90,8 @@ read_globals = {
   "ClickSendMailItemButton", "HasSendMailItem", "SetSendMailCOD", "SetSendMailMoney", "SendMail",
   "ClearCursor", "SendMailFrame", "SendMailNameEditBox", "MailFrameTab_OnClick",
   "GetAutoCompleteRealms", "C_AutoComplete", "GetClassAtlas", "GetClassColor",
+  -- What each character holds (Core/HoldingsRecord.lua): the guild bank's tabs and their items, the
+  -- character's guild, and the attachments of a mail being sent.
+  "GetGuildInfo", "GetNumGuildBankTabs", "GetGuildBankTabInfo", "QueryGuildBankTab", "GetGuildBankItemInfo",
+  "GetGuildBankItemLink", "GetSendMailItem", "ATTACHMENTS_MAX_SEND",
 }

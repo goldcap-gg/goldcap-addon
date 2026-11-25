@@ -353,6 +353,12 @@ end
 for _, bankEvent in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" }) do
   pcall(frame.RegisterEvent, frame, bankEvent)
 end
+-- What each character holds, for goldcap.gg (Core/HoldingsRecord.lua), both games: the guild bank
+-- while it is open, and the server's answer to a mail sent. Each in its own pcall, like the bank's.
+for _, holdingsEvent in ipairs({ "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED", "GUILDBANKBAGSLOTS_CHANGED",
+    "MAIL_SEND_SUCCESS", "MAIL_FAILED" }) do
+  pcall(frame.RegisterEvent, frame, holdingsEvent)
+end
 frame:RegisterEvent("PLAYER_LOGOUT")
 -- Task 2 (item names from the client): the wanted-list walk needs the world loaded (item
 -- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
@@ -836,6 +842,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Theme and GC.db.settings and GC.db.settings.sniper then
       GC.Theme.SetScale(GC.db.settings.sniper.fontScale)
     end
+    -- The mails sent with items, for goldcap.gg's holdings (Core/HoldingsRecord.lua): a post-hook on
+    -- SendMail, put on once.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.HookSendMail) end
     frame:UnregisterEvent("ADDON_LOADED")
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
     local interactionType = ...
@@ -865,6 +874,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif interactionType == Enum.PlayerInteractionType.Merchant then
       -- The note beside the vendor window: what in the bags fetches more on the auction house.
       if GC.MerchantNote then GC.MerchantNote.OnMerchantShow() end
+    elseif Enum.PlayerInteractionType.GuildBanker ~= nil
+        and interactionType == Enum.PlayerInteractionType.GuildBanker then
+      -- The guild bank opens through the interaction manager on the mainline UI of both games, so
+      -- the holdings record does not wait for GUILDBANKFRAME_OPENED alone (whichever comes first).
+      if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankOpened, time()) end
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
     local interactionType = ...
@@ -881,6 +895,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     elseif interactionType == Enum.PlayerInteractionType.Merchant then
       if GC.MerchantNote then GC.MerchantNote.OnMerchantClosed() end
+    elseif Enum.PlayerInteractionType.GuildBanker ~= nil
+        and interactionType == Enum.PlayerInteractionType.GuildBanker then
+      if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankClosed) end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then
     GC.Util.NoteThrottleEvent(event)
@@ -1071,19 +1088,20 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sell.OnOwnedAuctions()
     end
   elseif event == "MAIL_SHOW" or event == "MAIL_INBOX_UPDATE" then
+    local inbox = {
+      GetInboxNumItems = GetInboxNumItems,
+      GetInboxHeaderInfo = GetInboxHeaderInfo,
+      GetInboxInvoiceInfo = GetInboxInvoiceInfo,
+      GetInboxItem = GetInboxItem,
+      HasInboxItem = HasInboxItem,
+      -- The client's own subjects for the auction mails that never carry an invoice; a
+      -- global this client lacks is simply absent, and its mails stay "not loaded yet". Keyed,
+      -- so the scan can tell a lot that came back (expired, cancelled) for the returns log.
+      noInvoiceSubjects = { expired = AUCTION_EXPIRED_MAIL_SUBJECT, cancelled = AUCTION_REMOVED_MAIL_SUBJECT,
+        outbid = AUCTION_OUTBID_MAIL_SUBJECT },
+    }
     if GC.Ledger then
-      GC.Ledger.ScanInbox({
-        GetInboxNumItems = GetInboxNumItems,
-        GetInboxHeaderInfo = GetInboxHeaderInfo,
-        GetInboxInvoiceInfo = GetInboxInvoiceInfo,
-        GetInboxItem = GetInboxItem,
-        HasInboxItem = HasInboxItem,
-        -- The client's own subjects for the auction mails that never carry an invoice; a
-        -- global this client lacks is simply absent, and its mails stay "not loaded yet". Keyed,
-        -- so the scan can tell a lot that came back (expired, cancelled) for the returns log.
-        noInvoiceSubjects = { expired = AUCTION_EXPIRED_MAIL_SUBJECT, cancelled = AUCTION_REMOVED_MAIL_SUBJECT,
-          outbid = AUCTION_OUTBID_MAIL_SUBJECT },
-      }, GC.Ledger.Context(), nil, event == "MAIL_SHOW")
+      GC.Ledger.ScanInbox(inbox, GC.Ledger.Context(), nil, event == "MAIL_SHOW")
     end
     -- Sniper v3 §3: forwarded alongside the ledger's own use of this event, not in place of
     -- it. Only MAIL_SHOW (not the repeated MAIL_INBOX_UPDATE) -- Auto only needs to know mail
@@ -1091,12 +1109,22 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if event == "MAIL_SHOW" and GC.Sniper.OnMailShow then
       GC.Sniper.OnMailShow()
     end
+    -- What the mailbox holds, for goldcap.gg's holdings (Core/HoldingsRecord.lua), from the same
+    -- rows the scan just read. Both games.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnInbox, inbox, event == "MAIL_SHOW", time()) end
   elseif event == "MAIL_CLOSED" then
     if GC.Sniper.OnMailClosed then
       GC.Sniper.OnMailClosed()
     end
     -- The visit Core/MailStock.lua counts the mailbox over ends here (retail only).
     if GC.MailStock then GC.MailStock.Closed() end
+    -- A mail still waiting for the server's answer can no longer be told from one that failed.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.SendDropped) end
+  elseif event == "MAIL_SEND_SUCCESS" then
+    -- The mail SendMail's hook kept went: its recipient now holds what it carried (both games).
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.SendSucceeded, time()) end
+  elseif event == "MAIL_FAILED" then
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.SendDropped) end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
     -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).
@@ -1152,6 +1180,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
     -- A sale or a buyback at a merchant moves the buyback page (WoW: Forever only).
     if GC.VendorSales then GC.VendorSales.OnChanged(time()) end
+    -- What the bags hold, and the bank while it is open, for goldcap.gg's holdings. Both games.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnBags, time()) end
   elseif event == "CURSOR_CHANGED" then
     if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end
   elseif event == "MERCHANT_SHOW" then
@@ -1170,10 +1200,21 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.VendorSellCard then GC.VendorSellCard.OnTradeTimerConfirm() end
   elseif event == "BANKFRAME_OPENED" then
     if GC.BankRoute then GC.BankRoute.OnBankOpened() end
+    -- The bank's containers answer only while it is open (Core/HoldingsRecord.lua). Both games.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnBankOpened, time()) end
   elseif event == "BANKFRAME_CLOSED" then
     if GC.BankRoute then GC.BankRoute.OnBankClosed() end
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnBankClosed) end
   elseif event == "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" then
     if GC.BankRoute then GC.BankRoute.OnTabSlotsChanged() end
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnBankSlots) end
+  elseif event == "GUILDBANKFRAME_OPENED" then
+    -- The guild bank, for goldcap.gg's holdings (Core/HoldingsRecord.lua), both games.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankOpened, time()) end
+  elseif event == "GUILDBANKFRAME_CLOSED" then
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankClosed) end
+  elseif event == "GUILDBANKBAGSLOTS_CHANGED" then
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankSlots, time()) end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Rows written while the client named no realm ("Name-", Core/Game.lua) go back under the
     -- character's realm as soon as it is known. Once a session; the GUID is there by now.
@@ -1211,6 +1252,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC._saidAtLogin = true
       C_Timer.After(LOGIN_LINE_DELAY, function() pcall(GC.WelcomeUI.SayAtLogin) end)
     end
+    -- What the bags hold, for goldcap.gg's holdings: not full at login while the client has no
+    -- bags yet, and read again on the BAG_UPDATE_DELAYED that brings them. Both games.
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnBags, time()) end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     -- ...and for an item whose vendor price, quality or deposit a build could not read.

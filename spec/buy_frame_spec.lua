@@ -199,6 +199,9 @@ describe("BuyFrame", function()
 
     helper.loadModule("Core/ListStrings.lua", GC)
     helper.loadModule("Core/BuyRecents.lua", GC)
+    -- The bank's containers BuyLists walks for names (GC.HoldingsRecord.BankBags), loaded before it
+    -- in both TOCs.
+    helper.loadModule("Core/HoldingsRecord.lua", GC)
     helper.loadModule("UI/BuyFrame.lua", GC)
     helper.loadModule("UI/BuyLists.lua", GC)
     helper.loadModule("UI/BuyAddBox.lua", GC)
