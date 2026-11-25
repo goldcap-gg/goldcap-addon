@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.39.1 (2026-11-25)
+
+- WoW: Forever: an Under market row for gear names the version it is priced for, such as
+  Aboriginal Sash of Shadow Wrath, in DEALS and in its Check, and its tooltip and a shift-click
+  show that version's stats. It used to name only the item, though each version has its own stats
+  and sells for its own price.
+
 ## 0.39.0 (2026-11-25)
 
 - SELL no longer says "first in line" for a lot listed at the same price as someone else's: it
