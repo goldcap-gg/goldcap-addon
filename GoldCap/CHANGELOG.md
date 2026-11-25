@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.39.1 (unreleased)
+## 0.39.1 (2026-11-25)
 
 - WoW: Forever: an Under market row for gear names the version it is priced for, such as
   Aboriginal Sash of Shadow Wrath, in DEALS and in its Check, and its tooltip and a shift-click
