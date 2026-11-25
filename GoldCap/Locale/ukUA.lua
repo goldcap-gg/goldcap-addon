@@ -746,6 +746,7 @@ GC.Locales.ukUA = {
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
   ["first in line"] = "перший у черзі",
+  ["tied with %s"] = "нарівні з %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Коштує %s. З вашим лімітом %d%% на одну купівлю на цьому персонажі потрібно %s.",
   ["fresh"] = "свіже",
   ["full scan already in progress"] = "повне сканування вже триває",
@@ -872,6 +873,7 @@ GC.Locales.ukUA = {
     "регіон %s · вбудовано: %d предметів (%s), імпортовано: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "регіон виправлено в %d записах; %d продажів зіставлено зі своїм запасом",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "предмет вказано в %d продажах, записаних без нього; %d зіставлено зі своїм запасом",
   ["relisting now would lock in a loss or a stall. Hold"] =
     "перевиставлення зараз зафіксує збиток або застій. Притримайте",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =

@@ -362,6 +362,7 @@ function FIT.need(key, deck)
     local stand = math.max(FIT.width(10, GC.L["first in line"]),
       FIT.width(10, (GC.L["%s ahead"]):format(count)),
       FIT.width(10, (GC.L["%s+ ahead"]):format(count)),
+      FIT.width(10, (GC.L["tied with %s"]):format(count)),
       FIT.width(10, (GC.L["%s under you"]):format(count)))
     if stand > 0 then FIT.cache.price = math.max(FIT.cache.price or 0, stand + ROW.MARKS_W) end
     local margin = math.max(FIT.width(11, GC.L["no cost"]), FIT.width(11, (GC.L["no cost for %d"]):format(999)), FIT.width(11, "+9999%"))

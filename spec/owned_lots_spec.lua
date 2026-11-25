@@ -34,6 +34,17 @@ describe("Owned lots store", function()
     assert.is_nil(row.cancelledAt)
   end)
 
+  -- The lot's own name, the variant's (a random suffix), off its link: what its sale mail says.
+  it("keeps the lot's own name from its link, and the last one read", function()
+    local link = "|cff1eff00|Hitem:15213::::::1027:::::::::|h[Edged Bastard Sword of the Wolf]|h|r"
+    GC.Data.RecordOwnedLots(db, { lot({ itemLink = link }) }, scope, 1000)
+    assert.equal("Edged Bastard Sword of the Wolf", db.ownedLots[1].itemName)
+    GC.Data.RecordOwnedLots(db, { lot() }, scope, 1100)
+    assert.equal("Edged Bastard Sword of the Wolf", db.ownedLots[1].itemName)
+    GC.Data.RecordOwnedLots(db, { lot({ auctionID = 5, itemLink = "|Hitem:1::|h[]|h" }) }, scope, 1100)
+    assert.is_nil(db.ownedLots[2].itemName)
+  end)
+
   it("keeps cancelledAt when a re-seen lot's price and quantity are unchanged", function()
     GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
     GC.Data.MarkOwnedLotCancelled(db, 1932076389, scope, 1050)
@@ -178,6 +189,68 @@ describe("Owned lots store", function()
       local other = { char = "Bjorn-Area52", region = "us" }
       assert.is_nil(GC.Data.MarkOwnedLotCancelled(db, 1932076389, other, 1050))
       assert.is_nil(db.ownedLots[1].cancelledAt)
+    end)
+  end)
+
+  -- The four rival fields of the contract with the Companion and the site: set on a lot of the
+  -- player's when an answer for its exact item is read (Services/Sell/Owned.lua's StampRivals),
+  -- all four absent while nothing has been read for it.
+  describe("RecordRivalFacts", function()
+    local FACTS = { rivalUnit = 900000, rivalAhead = 12, rivalTied = 3 }
+
+    it("stamps the four fields on this character's lot, with when the answer was read", function()
+      GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
+      assert.is_nil(db.ownedLots[1].rivalAt)
+      assert.equal(1, GC.Data.RecordRivalFacts(db, { [1932076389] = FACTS }, scope, 1040))
+      local row = db.ownedLots[1]
+      assert.equal(1040, row.rivalAt)
+      assert.equal(900000, row.rivalUnit)
+      assert.equal(12, row.rivalAhead)
+      assert.equal(3, row.rivalTied)
+      -- The roster's next read keeps them: the same lot at the same price.
+      GC.Data.RecordOwnedLots(db, { lot() }, scope, 1100)
+      assert.equal(1040, db.ownedLots[1].rivalAt)
+      -- A part sale leaves the price, and what stands under and at it, as they were.
+      GC.Data.RecordOwnedLots(db, { lot({ quantity = 5 }) }, scope, 1200)
+      assert.equal(12, db.ownedLots[1].rivalAhead)
+    end)
+
+    it("drops a rivalUnit the next answer does not have: only the player's own were listed", function()
+      GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
+      GC.Data.RecordRivalFacts(db, { [1932076389] = FACTS }, scope, 1040)
+      GC.Data.RecordRivalFacts(db, { [1932076389] = { rivalAhead = 0, rivalTied = 0 } }, scope, 1080)
+      local row = db.ownedLots[1]
+      assert.equal(1080, row.rivalAt)
+      assert.is_nil(row.rivalUnit)
+      assert.equal(0, row.rivalAhead)
+      assert.equal(0, row.rivalTied)
+    end)
+
+    it("clears all four once the lot's price is no longer the one they were read against", function()
+      GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
+      GC.Data.RecordRivalFacts(db, { [1932076389] = FACTS }, scope, 1040)
+      GC.Data.RecordOwnedLots(db, { lot({ unitPrice = 900000 }) }, scope, 1100)
+      local row = db.ownedLots[1]
+      assert.is_nil(row.rivalAt)
+      assert.is_nil(row.rivalUnit)
+      assert.is_nil(row.rivalAhead)
+      assert.is_nil(row.rivalTied)
+    end)
+
+    it("stamps no other character's lot, no cancelled lot and nothing from a malformed fact", function()
+      local other = { char = "Bjorn-Area52", region = "eu" }
+      GC.Data.RecordOwnedLots(db, { lot() }, other, 1000)
+      assert.equal(0, GC.Data.RecordRivalFacts(db, { [1932076389] = FACTS }, scope, 1040))
+      assert.is_nil(db.ownedLots[1].rivalAt)
+      GC.Data.RecordOwnedLots(db, { lot({ auctionID = 7 }) }, scope, 1000)
+      GC.Data.MarkOwnedLotCancelled(db, 7, scope, 1010)
+      assert.equal(0, GC.Data.RecordRivalFacts(db, { [7] = FACTS }, scope, 1040))
+      GC.Data.RecordOwnedLots(db, { lot({ auctionID = 8 }) }, scope, 1000)
+      assert.equal(0, GC.Data.RecordRivalFacts(db, { [8] = { rivalAhead = -1, rivalTied = 0 } }, scope, 1040))
+      assert.equal(0, GC.Data.RecordRivalFacts(db, { [8] = { rivalAhead = 0, rivalTied = 0, rivalUnit = 1.5 } }, scope, 1040))
+      assert.is_nil(GC.Data.RecordRivalFacts(db, { [8] = FACTS }, { char = "nope" }, 1040))
+      assert.is_nil(GC.Data.RecordRivalFacts(db, { [8] = FACTS }, scope, 0))
+      assert.is_nil(GC.Data.RecordRivalFacts({}, { [8] = FACTS }, scope, 1040))
     end)
   end)
 end)

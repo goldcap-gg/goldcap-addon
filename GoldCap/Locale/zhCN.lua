@@ -713,6 +713,7 @@ GC.Locales.zhCN = {
   ["far below market"] = "远低于市场价",
   ["finish the pending buy first"] = "请先完成进行中的购买",
   ["first in line"] = "排在第一位",
+  ["tied with %s"] = "与 %s 同价",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "花费 %s。按你 %d%% 的单次购买上限，这个角色需要持有 %s。",
   ["fresh"] = "最新",
   ["full scan already in progress"] = "完整扫描已在进行中",
@@ -827,6 +828,7 @@ GC.Locales.zhCN = {
     "地区 %s · 内置：%d 个物品（%s），导入：%s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "已修正 %d 条账目的区域；%d 笔销售重新对上了库存",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "已为 %d 笔未记录物品的销售补上物品；%d 笔重新对上了库存",
   ["relisting now would lock in a loss or a stall. Hold"] = "现在重新上架会锁定亏损或滞销。先保留",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =
     "已删除邮件扫描错误留下的 %d 条重复购买记录",

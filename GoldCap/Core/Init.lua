@@ -356,7 +356,7 @@ end
 -- What each character holds, for goldcap.gg (Core/HoldingsRecord.lua), both games: the guild bank
 -- while it is open, and the server's answer to a mail sent. Each in its own pcall, like the bank's.
 for _, holdingsEvent in ipairs({ "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED", "GUILDBANKBAGSLOTS_CHANGED",
-    "MAIL_SEND_SUCCESS", "MAIL_FAILED" }) do
+    "GUILDBANK_UPDATE_TABS", "MAIL_SEND_SUCCESS", "MAIL_FAILED" }) do
   pcall(frame.RegisterEvent, frame, holdingsEvent)
 end
 frame:RegisterEvent("PLAYER_LOGOUT")
@@ -816,6 +816,16 @@ frame:SetScript("OnEvent", function(_, event, ...)
           :format(#repairedRows, reconciled))
       end
     end
+    -- One-shot naming of the item on the sales the mailbox recorded without one (Core/Acquisitions.lua's
+    -- RepairSaleItemIDs), each offered back to reconciliation. After the region repair: a sale is
+    -- named from rows of its own region.
+    if GC.Acquisitions and acquisitionsInitialized and GC.Acquisitions.RepairSaleItemIDs then
+      local named, matched = GC.Acquisitions.RepairSaleItemIDs()
+      if named > 0 and GC.Print then
+        GC.Print((GC.L["named the item of %d sales recorded without it; %d matched back to their stock"])
+          :format(named, matched))
+      end
+    end
     if GC.PurchaseCapture and GC.PurchaseCapture.Init and hooksecurefunc and C_AuctionHouse then
       GC.PurchaseCapture.Init({
         hooksecurefunc = hooksecurefunc,
@@ -1215,6 +1225,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankClosed) end
   elseif event == "GUILDBANKBAGSLOTS_CHANGED" then
     if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankSlots, time()) end
+  elseif event == "GUILDBANK_UPDATE_TABS" then
+    if GC.HoldingsRecord then pcall(GC.HoldingsRecord.OnGuildBankTabs, time()) end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Rows written while the client named no realm ("Name-", Core/Game.lua) go back under the
     -- character's realm as soon as it is known. Once a session; the GUID is there by now.

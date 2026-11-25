@@ -727,6 +727,7 @@ GC.Locales.koKR = {
   ["far below market"] = "시세보다 훨씬 낮음",
   ["finish the pending buy first"] = "진행 중인 구매를 먼저 끝내세요",
   ["first in line"] = "맨 앞 순서",
+  ["tied with %s"] = "같은 가격 %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "가격은 %s입니다. 1회 구매 한도 %d%% 기준으로 이 캐릭터에 %s 이상 있어야 합니다.",
   ["fresh"] = "최신",
   ["full scan already in progress"] = "전체 검색이 이미 진행 중입니다",
@@ -847,6 +848,7 @@ GC.Locales.koKR = {
     "지역 %s · 내장: 아이템 %d개 (%s), 가져옴: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "장부 %d줄의 지역을 바로잡고, 판매 %d건을 재고와 다시 연결했습니다",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "아이템 없이 기록된 판매 %d건에 아이템을 찾아 넣고, %d건을 재고와 다시 연결했습니다",
   ["relisting now would lock in a loss or a stall. Hold"] =
     "지금 재등록하면 손실이나 정체가 확정됩니다. 보류하세요",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =

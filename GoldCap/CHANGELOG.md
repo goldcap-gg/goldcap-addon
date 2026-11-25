@@ -1,5 +1,22 @@
 # GoldCap
 
+## 0.39.0 (2026-11-25)
+
+- SELL no longer says "first in line" for a lot listed at the same price as someone else's: it
+  says "tied with" and how many of theirs are at that price. An item you are about to post at
+  someone else's price says the same; a commodity you are about to post is still first at its
+  price, since the newest listing at a price sells first.
+- THE BOOK under a lot you have listed, with none of it left in your bags, says where that lot
+  stands. It used to say "your price is above every level shown" and "0 ahead of you" of a lot
+  listed at the cheapest price.
+- GoldCap now remembers, for each lot you have listed, the cheapest price someone else asks and how
+  many of theirs are listed under and at your price, so goldcap.gg can show where your lots stand.
+- WoW: Forever: SOLD shows the icon and the profit of gear you sold, such as Hook Dagger of Power.
+  A piece named for its bonus ("of the Defender") was not matched to its purchase, so its icon
+  stayed empty and its profit read "-". A sale now knows the item it sold, on both games, and on
+  the first login with this version GoldCap matches the sales it already recorded and says how
+  many.
+
 ## 0.38.0 (2026-11-25)
 
 - GoldCap now remembers what your characters keep in their bags, bank, mailbox, auctions and guild

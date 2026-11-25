@@ -297,6 +297,7 @@ GC.Locales.enUS = {
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",
+  ["tied with %s"] = "tied with %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Costs %s. With your %d%% per-buy limit you need %s on this character.",
   ["fresh"] = "fresh",
   ["hold"] = "hold",
@@ -926,6 +927,7 @@ GC.Locales.enUS = {
   ["region %s · bundled: %d items (%s), imported: %s"] = "region %s · bundled: %d items (%s), imported: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "region corrected on %d ledger rows; %d sales matched back to their stock",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "named the item of %d sales recorded without it; %d matched back to their stock",
   ["relisting now would lock in a loss or a stall. Hold"] = "relisting now would lock in a loss or a stall. Hold",
   ["removed %d duplicate purchase record left by a mail-scan bug"] = "removed %d duplicate purchase record left by a mail-scan bug",
   ["removed %d duplicate purchase records left by a mail-scan bug"] = "removed %d duplicate purchase records left by a mail-scan bug",

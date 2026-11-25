@@ -140,6 +140,9 @@ describe("Sell widget geometry and manual cost", function()
         -- And for the same reason again: Standing is the arithmetic behind the line under a
         -- row's price, and a stand-in would let that line say anything.
         Standing = realViewModel.SellViewModel.Standing,
+        -- ...and the words said for it, and the listed lots' unit THE BOOK's drawer says them of.
+        PlaceWords = realViewModel.SellViewModel.PlaceWords,
+        ListedUnit = realViewModel.SellViewModel.ListedUnit,
         SourceText = function() return "GC ×1" end,
         CostText = function() return "Set cost" end,
         ProfitText = function() return "Unknown" end,
@@ -1637,6 +1640,59 @@ describe("Sell widget geometry and manual cost", function()
       -- One count: with THE BOOK's marker drawn, the listed lot's own "N ahead of you" is not
       -- said beside a time that is about the post price (review N2).
       assert.is_nil(facts:find("ahead of you", 1, true), facts)
+    end)
+
+    -- Owner's WoW: Forever screen (2026-11-25): Embossed Plate Bracers of the Defender listed at
+    -- 2g24s, the cheapest level of THE BOOK and drawn as theirs, none in the bags. The line under
+    -- the book said "your price is above every level shown", and the facts "0 ahead of you".
+    describe("a listed lot with no price to post", function()
+      local KEY = "item:9972:42:14333:0"
+      local function drawerFor(GC, levels, over)
+        local rows = {}
+        for i, level in ipairs(levels) do
+          local own = level.ownerItem and level.quantity or 0
+          rows[i] = { kind = "level", unit = level.unitPrice, units = level.quantity, ownerUnits = own, mine = own > 0 }
+        end
+        local book = { levels = #levels, totalUnits = #levels, truncated = false, widest = 1, ownUnits = 1,
+          commodity = false, rows = rows }
+        for k, v in pairs(over or {}) do book[k] = v end
+        GC.SellUI.expanded = { [KEY] = true }
+        GC.SellViewModel.Expansion = function()
+          return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = book, ahead = 0, sold = 2 }
+        end
+        local lot = { itemID = 9972, itemName = "Embossed Plate Bracers of the Defender", positionKey = KEY,
+          coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 4070, bagQty = 0, listedQty = 1,
+          listedValue = 22400, sources = {}, levels = levels }
+        return nth(topRows(GC, { lot }, "listed"), "drawer")
+      end
+
+      it("says the lot is first in line, once, when nobody else is at its price", function()
+        local GC = load(620, { calls = {} })
+        local drawer = drawerFor(GC, { { unitPrice = 22400, quantity = 1, ownerItem = true },
+          { unitPrice = 23000, quantity = 1 } })
+        assert.equal("first in line", drawer.drawerStand.text)
+        assert.same({ 0, 1, 0, 1 }, drawer.drawerStand.color)
+        assert.is_nil(drawer.drawerFacts.text:find("ahead of you", 1, true), drawer.drawerFacts.text)
+      end)
+
+      it("says the lot is tied with a rival's at its price, and how far back it stands past cheaper ones", function()
+        local GC = load(620, { calls = {} })
+        local drawer = drawerFor(GC, { { unitPrice = 22400, quantity = 1 },
+          { unitPrice = 22400, quantity = 1, ownerItem = true } })
+        assert.equal("tied with 1", drawer.drawerStand.text)
+        local WATCH = GC.Theme.color.watch
+        assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, drawer.drawerStand.color)
+        drawer = drawerFor(GC, { { unitPrice = 21000, quantity = 3 }, { unitPrice = 22400, quantity = 1, ownerItem = true } })
+        assert.equal("3 ahead", drawer.drawerStand.text)
+      end)
+
+      it("keeps the words for a price above the book to a price that really is", function()
+        local GC = load(620, { calls = {} })
+        local drawer = drawerFor(GC, { { unitPrice = 22400, quantity = 1, ownerItem = true } }, { yourUnit = 30000 })
+        assert.equal("your price is above every level shown", drawer.drawerStand.text)
+        -- The listed lot's place goes to the facts then, in the row's own words.
+        assert.matches("first in line", drawer.drawerFacts.text, 1, true)
+      end)
     end)
 
     -- "clears in" and a lot's "N ahead of you" go through the string layer like the rest of the
@@ -3210,6 +3266,33 @@ describe("Sell widget geometry and manual cost", function()
       assert.same({ 0, 1, 0, 1 }, rows[1].priceStand.color)
       -- Matching the cheapest is first in line too: the newest listing at a price sells first.
       rows = topRows(GC, { stock({ postRecommendation = { unit = 179000 } }) })
+      assert.equal("first in line", rows[1].priceStand.text)
+    end)
+
+    -- goldcap-addon#59: the auction window listed a rival's 1g70s above the player's own 1g70s and
+    -- GoldCap said "first in line". A lot level with a rival is tied; a commodity about to be
+    -- posted is still first at its price (above), an item about to be posted is tied.
+    it("says a lot level with a rival's listing is tied with it, never first in line", function()
+      local GC = load(620, { calls = {} })
+      local lot = stock({ bagQty = 0, listedQty = 20, listedValue = 20 * 179000 })
+      local rows = topRows(GC, { lot }, "listed")
+      assert.equal("tied with 35", rows[2].priceStand.text)
+      local DIM = GC.Theme.color.fgDim
+      assert.same({ DIM[1], DIM[2], DIM[3], 1 }, rows[2].priceStand.color)
+      -- The player's own 20 at that price are no rival: the rival's 35 alone are counted.
+      lot.levels = { { unitPrice = 179000, quantity = 55, ownerQty = 20 }, { unitPrice = 181500, quantity = 240 } }
+      rows = topRows(GC, { lot }, "listed")
+      assert.equal("tied with 35", rows[2].priceStand.text)
+      lot.levels = { { unitPrice = 179000, quantity = 20, ownerQty = 20 }, { unitPrice = 181500, quantity = 240 } }
+      rows = topRows(GC, { lot }, "listed")
+      assert.equal("first in line", rows[2].priceStand.text)
+    end)
+
+    it("says an item about to be posted at a rival's price is tied with it", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock({ positionKey = "item:42:0:0:0", postRecommendation = { unit = 179000 } }) })
+      assert.equal("tied with 35", rows[1].priceStand.text)
+      rows = topRows(GC, { stock({ positionKey = "item:42:0:0:0", postRecommendation = { unit = 178900 } }) })
       assert.equal("first in line", rows[1].priceStand.text)
     end)
 

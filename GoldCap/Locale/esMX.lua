@@ -769,6 +769,7 @@ GC.Locales.esMX = {
   ["far below market"] = "muy por debajo del mercado",
   ["finish the pending buy first"] = "termina primero la compra pendiente",
   ["first in line"] = "primero en la fila",
+  ["tied with %s"] = "empatado con %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Cuesta %s. Con tu límite por compra del %d%% necesitas %s en este personaje.",
   ["fresh"] = "reciente",
   ["full scan already in progress"] = "el escaneo completo ya está en marcha",
@@ -897,6 +898,7 @@ GC.Locales.esMX = {
     "región %s · incluidos: %d objetos (%s), importados: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "región corregida en %d registros; %d ventas emparejadas de nuevo con su inventario",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "artículo añadido a %d ventas registradas sin él; %d emparejadas de nuevo con su inventario",
   ["relisting now would lock in a loss or a stall. Hold"] =
     "republicar ahora fijaría una pérdida o un estancamiento. Espera",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =

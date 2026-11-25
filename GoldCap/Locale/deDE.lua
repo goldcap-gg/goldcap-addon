@@ -767,6 +767,7 @@ GC.Locales.deDE = {
   ["far below market"] = "weit unter Markt",
   ["finish the pending buy first"] = "zuerst den laufenden Kauf abschließen",
   ["first in line"] = "als Erster dran",
+  ["tied with %s"] = "gleichauf mit %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Kostet %s. Mit deinem Limit pro Kauf von %d%% brauchst du %s auf diesem Charakter.",
   ["fresh"] = "aktuell",
   ["full scan already in progress"] = "vollständiger Scan läuft bereits",
@@ -895,6 +896,7 @@ GC.Locales.deDE = {
     "Region %s · mitgeliefert: %d Gegenstände (%s), importiert: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "Region bei %d Buchungen korrigiert; %d Verkäufe wieder ihrem Bestand zugeordnet",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "Artikel bei %d Verkäufen ohne Artikel ergänzt; %d wieder ihrem Bestand zugeordnet",
   ["relisting now would lock in a loss or a stall. Hold"] =
     "jetzt neu einzustellen würde einen Verlust oder Stillstand festschreiben. Halten",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =

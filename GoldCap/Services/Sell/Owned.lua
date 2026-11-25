@@ -178,6 +178,35 @@ function GC.Sell.OwnedLot(auctionID)
     positionKey = newest.isCommodity == true and ("commodity:" .. newest.itemID) or nil }
 end
 
+-- An answer of the auction house onto the player's own listed lots it is THE BOOK of: `kind`
+-- ("item" or "commodity") and `quoteID` say which search it answers (an item ID, or a variant's own
+-- key, Services/Sell/Quotes.lua), and each lot of a position priced by that search
+-- (`quoteKey or itemID`, the rule decoratePosition reads quotes by) takes what stands under and at
+-- its price (GC.SellViewModel.RivalFacts) on its saved row (GC.Data.RecordRivalFacts), for
+-- goldcap.gg. A lot of one variant sits on a position searched by its own key (SellPositions'
+-- `quoteKey`: a random suffix, a level, a species), so an answer for "of the Bear" never stamps a
+-- lot "of the Owl", and the bare item's answer never stamps a variant's lot.
+function Owned.StampRivals(kind, quoteID, levels)
+  if quoteID == nil or type(levels) ~= "table" then return end
+  if not (GC.Data and GC.Data.RecordRivalFacts and GC.SellViewModel and GC.SellViewModel.RivalFacts) then return end
+  local scope = context()
+  if not scope then return end
+  local prefix = kind == "commodity" and "commodity:" or "item:"
+  local facts, any = {}, false
+  for _, position in ipairs(S.positions or {}) do
+    if (position.quoteKey or position.itemID) == quoteID and type(position.positionKey) == "string"
+        and position.positionKey:sub(1, #prefix) == prefix then
+      for _, lot in ipairs(position.ownedLots or {}) do
+        if exact(lot.auctionID) then
+          local fact = GC.SellViewModel.RivalFacts(levels, lot.unitPrice)
+          if fact then facts[lot.auctionID], any = fact, true end
+        end
+      end
+    end
+  end
+  if any then GC.Data.RecordRivalFacts(GC.db, facts, scope, time()) end
+end
+
 -- `answered`: the read answers a query (OWNED_AUCTIONS_UPDATED, Core/Init.lua). The other callers
 -- re-read the client's cache, which a query alone refreshes, so a lot posted since may be missing.
 function GC.Sell.OnOwnedAuctions(answered)

@@ -736,6 +736,7 @@ GC.Locales.ruRU = {
   ["far below market"] = "сильно ниже рынка",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",
   ["first in line"] = "первый в очереди",
+  ["tied with %s"] = "наравне с %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Стоит %s. При вашем лимите %d%% на одну покупку на этом персонаже нужно %s.",
   ["fresh"] = "свежая",
   ["full scan already in progress"] = "полное сканирование уже идёт",
@@ -860,6 +861,7 @@ GC.Locales.ruRU = {
     "регион %s · встроено: %d предметов (%s), импортировано: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "регион исправлен в %d записях; %d продаж сопоставлено со своим запасом",
+  ["named the item of %d sales recorded without it; %d matched back to their stock"] = "предмет указан в %d продажах, записанных без него; %d сопоставлено со своим запасом",
   ["relisting now would lock in a loss or a stall. Hold"] =
     "перевыставление сейчас зафиксирует убыток или застой. Придержите",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =

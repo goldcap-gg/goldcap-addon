@@ -509,31 +509,97 @@ end
 --
 -- `ahead` is the stock queued at a strictly cheaper price that is NOT the player's own -- their
 -- own cheaper lots are not competition, the same subtraction the book makes level by level.
--- `slot` is which price level the unit lands on, counting from the cheapest (1), so a row can
--- show a position in the queue without opening anything; one past the last level means the
--- price sits above everything the auction house returned. nil when there is no book or no
--- price: an absent answer must not read as "nobody is ahead of you".
+-- `tied` is the stock that is not the player's own at exactly the price, summed over every row
+-- there: an item's book has a row per listing, and the report in goldcap-addon#59 had a rival's
+-- 1g70s row above the player's own 1g70s one. `slot` is which price level the unit lands on,
+-- counting from the cheapest (1), so a row can show a position in the queue without opening
+-- anything; one past the last level means the price sits above everything the auction house
+-- returned. nil when there is no book or no price: an absent answer must not read as "nobody is
+-- ahead of you".
 --
 -- Strictly cheaper for a price about to be posted too, the count THE BOOK's marker shows
--- (GC.SellViewModel.UnitsAhead): the newest listing at a price sells first.
+-- (GC.SellViewModel.UnitsAhead): the newest listing at a price sells first. What a tie means is
+-- PlaceWords' to say.
 function GC.SellViewModel.Standing(position, unit)
   local levels = type(position) == "table" and type(position.levels) == "table" and position.levels or nil
   if not levels or #levels == 0 or type(unit) ~= "number" or unit <= 0 then return nil end
-  local ahead, slot, seen = 0, nil, 0
+  local ahead, tied, slot, seen = 0, 0, nil, 0
   for i = 1, #levels do
     local level = levels[i]
     if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
       seen = seen + 1
+      local units = type(level.quantity) == "number" and level.quantity or 0
+      local others = math.max(0, units - ownUnits(level, units))
       if level.unitPrice < unit then
-        local units = type(level.quantity) == "number" and level.quantity or 0
-        ahead = ahead + math.max(0, units - ownUnits(level, units))
-      elseif not slot then
-        slot = seen
+        ahead = ahead + others
+      else
+        if not slot then slot = seen end
+        if level.unitPrice == unit then tied = tied + others end
       end
     end
   end
   if seen == 0 then return nil end
-  return { ahead = ahead, slot = slot or seen + 1 }
+  return { ahead = ahead, tied = tied, slot = slot or seen + 1 }
+end
+
+--- The words for where a price stands (Standing's answer), wherever a lot's place in line is said:
+-- a row's line under its price, THE BOOK's drawer. goldcap-addon#59: "first in line" was said of a
+-- lot level with a rival's. So, with `listed` true for a lot already standing at the price:
+-- - "N ahead" while others are listed under it;
+-- - "tied with N" while others are listed at exactly that price, N being their units: for a lot
+--   already listed nobody can tell which of the tied listings is newer, and for an item about to
+--   be posted the order of equal-price item listings is the game's and is not known;
+-- - "first in line" otherwise. A commodity about to be posted is first at its price whatever sits
+--   there: it will be the newest listing, and the newest sells first (live tape, 2026-10-17).
+-- Returns the words and which of the three they are ("ahead", "tied", "first"); nil without a
+-- standing.
+function GC.SellViewModel.PlaceWords(position, standing, listed)
+  if type(standing) ~= "table" or type(standing.ahead) ~= "number" then return nil end
+  local function count(n)
+    return GC.Util and GC.Util.FormatCount and GC.Util.FormatCount(n) or tostring(n)
+  end
+  if standing.ahead > 0 then return (GC.L["%s ahead"]):format(count(standing.ahead)), "ahead" end
+  local tied = type(standing.tied) == "number" and standing.tied or 0
+  local post = not listed and type(position) == "table" and isCommodity(position)
+  if tied > 0 and not post then return (GC.L["tied with %s"]):format(count(tied)), "tied" end
+  return GC.L["first in line"], "first"
+end
+
+--- The unit price a position's listed lots stand at, as MY LOTS shows it: what they are listed
+-- for over how many are listed. nil with nothing listed.
+function GC.SellViewModel.ListedUnit(position)
+  if type(position) ~= "table" then return nil end
+  local qty, value = position.listedQty, position.listedValue
+  if type(qty) ~= "number" or qty <= 0 or type(value) ~= "number" or value <= 0
+      or value ~= math.floor(value) then return nil end
+  return math.floor(value / qty)
+end
+
+--- What one answer of the auction house says about one of the player's own listed lots, in the
+-- shape GoldCapDB.ownedLots carries up to goldcap.gg (the contract the Companion and the site
+-- read): `rivalUnit`, the cheapest unit that is not the player's own (nil when only the player's
+-- own were listed), `rivalAhead`, units not the player's under the lot's `unitPrice`, and
+-- `rivalTied`, units not the player's at exactly it. "Not the player's" is THE BOOK's (ownUnits,
+-- Standing). nil when the answer cannot say: no level read, no price, or a read cut short
+-- (`levels.cut`, Services/Sell/Quotes.lua) at or before the lot's price, or before any listing
+-- not the player's: past the cut a count is only a floor.
+function GC.SellViewModel.RivalFacts(levels, unitPrice)
+  if type(levels) ~= "table" then return nil end
+  local standing = GC.SellViewModel.Standing({ levels = levels }, unitPrice)
+  if not standing then return nil end
+  local rival, last
+  for i = 1, #levels do
+    local level = levels[i]
+    if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
+      local units = type(level.quantity) == "number" and level.quantity or 0
+      if units - ownUnits(level, units) > 0 and (rival == nil or level.unitPrice < rival) then
+        rival = level.unitPrice
+      end
+      if last == nil or level.unitPrice > last then last = level.unitPrice end
+    end
+  end
+  if levels.cut == true and (rival == nil or unitPrice >= last) then return nil end
+  return { rivalUnit = rival, rivalAhead = standing.ahead, rivalTied = standing.tied }
 end
 
 -- `postQty`: how many units the next Post lists, when the caller knows better than the position

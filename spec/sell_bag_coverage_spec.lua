@@ -650,6 +650,97 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.same({ "item:222:619:0:0" }, keys)
   end)
 
+  -- goldcap.gg's rival facts on the player's own lots (GoldCapDB.ownedLots, GC.Data.RecordRivalFacts):
+  -- an answer is for one exact ItemKey, and only the lots of that key take what it says. WoW:
+  -- Forever's random suffixes share an item ID: an answer for "of the Bear" must never stamp an
+  -- "of the Owl" lot.
+  describe("the rival facts on the player's own lots", function()
+    local BEAR, OWL = key(222, 40, 1001), key(222, 40, 1002)
+    local stamped
+
+    before_each(function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      stamped = {}
+      GC.Data.RecordRivalFacts = function(_, facts, scope, now)
+        stamped.calls = (stamped.calls or 0) + 1
+        for auctionID, fact in pairs(facts) do stamped[auctionID] = fact end
+        stamped.scope, stamped.now = scope, now
+        return 0
+      end
+      kinds[222] = false
+      _G.C_AuctionHouse.GetOwnedAuctions = function()
+        return {
+          { auctionID = 901, itemKey = BEAR, quantity = 1, buyoutAmount = 30000, status = 0 },
+          { auctionID = 902, itemKey = OWL, quantity = 1, buyoutAmount = 30000, status = 0 },
+        }
+      end
+      GC.Sell.OnOwnedAuctions(true)
+    end)
+
+    it("stamps the lot of the answered suffix and leaves the other suffix's lot alone", function()
+      results["222:40:1001:0"] = {
+        { buyoutAmount = 29000, quantity = 2 },
+        { buyoutAmount = 30000, quantity = 1 },
+        { buyoutAmount = 30000, quantity = 1, containsOwnerItem = true },
+      }
+      compose()
+      GC.Sell.Refresh(true)
+      assert.equal("222:40:1001:0", searches[1])
+      GC.Sell.OnItemSearchResults(222, BEAR)
+      assert.same({ rivalUnit = 29000, rivalAhead = 2, rivalTied = 1 }, stamped[901])
+      assert.is_nil(stamped[902])
+      assert.equal("Owner-Dentarg", stamped.scope.char)
+      assert.equal(1000, stamped.now)
+    end)
+
+    it("stamps a bare item's lot from the bare item's answer, and no variant's lot from it", function()
+      _G.C_AuctionHouse.GetOwnedAuctions = function()
+        return { { auctionID = 903, itemKey = key(333), quantity = 1, buyoutAmount = 30000, status = 0 },
+          { auctionID = 901, itemKey = BEAR, quantity = 1, buyoutAmount = 30000, status = 0 } }
+      end
+      kinds[333] = false
+      GC.Sell.OnOwnedAuctions(true)
+      results["333:0:0:0"] = { { buyoutAmount = 29500, quantity = 4 }, { buyoutAmount = 30000, quantity = 1, containsOwnerItem = true } }
+      compose()
+      GC.Sell.Refresh(true)
+      while searches[1] and searches[1] ~= "333:0:0:0" do
+        GC.Sell.OnItemSearchResults(222, BEAR)
+        table.remove(searches, 1)
+      end
+      stamped = {}
+      GC.Sell.OnItemSearchResults(333, key(333))
+      assert.same({ rivalUnit = 29500, rivalAhead = 4, rivalTied = 0 }, stamped[903])
+      assert.equal(1, stamped.calls)
+      -- The item's bare key answers for every variant at once: no lot of one variant takes it.
+      stamped = {}
+      GC.SellOwned.StampRivals("item", 222, { { unitPrice = 1, quantity = 9 } })
+      assert.is_nil(stamped.calls)
+    end)
+
+    -- Retail: a recipe's ItemKey carries its one item level (a Midnight schematic is
+    -- item:278333:80), and a lot of it with nothing in the bags is no variant, so the tab prices it
+    -- by the bare item's search. That answer is its book, and its lot takes what it says.
+    it("stamps a lot that is no variant from the bare item's answer, its key's level and all", function()
+      GC.ForeverScan = nil
+      kinds[444] = false
+      _G.C_AuctionHouse.GetOwnedAuctions = function()
+        return { { auctionID = 904, itemKey = key(444, 80), quantity = 1, buyoutAmount = 17000, status = 0 } }
+      end
+      GC.Sell.OnOwnedAuctions(true)
+      results["444:0:0:0"] = { { buyoutAmount = 17000, quantity = 1 }, { buyoutAmount = 17000, quantity = 1, containsOwnerItem = true } }
+      compose()
+      assert.is_nil(positionOf("item:444:80:0:0").quoteKey)
+      GC.Sell.Refresh(true)
+      while searches[1] and searches[1] ~= "444:0:0:0" do
+        GC.Sell.OnItemSearchResults(222, BEAR)
+        table.remove(searches, 1)
+      end
+      stamped = {}
+      GC.Sell.OnItemSearchResults(444, key(444))
+      assert.same({ rivalUnit = 17000, rivalAhead = 0, rivalTied = 1 }, stamped[904])
+    end)
+  end)
+
   -- BagStock leaves a soulbound copy out, but the Post matcher could still pin one sharing the
   -- ItemKey -- the auction house refuses it, and the tradeable copy could never be posted (M8).
   it("never pins a soulbound copy for Post", function()

@@ -373,6 +373,15 @@ function Book.Paint(row, p, d)
   local book = d and d.book or nil
   row.drawerBookHead:SetText(GC.L["THE BOOK"]); row.drawerBookHead:Show()
   setColor(row.drawerBookHead, Theme.color.fgDim)
+  -- Where the listed lots stand in this book, in the words their own row says
+  -- (SellViewModel.PlaceWords): the player's own units left out, a tie said as one. nil without a
+  -- book, a listing, or a level to read it off.
+  local VM, lot, lotWords, lotPlace = GC.SellViewModel, nil, nil, nil
+  local listedUnit = book and VM.ListedUnit and VM.PlaceWords and VM.ListedUnit(p) or nil
+  if listedUnit then
+    lot = VM.Standing(p, listedUnit)
+    if lot then lotWords, lotPlace = VM.PlaceWords(p, lot, true) end
+  end
 
   -- ---- the book side: the evidence the price on the left stands on, beside it rather
   -- than eight rows below it.
@@ -406,9 +415,15 @@ function Book.Paint(row, p, d)
     elseif book.yourRow then
       row.drawerStand:SetText((GC.L["price stands %d of %d"]):format(book.yourRow, book.levels or 0))
       setColor(row.drawerStand, Theme.color.goldHi)
-    else
+    elseif book.yourUnit then
       row.drawerStand:SetText(GC.L["your price is above every level shown"])
       setColor(row.drawerStand, Theme.color.fgDim)
+    else
+      -- No price to post, nothing in the bags: the line says where the listed lot stands, or
+      -- nothing. It said "your price is above every level shown" of a lot listed at the cheapest
+      -- level (owner's WoW: Forever screen, 2026-11-25, Embossed Plate Bracers of the Defender).
+      row.drawerStand:SetText(lotWords or "")
+      setColor(row.drawerStand, lotPlace == "first" and Theme.color.green or Theme.color.watch)
     end
   else
     row.drawerHint:Hide()
@@ -443,9 +458,17 @@ function Book.Paint(row, p, d)
     quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
   end
   -- A listed lot's own queue -- but not beside THE BOOK's marker, whose count and times are
-  -- about the post price: one count on the panel, not two (review N2).
+  -- about the post price: one count on the panel, not two (review N2). Nor when the line under
+  -- the book already says it (no price to post). Read off the book like the row's own line, so a
+  -- tie is a tie here too; the engine's count, which keeps the player's own cheaper lots in,
+  -- only where there is no book to read.
   local marker = book and book.commodity and book.yourUnit
-  if d and type(d.ahead) == "number" and not marker then facts[#facts + 1] = (GC.L["%d ahead of you"]):format(d.ahead) end
+  local saidAbove = book and not book.yourUnit and lotWords ~= nil
+  if lot and not marker and not saidAbove then
+    facts[#facts + 1] = lotPlace == "ahead" and (GC.L["%d ahead of you"]):format(lot.ahead) or lotWords
+  elseif not lot and d and type(d.ahead) == "number" and not marker then
+    facts[#facts + 1] = (GC.L["%d ahead of you"]):format(d.ahead)
+  end
   if d and d.sold ~= nil then
     facts[#facts + 1] = (GC.L["sells %s/day"]):format(type(d.sold) == "number" and GC.Util.PerDay(d.sold) or d.sold)
   end
