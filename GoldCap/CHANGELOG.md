@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.38.0 (unreleased)
+## 0.38.0 (2026-11-25)
 
 - GoldCap now remembers what your characters keep in their bags, bank, mailbox, auctions and guild
   bank, so goldcap.gg can take goods you no longer have out of your stock by itself.
