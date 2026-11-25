@@ -575,6 +575,33 @@ function GC.SellViewModel.ListedUnit(position)
   return math.floor(value / qty)
 end
 
+--- What one answer of the auction house says about one of the player's own listed lots, in the
+-- shape GoldCapDB.ownedLots carries up to goldcap.gg (the contract the Companion and the site
+-- read): `rivalUnit`, the cheapest unit that is not the player's own (nil when only the player's
+-- own were listed), `rivalAhead`, units not the player's under the lot's `unitPrice`, and
+-- `rivalTied`, units not the player's at exactly it. "Not the player's" is THE BOOK's (ownUnits,
+-- Standing). nil when the answer cannot say: no level read, no price, or a read cut short
+-- (`levels.cut`, Services/Sell/Quotes.lua) at or before the lot's price, or before any listing
+-- not the player's: past the cut a count is only a floor.
+function GC.SellViewModel.RivalFacts(levels, unitPrice)
+  if type(levels) ~= "table" then return nil end
+  local standing = GC.SellViewModel.Standing({ levels = levels }, unitPrice)
+  if not standing then return nil end
+  local rival, last
+  for i = 1, #levels do
+    local level = levels[i]
+    if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
+      local units = type(level.quantity) == "number" and level.quantity or 0
+      if units - ownUnits(level, units) > 0 and (rival == nil or level.unitPrice < rival) then
+        rival = level.unitPrice
+      end
+      if last == nil or level.unitPrice > last then last = level.unitPrice end
+    end
+  end
+  if levels.cut == true and (rival == nil or unitPrice >= last) then return nil end
+  return { rivalUnit = rival, rivalAhead = standing.ahead, rivalTied = standing.tied }
+end
+
 -- `postQty`: how many units the next Post lists, when the caller knows better than the position
 -- (a number the seller typed). Optional; the position's own postable quantity otherwise.
 -- Enum.ItemClass Weapon and Armor: the items that come at several item levels.

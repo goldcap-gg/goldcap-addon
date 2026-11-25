@@ -1423,6 +1423,7 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
         -- price or quantity IS a new fact -- see RecordOwnedLots' own spec section.
         local samePriceQty = existing.quantity == incoming.quantity
           and existing.unitPrice == incoming.unitPrice
+        local priorUnit = existing.unitPrice
         existing.itemID = incoming.itemID
         existing.isCommodity = incoming.isCommodity
         existing.quantity = incoming.quantity
@@ -1431,6 +1432,10 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
         existing.region = scope.region
         existing.seenAt = now
         if not samePriceQty then existing.cancelledAt = nil end
+        -- What stood under and at the lot's price (RecordRivalFacts) was read against that price.
+        if existing.unitPrice ~= priorUnit then
+          existing.rivalAt, existing.rivalUnit, existing.rivalAhead, existing.rivalTied = nil, nil, nil, nil
+        end
       else
         local row = { auctionID = incoming.auctionID, itemID = incoming.itemID,
           isCommodity = incoming.isCommodity, quantity = incoming.quantity,
@@ -1462,6 +1467,31 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
   end
 
   return true
+end
+
+--- What one auction-house answer said about the player's own listed lots, onto their saved rows:
+-- `facts` is { [auctionID] = { rivalUnit, rivalAhead, rivalTied } } (GC.SellViewModel.RivalFacts,
+-- for the lots of the exact item that answer is for), and each row of this character and region
+-- it names that is not cancelled takes all three and `rivalAt = now`. A fact without a rivalUnit
+-- (only the player's own were listed) drops the one the row had. The contract shared with the
+-- Companion and the site: all four absent means nothing was read for the lot while it was up.
+-- Returns how many rows were stamped; nil for a bad call.
+function GC.Data.RecordRivalFacts(database, facts, scope, now)
+  if type(database) ~= "table" or type(database.ownedLots) ~= "table" then return nil end
+  if type(scope) ~= "table" or not validCharScope(scope.char) or not knownRegion(scope.region) then return nil end
+  if not isPositiveInteger(now) or type(facts) ~= "table" then return nil end
+  local stamped = 0
+  for _, row in ipairs(database.ownedLots) do
+    local fact = type(row) == "table" and row.char == scope.char and row.region == scope.region
+      and row.cancelledAt == nil and isPositiveInteger(row.auctionID) and facts[row.auctionID] or nil
+    if type(fact) == "table" and isNonNegativeInteger(fact.rivalAhead) and isNonNegativeInteger(fact.rivalTied)
+        and (fact.rivalUnit == nil or isPositiveInteger(fact.rivalUnit)) then
+      row.rivalAt, row.rivalUnit = now, fact.rivalUnit
+      row.rivalAhead, row.rivalTied = fact.rivalAhead, fact.rivalTied
+      stamped = stamped + 1
+    end
+  end
+  return stamped
 end
 
 function GC.Data.MarkOwnedLotCancelled(database, auctionID, scope, now)

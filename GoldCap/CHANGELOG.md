@@ -9,6 +9,8 @@
 - THE BOOK under a lot you have listed, with none of it left in your bags, says where that lot
   stands. It used to say "your price is above every level shown" and "0 ahead of you" of a lot
   listed at the cheapest price.
+- GoldCap now remembers, for each lot you have listed, the cheapest price someone else asks and how
+  many of theirs are listed under and at your price, so goldcap.gg can show where your lots stand.
 
 ## 0.38.0 (2026-11-25)
 

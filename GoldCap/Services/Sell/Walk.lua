@@ -694,6 +694,8 @@ local function quoteResolved(kind, itemID, unit, levels)
     persisted[itemID] = resolved and { unit = resolved.unit, at = resolved.at } or nil
   end
   if unit and S.quotes[itemID] then S.quotes[itemID].levels = levels end
+  -- The player's own lots of this exact item take what stands under and at their price.
+  if Owned.StampRivals then Owned.StampRivals(kind, itemID, levels) end
   -- Carry what this walk just saw out of the game (live-prices spec).
   -- Summarize gives the TRUE floor; `unit` here is the competing-not-own
   -- price and must not masquerade as the book minimum. Guarded like every
