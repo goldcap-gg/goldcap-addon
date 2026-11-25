@@ -736,6 +736,7 @@ GC.Locales.ruRU = {
   ["far below market"] = "сильно ниже рынка",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",
   ["first in line"] = "первый в очереди",
+  ["tied with %s"] = "наравне с %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Стоит %s. При вашем лимите %d%% на одну покупку на этом персонаже нужно %s.",
   ["fresh"] = "свежая",
   ["full scan already in progress"] = "полное сканирование уже идёт",

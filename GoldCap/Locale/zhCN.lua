@@ -713,6 +713,7 @@ GC.Locales.zhCN = {
   ["far below market"] = "远低于市场价",
   ["finish the pending buy first"] = "请先完成进行中的购买",
   ["first in line"] = "排在第一位",
+  ["tied with %s"] = "与 %s 同价",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "花费 %s。按你 %d%% 的单次购买上限，这个角色需要持有 %s。",
   ["fresh"] = "最新",
   ["full scan already in progress"] = "完整扫描已在进行中",

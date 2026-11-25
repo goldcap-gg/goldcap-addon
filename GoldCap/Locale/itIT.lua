@@ -764,6 +764,7 @@ GC.Locales.itIT = {
   ["far below market"] = "molto sotto mercato",
   ["finish the pending buy first"] = "completa prima l'acquisto in corso",
   ["first in line"] = "primo della fila",
+  ["tied with %s"] = "alla pari con %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Costa %s. Con il tuo limite per acquisto del %d%% ti servono %s su questo personaggio.",
   ["fresh"] = "recente",
   ["full scan already in progress"] = "scansione completa già in corso",

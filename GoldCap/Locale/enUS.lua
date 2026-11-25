@@ -297,6 +297,7 @@ GC.Locales.enUS = {
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",
+  ["tied with %s"] = "tied with %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Costs %s. With your %d%% per-buy limit you need %s on this character.",
   ["fresh"] = "fresh",
   ["hold"] = "hold",

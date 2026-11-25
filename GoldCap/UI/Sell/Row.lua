@@ -711,10 +711,15 @@ function Row.PaintPosition(row, entry, ctx)
   -- cheapest; the lit one is where this price lands -- gold for a price about to be
   -- posted, the watch blue for a lot already standing there, the same two colours the
   -- book itself uses for the same two facts.
-  -- Units under the price, what THE BOOK's marker says (SellViewModel.UnitsAhead): at an equal
-  -- price the newest listing sells first, so a post is first at its price.
+  -- Units under the price, what THE BOOK's marker says (SellViewModel.UnitsAhead), and the words
+  -- for them, PlaceWords': a lot level with others is "tied with N", a commodity about to be
+  -- posted is first at its price (goldcap-addon#59).
   local standing = rowUnit and GC.SellViewModel.Standing
     and GC.SellViewModel.Standing(p, rowUnit) or nil
+  local standWords, place
+  if standing and GC.SellViewModel.PlaceWords then
+    standWords, place = GC.SellViewModel.PlaceWords(p, standing, onListedDeck)
+  end
   local lit = onListedDeck and Theme.color.watch or Theme.color.gold
   -- Past the last mark the last one lights: a lot behind more levels than there are marks read
   -- as five grey ticks and nothing (owner's MY LOTS, 2026-11-21).
@@ -732,13 +737,13 @@ function Row.PaintPosition(row, entry, ctx)
   end
   -- The words under the marks, on both decks, as DEALS has them (owner, 2026-11-21: MY LOTS showed
   -- only the marks, its count up on the stock line).
-  if not standing then
+  if not standWords then
     row.priceStand:SetText("")
-  elseif standing.ahead == 0 then
-    row.priceStand:SetText(GC.L["first in line"])
+  elseif place == "first" then
+    row.priceStand:SetText(standWords)
     setColor(row.priceStand, Theme.color.green)
   else
-    row.priceStand:SetText((GC.L["%s ahead"]):format(GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
+    row.priceStand:SetText(standWords)
     -- Gold where those units are why the lot is worth cancelling; quiet on one being held.
     setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
       and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)

@@ -29,9 +29,13 @@ describe("Sell standing", function()
     assert.equal(3, standing.slot)
   end)
 
-  it("is first in line at or under the cheapest level", function()
-    assert.same({ ahead = 0, slot = 1 }, GC.SellViewModel.Standing({ levels = BOOK }, 1790))
-    assert.same({ ahead = 0, slot = 1 }, GC.SellViewModel.Standing({ levels = BOOK }, 1700))
+  -- At the cheapest level nothing is ahead, but the 35 listed there are level with the price
+  -- (goldcap-addon#59: a rival's 1g70s row above the player's own 1g70s one read "first in line").
+  it("counts nothing ahead at or under the cheapest level, and the level's own units as tied", function()
+    assert.same({ ahead = 0, tied = 35, slot = 1 }, GC.SellViewModel.Standing({ levels = BOOK }, 1790))
+    assert.same({ ahead = 0, tied = 0, slot = 1 }, GC.SellViewModel.Standing({ levels = BOOK }, 1700))
+    assert.equal(240, GC.SellViewModel.Standing({ levels = BOOK }, 1815).tied)
+    assert.equal(0, GC.SellViewModel.Standing({ levels = BOOK }, 1800).tied)
   end)
 
   it("lands one past the last level when the price is above the whole book", function()
@@ -47,6 +51,24 @@ describe("Sell standing", function()
       { unitPrice = 120, quantity = 10 },
     }
     assert.equal(30, GC.SellViewModel.Standing({ levels = levels }, 120).ahead)
+  end)
+
+  -- An item's book has a row per listing: a rival's row and the player's own at one price are two
+  -- rows, and only the rival's units are level with the lot. A commodity's level splits the
+  -- player's own out of its count (numOwnerItems).
+  it("sums the units that are not the player's over every row at the exact price", function()
+    local item = {
+      { unitPrice = 17000, quantity = 1 },
+      { unitPrice = 17000, quantity = 1, ownerItem = true },
+      { unitPrice = 17000, quantity = 2 },
+      { unitPrice = 18000, quantity = 5 },
+    }
+    assert.same({ ahead = 0, tied = 3, slot = 1 }, GC.SellViewModel.Standing({ levels = item }, 17000))
+    local commodity = { { unitPrice = 500, quantity = 40, ownerQty = 15 }, { unitPrice = 510, quantity = 9 } }
+    assert.same({ ahead = 0, tied = 25, slot = 1 }, GC.SellViewModel.Standing({ levels = commodity }, 500))
+    assert.same({ ahead = 25, tied = 9, slot = 2 }, GC.SellViewModel.Standing({ levels = commodity }, 510))
+    -- A level all the player's own is no tie.
+    assert.equal(0, GC.SellViewModel.Standing({ levels = { { unitPrice = 500, quantity = 4, ownerQty = 4 } } }, 500).tied)
   end)
 
   it("answers nothing without a book or without a price", function()

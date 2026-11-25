@@ -238,7 +238,7 @@ describe("row button labels fit the button", function()
       local GC = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", GC)
       local translations = GC.Locales[code]
-      for _, key in ipairs({ "%s ahead", "%s+ ahead", "first in line", "%s units in %d prices" }) do
+      for _, key in ipairs({ "%s ahead", "%s+ ahead", "first in line", "tied with %s", "%s units in %d prices" }) do
         local label = translations[key]
         assert.is_truthy(label, code .. " is missing " .. key)
         local shown = label:gsub("%%s", "5.6k"):gsub("%%d", "93")

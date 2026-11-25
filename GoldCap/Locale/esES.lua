@@ -767,6 +767,7 @@ GC.Locales.esES = {
   ["far below market"] = "muy por debajo del mercado",
   ["finish the pending buy first"] = "termina primero la compra pendiente",
   ["first in line"] = "primero en la cola",
+  ["tied with %s"] = "empatado con %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Cuesta %s. Con tu límite por compra del %d%% necesitas %s en este personaje.",
   ["fresh"] = "reciente",
   ["full scan already in progress"] = "el escaneo completo ya está en marcha",

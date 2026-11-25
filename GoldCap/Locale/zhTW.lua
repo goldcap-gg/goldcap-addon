@@ -714,6 +714,7 @@ GC.Locales.zhTW = {
   ["far below market"] = "遠低於市價",
   ["finish the pending buy first"] = "請先完成進行中的購買",
   ["first in line"] = "排在第一位",
+  ["tied with %s"] = "與 %s 同價",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "花費 %s。按你 %d%% 的單次購買上限，這個角色需要持有 %s。",
   ["fresh"] = "最新",
   ["full scan already in progress"] = "完整掃描已在進行中",

@@ -767,6 +767,7 @@ GC.Locales.deDE = {
   ["far below market"] = "weit unter Markt",
   ["finish the pending buy first"] = "zuerst den laufenden Kauf abschließen",
   ["first in line"] = "als Erster dran",
+  ["tied with %s"] = "gleichauf mit %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Kostet %s. Mit deinem Limit pro Kauf von %d%% brauchst du %s auf diesem Charakter.",
   ["fresh"] = "aktuell",
   ["full scan already in progress"] = "vollständiger Scan läuft bereits",

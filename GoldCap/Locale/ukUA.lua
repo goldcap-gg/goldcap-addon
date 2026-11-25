@@ -746,6 +746,7 @@ GC.Locales.ukUA = {
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
   ["first in line"] = "перший у черзі",
+  ["tied with %s"] = "нарівні з %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Коштує %s. З вашим лімітом %d%% на одну купівлю на цьому персонажі потрібно %s.",
   ["fresh"] = "свіже",
   ["full scan already in progress"] = "повне сканування вже триває",

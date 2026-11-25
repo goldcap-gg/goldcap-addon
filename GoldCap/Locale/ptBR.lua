@@ -763,6 +763,7 @@ GC.Locales.ptBR = {
   ["far below market"] = "bem abaixo do mercado",
   ["finish the pending buy first"] = "termine primeiro a compra pendente",
   ["first in line"] = "primeiro da fila",
+  ["tied with %s"] = "empatado com %s",
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Custa %s. Com o seu limite por compra de %d%% você precisa de %s neste personagem.",
   ["fresh"] = "recente",
   ["full scan already in progress"] = "a varredura completa já está em andamento",

@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.39.0 (unreleased)
+
+- SELL no longer says "first in line" for a lot listed at the same price as someone else's: it
+  says "tied with" and how many of theirs are at that price. An item you are about to post at
+  someone else's price says the same; a commodity you are about to post is still first at its
+  price, since the newest listing at a price sells first.
+
 ## 0.38.0 (2026-11-25)
 
 - GoldCap now remembers what your characters keep in their bags, bank, mailbox, auctions and guild

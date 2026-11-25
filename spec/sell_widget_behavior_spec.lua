@@ -140,6 +140,9 @@ describe("Sell widget geometry and manual cost", function()
         -- And for the same reason again: Standing is the arithmetic behind the line under a
         -- row's price, and a stand-in would let that line say anything.
         Standing = realViewModel.SellViewModel.Standing,
+        -- ...and the words said for it, and the listed lots' unit THE BOOK's drawer says them of.
+        PlaceWords = realViewModel.SellViewModel.PlaceWords,
+        ListedUnit = realViewModel.SellViewModel.ListedUnit,
         SourceText = function() return "GC ×1" end,
         CostText = function() return "Set cost" end,
         ProfitText = function() return "Unknown" end,
@@ -3210,6 +3213,33 @@ describe("Sell widget geometry and manual cost", function()
       assert.same({ 0, 1, 0, 1 }, rows[1].priceStand.color)
       -- Matching the cheapest is first in line too: the newest listing at a price sells first.
       rows = topRows(GC, { stock({ postRecommendation = { unit = 179000 } }) })
+      assert.equal("first in line", rows[1].priceStand.text)
+    end)
+
+    -- goldcap-addon#59: the auction window listed a rival's 1g70s above the player's own 1g70s and
+    -- GoldCap said "first in line". A lot level with a rival is tied; a commodity about to be
+    -- posted is still first at its price (above), an item about to be posted is tied.
+    it("says a lot level with a rival's listing is tied with it, never first in line", function()
+      local GC = load(620, { calls = {} })
+      local lot = stock({ bagQty = 0, listedQty = 20, listedValue = 20 * 179000 })
+      local rows = topRows(GC, { lot }, "listed")
+      assert.equal("tied with 35", rows[2].priceStand.text)
+      local DIM = GC.Theme.color.fgDim
+      assert.same({ DIM[1], DIM[2], DIM[3], 1 }, rows[2].priceStand.color)
+      -- The player's own 20 at that price are no rival: the rival's 35 alone are counted.
+      lot.levels = { { unitPrice = 179000, quantity = 55, ownerQty = 20 }, { unitPrice = 181500, quantity = 240 } }
+      rows = topRows(GC, { lot }, "listed")
+      assert.equal("tied with 35", rows[2].priceStand.text)
+      lot.levels = { { unitPrice = 179000, quantity = 20, ownerQty = 20 }, { unitPrice = 181500, quantity = 240 } }
+      rows = topRows(GC, { lot }, "listed")
+      assert.equal("first in line", rows[2].priceStand.text)
+    end)
+
+    it("says an item about to be posted at a rival's price is tied with it", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock({ positionKey = "item:42:0:0:0", postRecommendation = { unit = 179000 } }) })
+      assert.equal("tied with 35", rows[1].priceStand.text)
+      rows = topRows(GC, { stock({ positionKey = "item:42:0:0:0", postRecommendation = { unit = 178900 } }) })
       assert.equal("first in line", rows[1].priceStand.text)
     end)
 
